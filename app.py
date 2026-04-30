@@ -1597,10 +1597,16 @@ def cargar_productos():
     if not archivo or not archivo.filename:
         flash("Debe seleccionar un archivo CSV.", "warning")
         return redirect(url_for('mostrar_productos'))
+    if not archivo.filename.lower().endswith('.csv'):
+        flash("Formato inválido. Debe subir un archivo .csv (no Excel).", "warning")
+        return redirect(url_for('mostrar_productos'))
 
     # En producción (Render) los CSV suelen venir con codificaciones mixtas.
-    # Decodificamos primero el contenido completo con fallback para evitar 500.
+    # Limitamos tamaño para evitar OOM en plan free y decodificamos con fallback.
     contenido = archivo.read()
+    if len(contenido) > 5 * 1024 * 1024:
+        flash("El CSV excede 5MB. Divida el archivo en bloques.", "warning")
+        return redirect(url_for('mostrar_productos'))
     texto_csv = None
     for enc in ("utf-8-sig", "latin-1"):
         try:
