@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import csv
 import os
 import json
-from io import TextIOWrapper
 from functools import wraps
 from flask_login import current_user, login_required, UserMixin, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1594,16 +1593,27 @@ def guardar_producto():
 @app.route('/cargar_productos', methods=['POST'])
 @login_required
 def cargar_productos():
-    archivo = request.files['archivo']
-    if not archivo:
-        return "No se subió archivo", 400
-    try:
-        stream = TextIOWrapper(archivo.stream, encoding='utf-8')
-        reader = csv.DictReader(stream)
-    except UnicodeDecodeError:
-        archivo.stream.seek(0)
-        stream = TextIOWrapper(archivo.stream, encoding='latin-1')
-        reader = csv.DictReader(stream)
+    archivo = request.files.get('archivo')
+    if not archivo or not archivo.filename:
+        flash("Debe seleccionar un archivo CSV.", "warning")
+        return redirect(url_for('mostrar_productos'))
+
+    # En producción (Render) los CSV suelen venir con codificaciones mixtas.
+    # Decodificamos primero el contenido completo con fallback para evitar 500.
+    contenido = archivo.read()
+    texto_csv = None
+    for enc in ("utf-8-sig", "latin-1"):
+        try:
+            texto_csv = contenido.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if texto_csv is None:
+        flash("No se pudo leer el CSV. Use UTF-8 o Latin-1.", "danger")
+        return redirect(url_for('mostrar_productos'))
+
+    reader = csv.DictReader(io.StringIO(texto_csv))
     creados = 0
     actualizados = 0
     omitidos = 0
