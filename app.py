@@ -2396,22 +2396,35 @@ def procesar_cobro_caja(id):
 
 # busca productos por código o nombre para agregar en venta........................................
 @app.route('/buscar_producto')
+@login_required
 def buscar_producto():
-    q = request.args.get('q', '')
-    productos = Producto.query.filter(
-        (Producto.nombre.like(f"%{q}%")) |
-        (Producto.codigo_barra.like(f"%{q}%"))
-    ).limit(20).all()
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({"results": []})
+
+    like = f"%{q}%"
+    productos = (
+        Producto.query.filter(Producto.activo.isnot(False))
+        .filter(
+            (Producto.nombre.ilike(like)) |
+            (Producto.codigo_barra.ilike(like))
+        )
+        .limit(20)
+        .all()
+    )
 
     results = []
     for p in productos:
+        codigo = (p.codigo_barra or "").strip()
+        if not codigo:
+            continue
         results.append({
-            "id": p.codigo_barra,
+            "id": codigo,
             "producto_id": p.id,
-            "text": f"{p.nombre} ({p.codigo_barra})"
+            "text": f"{p.nombre} ({codigo})"
         })
 
-    return {"results": results}
+    return jsonify({"results": results})
 
 # proceso de apertura de caja desde pantalla de caja........................................................................
 
