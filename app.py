@@ -472,11 +472,17 @@ class RecepcionCompra(db.Model):
     __tablename__ = 'recepciones_compra'
     id = db.Column(db.Integer, primary_key=True)
     proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=False)
-    documento_tipo = db.Column(db.Enum('Factura', 'Guia de Despacho'), nullable=False)
+    documento_tipo = db.Column(
+        db.Enum('Factura', 'Guia de Despacho', name='recepciones_documento_tipo_enum'),
+        nullable=False
+    )
     documento_numero = db.Column(db.String(50), nullable=False)
     fecha_recepcion = db.Column(db.DateTime, default=db.func.current_timestamp())
     usuario_bodega = db.Column(db.String(100))
-    estado = db.Column(db.Enum('Pendiente', 'Incompleta', 'Finalizada'), default='Pendiente')
+    estado = db.Column(
+        db.Enum('Pendiente', 'Incompleta', 'Finalizada', name='recepciones_estado_enum'),
+        default='Pendiente'
+    )
 
     proveedor = db.relationship('Proveedor', backref='recepciones')
     detalles = db.relationship('DetalleRecepcion', backref='recepcion', lazy=True)
@@ -816,7 +822,10 @@ class AuditoriaInventario(db.Model):
     fecha_fin = db.Column(db.DateTime, nullable=True)
     usuario_auditor = db.Column(db.String(100))
     sector_bodega = db.Column(db.String(50))
-    estado = db.Column(db.Enum('En Proceso', 'Finalizada', 'Ajustada'), default='En Proceso')
+    estado = db.Column(
+        db.Enum('En Proceso', 'Finalizada', 'Ajustada', name='auditorias_estado_enum'),
+        default='En Proceso'
+    )
 
 class DetalleAuditoria(db.Model):
     __tablename__ = 'detalle_auditoria'
