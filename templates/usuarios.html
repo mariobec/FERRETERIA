@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title"><i class="fas fa-users me-2 text-success"></i>Gestión de Usuarios</h2>
+      <p class="page-subtitle">Administración de cuentas, roles y permisos del ERP.</p>
+    </div>
+    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home me-1"></i> Inicio</a>
+  </div>
+
+  <!-- Formulario de creación -->
+  <div class="card card-ds mb-5">
+    <div class="card-header fw-bold">
+      <i class="fas fa-user-plus me-2"></i> Crear Nuevo Usuario
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('usuarios') }}">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Nombre</label>
+            <div class="input-group">
+              <span class="input-group-text bg-success text-white"><i class="fas fa-user"></i></span>
+              <input type="text" name="nombre" class="form-control" placeholder="Ej: Juan Pérez" required>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Correo</label>
+            <div class="input-group">
+              <span class="input-group-text bg-success text-white"><i class="fas fa-envelope"></i></span>
+              <input type="email" name="correo" class="form-control" placeholder="ejemplo@correo.com" required>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Contraseña</label>
+            <div class="input-group">
+              <span class="input-group-text bg-success text-white"><i class="fas fa-lock"></i></span>
+              <input type="password" name="password" class="form-control" placeholder="********" required>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Rol</label>
+            <div class="input-group">
+              <span class="input-group-text bg-success text-white"><i class="fas fa-user-shield"></i></span>
+              <select name="rol_id" class="form-select" required>
+                {% for rol in roles %}
+                  <option value="{{ rol.id }}">{{ rol.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 text-end">
+          <button type="submit" class="btn btn-success fw-bold px-4">
+            <i class="fas fa-save me-1"></i> Guardar Usuario
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tabla de usuarios -->
+  <div class="card card-ds">
+    <div class="card-header fw-bold">
+      <i class="fas fa-list me-2"></i> Lista de Usuarios
+    </div>
+    <div class="card-body">
+      <table class="table table-hover align-middle table-ds">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Correo</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Clave</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+          <tr>
+            <td>{{ u.nombre }}</td>
+            <td>{{ u.correo }}</td>
+            <td>{{ u.rol.nombre }}</td>
+            <td>
+              {% set estado = (u.perfil or 'ACTIVO')|upper %}
+              {% if estado == 'INACTIVO' %}
+                <span class="badge text-bg-secondary">Inactivo</span>
+              {% else %}
+                <span class="badge text-bg-success">Activo</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if estado in ['FORZAR_CLAVE', 'ACTIVO_FORZAR_CLAVE'] %}
+                <span class="badge text-bg-warning">Temporal pendiente</span>
+              {% else %}
+                <span class="badge text-bg-light text-dark border">Actualizada</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              <a href="{{ url_for('editar_usuario', id=u.id) }}" class="btn btn-sm btn-outline-success me-2">
+                <i class="fas fa-edit"></i> Editar
+              </a>
+              <form method="POST" action="{{ url_for('toggle_estado_usuario', id=u.id) }}" class="d-inline me-2">
+                {% if estado == 'INACTIVO' %}
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                  <i class="fas fa-user-check"></i> Activar
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-sm btn-outline-warning">
+                  <i class="fas fa-user-slash"></i> Desactivar
+                </button>
+                {% endif %}
+              </form>
+              <form method="POST" action="{{ url_for('eliminar_usuario', id=u.id) }}" class="d-inline">
+                <button type="submit"
+                        class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('¿Seguro que deseas eliminar este usuario?');">
+                  <i class="fas fa-trash"></i> Eliminar
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center text-muted">No hay usuarios registrados.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

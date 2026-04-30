@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="page-header">
+        <div>
+            <h3 class="page-title"><i class="fas fa-receipt me-2 text-primary"></i>Reporte de Cierre</h3>
+            <p class="page-subtitle">Resumen de caja, ventas y movimientos del turno cerrado.</p>
+        </div>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> Volver a Caja
+        </a>
+    </div>
+<div class="container mt-2 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 p-4" style="font-family: 'Courier New', monospace; background-color: #fff; color: #333; border-radius: 0;">
+                
+                <div class="text-center border-bottom border-dark pb-3 mb-3">
+                    <h4 class="fw-bold mb-1">FERRETERÍA SANTO DOMINGO</h4>
+                    <p class="small mb-0">CIERRE DE CAJA EXITOSO</p>
+                </div>
+
+                <div class="mb-3 small">
+                    <div class="d-flex justify-content-between">
+                        <span>CAJERO:</span>
+                        <span class="fw-bold">{{ caja.usuario_cierre }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>APERTURA:</span>
+                        <span>{{ caja.fecha_apertura.strftime('%d/%m/%Y %H:%M') }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>CIERRE:</span>
+                        <span>{{ caja.fecha_cierre.strftime('%d/%m/%Y %H:%M') }}</span>
+                    </div>
+                </div>
+
+                <!-- DESGLOSE CONTABLE ACTUALIZADO -->
+                <div class="border-top border-dark pt-2 mt-2">
+                    <div class="d-flex justify-content-between">
+                        <span>(+) MONTO INICIAL:</span>
+                        <span>$ {{ "{:,.0f}".format(caja.monto_inicial) }}</span>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between text-success">
+                        <span>(+) VENTAS EFECTIVO:</span>
+                        <span>$ {{ "{:,.0f}".format(total_efectivo) }}</span>
+                    </div>
+
+                    <!-- NUEVO: Dinero de abonos que entra a la gaveta -->
+                    <div class="d-flex justify-content-between" style="color: #2e7d32;">
+                        <span>(+) ABONOS CRÉDITO:</span>
+                        <span>$ {{ "{:,.0f}".format(total_abonos) }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between text-primary">
+                        <span>(+) VENTAS DÉBITO:</span>
+                        <span>$ {{ "{:,.0f}".format(total_debito) }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between text-info">
+                        <span>(+) TRANSFERENCIAS:</span>
+                        <span>$ {{ "{:,.0f}".format(total_transferencia) }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <span>(+) OTROS INGRESOS:</span>
+                        <span>$ {{ "{:,.0f}".format(ingresos) }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between text-danger">
+                        <span>(-) EGRESOS / GASTOS:</span>
+                        <span>$ {{ "{:,.0f}".format(egresos) }}</span>
+                    </div>
+                </div>
+
+                <!-- RESULTADO FINAL EN GAVETA -->
+                <div class="border-top border-dark border-2 mt-3 pt-3">
+                    <div class="text-center mb-2 small fw-bold text-muted">EFECTIVO TOTAL EN GAVETA</div>
+                    <div class="text-center h2 fw-bold text-dark">
+                        $ {{ "{:,.0f}".format(caja.monto_final) }}
+                    </div>
+                    <p class="text-center small text-muted">(Monto Inicial + Ventas Efec + Abonos Efec + Ingresos - Egresos)</p>
+                </div>
+
+                <!-- RESUMEN DE CRÉDITO (Informativo) -->
+                <div class="border-top border-dark border-dashed mt-3 pt-2 small">
+                    <div class="d-flex justify-content-between text-danger">
+                        <span>VENTAS FIADAS (CRÉDITO / CARTERA):</span>
+                        <span>$ {{ "{:,.0f}".format(total_fiado) }}</span>
+                    </div>
+                    <p class="mb-0 mt-1 text-muted" style="font-size: 0.75rem;">
+                        No ingresa a efectivo en gaveta. Suma a deuda del cliente al cobrar el vale en caja con método Crédito.
+                    </p>
+                </div>
+
+                {% if ventas_turno %}
+                <div class="border-top border-dark mt-3 pt-2 small">
+                    <div class="fw-bold mb-1">DETALLE POR VALE (TURNO)</div>
+                    <table class="table table-sm table-borderless mb-0" style="font-size: 0.78rem;">
+                        <thead>
+                            <tr class="border-bottom">
+                                <th class="ps-0">#</th>
+                                <th>Pago</th>
+                                <th>Estado</th>
+                                <th class="text-end pe-0">$</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in ventas_turno %}
+                            <tr>
+                                <td class="ps-0">{{ v.id }}</td>
+                                <td>{{ v.metodo_pago or '—' }}</td>
+                                <td>{{ v.estado }}</td>
+                                <td class="text-end pe-0">{{ "{:,.0f}".format(v.monto_total) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <div class="text-center mt-4 small text-muted">
+                    <p class="mb-0">Productividad Total: $ {{ "{:,.0f}".format(gran_total_ventas) }}</p>
+                    <p class="mt-3">*** FIN DEL REPORTE ***</p>
+                </div>
+
+                <div class="d-grid gap-2 mt-4 d-print-none">
+                    <button onclick="window.print()" class="btn btn-dark fw-bold py-2">
+                        <i class="fas fa-print me-2"></i> IMPRIMIR REPORTE
+                    </button>
+                    <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary fw-bold py-2">
+                        <i class="fas fa-cash-register me-2"></i> VOLVER A CAJA
+                    </a>
+                    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary fw-bold py-2">
+                        <i class="fas fa-home me-2"></i> IR AL DASHBOARD
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP {{ empresa_cfg.nombre_comercial }}</title>
+       
+    <!-- 1. Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- 2. Font Awesome (Iconos) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- 3. Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+
+    <!-- 4. TU ARCHIVO CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container-fluid app-shell">
+        <div class="row">
+            <!-- Menú Lateral -->
+            <nav class="col-md-2 app-sidebar d-none d-md-block">
+                <div class="app-sidebar-header">
+                    <h5 class="fw-bold m-0 text-white">SISTEMA <span style="color: var(--ds-primary);">ERP</span></h5>
+                </div>
+                
+                <!-- Links del Menú -->
+                <div class="app-sidebar-nav mt-3 flex-grow-1">
+                    <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-home"></i> Inicio</a>
+                    <a href="{{ url_for('punto_venta') }}" class="app-nav-link {% if request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta'] %}active{% endif %}"><i class="fas fa-cash-register"></i> Punto de Venta</a>
+                    <a href="{{ url_for('mostrar_productos') }}" class="app-nav-link {% if request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos'] %}active{% endif %}"><i class="fas fa-boxes"></i> Productos</a>
+                    <a href="{{ url_for('revision_precios') }}" class="app-nav-link {% if request.endpoint in ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo'] %}active{% endif %}"><i class="fas fa-tags"></i> Revisión Precios</a>
+                    <a href="{{ url_for('business_intelligence') }}" class="app-nav-link {% if request.endpoint == 'business_intelligence' %}active{% endif %}"><i class="fas fa-chart-line"></i> BI Reportes</a>
+                    <a href="{{ url_for('ia_abastecimiento') }}" class="app-nav-link {% if request.endpoint == 'ia_abastecimiento' %}active{% endif %}"><i class="fas fa-robot"></i> IA Abastecimiento</a>
+                    <a href="{{ url_for('kardex') }}" class="app-nav-link {% if request.endpoint == 'kardex' %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Kardex</a>
+                    <a href="{{ url_for('lista_recepciones') }}" class="app-nav-link {% if request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion'] %}active{% endif %}"><i class="fas fa-dolly"></i> Recepciones</a>
+                    <a href="{{ url_for('mostrar_proveedores') }}" class="app-nav-link {% if request.endpoint in ['mostrar_proveedores', 'guardar_proveedor'] %}active{% endif %}"><i class="fas fa-truck"></i> Proveedores</a>
+                    <a href="{{ url_for('mostrar_ventas') }}" class="app-nav-link {% if request.endpoint in ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta'] %}active{% endif %}"><i class="fas fa-shopping-cart"></i> Historial Ventas</a>
+                    <a href="{{ url_for('abrir_caja') }}" class="app-nav-link {% if request.endpoint == 'abrir_caja' %}active{% endif %}"><i class="fas fa-door-open"></i> Abrir Caja</a>
+                    <a href="{{ url_for('movimiento_caja') }}" class="app-nav-link {% if request.endpoint == 'movimiento_caja' %}active{% endif %}"><i class="fas fa-exchange-alt"></i> Movimientos</a>
+                    <a href="{{ url_for('cerrar_caja') }}" class="app-nav-link {% if request.endpoint == 'cerrar_caja' %}active{% endif %}"><i class="fas fa-door-closed"></i> Cerrar Caja</a>
+                    <a href="{{ url_for('caja_pendientes') }}" class="app-nav-link {% if request.endpoint in ['caja_pendientes', 'procesar_cobro_caja'] %}active{% endif %}"><i class="fas fa-file-invoice-dollar"></i> Vales Pendientes</a>
+                    {% if puede_administrar %}
+                    <a href="{{ url_for('usuarios') }}" class="app-nav-link {% if request.endpoint in ['usuarios', 'editar_usuario'] %}active{% endif %}"><i class="fas fa-users-cog"></i> Usuarios</a>
+                    <a href="{{ url_for('admin_empresa') }}" class="app-nav-link {% if request.endpoint == 'admin_empresa' %}active{% endif %}"><i class="fas fa-building"></i> Empresa</a>
+                    <a href="{{ url_for('admin_unidades') }}" class="app-nav-link {% if request.endpoint == 'admin_unidades' %}active{% endif %}"><i class="fas fa-balance-scale"></i> Unidades</a>
+                    {% endif %}
+                </div>
+
+                <!-- Footer del Sidebar con Botón Premium -->
+                <div class="app-sidebar-footer app-sidebar-header">
+                    <a href="{{ url_for('logout') }}" class="logout-premium">
+                        <i class="fas fa-power-off"></i>
+                        <span>CERRAR SESIÓN</span>
+                    </a>
+                </div>
+            </nav>
+            
+            <!-- Contenido Dinámico -->
+            <main class="col-md-10 app-main">
+                <div class="app-topbar d-flex justify-content-between align-items-center">
+                    <div class="app-topbar-title">ERP {{ empresa_cfg.nombre_comercial }}</div>
+                    <div class="app-topbar-user">{{ current_user.nombre if current_user.is_authenticated else 'Invitado' }}</div>
+                </div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                  {% if messages %}
+                      {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                          {{ message }}
+                          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                      {% endfor %}
+                  {% endif %}
+                {% endwith %}
+
+                <div class="app-content">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

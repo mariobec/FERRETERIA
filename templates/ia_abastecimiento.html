@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-robot text-primary me-2"></i>IA de Abastecimiento</h3>
+      <p class="page-subtitle">Predicción de demanda + sugerencia automática de compra por producto.</p>
+    </div>
+    <a href="{{ url_for('mostrar_productos') }}" class="btn btn-outline-primary btn-sm">
+      <i class="fas fa-boxes me-1"></i> Ir a productos
+    </a>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-body">
+      <form method="GET" action="{{ url_for('ia_abastecimiento') }}" class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small text-muted mb-0">Buscar producto</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Nombre o código..." value="{{ q or '' }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted mb-0">Horizonte (días)</label>
+          <select name="dias" class="form-select form-select-sm">
+            <option value="7" {% if dias_horizonte == 7 %}selected{% endif %}>7</option>
+            <option value="15" {% if dias_horizonte == 15 %}selected{% endif %}>15</option>
+            <option value="30" {% if dias_horizonte == 30 %}selected{% endif %}>30</option>
+            <option value="45" {% if dias_horizonte == 45 %}selected{% endif %}>45</option>
+            <option value="60" {% if dias_horizonte == 60 %}selected{% endif %}>60</option>
+            <option value="90" {% if dias_horizonte == 90 %}selected{% endif %}>90</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <div class="form-check mt-4">
+            <input type="checkbox" class="form-check-input" id="solo_alerta" name="solo_alerta" value="1" {% if solo_alerta %}checked{% endif %}>
+            <label class="form-check-label" for="solo_alerta">Mostrar solo productos con pedido sugerido</label>
+          </div>
+        </div>
+        <div class="col-md-3 d-flex justify-content-end gap-2">
+          <button type="submit" class="btn btn-ds-primary btn-sm fw-bold">Calcular</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card card-ds">
+        <div class="card-body">
+          <small class="text-muted d-block">Productos analizados</small>
+          <h4 class="mb-0 fw-bold">{{ total_productos }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card card-ds">
+        <div class="card-body">
+          <small class="text-muted d-block">Total unidades sugeridas para comprar</small>
+          <h4 class="mb-0 fw-bold">{{ total_sugerido }}</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header bg-white fw-bold">Sugerencia de compras por predicción</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 table-ds align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th class="text-end">Stock</th>
+            <th class="text-end">Cons. 30d</th>
+            <th class="text-end">Cons. 7d</th>
+            <th class="text-end">Factor Tend.</th>
+            <th class="text-end">Factor Estac.</th>
+            <th class="text-end">Cobertura</th>
+            <th class="text-end">Demanda proj.</th>
+            <th class="text-end">Pedido sugerido</th>
+            <th>Nivel</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sugerencias %}
+          <tr>
+            <td>
+              <strong>{{ s.producto.nombre }}</strong><br>
+              <span class="small text-muted">{{ s.producto.codigo_barra }} {% if s.producto.ubicacion_codigo %}| {{ s.producto.ubicacion_codigo }}{% endif %}</span>
+            </td>
+            <td class="text-end">{{ "{:,.0f}".format(s.stock_actual) }}</td>
+            <td class="text-end">{{ "{:,.0f}".format(s.consumo_30) }}</td>
+            <td class="text-end">{{ "{:,.0f}".format(s.consumo_7) }}</td>
+            <td class="text-end">{{ "{:.2f}".format(s.factor_tendencia) }}</td>
+            <td class="text-end">{{ "{:.2f}".format(s.factor_estacional) }}</td>
+            <td class="text-end">{{ "{:.1f}".format(s.cobertura_dias) }} d</td>
+            <td class="text-end">{{ "{:,.0f}".format(s.demanda_proyectada) }}</td>
+            <td class="text-end fw-bold {% if s.sugerido > 0 %}text-danger{% else %}text-success{% endif %}">
+              {{ "{:,.0f}".format(s.sugerido) }}
+            </td>
+            <td>
+              {% if s.nivel == "CRITICO" %}
+              <span class="badge bg-danger">CRITICO</span>
+              {% elif s.nivel == "MEDIO" %}
+              <span class="badge bg-warning text-dark">MEDIO</span>
+              {% else %}
+              <span class="badge bg-success">OK</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-center text-muted py-4">No hay productos para los filtros seleccionados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="small text-muted mt-2 mb-0">
+    Modelo MVP: promedio 30 días + tendencia 7/30 + estacionalidad por categoría. Próximo paso: integrar clima externo.
+  </p>
+</div>
+{% endblock %}

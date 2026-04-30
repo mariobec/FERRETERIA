@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-chart-line text-warning me-2"></i>Bitácora de costos de compra</h3>
+      <p class="page-subtitle">Trazabilidad de cambios de costo por proveedor y producto al momento de recibir mercadería.</p>
+    </div>
+    <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Volver a recepciones</a>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header bg-white fw-bold">Histórico reciente</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 table-ds align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Producto</th>
+              <th class="text-end">Costo ant.</th>
+              <th class="text-end">Costo nuevo</th>
+              <th class="text-end">% variación</th>
+              <th class="text-end">P. venta ref.</th>
+              <th class="text-end">Margen proy.</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in registros %}
+            <tr>
+              <td class="small text-nowrap">{{ r.fecha.strftime('%d-%m-%Y %H:%M') if r.fecha else '—' }}</td>
+              <td>{{ r.proveedor.nombre if r.proveedor else '—' }}</td>
+              <td>{{ r.producto.nombre if r.producto else ('ID ' ~ r.producto_id) }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(r.costo_anterior or 0).replace(",", ".") }}</td>
+              <td class="text-end fw-bold">${{ "{:,.0f}".format(r.costo_nuevo or 0).replace(",", ".") }}</td>
+              <td class="text-end {% if (r.variacion_pct or 0) > 0 %}text-danger{% endif %}">
+                {% if r.variacion_pct is not none %}{{ "{:.1f}%".format((r.variacion_pct or 0) * 100) }}{% else %}—{% endif %}
+              </td>
+              <td class="text-end">{% if r.precio_venta_referencia is not none %}${{ "{:,.0f}".format(r.precio_venta_referencia).replace(",", ".") }}{% else %}—{% endif %}</td>
+              <td class="text-end">{% if r.margen_proyectado is not none %}{{ "{:.1f}%".format((r.margen_proyectado or 0) * 100) }}{% else %}—{% endif %}</td>
+              <td class="small">{{ r.usuario or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-4">Sin registros de cambios de costo aún.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ "Vale Pendiente" if es_vale else "Boleta Pagada" }}</title>
+    <style>
+        body { font-family: "Courier New", monospace; font-size: 14px; }
+        .ticket { width: 80mm; margin: auto; padding: 5px; }
+        .logo { text-align: center; margin-bottom: 10px; }
+        .logo img { max-width: 60mm; }
+        .header { text-align: center; margin-bottom: 10px; }
+        .header h2 { margin: 0; font-size: 18px; }
+        .cliente { text-align: center; font-size: 16px; font-weight: bold; margin: 8px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { text-align: left; padding: 2px; font-size: 13px; }
+        .total { text-align: right; font-weight: bold; margin-top: 8px; font-size: 15px; }
+        .estado { text-align: center; font-weight: bold; margin-top: 12px; font-size: 16px; }
+        .pendiente { color: red; }
+        .pagada { color: green; }
+    </style>
+</head>
+<body onload="window.print()">
+    <div style="text-align:center; margin: 10px 0 16px;" class="no-print">
+        <a href="{{ url_for('punto_venta') }}" class="btn" style="background:#0d6efd;">POS</a>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn" style="background:#198754;">CAJA</a>
+        <button onclick="window.print()" class="btn" style="background:#2c3e50;">IMPRIMIR</button>
+    </div>
+    <div class="ticket">
+        <div class="logo">
+            <!-- Logo de la ferretería -->
+            <img src="/static/logo.png" alt="Logo Ferretería">
+        </div>
+        <div class="header">
+            <h2>Ferretería Santo Domingo</h2>
+            <p>Folio N° {{ venta.id }}</p>
+            <p>Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
+            <p>{{ "Vendedor" if es_vale else "Cajero" }}: {{ venta.usuario }}</p>
+        </div>
+
+        <div class="cliente">
+            Cliente: {{ venta.cliente.nombre }}
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Prod.</th>
+                    <th>Cant</th>
+                    <th>Precio</th>
+                    <th>Subt.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in detalles %}
+                <tr>
+                    <td>{{ d.producto.nombre }}</td>
+                    <td>{{ d.cantidad }}</td>
+                    <td>${{ "{:,.0f}".format(d.precio_unitario) }}</td>
+                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="total">
+            TOTAL: ${{ "{:,.0f}".format(venta.total) }}
+        </div>
+
+        {% if es_vale %}
+        <div class="estado pendiente">
+            *** VALE PENDIENTE DE COBRO EN CAJA ***
+        </div>
+        {% else %}
+        <div class="total">
+            Pago: {{ venta.metodo_pago }}<br>
+            Recibido: ${{ "{:,.0f}".format(venta.monto_recibido) }}<br>
+            Vuelto: ${{ "{:,.0f}".format(venta.vuelto) }}
+        </div>
+        <div class="estado pagada">
+            *** BOLETA PAGADA ***
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

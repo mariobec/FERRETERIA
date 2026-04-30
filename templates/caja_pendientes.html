@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .header-cajera { background: linear-gradient(90deg, #14532d, #166534); color: white; padding: 18px; border-radius: 12px; }
+    .card-indicador { border-radius: 12px; border: 1px solid var(--ds-border); box-shadow: var(--ds-shadow-sm); }
+    .modal-premium .modal-content { border-radius: 25px; border: none; }
+    .modal-premium .modal-header { background: #f8f9fa; border-bottom: 2px solid #166534; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    
+    <!-- 1. ENCABEZADO -->
+    <div class="header-cajera d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1"><i class="fas fa-cash-register me-2"></i>Panel de Cobranza</h4>
+            <p class="mb-0">Cajera: <span class="fw-bold">{{ current_user.nombre }}</span></p>
+        </div>
+        <div class="text-end">
+            <h3 id="hora-actual" class="fw-bold mb-0">00:00:00</h3>
+            <p id="fecha-actual" class="mb-2 small opacity-75"></p>
+            <div class="d-flex gap-2 justify-content-end">
+                <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-light">
+                    <i class="fas fa-cash-register me-1"></i> POS
+                </a>
+                <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-warning fw-bold">
+                    <i class="fas fa-hand-holding-usd me-1"></i> Abonos Crédito
+                </a>
+                <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-exchange-alt me-1"></i> Movimientos
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. BOTÓN DE IMPRESIÓN (Si existe última venta) -->
+    {% if request.args.get('ultima_venta') %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center shadow-sm mb-4 border-2" style="border-radius: 15px; border-color: #0dcaf0;">
+        <div>
+            <i class="fas fa-print fa-2x me-3 text-info"></i>
+            <strong class="text-dark">¡Venta Finalizada!</strong> 
+            <span class="text-muted ms-2">¿Deseas imprimir el documento ahora?</span>
+        </div>
+        <a href="{{ url_for('ver_documento', id=request.args.get('ultima_venta')) }}" target="_blank" class="btn btn-info fw-bold text-white px-4 rounded-pill shadow-sm">
+           <i class="fas fa-file-pdf me-2"></i> VER DOCUMENTO
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- 3. INDICADORES -->
+    <div class="row g-3 mb-4">
+        <div class="col-md"><div class="card card-indicador bg-primary text-white p-3"><h4>{{ tickets_emitidos }}</h4><p>Tickets Hoy</p></div></div>
+        <div class="col-md"><div class="card card-indicador bg-success text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_apertura) }}</h4><p>Apertura Caja</p></div></div>
+        <div class="col-md"><div class="card card-indicador bg-warning text-dark p-3"><h4>$ {{ "{:,.0f}".format(monto_vendido) }}</h4><p>Monto Vendido</p></div></div>
+        <div class="col-md"><div class="card card-indicador bg-danger text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_pendiente) }}</h4><p>Pendiente</p></div></div>
+        <div class="col-md"><div class="card card-indicador bg-info text-white p-3"><h4>$ {{ "{:,.0f}".format(vuelto_entregado) }}</h4><p>Vueltos</p></div></div>
+    </div>
+
+    <div class="card card-ds mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold"><i class="fas fa-file-invoice-dollar me-2 text-warning"></i>Créditos registrados hoy</h6>
+            <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-outline-warning">Registrar abono</a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 table-ds">
+                    <thead>
+                        <tr>
+                            <th class="ps-3">Vale</th>
+                            <th>Cliente</th>
+                            <th>Hora</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in creditos_hoy %}
+                        <tr>
+                            <td class="ps-3">#{{ c.id }}</td>
+                            <td>{{ c.cliente.nombre if c.cliente else 'Sin cliente' }}</td>
+                            <td>{{ c.fecha.strftime('%H:%M') }}</td>
+                            <td class="fw-bold text-warning">$ {{ "{:,.0f}".format(c.monto_total) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">Sin créditos registrados hoy.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. TABLA -->
+    <div class="card card-ds">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 table-ds">
+                    <thead>
+                        <tr>
+                            <th class="ps-4 py-3">N° VALE</th>
+                            <th>HORA</th>
+                            <th>VENDEDOR</th>
+                            <th>TOTAL</th>
+                            <th class="text-center">ACCIÓN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in vales %}
+                        <tr>
+                            <td class="ps-4"><span class="badge bg-light text-dark border">#{{ v.id }}</span></td>
+                            <td>{{ v.fecha.strftime('%H:%M') }}</td>
+                            <td>{{ v.usuario }}</td>
+                            <td><h5 class="fw-bold text-success mb-0">$ {{ "{:,.0f}".format(v.monto_total) }}</h5></td>
+                            <td class="text-center">
+                                <button class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
+                                    COBRAR
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- MODAL -->
+                        <div class="modal fade modal-premium" id="modalCobro{{ v.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content shadow-lg">
+                                    <form action="{{ url_for('procesar_cobro_caja', id=v.id) }}" method="POST" onsubmit="return manejarEnvioSeguro(this)">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold">Cobrar Vale #{{ v.id }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="text-center mb-4">
+                                                <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(v.monto_total) }}</h1>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">Documento</label>
+                                                <select name="tipo_documento" class="form-select" required>
+                                                    <option value="Boleta" selected>Boleta</option>
+                                                    <option value="Factura">Factura</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">Pago</label>
+                                                <select name="metodo_pago" class="form-select" required id="metodo_pago_{{ v.id }}" onchange="verificarCredito({{ v.id }})">
+                                                    <option value="Efectivo" selected>Efectivo</option>
+                                                    <option value="Debito">Débito</option>
+                                                    <option value="Credito">Crédito</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">Monto Recibido</label>
+                                                <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ v.monto_total }}" data-total="{{ v.monto_total }}">
+                                                <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total.</div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="submit" class="btn btn-primary fw-bold px-4">FINALIZAR</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center py-5 text-muted">No hay vales.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://jsdelivr.net"></script>
+<script>
+    function actualizarReloj() {
+        const ahora = new Date();
+        const elHora = document.getElementById('hora-actual');
+        const elFecha = document.getElementById('fecha-actual');
+        if(elHora) elHora.textContent = ahora.toLocaleTimeString('es-CL', { hour12: true });
+        if(elFecha) elFecha.textContent = ahora.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+    setInterval(actualizarReloj, 1000);
+    actualizarReloj();
+
+    function verificarCredito(id) {
+        const sel = document.getElementById('metodo_pago_' + id);
+        const inp = document.getElementById('monto_recibido_' + id);
+        const hint = document.getElementById('hint_monto_' + id);
+        const total = parseFloat(inp.dataset.total || inp.min || 0);
+        if (sel.value === 'Credito') {
+            inp.value = 0;
+            inp.min = 0;
+            inp.readOnly = true;
+            if (hint) hint.textContent = 'Venta a crédito: no requiere monto recibido en caja.';
+        } else {
+            inp.readOnly = false;
+            inp.min = total;
+            if (!inp.value || parseFloat(inp.value) < total) {
+                inp.value = total;
+            }
+            if (hint) hint.textContent = 'Para efectivo/débito debe ser mayor o igual al total.';
+        }
+    }
+
+   function manejarEnvioSeguro(form) {
+    const btn = form.querySelector('button[type="submit"]');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> PROCESANDO...';
+    return true;
+}
+
+</script>
+{% endblock %}

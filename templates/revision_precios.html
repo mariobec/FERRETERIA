@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-tags text-primary me-2"></i>Revisión de Precios</h3>
+      <p class="page-subtitle">Sugerencia automática por margen, con aplicación individual o masiva.</p>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-body">
+      <form method="GET" action="{{ url_for('revision_precios') }}" class="row g-2">
+        <div class="col-md-3"><input class="form-control" name="q" placeholder="Nombre o código" value="{{ q }}"></div>
+        <div class="col-md-2">
+          <select class="form-select" name="categoria">
+            <option value="">Todas categorías</option>
+            {% for c in categorias %}<option value="{{ c }}" {% if categoria==c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select class="form-select" name="subcategoria">
+            <option value="">Todas subcategorías</option>
+            {% for s in subcategorias %}<option value="{{ s }}" {% if subcategoria==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2"><input class="form-control" name="margen_obj" type="number" step="0.01" min="0.01" max="0.9" value="{{ margen_obj }}"></div>
+        <div class="col-md-1">
+          <select class="form-select" name="terminacion">
+            <option value="0" {% if terminacion==0 %}selected{% endif %}>0</option>
+            <option value="90" {% if terminacion==90 %}selected{% endif %}>90</option>
+            <option value="990" {% if terminacion==990 %}selected{% endif %}>990</option>
+          </select>
+        </div>
+        <div class="col-md-1 form-check d-flex align-items-center">
+          <input class="form-check-input me-1" type="checkbox" name="solo_alerta" value="1" {% if solo_alerta %}checked{% endif %}>
+          <label class="form-check-label small">Solo alerta</label>
+        </div>
+        <div class="col-md-1"><button class="btn btn-outline-primary w-100">Ver</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Productos evaluados: {{ filas|length }}</strong>
+      <form method="POST" action="{{ url_for('aplicar_precio_sugerido_masivo') }}" class="d-flex gap-2">
+        <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="categoria" value="{{ categoria }}">
+        <input type="hidden" name="subcategoria" value="{{ subcategoria }}">
+        <input type="hidden" name="margen_obj" value="{{ margen_obj }}">
+        <input type="hidden" name="terminacion" value="{{ terminacion }}">
+        <input type="hidden" name="solo_alerta" value="{{ '1' if solo_alerta else '0' }}">
+        <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo del ajuste masivo" required style="min-width: 260px;">
+        <button type="submit" class="btn btn-sm btn-primary">Aplicar sugeridos (masivo)</button>
+      </form>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Código</th><th>Producto</th><th>Categoría</th><th>Costo</th><th>Venta actual</th><th>Sugerido</th><th>Margen actual</th><th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in filas %}
+            <tr>
+              <td>{{ f.codigo }}</td>
+              <td>{{ f.nombre }}</td>
+              <td>{{ f.categoria }} / {{ f.subcategoria }}</td>
+              <td>${{ "{:,.0f}".format(f.costo).replace(",", ".") }}</td>
+              <td>${{ "{:,.0f}".format(f.venta).replace(",", ".") }}</td>
+              <td>${{ "{:,.0f}".format(f.sugerido).replace(",", ".") }}</td>
+              <td>
+                {% if f.margen_actual is none %}—{% else %}{{ "{:.1f}".format(f.margen_actual*100) }}%{% endif %}
+              </td>
+              <td>
+                {% if f.requiere %}
+                <form method="POST" action="{{ url_for('aplicar_precio_sugerido', producto_id=f.id) }}" class="d-flex gap-1">
+                  <input type="hidden" name="q" value="{{ q }}">
+                  <input type="hidden" name="categoria" value="{{ categoria }}">
+                  <input type="hidden" name="subcategoria" value="{{ subcategoria }}">
+                  <input type="hidden" name="margen_obj" value="{{ margen_obj }}">
+                  <input type="hidden" name="terminacion" value="{{ terminacion }}">
+                  <input type="hidden" name="solo_alerta" value="{{ '1' if solo_alerta else '0' }}">
+                  <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo" required style="max-width: 150px;">
+                  <button class="btn btn-sm btn-outline-success">Aplicar</button>
+                </form>
+                {% else %}
+                <span class="badge text-bg-secondary">OK</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted">Sin resultados para los filtros aplicados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mt-4">
+    <div class="card-header"><strong>Bitácora reciente de cambios de precio</strong></div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Producto</th><th>Anterior</th><th>Nuevo</th><th>Usuario</th><th>Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in cambios_recientes %}
+            <tr>
+              <td>{{ b.fecha.strftime('%d-%m-%Y %H:%M') if b.fecha else '—' }}</td>
+              <td>{{ b.producto.nombre if b.producto else ('#' ~ b.producto_id) }}</td>
+              <td>${{ "{:,.0f}".format(b.precio_anterior or 0).replace(",", ".") }}</td>
+              <td>${{ "{:,.0f}".format(b.precio_nuevo or 0).replace(",", ".") }}</td>
+              <td>{{ b.usuario or '—' }}</td>
+              <td>{{ b.motivo or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted">Sin movimientos registrados aún.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

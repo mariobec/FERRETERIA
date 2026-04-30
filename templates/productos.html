@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="page-header">
+        <div>
+            <h3 class="page-title"><i class="fas fa-boxes text-primary me-2"></i>Gestión de Inventario</h3>
+            <p class="page-subtitle">Control de catálogo, stock y disponibilidad para venta.</p>
+        </div>
+        <span class="badge bg-primary px-3 py-2">Ferretería Santo Domingo</span>
+    </div>
+
+    <!-- Filtros y búsqueda -->
+    <div class="card card-ds mb-4">
+      <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
+        <form method="GET" action="/productos" class="d-flex flex-wrap w-100 mb-2">
+          <input type="text" name="q" class="form-control me-2 mb-2" placeholder="Buscar por nombre o texto libre" value="{{ query or '' }}">
+          <input type="text" name="codigo_barra" class="form-control me-2 mb-2" placeholder="Código de barra" value="{{ codigo_barra or '' }}">
+          <select name="categoria" class="form-select me-2 mb-2">
+            <option value="">Todas las categorías</option>
+            {% for c in categorias or [] %}
+            <option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+          <select name="subcategoria" class="form-select me-2 mb-2">
+            <option value="">Todas las subcategorías</option>
+            {% for s in subcategorias or [] %}
+            <option value="{{ s }}" {% if subcategoria == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-outline-primary fw-bold mb-2">Buscar</button>
+        </form>
+        <div class="ms-3 mb-2">
+          <a href="/productos/filtro/sin_stock" class="btn btn-sm btn-outline-danger me-1">Sin Stock</a>
+          <a href="/productos/filtro/activos" class="btn btn-sm btn-outline-success me-1">Activos</a>
+          <a href="/productos/filtro/venta" class="btn btn-sm btn-outline-info">Disponibles Venta</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Formulario de Registro en Tarjeta -->
+    <div class="card card-ds mb-5">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title m-0 fw-bold text-secondary">Registrar Nuevo Producto</h5>
+        </div>
+        <div class="card-body p-4">
+            <form action="/guardar_producto" method="POST" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Nombre del Artículo</label>
+                    <input type="text" name="nombre" class="form-control" placeholder="Ej. Cemento Melón 25kg" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Código de Barras</label>
+                    <input type="text" name="codigo" class="form-control" placeholder="Escanee o escriba" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Precio Compra</label>
+                    <input type="number" step="0.01" name="p_compra" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Precio Venta</label>
+                    <input type="number" step="0.01" name="p_venta" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Precio Mayoreo</label>
+                    <input type="number" step="0.01" name="p_mayoreo" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Stock Inicial</label>
+                    <input type="number" name="stock" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Unidad compra</label>
+                    <select name="unidad_compra" class="form-select">
+                        <option value="Caja">Caja</option>
+                        <option value="Pieza">Pieza</option>
+                        <option value="Rollo">Rollo</option>
+                        <option value="Saco">Saco</option>
+                        <option value="Kilo">Kilo</option>
+                        <option value="Litro">Litro</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Unidad venta</label>
+                    <select name="unidad_venta" class="form-select">
+                        <option value="Unidad">Unidad</option>
+                        <option value="Metro">Metro</option>
+                        <option value="Pieza">Pieza</option>
+                        <option value="Kilo">Kilo</option>
+                        <option value="Litro">Litro</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Factor conv.</label>
+                    <input type="number" step="0.01" min="0.01" name="factor_conversion" class="form-control" value="1" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Modelo simple (legacy)</label>
+                    <input type="text" name="unidad" class="form-control" placeholder="Se sincroniza con unidad venta">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Categoría</label>
+                    <select name="categoria" class="form-select">
+                        <option value="Construcción">Construcción</option>
+                        <option value="Herramientas">Herramientas</option>
+                        <option value="Electricidad">Electricidad</option>
+                        <option value="Pinturas">Pinturas</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Subcategoría</label>
+                    <input type="text" name="subcategoria" class="form-control" placeholder="Ej. Cemento, Martillos, Cables">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Pasillo</label>
+                    <input type="text" name="ubicacion_pasillo" class="form-control" placeholder="P02">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Estante</label>
+                    <input type="text" name="ubicacion_estante" class="form-control" placeholder="E04">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Nivel</label>
+                    <input type="text" name="ubicacion_nivel" class="form-control" placeholder="N1">
+                </div>
+                <div class="col-md-12 d-flex align-items-end justify-content-end">
+                    <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold shadow">
+                        <i class="fas fa-save me-2"></i>GUARDAR PRODUCTO
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Carga Masiva de Productos -->
+    <div class="card card-ds mb-5">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title m-0 fw-bold text-secondary">Carga Masiva de Productos</h5>
+        </div>
+        <div class="card-body p-4">
+            <form action="/cargar_productos" method="POST" enctype="multipart/form-data" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Subir archivo CSV</label>
+                    <input type="file" name="archivo" accept=".csv" class="form-control" required>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <button type="submit" class="btn btn-outline-primary fw-bold">
+                        <i class="fas fa-upload me-2"></i> Cargar Datos
+                    </button>
+                    <a href="{{ url_for('descargar_plantilla_productos') }}" class="btn btn-outline-info fw-bold ms-3">
+                        <i class="fas fa-download me-2"></i> Descargar Plantilla
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de productos -->
+    <div class="card card-ds">
+      <div class="card-header bg-white py-3">
+        <h5 class="card-title m-0 fw-bold text-secondary">Listado de Productos</h5>
+      </div>
+      <div class="card-body">
+        <table class="table table-hover align-middle table-ds">
+          <thead class="table-light">
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Categoría</th>
+              <th>Ubicación</th>
+              <th>UM Compra/Venta</th>
+              <th>Stock</th>
+              <th>Precio Venta</th>
+              <th>Activo</th>
+              <th>Disponible Venta</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in productos %}
+            <tr>
+              <td>{{ p.codigo_barra }}</td>
+              <td>{{ p.nombre }}</td>
+              <td>{{ p.categoria }}</td>
+              <td>{{ p.ubicacion_codigo or '—' }}</td>
+              <td>{{ p.unidad_compra or '—' }} / {{ p.unidad_venta_final }} {% if p.factor_conversion and p.factor_conversion != 1 %}<small class="text-muted">(x{{ p.factor_conversion }})</small>{% endif %}</td>
+              <td>{{ p.stock }}</td>
+              <td>{{ p.precio_venta }}</td>
+              <td>{{ 'Sí' if p.activo else 'No' }}</td>
+              <td>{{ 'Sí' if p.stock > 0 and p.precio_venta > 0 and p.activo else 'No' }}</td>
+              <td>
+                <form method="POST" action="{{ url_for('toggle_producto', id=p.id) }}" class="d-inline">
+                  <button type="submit" class="btn btn-sm {{ 'btn-success' if p.activo else 'btn-secondary' }}">
+                    {{ 'Activo' if p.activo else 'Inactivo' }}
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if productos_pagination is defined and productos_pagination.pages > 1 %}
+    <nav class="mt-3">
+      <ul class="pagination justify-content-center">
+        <li class="page-item {% if not productos_pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.prev_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria) }}">Anterior</a>
+        </li>
+        <li class="page-item disabled">
+          <span class="page-link">Página {{ productos_pagination.page }} de {{ productos_pagination.pages }}</span>
+        </li>
+        <li class="page-item {% if not productos_pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.next_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria) }}">Siguiente</a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

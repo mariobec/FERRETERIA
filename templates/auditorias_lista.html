@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <h3 class="page-title"><i class="fas fa-clipboard-check text-warning me-2"></i>Auditorías de inventario</h3>
+    <a href="{{ url_for('kardex') }}" class="btn btn-outline-primary btn-sm">Ver Kardex</a>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 table-ds">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Inicio</th>
+              <th>Fin</th>
+              <th>Usuario</th>
+              <th>Sector</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in auditorias %}
+            <tr>
+              <td>#{{ a.id }}</td>
+              <td class="small">{{ a.fecha_inicio.strftime('%d-%m-%Y %H:%M') if a.fecha_inicio else '—' }}</td>
+              <td class="small">{{ a.fecha_fin.strftime('%d-%m-%Y %H:%M') if a.fecha_fin else '—' }}</td>
+              <td>{{ a.usuario_auditor or '—' }}</td>
+              <td>{{ a.sector_bodega or '—' }}</td>
+              <td><span class="badge bg-light text-dark border">{{ a.estado }}</span></td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4">No hay auditorías registradas en el sistema.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="small text-muted mt-2">El cierre con ajuste de stock y escritura en kardex se realiza desde la herramienta móvil de auditoría (permiso <code>admin_inventario</code>).</p>
+</div>
+{% endblock %}

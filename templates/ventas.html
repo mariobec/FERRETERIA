@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4" style="background-color: #121212; min-height: 100vh; color: #e0e0e0;">
+    
+    <!-- HEADER ESTRATÉGICO -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="fw-bold text-white mb-0">Control de Ventas</h1>
+            <p class="text-muted">Ferretería Santo Domingo • Panel de Gestión Operativa</p>
+        </div>
+        <div class="text-end">
+            <button class="btn btn-success fw-bold px-4 shadow-sm" data-bs-toggle="collapse" data-bs-target="#nuevaVentaColapse">
+                <i class="fas fa-plus-circle me-2"></i>NUEVA VENTA RÁPIDA
+            </button>
+        </div>
+    </div>
+
+    <!-- INDICADORES PREMIUM (KPIs) -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #1e293b, #0f172a); border-left: 5px solid #22c55e !important;">
+                <div class="card-body">
+                    <h6 class="text-muted small text-uppercase fw-bold">Ventas del Día</h6>
+                    <h3 class="fw-bold text-white">${{ "{:,.0f}".format(total_dia) }}</h3>
+                    <span class="text-success small"><i class="fas fa-arrow-up"></i> +12% vs ayer</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #1e293b, #0f172a); border-left: 5px solid #f59e0b !important;">
+                <div class="card-body">
+                    <h6 class="text-muted small text-uppercase fw-bold">Tickets Pendientes</h6>
+                    <h3 class="fw-bold text-white">{{ ventas_pendientes_count }}</h3>
+                    <span class="text-warning small">Por cobrar en caja</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #1e293b, #0f172a); border-left: 5px solid #3b82f6 !important;">
+                <div class="card-body">
+                    <h6 class="text-muted small text-uppercase fw-bold">Ticket Promedio</h6>
+                    <h3 class="fw-bold text-white">${{ "{:,.0f}".format(ticket_promedio) }}</h3>
+                    <span class="text-info small">Eficiencia de venta</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #1e293b, #0f172a); border-left: 5px solid #ef4444 !important;">
+                <div class="card-body">
+                    <h6 class="text-muted small text-uppercase fw-bold">Artículos Vendidos</h6>
+                    <h3 class="fw-bold text-white">{{ total_articulos }}</h3>
+                    <span class="text-danger small">Rotación de inventario</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORMULARIO COLAPSABLE (Para no ensuciar la vista) -->
+    <div class="collapse mb-5" id="nuevaVentaColapse">
+        <div class="card border-0 shadow-lg bg-dark text-white">
+            <div class="card-header bg-success text-white fw-bold">
+                <i class="fas fa-cart-plus me-2"></i> Configuración de Nueva Venta
+            </div>
+            <div class="card-body">
+                <form action="/guardar_venta" method="POST" id="ventaForm">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">VENDEDOR RESPONSABLE</label>
+                            <input type="text" name="usuario" class="form-control bg-secondary text-white border-0" value="{{ current_user.nombre }}" readonly>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="small fw-bold text-muted">PRODUCTOS</label>
+                            <div id="detalle-container">
+                                <div class="row g-2 mb-2 detalle-item">
+                                    <div class="col-md-6">
+                                        <select name="id_producto[]" class="form-select bg-secondary text-white border-0 select-producto">
+                                            {% for p in productos %}
+                                            <option value="{{ p.id }}" data-precio="{{ p.precio_venta }}">{{ p.nombre }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <input type="number" name="cantidad[]" class="form-control bg-secondary text-white border-0" placeholder="Cant.">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <input type="number" step="0.01" name="precio_unitario[]" class="form-control bg-secondary text-white border-0" placeholder="Precio">
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button type="button" class="btn btn-outline-danger remove-detalle w-100"><i class="fas fa-times"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" id="add-detalle" class="btn btn-sm btn-outline-info mt-2">
+                                <i class="fas fa-plus me-1"></i> Añadir otro artículo
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button type="submit" class="btn btn-success btn-lg px-5">CONFIRMAR REGISTRO</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- LISTADO EVOLUCIONADO -->
+    <div class="card border-0 shadow bg-dark text-white">
+        <div class="card-header bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
+            <h5 class="m-0 fw-bold"><i class="fas fa-history me-2 text-success"></i>Registro de Operaciones</h5>
+            <input type="text" id="buscadorVentas" class="form-control form-control-sm w-25 bg-secondary border-0 text-white" placeholder="Buscar por ID o Usuario...">
+        </div>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr class="text-muted small">
+                        <th>FOLIO</th>
+                        <th>HORA/FECHA</th>
+                        <th>VENDEDOR</th>
+                        <th>RESUMEN ARTÍCULOS</th>
+                        <th class="text-end">TOTAL</th>
+                        <th class="text-center">ESTADO</th>
+                        <th class="text-center">ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for venta in ventas %}
+                    <tr>
+                        <td class="fw-bold">#{{ venta.id }}</td>
+                        <td>{{ venta.fecha.strftime('%H:%M - %d/%m') }}</td>
+                        <td><span class="badge bg-secondary">{{ venta.usuario }}</span></td>
+                        <td>
+                            <small class="text-muted">
+                                {% for d in venta.detalles[:2] %}
+                                    {{ d.cantidad }}x {{ d.producto.nombre }}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                                {% if venta.detalles|length > 2 %}... (+{{ venta.detalles|length - 2 }}){% endif %}
+                            </small>
+                        </td>
+                        <td class="text-end fw-bold text-success">${{ "{:,.0f}".format(venta.total) }}</td>
+                        <td class="text-center">
+                            {% if venta.estado == 'Pagada' %}
+                                <span class="badge bg-success-soft text-success"><i class="fas fa-check me-1"></i>Cobrada</span>
+                            {% else %}
+                                <span class="badge bg-warning-soft text-warning"><i class="fas fa-clock me-1"></i>Pendiente</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <a href="{{ url_for('editar_venta', id=venta.id) }}" class="btn btn-sm btn-outline-light"><i class="fas fa-edit"></i></a>
+                                <a href="#" class="btn btn-sm btn-outline-info"><i class="fas fa-print"></i></a>
+                                <form method="POST" action="{{ url_for('eliminar_venta', id=venta.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar esta venta?');">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Estilos Soft Badges */
+    .bg-success-soft { background-color: rgba(34, 197, 94, 0.15); }
+    .bg-warning-soft { background-color: rgba(245, 158, 11, 0.15); }
+    .form-control:focus, .form-select:focus { background-color: #334155 !important; color: white !important; box-shadow: none; border: 1px solid #22c55e; }
+    .table-hover tbody tr:hover { background-color: #1e293b !important; }
+</style>
+
+{% endblock %}

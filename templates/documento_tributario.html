@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ venta.tipo_documento }} - Ferretería Santo Domingo</title>
+    <style>
+        /* 1. FUERZA EL TAMAÑO DE LA HOJA Y ELIMINA MÁRGENES DE NAVEGADOR */
+        @page {
+            size: letter;
+            margin: 0mm; /* Eliminamos el margen físico de la página */
+        }
+
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            color: #333; 
+            margin: 0; 
+            padding: 1.5cm; /* Añadimos el margen nosotros para control total */
+            background-color: #fff; 
+            width: 216mm; /* Ancho estándar carta */
+            box-sizing: border-box;
+        }
+
+        .header { width: 100%; margin-bottom: 25px; display: block; overflow: hidden; }
+        .logo-area { width: 65%; float: left; }
+        
+        .rut-box { 
+        width: 35%; 
+        float: right; 
+        border: 5px solid #D32F2F !important; /* Aquí creas la franja roja gruesa */
+        text-align: center; 
+        padding: 15px; 
+        color: #D32F2F;
+        background-color: #fff;
+        margin-top: -10px;
+        display: block;
+        box-sizing: border-box;
+        -webkit-print-color-adjust: exact;
+        }
+        .rut-box h2 { margin: 5px 0; font-size: 22px; }
+
+        .cliente-info { 
+            width: 100%; border: 1px solid #333; padding: 15px; 
+            border-radius: 5px; margin-bottom: 20px; font-size: 13px;
+            clear: both; box-sizing: border-box;
+        }
+
+        table { width: 100% !important; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+        th { 
+            background-color: #2c3e50 !important; color: white !important; 
+            padding: 10px; font-size: 11px; text-align: left; 
+            -webkit-print-color-adjust: exact;
+        }
+        td { padding: 10px; border-bottom: 1px solid #ddd; font-size: 11px; word-wrap: break-word; }
+
+        .footer-container { width: 100%; margin-top: 30px; display: block; overflow: hidden; }
+        .timbre-area { width: 40%; float: left; text-align: center; border: 1px dashed #666; padding: 10px; border-radius: 10px; }
+        .totales-area { width: 45%; float: right; }
+        
+        .total-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
+        .gran-total { font-size: 22px; font-weight: bold; border-top: 3px solid #2c3e50; padding-top: 10px; margin-top: 5px; }
+
+        .no-print { text-align: center; margin-bottom: 30px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; margin: 0 5px; color: white; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { padding: 1.5cm; margin: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <button onclick="window.print()" class="btn" style="background: #2c3e50;">IMPRIMIR</button>
+        <a href="{{ url_for('mostrar_ventas') }}" class="btn" style="background: #0d6efd;">VENTAS</a>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn" style="background: #198754;">CAJA</a>
+        <button onclick="window.close()" class="btn" style="background: #f37021;">CERRAR</button>
+    </div>
+
+    <div class="header">
+        <div class="logo-area">
+            <h1 style="margin: 0; color: #f37021;">FERRETERÍA SANTO DOMINGO</h1>
+            <div style="font-size: 11px; color: #555; margin-top: 5px;">
+                <strong>Comercializadora de Materiales Ltda.</strong><br>
+                R.U.T.: 76.123.456-K | Av. Principal #123, Florida<br>
+                Giro: Venta de materiales de construcción y herramientas.
+            </div>
+        </div>
+        <div class="rut-box">
+            R.U.T.: 76.123.456-K<br>
+            <h2 style="text-transform: uppercase;">{{ venta.tipo_documento }}</h2>
+            N° {{ venta.id }}
+        </div>
+    </div>
+
+    <div class="cliente-info">
+        <table style="border: none; margin: 0; width: 100%;">
+            <tr>
+                <td style="border:none; width: 60%;"><strong>SEÑOR(ES):</strong> {{ (venta.cliente.nombre or 'CLIENTE PARTICULAR') | upper }}</td>
+                <td style="border:none;"><strong>FECHA:</strong> {{ venta.fecha.strftime('%d/%m/%Y') }}</td>
+            </tr>
+            <tr>
+                <td style="border:none;"><strong>R.U.T.:</strong> {{ venta.cliente.rut or '1-9' }}</td>
+                <td style="border:none;"><strong>GIRO:</strong> {{ (venta.cliente.giro or 'PARTICULAR') | upper }}</td>
+            </tr>
+            <tr>
+                <td style="border:none;"><strong>DIRECCIÓN:</strong> {{ (venta.cliente.direccion or 'S/D') | upper }}</td>
+                <td style="border:none;"><strong>COMUNA:</strong> FLORIDA</td>
+            </tr>
+        </table>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 10%;">CANT.</th>
+                <th style="width: 50%;">DESCRIPCIÓN</th>
+                <th style="width: 20%; text-align: right;">P. UNITARIO</th>
+                <th style="width: 20%; text-align: right;">TOTAL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in venta.detalles %}
+            <tr>
+                <td>{{ d.cantidad }}</td>
+                <td>{{ d.producto.nombre }}</td>
+                <td style="text-align: right;">$ {{ "{:,.0f}".format(d.precio_unitario) }}</td>
+                <td style="text-align: right; font-weight: bold;">$ {{ "{:,.0f}".format(d.cantidad * d.precio_unitario) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer-container">
+        <!-- CONTENEDOR DE CIERRE (QR + TOTALES) -->
+<div style="margin-top: 30px; display: block; overflow: hidden; width: 100%;">
+    
+    <!-- LADO IZQUIERDO: TIMBRE SII -->
+    <div style="float: left; width: 45%; border: 1px dashed #666; padding: 15px; border-radius: 10px; text-align: center;">
+        <img src="data:image/png;base64,{{ qr_code }}" 
+             style="width: 120px; height: 120px; display: block; margin: 0 auto 10px;" 
+             alt="QR Tributario">
+        
+        <div style="font-size: 10px; line-height: 1.2;">
+            <strong style="display: block; margin-bottom: 5px;">TIMBRE ELECTRÓNICO SII</strong>
+            Res. Nro. 80 del 2024 - Verifique en www.sii.cl<br>
+            <span style="color: #D32F2F; font-weight: bold;">DOCUMENTO EN MARCHA BLANCA</span>
+        </div>
+    </div>
+
+    <!-- LADO DERECHO: CUADRO DE TOTALES -->
+    <div style="float: right; width: 45%;">
+        {% if venta.tipo_documento == 'Factura' %}
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px;">
+            <span style="color: #666;">MONTO NETO:</span>
+            <strong style="color: #2c3e50;">$ {{ "{:,.0f}".format(venta.neto) }}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px;">
+            <span style="color: #666;">I.V.A. (19%):</span>
+            <strong style="color: #2c3e50;">$ {{ "{:,.0f}".format(venta.iva) }}</strong>
+        </div>
+        {% endif %}
+        
+        <div style="display: flex; justify-content: space-between; padding: 15px 0; font-size: 22px; border-top: 3px solid #2c3e50; margin-top: 5px;">
+            <span style="font-weight: bold;">TOTAL:</span>
+            <strong style="color: #000;">$ {{ "{:,.0f}".format(venta.monto_total) }}</strong>
+        </div>
+    </div>
+</div>
+
+<div style="clear: both; margin-top: 50px; font-size: 11px; text-align: center; color: #888; border-top: 1px solid #eee; padding-top: 15px;">
+    Gracias por su compra en <strong>FERRETERÍA SANTO DOMINGO</strong><br>
+    Este documento es un comprobante de uso interno para despacho de materiales.
+</div>
+
+    <script>
+        window.onload = function() {
+            setTimeout(function() { window.print(); }, 800);
+        };
+    </script>
+</body>
+</html>

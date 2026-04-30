@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Etiquetas recepción #{{ recepcion.id }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 16px; }
+    .header { margin-bottom: 12px; }
+    .header h2 { margin: 0 0 4px 0; }
+    .labels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .label { border: 1px solid #111; border-radius: 8px; padding: 8px; min-height: 120px; }
+    .name { font-size: 12px; font-weight: bold; margin-bottom: 6px; min-height: 28px; }
+    .code { font-size: 11px; text-align: center; margin-top: 4px; }
+    .price { font-size: 12px; text-align: center; margin-top: 6px; }
+    svg { width: 100%; height: 44px; }
+    @media print { .no-print { display: none; } body { padding: 6px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Etiquetas internas recepción #{{ recepcion.id }}</h2>
+    <div>Proveedor: {{ recepcion.proveedor.nombre if recepcion.proveedor else '—' }} | Documento: {{ recepcion.documento_tipo }} {{ recepcion.documento_numero }}</div>
+    <button class="no-print" onclick="window.print()">Imprimir</button>
+  </div>
+
+  <div class="labels">
+    {% for p in productos %}
+    <div class="label">
+      <div class="name">{{ p.nombre }}</div>
+      <svg class="barcode" jsbarcode-value="{{ p.codigo_barra }}" jsbarcode-height="38" jsbarcode-fontsize="12"></svg>
+      <div class="code">{{ p.codigo_barra }}</div>
+      <div class="price">P. Venta: ${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script>
+    JsBarcode(".barcode").init();
+    {% if auto_print %}
+    window.addEventListener("load", function () { setTimeout(() => window.print(), 350); });
+    {% endif %}
+  </script>
+</body>
+</html>

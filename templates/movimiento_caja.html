@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-exchange-alt text-primary me-2"></i>Movimientos de Caja</h3>
+      <p class="page-subtitle">Registro de ingresos y egresos de la caja activa.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-primary">
+        <i class="fas fa-file-invoice-dollar me-1"></i> Vales Pendientes
+      </a>
+      <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-cash-register me-1"></i> Ir a POS
+      </a>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-header bg-white fw-bold">Registrar Movimiento</div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('movimiento_caja') }}" class="row g-3">
+        {% if q_redirect and q_redirect.get('tipo') %}
+        <input type="hidden" name="filtro_q_tipo" value="{{ q_redirect.get('tipo') }}">
+        {% endif %}
+        {% if q_redirect and q_redirect.get('hoy') %}
+        <input type="hidden" name="filtro_q_hoy" value="{{ q_redirect.get('hoy') }}">
+        {% endif %}
+        <div class="col-md-3">
+          <label class="form-label">Tipo</label>
+          <select name="tipo" class="form-select" required>
+            <option value="Ingreso">Ingreso</option>
+            <option value="Egreso">Egreso</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Concepto</label>
+          <input type="text" name="concepto" class="form-control" placeholder="Ej: Compra de insumos" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Responsable Retiro</label>
+          <input type="text" id="responsable_retiro" name="responsable_retiro" class="form-control" placeholder="Nombre responsable" disabled>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Monto</label>
+          <input type="number" name="monto" step="0.01" min="0" class="form-control" required>
+        </div>
+        <div class="col-12 text-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i> Guardar Movimiento
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+      <h5 class="mb-0"><i class="fas fa-list me-2"></i>Historial</h5>
+      <div class="d-flex align-items-center gap-2">
+        {% if filtro_tipo %}
+        <span class="badge bg-warning text-dark">Tipo: {{ filtro_tipo }}</span>
+        {% endif %}
+        {% if solo_hoy %}
+        <span class="badge bg-info text-dark">Solo hoy</span>
+        {% endif %}
+        <span class="badge bg-light text-dark">{{ movimientos|length }} registrados</span>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 table-ds">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Fecha</th>
+              <th>Tipo</th>
+              <th>Responsable</th>
+              <th>Registró</th>
+              <th>Concepto</th>
+              <th class="text-end pe-3">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in movimientos %}
+            <tr>
+              <td class="ps-3">{{ m.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>
+                {% if m.tipo == "Ingreso" %}
+                  <span class="badge bg-success"><i class="fas fa-arrow-down me-1"></i>Ingreso</span>
+                {% else %}
+                  <span class="badge bg-danger"><i class="fas fa-arrow-up me-1"></i>Egreso</span>
+                {% endif %}
+              </td>
+              <td>{{ m.responsable }}</td>
+              <td class="small text-muted">{{ m.registrado_por }}</td>
+              <td>{{ m.concepto_limpio }}</td>
+              <td class="text-end pe-3 fw-bold {% if m.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
+                ${{ "{:,.0f}".format(m.monto) }}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-5 text-muted">No hay movimientos registrados.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const tipoSelect = document.querySelector('select[name="tipo"]');
+  const responsableInput = document.getElementById("responsable_retiro");
+  if (!tipoSelect || !responsableInput) return;
+
+  function syncResponsable() {
+    const esEgreso = tipoSelect.value === "Egreso";
+    responsableInput.disabled = !esEgreso;
+    responsableInput.required = esEgreso;
+    if (!esEgreso) responsableInput.value = "";
+  }
+
+  tipoSelect.addEventListener("change", syncResponsable);
+  syncResponsable();
+});
+</script>
+{% endblock %}

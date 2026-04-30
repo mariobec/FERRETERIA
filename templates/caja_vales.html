@@ -1,0 +1,29 @@
+<table class="table">
+    <thead>
+        <tr>
+            <th>Vale #</th>
+            <th>Vendedor</th>
+            <th>Total</th>
+            <th>Acción</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for v in vales %}
+        <tr>
+            <td>{{ v.id }}</td>
+            <td>{{ v.usuario }}</td>
+            <td>${{ v.total }}</td>
+            <td>
+                <form action="{{ url_for('cobrar_vale', id=v.id) }}" method="POST" class="d-inline">
+                    <select name="metodo_pago" required>
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Transbank">Transbank</option>
+                    </select>
+                    <input type="number" name="monto_recibido" placeholder="Paga con..." required>
+                    <button type="submit" class="btn btn-success">Cobrar</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

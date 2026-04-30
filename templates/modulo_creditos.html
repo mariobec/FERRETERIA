@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- BUSCADOR Y REGISTRO -->
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-header bg-dark text-white rounded-top-4 py-3">
+                    <h5 class="mb-0"><i class="fas fa-search-dollar me-2"></i>Buscar Cliente / Registrar Abono</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Seleccionar Cliente</label>
+                        <select id="select-cliente" class="form-select form-select-lg shadow-sm border-2">
+                            <option value="">Escriba nombre o RUT...</option>
+                            {% for c in clientes %}
+                            <option value="{{ c.id }}" data-saldo="{{ c.saldo_deudor }}" data-rut="{{ c.rut }}">
+                                {{ c.nombre }} ({{ c.rut }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div id="area-pago" class="d-none animate__animated animate__fadeIn">
+                        <div class="alert alert-warning border-0 rounded-4 text-center">
+                            <p class="mb-1 small text-uppercase fw-bold">Deuda Actual</p>
+                            <h2 class="fw-bold mb-0 text-dark" id="display-saldo">$ 0</h2>
+                        </div>
+
+                        <form action="{{ url_for('registrar_abono') }}" method="POST">
+                            <input type="hidden" name="cliente_id" id="input-cliente-id">
+                            
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Monto a Abonar</label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-success text-white border-0">$</span>
+                                    <input type="number" name="monto_abono" class="form-control border-2" placeholder="0" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Método de Pago</label>
+                                <select name="metodo_pago" class="form-select border-2">
+                                    <option value="Efectivo">Efectivo</option>
+                                    <option value="Debito">Débito / Tarjeta</option>
+                                    <option value="Transferencia">Transferencia</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="btn btn-success btn-lg w-100 fw-bold rounded-pill py-3">
+                                <i class="fas fa-check-circle me-2"></i>PROCESAR ABONO
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HISTORIAL DE MOVIMIENTOS RECIENTES -->
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-history me-2 text-primary"></i>Últimos Abonos Recibidos</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Cliente</th>
+                                <th>Fecha</th>
+                                <th>Monto</th>
+                                <th>Saldo Resultante</th>
+                                <th class="text-center">Ticket</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in ultimos_abonos %}
+                            <tr>
+                                <td class="ps-4"><strong>{{ a.cliente.nombre }}</strong></td>
+                                <td class="small">{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td class="text-success fw-bold">$ {{ "{:,.0f}".format(a.monto_abono) }}</td>
+                                <td class="text-muted small">$ {{ "{:,.0f}".format(a.nuevo_saldo) }}</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('ver_ticket_abono', id=a.id) }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Ver / imprimir comprobante">
+                                        <i class="fas fa-print"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#select-cliente').select2({ theme: 'bootstrap-5' });
+
+    $('#select-cliente').on('change', function() {
+        const selected = $(this).find(':selected');
+        const saldo = selected.data('saldo');
+        const id = $(this).val();
+
+        if (id) {
+            $('#area-pago').removeClass('d-none');
+            $('#display-saldo').text('$ ' + new Intl.NumberFormat('es-CL').format(saldo));
+            $('#input-cliente-id').val(id);
+        } else {
+            $('#area-pago').addClass('d-none');
+        }
+    });
+});
+</script>
+{% endblock %}

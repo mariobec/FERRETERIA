@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ empresa_cfg.nombre_comercial }} {{ empresa_cfg.eslogan }}</title>
+    
+    <!-- Bootstrap Local -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+    <!-- Iconos -->
+    <link rel="stylesheet" href="https://jsdelivr.net">
+    <!-- Estilos Personalizados -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
+</head>
+<body class="index-body">
+    <div class="overlay"></div>
+
+    <div class="hero-content">
+       <div class="main-text-group">
+    <!-- Título Principal -->
+    <h1>Centro de Gestión Integral</h1>
+    
+    <!-- Subtítulo con el nombre (Ahora debajo) -->
+    <h2>{{ empresa_cfg.nombre_comercial }}{% if empresa_cfg.eslogan %} • {{ empresa_cfg.eslogan }}{% endif %}</h2>
+</div>
+
+        <div class="index-buttons d-flex justify-content-center gap-3 mt-4">
+            <button type="button" class="btn btn-primary btn-lg btn-access" data-bs-toggle="modal" data-bs-target="#loginModal">
+                <span class="access-chip access-chip-private">Requiere acceso</span>
+                <i class="bi bi-cart"></i> PUNTO DE VENTA
+            </button>
+            <a href="{{ url_for('catalogo_publico') }}" class="btn btn-warning btn-lg btn-access">
+                <span class="access-chip access-chip-public">Público</span>
+                <i class="bi bi-grid"></i> CATÁLOGO PÚBLICO
+            </a>
+            <a href="{{ url_for('consulta_stock_publica') }}" class="btn btn-warning btn-lg btn-access">
+                <span class="access-chip access-chip-public">Público</span>
+                <i class="bi bi-search"></i> CONSULTA RÁPIDA STOCK
+            </a>
+            <button type="button" class="btn btn-light btn-lg btn-access" data-bs-toggle="modal" data-bs-target="#loginModal">
+                <span class="access-chip access-chip-private">Requiere acceso</span>
+                <i class="bi bi-key"></i> INICIO SESIÓN ERP
+            </button>
+        </div>
+        <div class="index-access-legend">
+            <span><span class="dot dot-public"></span> Público: disponible sin iniciar sesión</span>
+            <span><span class="dot dot-private"></span> Requiere acceso: solo usuarios ERP</span>
+        </div>
+
+        <div class="features container">
+            <div class="row text-center">
+                <div class="col-md-4 feature-box">
+                    <i class="bi bi-tools icon-circle"></i>
+                    <h5>CATALOGO DE PRODUCTOS </h5>
+                </div>
+                <div class="col-md-4 feature-box">
+                    <i class="bi bi-headset icon-circle"></i>
+                    <h5>CONSULTA DE PRECIOS</h5>
+                </div>
+                <div class="col-md-4 feature-box">
+                    <i class="bi bi-truck icon-circle"></i>
+                    <h5>DESPACHOS <span class="feature-soon">PRÓXIMAMENTE</span></h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE LOGIN SOBRIO -->
+    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title w-100 text-center text-white">ACCESO AL SISTEMA</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-start">
+                    <form action="{{ url_for('login') }}" method="POST">
+                        <div class="mb-3">
+                            <label for="correo" class="form-label fw-bold text-secondary">Correo Electrónico</label>
+                            <input type="email" class="form-control shadow-sm" id="correo" name="correo" placeholder="usuario@ferreteria.cl" required>
+                        </div>
+                        <div class="mb-4">
+                            <label for="password" class="form-label fw-bold text-secondary">Contraseña</label>
+                            <input type="password" class="form-control shadow-sm" id="password" name="password" placeholder="••••••••" required>
+                        </div>
+                        <button type="submit" class="btn btn-ingresar w-100 py-2 fw-bold text-white text-uppercase">
+                            Ingresar al Sistema
+                        </button>
+                    </form>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <small class="text-muted opacity-75">Sistema ERP v2.0 - {{ empresa_cfg.nombre_comercial }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="index-footer">
+        © 2026 {{ empresa_cfg.nombre_comercial }}{% if empresa_cfg.eslogan %} {{ empresa_cfg.eslogan }}{% endif %}
+    </div>
+
+    <!-- Bootstrap JS Local -->
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+</body>
+</html>

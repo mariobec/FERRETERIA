@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="card shadow-lg border-0">
+    <div class="card-header text-white fw-bold" 
+         style="background: linear-gradient(90deg, #198754, #20c997);">
+      <i class="fas fa-user-check me-2"></i> Usuario creado exitosamente
+    </div>
+    <div class="card-body">
+      <h4 class="fw-bold text-success mb-4">
+        <i class="fas fa-id-card me-2"></i> Detalles del Usuario
+      </h4>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item"><strong>Nombre:</strong> {{ usuario.nombre }}</li>
+        <li class="list-group-item"><strong>Correo:</strong> {{ usuario.correo }}</li>
+        <li class="list-group-item"><strong>Rol:</strong> {{ usuario.rol.nombre }}</li>
+      </ul>
+      <div class="mt-4 text-end">
+        <a href="{{ url_for('usuarios') }}" class="btn btn-outline-success fw-bold">
+          <i class="fas fa-arrow-left me-1"></i> Volver a Usuarios
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

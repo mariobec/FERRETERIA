@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Vale Emitido</title>
+    <style>
+        body { font-family: 'Courier New', monospace; font-size: 14px; background: #f8f9fa; }
+        .ticket { width: 300px; margin: auto; border: 2px solid #28a745; border-radius: 8px; padding: 10px; background: #fff; }
+        .header { text-align: center; margin-bottom: 10px; }
+        .header h2 { margin: 0; font-size: 18px; color: #28a745; }
+        .info { text-align: center; font-size: 13px; color: #555; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 2px; font-size: 13px; }
+        th { border-bottom: 1px solid #000; }
+        .total { text-align: right; font-size: 16px; font-weight: bold; margin-top: 10px; color: #007bff; }
+        .pendiente { text-align: center; font-size: 15px; font-weight: bold; color: #dc3545; margin-top: 15px; }
+        .acciones { text-align: center; margin-top: 20px; }
+        .btn { display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 5px; text-decoration: none; }
+        .btn-primary { background: #007bff; color: #fff; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #198754; color: #fff; }
+        .btn-success:hover { background: #157347; }
+        .toolbar { text-align: center; margin: 8px 0 14px; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body onload="window.print()">
+    <div class="toolbar no-print">
+        <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">POS</a>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">CAJA</a>
+        <button onclick="window.print()" class="btn btn-primary">IMPRIMIR</button>
+    </div>
+    <div class="ticket">
+        <div class="header">
+            <h2>✔ Vale Emitido</h2>
+        </div>
+        <div class="info">
+            <p>Vale N° {{ venta.id }}</p>
+            <p>Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
+            <p>Vendedor: {{ venta.usuario }}</p>
+            <p>Turno: {{ venta.prioridad }}</p>
+            <p>Cliente: {{ cliente.nombre if cliente else '---' }}</p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cant</th>
+                    <th>Precio</th>
+                    <th>Subt.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in detalles %}
+                <tr>
+                    <td>{{ d.producto.nombre }}</td>
+                    <td>{{ d.cantidad }}</td>
+                    <td>${{ "{:,.0f}".format(d.precio_unitario) }}</td>
+                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <table style="margin-top:12px;">
+            <thead>
+                <tr>
+                    <th colspan="3">PICKING BODEGA (Ordenado por ubicación)</th>
+                </tr>
+                <tr>
+                    <th>Ubicación</th>
+                    <th>Producto</th>
+                    <th>Cant.</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in detalles_picking %}
+                <tr>
+                    <td>{{ d.producto.ubicacion_codigo if d.producto and d.producto.ubicacion_codigo else 'SIN UBIC.' }}</td>
+                    <td>{{ d.producto.nombre if d.producto else '—' }}</td>
+                    <td>{{ d.cantidad }} {{ d.producto.unidad_venta_final if d.producto else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="total">
+            TOTAL: ${{ "{:,.0f}".format(venta.monto_total) }}
+        </div>
+
+        <div class="pendiente">
+            *** VALE PENDIENTE DE COBRO EN CAJA ***
+        </div>
+
+        <div class="acciones">
+            <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">
+                ➕ Nueva Venta
+            </a>
+            <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">
+                💳 Ir a Caja
+            </a>
+        </div>
+    </div>
+</body>
+</html>
+

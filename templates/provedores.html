@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="page-header">
+        <div>
+            <h3 class="page-title"><i class="fas fa-truck text-primary me-2"></i>Gestión de Proveedores</h3>
+            <p class="page-subtitle">Registro y consulta de datos comerciales para abastecimiento.</p>
+        </div>
+        <span class="badge bg-primary px-3 py-2">Ferretería Santo Domingo</span>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <small class="text-muted d-block">Total proveedores</small>
+                    <h4 class="mb-0 fw-bold">{{ total_proveedores }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <small class="text-muted d-block">Con teléfono</small>
+                    <h4 class="mb-0 fw-bold">{{ proveedores_con_telefono }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <small class="text-muted d-block">Con email</small>
+                    <h4 class="mb-0 fw-bold">{{ proveedores_con_email }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de Registro -->
+    <div class="card card-ds mb-5">
+        <div class="card-header py-3">
+            <h5 class="card-title m-0 fw-bold text-secondary">Registrar Nuevo Proveedor</h5>
+        </div>
+        <div class="card-body p-4">
+            <form action="{{ url_for('guardar_proveedor') }}" method="POST" class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Nombre</label>
+                    <input type="text" name="nombre" class="form-control" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-bold">Contacto</label>
+                    <input type="text" name="contacto" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Teléfono</label>
+                    <input type="text" name="telefono" class="form-control">
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label fw-bold">Email</label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <div class="col-md-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-ds-primary btn-lg px-5 fw-bold shadow">
+                        <i class="fas fa-save me-2"></i>GUARDAR PROVEEDOR
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de Proveedores -->
+    <div class="card card-ds">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h5 class="card-title m-0">Listado de Proveedores</h5>
+            <form method="GET" action="{{ url_for('mostrar_proveedores') }}" class="d-flex gap-2 align-items-center">
+                <input type="text" name="q" class="form-control form-control-sm" placeholder="Buscar nombre, contacto, teléfono o email" value="{{ q or '' }}" style="min-width:320px;">
+                <select name="per_page" class="form-select form-select-sm" style="width:100px;">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-primary">Buscar</button>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 table-ds">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Contacto</th>
+                        <th>Teléfono</th>
+                        <th>Email</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for prov in proveedores %}
+                    <tr>
+                        <td class="fw-bold">{{ prov.nombre }}</td>
+                        <td>{{ prov.contacto }}</td>
+                        <td>{{ prov.telefono }}</td>
+                        <td>{{ prov.email }}</td>
+                        <td class="text-center">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-warning me-1 btn-editar-proveedor"
+                                data-id="{{ prov.id }}"
+                                data-nombre="{{ prov.nombre or '' }}"
+                                data-contacto="{{ prov.contacto or '' }}"
+                                data-telefono="{{ prov.telefono or '' }}"
+                                data-email="{{ prov.email or '' }}"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editarProveedorModal">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <form method="POST" action="{{ url_for('eliminar_proveedor', id=prov.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar proveedor {{ prov.nombre }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">No hay resultados con el filtro actual.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if proveedores_pagination and proveedores_pagination.pages > 1 %}
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <small class="text-muted">Página {{ proveedores_pagination.page }} de {{ proveedores_pagination.pages }}</small>
+            <div class="d-flex gap-2">
+                {% if proveedores_pagination.has_prev %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('mostrar_proveedores', page=proveedores_pagination.prev_num, q=q or none, per_page=per_page) }}">Anterior</a>
+                {% endif %}
+                {% if proveedores_pagination.has_next %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('mostrar_proveedores', page=proveedores_pagination.next_num, q=q or none, per_page=per_page) }}">Siguiente</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="editarProveedorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="formEditarProveedor" method="POST">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar proveedor</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Nombre</label>
+            <input type="text" id="edit_nombre" name="nombre" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Contacto</label>
+            <input type="text" id="edit_contacto" name="contacto" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Teléfono</label>
+            <input type="text" id="edit_telefono" name="telefono" class="form-control">
+          </div>
+          <div>
+            <label class="form-label fw-bold">Email</label>
+            <input type="email" id="edit_email" name="email" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-ds-primary">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.btn-editar-proveedor').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const id = this.dataset.id;
+    document.getElementById('formEditarProveedor').action = '/editar_proveedor/' + id;
+    document.getElementById('edit_nombre').value = this.dataset.nombre || '';
+    document.getElementById('edit_contacto').value = this.dataset.contacto || '';
+    document.getElementById('edit_telefono').value = this.dataset.telefono || '';
+    document.getElementById('edit_email').value = this.dataset.email || '';
+  });
+});
+</script>
+{% endblock %}

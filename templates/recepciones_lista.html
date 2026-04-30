@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-dolly text-success me-2"></i>Recepción de mercadería</h3>
+      <p class="page-subtitle">Documentos de compra ingresados a bodega y su estado.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('kardex') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-clipboard-list me-1"></i> Kardex</a>
+      <a href="{{ url_for('reporte_costos_recepcion') }}" class="btn btn-outline-warning btn-sm"><i class="fas fa-chart-line me-1"></i> Bitácora Costos</a>
+      <a href="/recepciones/tablet" class="btn btn-outline-dark btn-sm"><i class="fas fa-tablet-alt me-1"></i> Modo Tablet</a>
+      <a href="{{ url_for('nueva_recepcion') }}" class="btn btn-ds-primary btn-sm fw-bold"><i class="fas fa-plus me-1"></i> Nueva recepción</a>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header bg-white fw-bold">Últimas recepciones</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 table-ds align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Documento</th>
+              <th>Estado</th>
+              <th>Bodega</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in recepciones %}
+            <tr>
+              <td>#{{ r.id }}</td>
+              <td class="small text-nowrap">{{ r.fecha_recepcion.strftime('%d-%m-%Y %H:%M') if r.fecha_recepcion else '—' }}</td>
+              <td>{{ r.proveedor.nombre if r.proveedor else '—' }}</td>
+              <td><span class="badge bg-secondary">{{ r.documento_tipo }}</span> {{ r.documento_numero }}</td>
+              <td>
+                {% if r.estado == 'Finalizada' %}
+                <span class="badge bg-success">Finalizada</span>
+                {% elif r.estado == 'Incompleta' %}
+                <span class="badge bg-warning text-dark">Incompleta</span>
+                {% else %}
+                <span class="badge bg-light text-dark border">{{ r.estado }}</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ r.usuario_bodega or '—' }}</td>
+              <td class="text-end">
+                <a href="{{ url_for('imprimir_etiquetas_recepcion', rid=r.id) }}" class="btn btn-sm btn-outline-dark">Etiquetas</a>
+                <a href="{{ url_for('detalle_recepcion', rid=r.id) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">No hay recepciones registradas. Cree la primera con «Nueva recepción».</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

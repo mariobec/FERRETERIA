@@ -1,0 +1,261 @@
+{% extends "base_movil.html" %}
+{% block content %}
+<div class="container-fluid py-2">
+  <h4 class="fw-bold mb-3"><i class="fas fa-truck-loading me-2"></i>Recepción de Mercadería (Tablet)</h4>
+
+  <div class="card p-3 shadow-sm mb-3">
+    <div class="row g-2">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">Proveedor</label>
+        <select id="proveedor" class="form-select">
+          <option value="">Seleccionar...</option>
+          {% for prov in proveedores %}
+          <option value="{{ prov.id }}">{{ prov.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">Tipo documento</label>
+        <select id="doc_tipo" class="form-select">
+          <option value="Factura">Factura</option>
+          <option value="Guia de Despacho">Guía de Despacho</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label fw-semibold">N° Documento</label>
+        <input type="text" id="num_documento" class="form-control" placeholder="Folio">
+      </div>
+      <div class="col-md-2 d-grid">
+        <label class="form-label invisible">Acción</label>
+        <button id="btnIniciar" class="btn btn-primary"><i class="fas fa-play me-1"></i> Iniciar</button>
+      </div>
+    </div>
+
+    <div class="row g-2 mt-2">
+      <div class="col-md-8">
+        <label class="form-label fw-semibold">O continuar recepción abierta</label>
+        <select id="recepcion_existente" class="form-select">
+          <option value="">Seleccionar recepción...</option>
+          {% for r in recepciones_activas %}
+          <option value="{{ r.id }}">#{{ r.id }} - {{ r.documento_tipo }} {{ r.documento_numero }} ({{ r.estado }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 d-grid">
+        <label class="form-label invisible">Acción</label>
+        <button id="btnUsarExistente" class="btn btn-outline-secondary">Usar recepción seleccionada</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panelActiva" class="alert alert-info d-none"></div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card p-3 shadow-sm h-100">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong><i class="fas fa-camera me-1"></i> Escáner de código</strong>
+          <button class="btn btn-sm btn-outline-primary" id="btnEscaner">Activar cámara</button>
+        </div>
+        <div id="reader" style="width: 100%; min-height: 220px; background: #111; border-radius: 8px;"></div>
+        <div class="input-group mt-2">
+          <span class="input-group-text">Código</span>
+          <input type="text" id="codigo_manual" class="form-control" placeholder="Escanear o escribir código">
+          <button class="btn btn-outline-secondary" id="btnBuscarCodigo">Buscar</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card p-3 shadow-sm h-100">
+        <strong class="mb-2"><i class="fas fa-box-open me-1"></i> Registrar ítem</strong>
+        <div id="resultado-escaneo" class="d-none">
+          <div class="mb-2"><strong id="prod-nombre"></strong></div>
+          <div class="small text-muted mb-3">Stock actual: <span id="prod-stock"></span></div>
+          <div class="row g-2">
+            <div class="col-4">
+              <label class="form-label small">Cant. doc.</label>
+              <input type="number" id="cant-doc" class="form-control form-control-lg text-center" value="1" min="0">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Cant. recibida</label>
+              <input type="number" id="cant-recibida" class="form-control form-control-lg text-center" value="1" min="1">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Costo unit.</label>
+              <input type="number" id="costo-unitario" class="form-control form-control-lg text-center" step="0.01" min="0">
+            </div>
+          </div>
+          <button id="btnRegistrar" class="btn btn-success btn-lg w-100 mt-3">
+            <i class="fas fa-save me-1"></i> Confirmar registro
+          </button>
+        </div>
+        <div id="sinProducto" class="text-muted small">Escanea o busca un código para comenzar.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-3 shadow-sm mt-3">
+    <div class="d-flex justify-content-between align-items-center">
+      <strong><i class="fas fa-list me-1"></i> Resumen recepción</strong>
+      <button id="btnRefrescarResumen" class="btn btn-sm btn-outline-secondary">Refrescar</button>
+    </div>
+    <div class="table-responsive mt-2">
+      <table class="table table-sm">
+        <thead><tr><th>Producto</th><th class="text-end">Doc.</th><th class="text-end">Rec.</th></tr></thead>
+        <tbody id="tbodyResumen">
+          <tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+(() => {
+  let recepcionId = null;
+  let productoActualId = null;
+  let qr = null;
+  let qrActivo = false;
+
+  const panelActiva = document.getElementById("panelActiva");
+  const resultado = document.getElementById("resultado-escaneo");
+  const sinProducto = document.getElementById("sinProducto");
+  const tbodyResumen = document.getElementById("tbodyResumen");
+
+  function setRecepcionActiva(id, texto = "") {
+    recepcionId = id;
+    panelActiva.classList.remove("d-none");
+    panelActiva.innerHTML = `<strong>Recepción activa #${id}</strong> ${texto ? `- ${texto}` : ""}`;
+    cargarResumen();
+  }
+
+  async function postJSON(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return await res.json();
+  }
+
+  async function iniciarRecepcion() {
+    const proveedor = document.getElementById("proveedor").value;
+    const documento_tipo = document.getElementById("doc_tipo").value;
+    const documento_numero = document.getElementById("num_documento").value.trim();
+    if (!proveedor || !documento_numero) {
+      alert("Proveedor y número de documento son obligatorios.");
+      return;
+    }
+    const data = await postJSON("/api/recepciones/iniciar", {
+      proveedor_id: proveedor,
+      documento_tipo,
+      documento_numero
+    });
+    if (data.status !== "success") {
+      alert(data.message || "No se pudo iniciar recepción");
+      return;
+    }
+    setRecepcionActiva(data.recepcion_id, `${documento_tipo} ${documento_numero}`);
+  }
+
+  async function buscarProductoPorCodigo(codigo) {
+    if (!codigo) return;
+    const res = await fetch(`/api/buscar_producto/${encodeURIComponent(codigo)}`);
+    const data = await res.json();
+    if (data.status !== "success") {
+      alert("Producto no encontrado.");
+      return;
+    }
+    productoActualId = data.id;
+    document.getElementById("prod-nombre").innerText = data.nombre;
+    document.getElementById("prod-stock").innerText = data.stock ?? 0;
+    resultado.classList.remove("d-none");
+    sinProducto.classList.add("d-none");
+    document.getElementById("codigo_manual").value = codigo;
+    if (navigator.vibrate) navigator.vibrate(80);
+  }
+
+  async function registrarItem() {
+    if (!recepcionId) {
+      alert("Primero debes iniciar o seleccionar una recepción.");
+      return;
+    }
+    if (!productoActualId) {
+      alert("Primero debes escanear o buscar un producto.");
+      return;
+    }
+    const cantidad_esperada = parseInt(document.getElementById("cant-doc").value || "0", 10);
+    const cantidad_fisica = parseInt(document.getElementById("cant-recibida").value || "0", 10);
+    const costo_unitario = document.getElementById("costo-unitario").value;
+
+    const data = await postJSON("/api/registrar_item_recepcion", {
+      recepcion_id: recepcionId,
+      producto_id: productoActualId,
+      cantidad_esperada,
+      cantidad_fisica,
+      costo_unitario
+    });
+    if (data.status !== "success") {
+      alert(data.message || "No se pudo registrar ítem.");
+      return;
+    }
+    if (data.alerta) alert(data.alerta);
+    document.getElementById("cant-doc").value = "1";
+    document.getElementById("cant-recibida").value = "1";
+    document.getElementById("costo-unitario").value = "";
+    await cargarResumen();
+  }
+
+  async function cargarResumen() {
+    if (!recepcionId) return;
+    const res = await fetch(`/api/recepciones/${recepcionId}/resumen`);
+    const data = await res.json();
+    if (data.status !== "success") return;
+    if (!data.items.length) {
+      tbodyResumen.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Sin líneas aún</td></tr>`;
+      return;
+    }
+    tbodyResumen.innerHTML = data.items.map(it => `
+      <tr>
+        <td>${it.producto} <small class="text-muted">${it.codigo || ""}</small></td>
+        <td class="text-end">${it.cantidad_documento}</td>
+        <td class="text-end fw-bold">${it.cantidad_recibida}</td>
+      </tr>
+    `).join("");
+  }
+
+  async function toggleEscaner() {
+    if (!qr) qr = new Html5Qrcode("reader");
+    if (qrActivo) {
+      await qr.stop();
+      qrActivo = false;
+      document.getElementById("btnEscaner").innerText = "Activar cámara";
+      return;
+    }
+    await qr.start(
+      { facingMode: "environment" },
+      { fps: 8, qrbox: { width: 260, height: 120 } },
+      (decodedText) => buscarProductoPorCodigo(decodedText)
+    );
+    qrActivo = true;
+    document.getElementById("btnEscaner").innerText = "Detener cámara";
+  }
+
+  document.getElementById("btnIniciar").addEventListener("click", iniciarRecepcion);
+  document.getElementById("btnBuscarCodigo").addEventListener("click", () => {
+    buscarProductoPorCodigo(document.getElementById("codigo_manual").value.trim());
+  });
+  document.getElementById("btnRegistrar").addEventListener("click", registrarItem);
+  document.getElementById("btnRefrescarResumen").addEventListener("click", cargarResumen);
+  document.getElementById("btnEscaner").addEventListener("click", toggleEscaner);
+  document.getElementById("btnUsarExistente").addEventListener("click", () => {
+    const rid = parseInt(document.getElementById("recepcion_existente").value || "0", 10);
+    if (!rid) return alert("Selecciona una recepción abierta.");
+    setRecepcionActiva(rid, "Recepción retomada");
+  });
+})();
+</script>
+{% endblock %}

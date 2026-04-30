@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title"><i class="fas fa-building me-2 text-primary"></i>Administración de Empresa</h2>
+      <p class="page-subtitle">Personaliza identidad comercial visible en portada y panel ERP.</p>
+    </div>
+    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home me-1"></i> Inicio</a>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold">
+      <i class="fas fa-sliders-h me-2"></i>Datos de Personalización
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('admin_empresa') }}">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Nombre comercial</label>
+            <input type="text" name="nombre_comercial" class="form-control" value="{{ empresa.nombre_comercial }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Razón social</label>
+            <input type="text" name="razon_social" class="form-control" value="{{ empresa.razon_social }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Eslogan / Marca</label>
+            <input type="text" name="eslogan" class="form-control" value="{{ empresa.eslogan }}" placeholder="Ej: Chilemat®">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Teléfono</label>
+            <input type="text" name="telefono" class="form-control" value="{{ empresa.telefono }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Correo</label>
+            <input type="email" name="correo" class="form-control" value="{{ empresa.correo }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Dirección</label>
+            <input type="text" name="direccion" class="form-control" value="{{ empresa.direccion }}">
+          </div>
+        </div>
+        <div class="mt-4 text-end">
+          <button type="submit" class="btn btn-ds-primary fw-bold px-4">
+            <i class="fas fa-save me-1"></i> Guardar Configuración
+          </button>
+        </div>
+      </form>
+      <div class="alert alert-info mt-4 mb-0">
+        Esta configuración es operativa y de marca. La administración técnica (infraestructura, respaldos, actualizaciones y seguridad avanzada) sigue bajo control del proveedor del servicio.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

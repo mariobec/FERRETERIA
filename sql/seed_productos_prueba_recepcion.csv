@@ -1,0 +1,6 @@
+nombre,codigo_barra,precio_compra,precio_venta,precio_mayoreo,unidad_compra,unidad_venta,factor_conversion,stock,categoria,subcategoria,ubicacion_pasillo,ubicacion_estante,ubicacion_nivel
+Tornillo Zincado 1in (Prueba),PRB-TORN-001,12500,220,200,Caja,Unidad,100,1200,Herramientas,Tornillos,P02,E04,N1
+Cadena Galvanizada 6mm (Prueba),PRB-CAD-001,18500,980,900,Rollo,Metro,25,180,Construcción,Cadenas,P05,E01,N2
+Cable THHN 2.5mm (Prueba),PRB-CAB-001,38000,1290,1190,Rollo,Metro,100,250,Electricidad,Cables,P06,E03,N3
+Silicona Transparente 280ml (Prueba),PRB-SIL-001,1450,2490,2290,Caja,Unidad,12,96,Construcción,Adhesivos,P03,E02,N1
+Disco Corte Metal 4.5 (Prueba),PRB-DIS-001,5200,1190,1050,Caja,Unidad,25,220,Herramientas,Abrasivos,P04,E05,N2

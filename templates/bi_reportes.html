@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-chart-line text-primary me-2"></i>Business Intelligence</h3>
+      <p class="page-subtitle">Reportes premium para ventas, crédito, medios de pago y rotación.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('export_bi_csv', fecha_inicio=fecha_inicio, fecha_fin=fecha_fin) }}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i> Exportar CSV
+      </a>
+      <a href="{{ url_for('mostrar_ventas') }}" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-list me-1"></i> Ver ventas
+      </a>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-body">
+      <form class="row g-2 align-items-end" method="GET" action="{{ url_for('business_intelligence') }}">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1">Desde</label>
+          <input type="date" name="fecha_inicio" class="form-control form-control-sm" value="{{ fecha_inicio }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1">Hasta</label>
+          <input type="date" name="fecha_fin" class="form-control form-control-sm" value="{{ fecha_fin }}">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-ds-primary btn-sm fw-bold" type="submit">Aplicar</button>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('business_intelligence', fecha_inicio=hoy_str, fecha_fin=hoy_str) }}">Hoy</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('business_intelligence', fecha_inicio=hace_7_str, fecha_fin=hoy_str) }}">Últimos 7</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('business_intelligence', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}">Últimos 30</a>
+          </div>
+        </div>
+      </form>
+      <div class="small text-muted mt-2">
+        Comparativo vs período anterior equivalente: {{ fecha_inicio_ant }} al {{ fecha_fin_ant }}.
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted">Ventas cobradas</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(total_ventas).replace(",", ".") }}</h4>
+          <small class="{% if var_total_ventas is not none and var_total_ventas < 0 %}text-danger{% else %}text-success{% endif %}">
+            {% if var_total_ventas is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_total_ventas) }} vs período anterior{% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted">Documentos emitidos</small>
+          <h4 class="fw-bold mb-0">{{ total_documentos }}</h4>
+          <small class="{% if var_total_documentos is not none and var_total_documentos < 0 %}text-danger{% else %}text-success{% endif %}">
+            {% if var_total_documentos is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_total_documentos) }} vs período anterior{% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted">Ticket promedio</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ticket_promedio).replace(",", ".") }}</h4>
+          <small class="{% if var_ticket_promedio is not none and var_ticket_promedio < 0 %}text-danger{% else %}text-success{% endif %}">
+            {% if var_ticket_promedio is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_ticket_promedio) }} vs período anterior{% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted">Monto en crédito</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(total_credito).replace(",", ".") }}</h4>
+          <small class="{% if var_total_credito is not none and var_total_credito > 0 %}text-danger{% else %}text-success{% endif %}">
+            {% if var_total_credito is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_total_credito) }} vs período anterior{% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">Flujo de ventas por día</div>
+        <div class="card-body">
+          <canvas id="chartVentasDia" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">Participación por medio de pago</div>
+        <div class="card-body">
+          <canvas id="chartMetodos" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card card-ds">
+        <div class="card-header bg-white fw-bold">Top productos por venta</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 table-ds align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-end">Unidades</th>
+                <th class="text-end">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for nombre, unidades, monto in top_productos %}
+              <tr>
+                <td>{{ nombre }}</td>
+                <td class="text-end">{{ unidades or 0 }}</td>
+                <td class="text-end fw-bold">${{ "{:,.0f}".format(monto or 0).replace(",", ".") }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-center text-muted py-3">Sin datos en el rango seleccionado.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds">
+        <div class="card-header bg-white fw-bold">Últimas ventas del período</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 table-ds align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Pago</th>
+                <th>Estado</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in ultimas_ventas %}
+              <tr>
+                <td class="fw-bold">#{{ v.id }}</td>
+                <td>{{ v.fecha.strftime('%d-%m %H:%M') if v.fecha else '—' }}</td>
+                <td>{{ v.metodo_pago or '—' }}</td>
+                <td>{{ v.estado }}</td>
+                <td class="text-end">${{ "{:,.0f}".format(v.monto_total or 0).replace(",", ".") }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted py-3">Sin ventas en el rango seleccionado.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script>
+  (() => {
+    const ventasLabels = {{ labels_dias | tojson }};
+    const ventasData = {{ data_dias | tojson }};
+    const metodosLabels = {{ metodos_labels | tojson }};
+    const metodosData = {{ metodos_data | tojson }};
+
+    const fmtCLP = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+
+    const ctxVentas = document.getElementById('chartVentasDia');
+    if (ctxVentas && typeof Chart !== 'undefined') {
+      new Chart(ctxVentas, {
+        type: 'line',
+        data: {
+          labels: ventasLabels,
+          datasets: [{
+            label: 'Ventas',
+            data: ventasData,
+            borderColor: '#f37021',
+            backgroundColor: 'rgba(243, 112, 33, 0.12)',
+            tension: 0.25,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { ticks: { callback: (v) => fmtCLP(v) } }
+          }
+        }
+      });
+    }
+
+    const ctxMetodos = document.getElementById('chartMetodos');
+    if (ctxMetodos && typeof Chart !== 'undefined') {
+      new Chart(ctxMetodos, {
+        type: 'doughnut',
+        data: {
+          labels: metodosLabels,
+          datasets: [{
+            data: metodosData,
+            backgroundColor: ['#f37021', '#0ea5e9', '#22c55e', '#8b5cf6', '#f59e0b', '#64748b']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtCLP(ctx.parsed)}` } }
+          }
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

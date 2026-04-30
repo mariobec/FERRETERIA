@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consulta rápida de stock | Ferretería Santo Domingo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+  <style>
+    body { background: #f5f7fb; }
+    .box { max-width: 1100px; margin: 24px auto; }
+  </style>
+</head>
+<body>
+  <div class="box card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h4 class="mb-0">Consulta rápida de stock</h4>
+          <small class="text-muted">Búsqueda por nombre o código de barras.</small>
+        </div>
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Volver</a>
+      </div>
+
+      <form method="GET" action="{{ url_for('consulta_stock_publica') }}" class="row g-2 mb-3">
+        <div class="col-md-10">
+          <input type="text" id="qStock" name="q" class="form-control" placeholder="Ej: tornillo 1/2, 7801234567890..." value="{{ q or '' }}" autofocus autocomplete="off">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-primary" type="submit">Consultar</button>
+        </div>
+      </form>
+
+      {% if q %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Código</th>
+              <th>Producto</th>
+              {% if mostrar_stock_exacto_publico %}
+              <th class="text-end">Stock</th>
+              {% endif %}
+              {% if mostrar_precio_publico %}
+              <th class="text-end">Precio</th>
+              {% endif %}
+              <th>Estado</th>
+              {% if wa_base %}
+              <th>Contacto</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in productos %}
+            <tr>
+              <td>{{ p.codigo_barra }}</td>
+              <td>{{ p.nombre }}</td>
+              {% if mostrar_stock_exacto_publico %}
+              <td class="text-end">{{ p.stock or 0 }}</td>
+              {% endif %}
+              {% if mostrar_precio_publico %}
+              <td class="text-end">${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
+              {% endif %}
+              <td>
+                {% if (p.stock or 0) <= 0 %}
+                <span class="badge text-bg-danger">Agotado</span>
+                {% elif (p.stock or 0) < 5 %}
+                <span class="badge text-bg-warning">Bajo</span>
+                {% else %}
+                <span class="badge text-bg-success">Disponible</span>
+                {% endif %}
+              </td>
+              {% if wa_base %}
+              <td>
+                {% if (p.stock or 0) < 5 %}
+                <a class="btn btn-success btn-sm" target="_blank" href="{{ wa_base }}?text={{ ('Hola, quiero consultar disponibilidad de: ' ~ p.nombre ~ ' (' ~ (p.codigo_barra or 's/c') ~ ')')|urlencode }}">
+                  Consultar
+                </a>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="{% if mostrar_stock_exacto_publico and mostrar_precio_publico and wa_base %}6{% elif (mostrar_stock_exacto_publico and mostrar_precio_publico) or (mostrar_stock_exacto_publico and wa_base) or (mostrar_precio_publico and wa_base) %}5{% elif mostrar_stock_exacto_publico or mostrar_precio_publico or wa_base %}4{% else %}3{% endif %}" class="text-center text-muted py-3">No hay coincidencias para “{{ q }}”.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="alert alert-info mb-0">Ingresa un término para consultar stock en tiempo real.</div>
+      {% endif %}
+    </div>
+  </div>
+  <script>
+    (function () {
+      const form = document.querySelector('form[action="{{ url_for("consulta_stock_publica") }}"]');
+      const qInput = document.getElementById('qStock');
+      if (!form || !qInput) return;
+
+      let lastQuery = qInput.value.trim();
+      let debounceTimer = null;
+
+      function submitIfChanged() {
+        const now = qInput.value.trim();
+        if (now === lastQuery) return;
+        lastQuery = now;
+        form.submit();
+      }
+
+      qInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(submitIfChanged, 420);
+      });
+    })();
+  </script>
+</body>
+</html>

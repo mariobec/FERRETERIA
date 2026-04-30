@@ -1,0 +1,245 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    
+    <!-- CABECERA PREMIUM -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Dashboard Gestion de Ventas</h1>
+            <p class="page-subtitle">Control de ventas pagadas, pendientes y productividad del turno.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-cash-register me-1"></i> Ir al POS
+            </a>
+            <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning btn-sm">
+                <i class="fas fa-file-invoice-dollar me-1"></i> Caja
+            </a>
+            <span class="badge rounded-pill bg-dark border border-success text-success px-3 py-2">
+                <i class="fas fa-satellite-dish me-2"></i>SISTEMA EN VIVO
+            </span>
+        </div>
+    </div>
+
+    <!-- FILTROS ESTILO NEÓN -->
+    <div class="card card-ds mb-4">
+        <div class="card-body p-4">
+            <form method="GET" action="{{ url_for('mostrar_ventas') }}" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="small fw-bold text-muted mb-2">DESDE</label>
+                    <input type="date" name="fecha_inicio" class="form-control" value="{{ request.args.get('fecha_inicio', '') }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="small fw-bold text-muted mb-2">HASTA</label>
+                    <input type="date" name="fecha_fin" class="form-control" value="{{ request.args.get('fecha_fin', '') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="small fw-bold text-muted mb-2">ESTADO</label>
+                    <select name="estado" class="form-select">
+                        <option value="">Todos los estados</option>
+                        <option value="Pagado" {% if request.args.get('estado') == 'Pagado' %}selected{% endif %}>Pagado</option>
+                        <option value="Pendiente" {% if request.args.get('estado') == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="small fw-bold text-muted mb-2">PAGO</label>
+                    <select name="metodo_pago" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="Efectivo" {% if request.args.get('metodo_pago') == 'Efectivo' %}selected{% endif %}>Efectivo</option>
+                        <option value="Debito" {% if request.args.get('metodo_pago') == 'Debito' %}selected{% endif %}>Débito</option>
+                        <option value="Transferencia" {% if request.args.get('metodo_pago') == 'Transferencia' %}selected{% endif %}>Transferencia</option>
+                        <option value="Credito" {% if request.args.get('metodo_pago') == 'Credito' %}selected{% endif %}>Crédito</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold border-0" style="background: #3b82f6;">FILTRAR</button>
+                    <a href="{{ url_for('mostrar_ventas') }}" class="btn btn-outline-secondary"><i class="fas fa-sync-alt"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPIs CON EFECTO GLOW -->
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-md-3">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <h6 class="text-success small fw-bold text-uppercase">Recaudacion Real</h6>
+                    <h2 class="fw-bold">${{ "{:,.0f}".format(total_dia or 0) }}</h2>
+                    <small class="text-muted">Dinero en Caja</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <h6 class="text-warning small fw-bold text-uppercase">Dinero en Vuelo</h6>
+                    <h2 class="fw-bold text-warning">${{ "{:,.0f}".format(monto_en_vuelo or 0) }}</h2>
+                    <small class="text-muted">{{ ventas_pendientes_count or 0 }} Vales pendientes</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <h6 class="text-info small fw-bold text-uppercase">Ticket Promedio</h6>
+                    <h2 class="fw-bold">${{ "{:,.0f}".format(ticket_promedio or 0) }}</h2>
+                    <small class="text-muted">Promedio por venta</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-ds h-100">
+                <div class="card-body">
+                    <h6 class="text-danger small fw-bold text-uppercase">Artículos Vendidos</h6>
+                    <h2 class="fw-bold">{{ total_articulos or 0 }}</h2>
+                    <small class="text-muted">Unidades totales</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN CENTRAL: GRÁFICO DE ANILLO (DOUGHNUT) -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-5">
+            <div class="card card-ds h-100">
+                <div class="card-header bg-white border-0 pt-4 px-4">
+                    <h5 class="fw-bold m-0"><i class="fas fa-chart-pie me-2 text-primary"></i>Estado de Cobros</h5>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center position-relative">
+                    <canvas id="graficoAnillo" style="max-height: 250px;"></canvas>
+                    <div class="position-absolute text-center" style="top: 55%; transform: translateY(-50%);">
+                        <h2 class="fw-bold mb-0" id="porcentajeCentro">--%</h2>
+                        <small class="text-muted text-uppercase">Efectividad</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-7">
+            <!-- BUSCADOR POR VOZ E INTELIGENTE -->
+            <div class="card card-ds mb-3">
+                <div class="card-body p-2 d-flex align-items-center">
+                    <i class="fas fa-search ms-3 text-muted"></i>
+                    <input type="text" id="inputBusqueda" class="form-control bg-transparent border-0 shadow-none" 
+                           placeholder="Escribe o pulsa el micro para buscar..." onkeyup="filtrarTabla()">
+                    <button id="btnVoz" class="btn btn-link text-primary"><i class="fas fa-microphone fa-lg"></i></button>
+                </div>
+            </div>
+
+            <!-- TABLA DE OPERACIONES -->
+            <div class="card card-ds" style="max-height: 350px; overflow-y: auto;">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 table-ds" id="tablaVentas">
+                        <thead class="sticky-top">
+                            <tr class="small text-uppercase">
+                                <th>Folio</th>
+                                <th>Vendedor</th>
+                                <th>Cliente</th>
+                                <th class="text-center">Pago</th>
+                                <th class="text-end">Total</th>
+                                <th class="text-center">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for venta in ventas %}
+                            <tr>
+                                <td class="fw-bold text-info">#{{ venta.id }}</td>
+                                <td>{{ venta.usuario }}</td>
+                                <td>{{ venta.cliente.nombre if venta.cliente else 'C. Final' }}</td>
+                                <td class="text-center small">{{ venta.metodo_pago or '—' }}</td>
+                                <td class="text-end fw-bold text-success">${{ "{:,.0f}".format(venta.total) }}</td>
+                                <td class="text-center">
+                                    <span class="badge {% if venta.estado == 'Pagado' %}bg-success{% else %}bg-warning text-dark{% endif %} px-3">{{ venta.estado }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {% if ventas_pagination is defined and ventas_pagination.pages > 1 %}
+            <nav class="mt-3">
+                <ul class="pagination pagination-sm justify-content-center">
+                    <li class="page-item {% if not ventas_pagination.has_prev %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('mostrar_ventas', page=ventas_pagination.prev_num, fecha_inicio=request.args.get('fecha_inicio', ''), fecha_fin=request.args.get('fecha_fin', ''), estado=request.args.get('estado', ''), metodo_pago=request.args.get('metodo_pago', '')) }}">Anterior</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Página {{ ventas_pagination.page }} de {{ ventas_pagination.pages }}</span>
+                    </li>
+                    <li class="page-item {% if not ventas_pagination.has_next %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('mostrar_ventas', page=ventas_pagination.next_num, fecha_inicio=request.args.get('fecha_inicio', ''), fecha_fin=request.args.get('fecha_fin', ''), estado=request.args.get('estado', ''), metodo_pago=request.args.get('metodo_pago', '')) }}">Siguiente</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- SCRIPTS -->
+<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+
+<script>
+// 1. Gráfico de Anillo (Doughnut)
+const pagado = {{ total_dia or 0 }};
+const vuelo = {{ monto_en_vuelo or 0 }};
+const porcentaje = pagado + vuelo > 0 ? Math.round((pagado / (pagado + vuelo)) * 100) : 0;
+document.getElementById('porcentajeCentro').innerText = porcentaje + "%";
+
+const ctxAnillo = document.getElementById('graficoAnillo').getContext('2d');
+new Chart(ctxAnillo, {
+    type: 'doughnut',
+    data: {
+        labels: ['Pagado', 'Pendiente'],
+        datasets: [{
+            data: [pagado, vuelo],
+            backgroundColor: ['#22c55e', '#f59e0b'],
+            hoverBackgroundColor: ['#16a34a', '#d97706'],
+            borderWidth: 0,
+            borderRadius: 10
+        }]
+    },
+    options: {
+        cutout: '85%',
+        plugins: { legend: { display: false } }
+    }
+});
+
+// 2. Buscador Instantáneo
+function filtrarTabla() {
+    let filter = document.getElementById("inputBusqueda").value.toUpperCase();
+    let trs = document.getElementById("tablaVentas").getElementsByTagName("tr");
+    for (let i = 1; i < trs.length; i++) {
+        trs[i].style.display = trs[i].innerText.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+    }
+}
+
+// 3. Reconocimiento de Voz
+const btnVoz = document.getElementById('btnVoz');
+if ('webkitSpeechRecognition' in window) {
+    const rec = new webkitSpeechRecognition();
+    rec.lang = 'es-CL';
+    btnVoz.onclick = () => { 
+        rec.start(); 
+        btnVoz.classList.add('text-danger');
+    };
+    rec.onresult = (e) => {
+        document.getElementById('inputBusqueda').value = e.results[0][0].transcript;
+        filtrarTabla();
+        btnVoz.classList.remove('text-danger');
+    };
+}
+</script>
+
+<style>
+    /* Estética de Tabla y Scroll */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+    .table td { border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .card { transition: transform 0.3s ease; }
+    .card:hover { transform: translateY(-5px); }
+</style>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 720px;">
+  <div class="page-header">
+    <h3 class="page-title"><i class="fas fa-file-invoice me-2"></i>Nueva recepción</h3>
+    <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Volver al listado</a>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body">
+      <form method="post" action="{{ url_for('nueva_recepcion') }}" class="row g-3" enctype="multipart/form-data">
+        <div class="col-12">
+          <label class="form-label fw-bold">Proveedor</label>
+          <select name="proveedor_id" class="form-select" required>
+            <option value="">Seleccione…</option>
+            {% for p in proveedores %}
+            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Tipo de documento</label>
+          <select name="documento_tipo" class="form-select">
+            <option value="Factura">Factura</option>
+            <option value="Guia de Despacho">Guía de despacho</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-bold">Número de documento</label>
+          <input type="text" name="documento_numero" class="form-control" placeholder="Folio SII / número interno" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-bold">Adjuntar documento (Factura/Guía)</label>
+          <input type="file" name="documento_archivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp">
+          <div class="small text-muted mt-1">Opcional, pero recomendado para trazabilidad y control de compras.</div>
+        </div>
+        <div class="col-12 d-flex justify-content-end gap-2">
+          <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-ds-primary fw-bold">Crear y cargar líneas</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-dolly-flatbed me-2"></i>Recepción #{{ recepcion.id }}</h3>
+      <p class="page-subtitle">
+        {{ recepcion.proveedor.nombre if recepcion.proveedor else 'Proveedor' }} —
+        <span class="badge bg-secondary">{{ recepcion.documento_tipo }}</span>
+        {{ recepcion.documento_numero }}
+        <span class="ms-2 badge {% if recepcion.estado == 'Finalizada' %}bg-success{% elif recepcion.estado == 'Incompleta' %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}">{{ recepcion.estado }}</span>
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('imprimir_etiquetas_recepcion', rid=recepcion.id) }}" class="btn btn-outline-dark btn-sm">
+        <i class="fas fa-tags me-1"></i> Reimprimir etiquetas
+      </a>
+      {% if tiene_documento %}
+      <a href="{{ url_for('ver_documento_recepcion', rid=recepcion.id) }}" class="btn btn-outline-primary btn-sm" target="_blank">
+        <i class="fas fa-paperclip me-1"></i> Ver documento
+      </a>
+      {% endif %}
+      <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Listado</a>
+    </div>
+  </div>
+
+  {% if recepcion.estado in ('Pendiente', 'Incompleta') %}
+  <div class="card card-ds mb-4">
+    <div class="card-header bg-white fw-bold">Agregar producto recibido</div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" class="row g-3 align-items-end">
+        <input type="hidden" name="action" value="add_line">
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Producto</label>
+          <select id="recvProducto" name="producto_id" class="form-select" style="width:100%" required></select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Cant. documento</label>
+          <input type="number" name="cantidad_documento" class="form-control" min="0" value="0" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Cant. recibida</label>
+          <input type="number" name="cantidad_recibida" class="form-control" min="1" value="1" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Costo unitario</label>
+          <input type="number" step="0.01" name="costo_unitario" class="form-control" min="0" placeholder="Opcional">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label d-block">&nbsp;</label>
+          <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" value="1" id="autorizarMargenBajo" name="autorizar_margen_bajo">
+            <label class="form-check-label small" for="autorizarMargenBajo">Autorizar margen bajo</label>
+          </div>
+        </div>
+        <div class="col-md-3 d-grid">
+          <button type="submit" class="btn btn-success fw-bold"><i class="fas fa-plus me-1"></i> Registrar línea</button>
+        </div>
+      </form>
+      <p class="small text-muted mt-2 mb-0">Si sube el costo o el margen proyectado cae bajo el mínimo, el sistema alerta/bloquea para proteger rentabilidad.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card card-ds mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-bold">Líneas registradas</span>
+      {% if recepcion.estado in ('Pendiente', 'Incompleta') %}
+      <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" onsubmit="return confirm('¿Cerrar esta recepción? No podrá agregar más líneas.');">
+        <input type="hidden" name="action" value="finalizar">
+        <button type="submit" class="btn btn-sm btn-outline-dark">Finalizar recepción</button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 table-ds">
+          <thead class="table-light">
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th class="text-end">Doc.</th>
+              <th class="text-end">Recibido</th>
+              <th class="text-end">Costo actual</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in recepcion.detalles %}
+            <tr>
+              <td><span class="badge bg-secondary">{{ d.producto.codigo_barra if d.producto else '—' }}</span></td>
+              <td>{{ d.producto.nombre if d.producto else '—' }}</td>
+              <td class="text-end">{{ d.cantidad_documento }}</td>
+              <td class="text-end fw-bold">{{ d.cantidad_recibida }}</td>
+              <td class="text-end">${{ "{:,.0f}".format((d.producto.precio_compra or 0)) if d.producto else "—" }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-3">Sin líneas aún.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  $(function () {
+    if (!$("#recvProducto").length) return;
+    $("#recvProducto").select2({
+      theme: "bootstrap-5",
+      placeholder: "Buscar por nombre o código…",
+      allowClear: true,
+      minimumInputLength: 2,
+      width: "100%",
+      ajax: {
+        url: "{{ url_for('buscar_producto') }}",
+        dataType: "json",
+        delay: 300,
+        data: function (params) { return { q: params.term }; },
+        processResults: function (data) {
+          return {
+            results: (data.results || []).map(function (r) {
+              return { id: r.producto_id, text: r.text };
+            })
+          };
+        }
+      }
+    });
+  });
+</script>
+{% endblock %}

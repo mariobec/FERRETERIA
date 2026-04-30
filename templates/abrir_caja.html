@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .opening-container { min-height: 70vh; display: grid; place-items: center; }
+    .open-box { max-width: 520px; width: 100%; }
+    .open-header { background: linear-gradient(135deg, #111827, #1f2937); color: #fff; border-radius: 12px 12px 0 0; padding: 22px; }
+    .open-icon { width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; background: rgba(243,112,33,.15); color: var(--ds-primary); margin: 0 auto 8px; font-size: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="opening-container">
+    <div class="card card-ds open-box">
+        <div class="open-header text-center">
+            <div class="open-icon">
+                <i class="fas fa-cash-register"></i>
+            </div>
+            <h3 class="fw-bold m-0">Apertura de Caja</h3>
+            <p class="small mb-0 text-white-50">Control de turno y flujo de efectivo</p>
+        </div>
+
+        <div class="card-body p-4 p-md-5">
+            <div class="d-flex gap-2 mb-3">
+                <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-home me-1"></i> Inicio
+                </a>
+                <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-cash-register me-1"></i> POS
+                </a>
+            </div>
+            <div class="alert alert-warning small">
+                <i class="fas fa-info-circle"></i>
+                <span>Ingrese el dinero en efectivo (sencillo) que hay en la gaveta para iniciar ventas.</span>
+            </div>
+
+            <form action="{{ url_for('abrir_caja') }}" method="post">
+                <div class="mb-4">
+                    <label for="monto_inicial" class="form-label fw-bold text-secondary small">SALDO INICIAL DISPONIBLE</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 text-muted fw-bold">$</span>
+                        <input type="number" step="0.01" class="form-control border-start-0 form-control-lg" 
+                               id="monto_inicial" name="monto_inicial" placeholder="0.00" required autofocus>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-ds-primary w-100 shadow-sm py-3 fw-bold">
+                    <i class="fas fa-check-circle me-2"></i> Iniciar Jornada Laboral
+                </button>
+            </form>
+            
+            <div class="text-center mt-4">
+                <p class="text-muted smaller mb-0">Responsable: <span class="fw-bold">{{ current_user.nombre }}</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-clipboard-list text-primary me-2"></i>Kardex / Movimientos de inventario</h3>
+      <p class="page-subtitle">Historial de entradas, salidas y ajustes que modifican el stock del catálogo.</p>
+    </div>
+    <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-success btn-sm">
+      <i class="fas fa-dolly me-1"></i> Recepciones
+    </a>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-body">
+      <form method="get" action="{{ url_for('kardex') }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small text-muted mb-0">Producto</label>
+          <select name="producto_id" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for p in productos_sel %}
+            <option value="{{ p.id }}" {% if filtros.producto_id == p.id %}selected{% endif %}>{{ p.nombre }} ({{ p.codigo_barra }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted mb-0">Tipo</label>
+          <select name="tipo" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="ENTRADA" {% if filtros.tipo == 'ENTRADA' %}selected{% endif %}>Entrada</option>
+            <option value="SALIDA" {% if filtros.tipo == 'SALIDA' %}selected{% endif %}>Salida</option>
+            <option value="AJUSTE" {% if filtros.tipo == 'AJUSTE' %}selected{% endif %}>Ajuste</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted mb-0">Desde</label>
+          <input type="date" name="fecha_inicio" class="form-control form-control-sm" value="{{ filtros.fecha_inicio or '' }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted mb-0">Hasta</label>
+          <input type="date" name="fecha_fin" class="form-control form-control-sm" value="{{ filtros.fecha_fin or '' }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted mb-0">Texto</label>
+          <input type="text" name="q" class="form-control form-control-sm" placeholder="Código, nombre, motivo…" value="{{ filtros.q or '' }}">
+        </div>
+        <div class="col-md-1 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm fw-bold">Filtrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <span class="fw-bold">Registros</span>
+      {% if pagination %}
+      <small class="text-muted">Pág. {{ pagination.page }} de {{ pagination.pages or 1 }}</small>
+      {% endif %}
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0 table-ds">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Producto</th>
+              <th class="text-end">Cant.</th>
+              <th class="text-end">Stock tras</th>
+              <th>Usuario</th>
+              <th>Motivo / ref.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in movimientos %}
+            <tr>
+              <td class="text-nowrap small">{{ m.fecha.strftime('%d-%m-%Y %H:%M') if m.fecha else '—' }}</td>
+              <td>
+                {% if m.tipo_movimiento == 'ENTRADA' %}
+                <span class="badge bg-success">Entrada</span>
+                {% elif m.tipo_movimiento == 'SALIDA' %}
+                <span class="badge bg-danger">Salida</span>
+                {% else %}
+                <span class="badge bg-warning text-dark">{{ m.tipo_movimiento or '—' }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if m.producto %}
+                <span class="small text-muted">{{ m.producto.codigo_barra }}</span><br>
+                <strong>{{ m.producto.nombre }}</strong>
+                {% else %}
+                ID {{ m.id_producto }}
+                {% endif %}
+              </td>
+              <td class="text-end fw-bold">{{ m.cantidad }}</td>
+              <td class="text-end text-muted">{{ m.stock_saldo if m.stock_saldo is not none else '—' }}</td>
+              <td class="small">{{ m.usuario or '—' }}</td>
+              <td class="small">
+                {{ m.motivo or '' }}
+                {% if m.referencia_tipo and m.referencia_id %}
+                <div class="text-muted">Ref: {{ m.referencia_tipo }} #{{ m.referencia_id }}</div>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">No hay movimientos con los filtros actuales. Ejecute una recepción, un cobro en caja o un ajuste de auditoría.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% if pagination and pagination.pages > 1 %}
+    <div class="card-footer bg-white d-flex justify-content-center gap-2">
+      {% if pagination.has_prev %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('kardex', page=pagination.prev_num, producto_id=filtros.producto_id or none, tipo=filtros.tipo or none, fecha_inicio=filtros.fecha_inicio or none, fecha_fin=filtros.fecha_fin or none, q=filtros.q or none) }}">Anterior</a>
+      {% endif %}
+      {% if pagination.has_next %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('kardex', page=pagination.next_num, producto_id=filtros.producto_id or none, tipo=filtros.tipo or none, fecha_inicio=filtros.fecha_inicio or none, fecha_fin=filtros.fecha_fin or none, q=filtros.q or none) }}">Siguiente</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

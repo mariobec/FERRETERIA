@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="page-header">
+        <div>
+            <h3 class="page-title"><i class="fas fa-clock me-2 text-primary"></i>Vales Pendientes de Cobro</h3>
+            <p class="page-subtitle">Listado operativo para cobro rápido desde caja.</p>
+        </div>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-cash-register me-1"></i> Ir a Caja Premium
+        </a>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <div class="card card-ds">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-clock"></i> Vales Pendientes de Cobro</h5>
+                    <span class="badge bg-light text-dark">{{ vales|length }} Pendientes</span>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle table-ds">
+                            <thead>
+                                <tr>
+                                    <th>Folio</th>
+                                    <th>Fecha y Hora</th>
+                                    <th>Vendedor</th>
+                                    <th class="text-end">Total a Cobrar</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for v in vales %}
+                                <tr>
+                                    <td><span class="badge bg-secondary">#{{ v.id }}</span></td>
+                                    <td>{{ v.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td><i class="fas fa-user-tag"></i> {{ v.usuario }}</td>
+                                    <td class="text-end fw-bold text-primary">
+                                        ${{ "{:,.0f}".format(v.total) }}
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-success btn-sm px-3"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#modalCobro"
+                                                data-id="{{ v.id }}"
+                                                data-total="{{ v.total }}">
+                                            <i class="fas fa-cash-register"></i> Cobrar
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5">
+                                        <i class="fas fa-check-circle fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No hay vales pendientes por ahora.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal reutilizable -->
+<div class="modal fade" id="modalCobro" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <form id="formCobro" method="POST">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">Procesar Pago</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <h6 class="text-muted text-uppercase small">Total a Pagar</h6>
+                        <h2 class="display-6 fw-bold text-dark" id="modalTotal"></h2>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Método de Pago</label>
+                        <select name="metodo_pago" id="metodoPago" class="form-select form-select-lg" required>
+                            <option value="Efectivo">💵 Efectivo</option>
+                            <option value="Debito">💳 Débito / Transbank</option>
+                            <option value="Transferencia">📱 Transferencia</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Monto Recibido</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">$</span>
+                            <input type="number" id="montoRecibido" name="monto_recibido"
+                                   class="form-control" placeholder="Ej: 5000" required>
+                        </div>
+                        <div class="form-text text-success" id="vueltoBox"></div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success px-4">
+                        <i class="fas fa-check-circle"></i> Confirmar Pago
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let valeId = null;
+let totalVale = 0;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modalCobro = document.getElementById('modalCobro');
+    modalCobro.addEventListener('show.bs.modal', event => {
+        const button = event.relatedTarget;
+        valeId = button.getAttribute('data-id');
+        totalVale = parseFloat(button.getAttribute('data-total'));
+
+        document.getElementById('modalTotal').textContent = "$" + totalVale.toLocaleString();
+        document.getElementById('montoRecibido').setAttribute('min', totalVale);
+
+        // Actualizar action del formulario dinámicamente
+        document.getElementById('formCobro').setAttribute('action',
+            `/procesar_cobro_caja/${valeId}`);
+    });
+   
+    // Calcular vuelto dinámicamente
+    document.getElementById('montoRecibido').addEventListener('input', () => {
+        const recibido = parseFloat(document.getElementById('montoRecibido').value);
+        const metodo = document.getElementById('metodoPago').value;
+        const vueltoBox = document.getElementById('vueltoBox');
+
+        if (metodo === "Efectivo" && recibido >= totalVale) {
+            vueltoBox.textContent = "Vuelto: $" + (recibido - totalVale).toLocaleString();
+        } else {
+            vueltoBox.textContent = "";
+        }
+    });
+});
+</script>
+{% endblock %}

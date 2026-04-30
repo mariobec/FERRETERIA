@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-balance-scale text-primary me-2"></i>Unidades y Conversiones</h3>
+      <p class="page-subtitle">Define unidades contenedoras para compra/venta y conversiones estándar.</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Nueva Unidad</div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_unidades') }}">
+            <input type="hidden" name="action" value="unidad">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Código</label>
+              <input type="text" name="codigo" class="form-control" placeholder="Ej: KG, CJ, UN" maxlength="10" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nombre</label>
+              <input type="text" name="nombre" class="form-control" placeholder="Ej: Kilogramo, Caja" maxlength="50" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Tipo</label>
+              <select name="tipo" class="form-select">
+                <option value="unidad">Unidad</option>
+                <option value="peso">Peso</option>
+                <option value="longitud">Longitud</option>
+                <option value="volumen">Volumen</option>
+                <option value="empaque">Empaque</option>
+              </select>
+            </div>
+            <button class="btn btn-ds-primary">Guardar Unidad</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Nueva Conversión</div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_unidades') }}" class="row g-2">
+            <input type="hidden" name="action" value="conversion">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Origen</label>
+              <select name="unidad_origen_id" class="form-select" required>
+                {% for u in unidades %}<option value="{{ u.id }}">{{ u.codigo }} - {{ u.nombre }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Destino</label>
+              <select name="unidad_destino_id" class="form-select" required>
+                {% for u in unidades %}<option value="{{ u.id }}">{{ u.codigo }} - {{ u.nombre }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Factor</label>
+              <input type="number" step="0.0001" min="0.0001" name="factor" class="form-control" placeholder="Ej: 100" required>
+            </div>
+            <div class="col-12">
+              <button class="btn btn-outline-primary">Guardar Conversión</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mt-4">
+    <div class="card-header fw-bold">Listado de Conversiones</div>
+    <div class="card-body table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead>
+          <tr><th>Origen</th><th>Destino</th><th>Factor</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+          {% for c in conversiones %}
+          <tr>
+            <td>{{ c.unidad_origen.codigo if c.unidad_origen else c.unidad_origen_id }}</td>
+            <td>{{ c.unidad_destino.codigo if c.unidad_destino else c.unidad_destino_id }}</td>
+            <td>{{ c.factor }}</td>
+            <td>{{ 'Activa' if c.activo else 'Inactiva' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted">Sin conversiones registradas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
