@@ -1,0 +1,49 @@
+================================================================================
+  ERP FERRETERIA - PAQUETE DEMO PARA WINDOWS (cliente / sin internet en UI)
+================================================================================
+
+Este paquete incluye la aplicacion Flask, plantillas, archivos estaticos
+(incluidas librerias JS/CSS locales) y scripts para preparar MySQL en el PC
+de demostracion.
+
+REQUISITOS EN EL PC DEL CLIENTE
+-------------------------------
+1) Windows 10 u 11
+2) Python 3.11 o superior (marcar "Add python to PATH" o usar el launcher "py")
+3) MySQL Server o MariaDB (local). Ejemplos: MySQL Installer, XAMPP (solo MySQL).
+
+PASOS DE INSTALACION (orden)
+----------------------------
+1) Crear la base de datos vacia:
+   - Opcion A: en MySQL Workbench / HeidiSQL, ejecutar el script crear_mysql_bd_demo.sql
+   - Opcion B: linea de comandos:
+       mysql -u root -p < crear_mysql_bd_demo.sql
+
+2) Copiar "env.demo.ejemplo" a ".env.demo" y editar:
+   - SQLALCHEMY_DATABASE_URI con usuario, clave, host y nombre de base (ej. ferreteria_demo)
+   - ADMIN_EMAIL y ADMIN_PASSWORD para el primer usuario administrador
+
+3) Doble clic: instalar_demo_windows.bat
+   (crea .venv e instala dependencias Python)
+
+4) Doble clic: post_instalacion_demo.bat
+   (crea todas las tablas y el usuario admin segun .env.demo)
+
+5) Doble clic: iniciar_demo_windows.bat
+   Abrir navegador: http://127.0.0.1:5000
+
+NOTAS
+-----
+- El sistema funciona sin conexion a Internet para cargar el menu y la interfaz
+  (Bootstrap, iconos, jQuery, Select2, etc. van incluidos en static/).
+- La carpeta "sql/" sirve para migraciones manuales en instalaciones ya existentes;
+  en una demo nueva suele bastar con post_instalacion_demo.bat (create_all).
+- PDF por pdfkit puede requerir "wkhtmltopdf" instalado en Windows; no es obligatorio
+  para recorrer la demo en pantalla.
+
+SOPORTE / ACTUALIZACION DEL PAQUETE
+------------------------------------
+Desde la carpeta del proyecto fuente, ejecutar:
+  demo_ferreteria\empaquetar_demo_cliente.ps1
+Se genera la carpeta DEMO_FERRETERIA_ERP junto al proyecto con todo lo necesario
+para copiar a un USB o zip para el cliente.

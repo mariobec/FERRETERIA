@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Estado de Cuenta Crédito</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
+    .top { display: flex; justify-content: space-between; margin-bottom: 10px; }
+    .title { font-size: 18px; font-weight: 700; }
+    .muted { color: #555; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+    .box { border: 1px solid #ddd; border-radius: 6px; padding: 8px; }
+    .box .k { font-size: 11px; color: #666; }
+    .box .v { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+    th { background: #f2f2f2; text-align: left; }
+    .right { text-align: right; }
+    .warn { background: #fff3cd; border: 1px solid #ffe69c; padding: 8px; border-radius: 6px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <div class="title">Estado de Cuenta de Crédito</div>
+      <div class="muted">Cliente: <strong>{{ cliente.nombre }}</strong>{% if cliente.rut %} | RUT: {{ cliente.rut }}{% endif %}</div>
+      <div class="muted">
+        {% if fecha_desde_txt or fecha_hasta_txt %}
+          Rango: {{ fecha_desde_txt or 'inicio' }} a {{ fecha_hasta_txt or 'hoy' }}
+        {% else %}
+          Rango: Histórico completo
+        {% endif %}
+        | Orden: {% if orden == 'desc' %}Más reciente primero{% else %}Más antiguo primero{% endif %}
+      </div>
+    </div>
+    <div class="muted">Generado: {{ generado_en.strftime('%d/%m/%Y %H:%M') }}</div>
+  </div>
+
+  <div class="grid">
+    <div class="box"><div class="k">Total cargado</div><div class="v">$ {{ "{:,.0f}".format(total_cargos).replace(",", ".") }}</div></div>
+    <div class="box"><div class="k">Total abonado</div><div class="v">$ {{ "{:,.0f}".format(total_abonos).replace(",", ".") }}</div></div>
+    <div class="box"><div class="k">Saldo reconstruido</div><div class="v">$ {{ "{:,.0f}".format(saldo_reconstruido).replace(",", ".") }}</div></div>
+    <div class="box"><div class="k">Saldo actual</div><div class="v">$ {{ "{:,.0f}".format(saldo_actual).replace(",", ".") }}</div></div>
+  </div>
+
+  {% if diferencia_saldo != 0 %}
+  <div class="warn">
+    Diferencia detectada entre saldo reconstruido y saldo maestro:
+    <strong>$ {{ "{:,.0f}".format(diferencia_saldo|abs).replace(",", ".") }}</strong>.
+  </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Tipo</th>
+        <th>Referencia</th>
+        <th>Detalle</th>
+        <th class="right">Monto</th>
+        <th class="right">Saldo corrido</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movimientos %}
+      <tr>
+        <td>{{ m.fecha.strftime('%d/%m/%Y %H:%M') if m.fecha else '—' }}</td>
+        <td>{% if m.tipo == 'cargo' %}Cargo{% else %}Abono{% endif %}</td>
+        <td>{{ m.ref }}</td>
+        <td>{{ m.detalle }}</td>
+        <td class="right">{% if m.tipo == 'cargo' %}+{% else %}-{% endif %}$ {{ "{:,.0f}".format(m.monto).replace(",", ".") }}</td>
+        <td class="right">$ {{ "{:,.0f}".format(m.saldo_corriente).replace(",", ".") }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Sin movimientos de crédito para este cliente.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

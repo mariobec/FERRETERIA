@@ -9,6 +9,21 @@
     </div>
   </div>
 
+  <div class="alert alert-light border shadow-sm mb-4">
+    <div class="d-flex gap-2">
+      <div class="fs-4 text-primary"><i class="fas fa-circle-info"></i></div>
+      <div class="small">
+        <p class="fw-semibold mb-2">Cómo se interpreta una conversión</p>
+        <p class="mb-2 text-body-secondary">Cada fila significa: <strong>1 unidad de origen</strong> equivale a <strong>factor × unidad de destino</strong>.</p>
+        <ul class="mb-2 ps-3 text-body-secondary">
+          <li><strong>Ejemplo típico:</strong> Origen <em>Caja</em>, Destino <em>Pieza</em>, factor <strong>12</strong> → <em>1 caja = 12 piezas</em> al recibir o convertir stock.</li>
+          <li>El mismo criterio aplica entre la unidad en que <strong>vendés</strong> y la unidad <strong>base del producto</strong>: definí origen = unidad de venta y destino = unidad de stock (o al revés según necesites), de modo que el factor refleje la realidad física.</li>
+        </ul>
+        <p class="mb-0 text-body-secondary">Los productos usan estas conversiones cuando la <strong>unidad de compra</strong> o la <strong>unidad de venta</strong> no coincide con la <strong>unidad base</strong> del artículo: el sistema busca primero aquí y, si no encuentra registro, puede usar el <strong>factor del producto</strong> en el mantenedor de productos.</p>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-4">
     <div class="col-lg-5">
       <div class="card card-ds">
@@ -44,28 +59,37 @@
       <div class="card card-ds">
         <div class="card-header fw-bold">Nueva Conversión</div>
         <div class="card-body">
-          <form method="POST" action="{{ url_for('admin_unidades') }}" class="row g-2">
+          {% if unidades|length < 2 %}
+          <p class="small text-muted mb-0">Cree al menos <strong>dos unidades</strong> distintas (ej. Caja y Pieza) para poder definir una conversión.</p>
+          {% else %}
+          <form method="POST" action="{{ url_for('admin_unidades') }}" class="row g-2" id="formNuevaConversionUnidades">
             <input type="hidden" name="action" value="conversion">
             <div class="col-md-4">
-              <label class="form-label fw-semibold">Origen</label>
-              <select name="unidad_origen_id" class="form-select" required>
+              <label class="form-label fw-semibold" for="conv_unidad_origen">Origen</label>
+              <select name="unidad_origen_id" id="conv_unidad_origen" class="form-select" required title="La unidad ‘grande’ o de referencia (ej. caja, rollo).">
+                <option value="" disabled selected>Seleccione origen…</option>
                 {% for u in unidades %}<option value="{{ u.id }}">{{ u.codigo }} - {{ u.nombre }}</option>{% endfor %}
               </select>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-semibold">Destino</label>
-              <select name="unidad_destino_id" class="form-select" required>
+              <label class="form-label fw-semibold" for="conv_unidad_destino">Destino</label>
+              <select name="unidad_destino_id" id="conv_unidad_destino" class="form-select" required title="La unidad ‘chica’ o en que llevas el stock interno (ej. pieza, metro).">
+                <option value="" disabled selected>Seleccione destino…</option>
                 {% for u in unidades %}<option value="{{ u.id }}">{{ u.codigo }} - {{ u.nombre }}</option>{% endfor %}
               </select>
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Factor</label>
-              <input type="number" step="0.0001" min="0.0001" name="factor" class="form-control" placeholder="Ej: 100" required>
+              <input type="number" step="0.0001" min="0.0001" name="factor" class="form-control" placeholder="Ej: 12" required title="Cuántas unidades destino equivalen a 1 unidad origen.">
             </div>
             <div class="col-12">
-              <button class="btn btn-outline-primary">Guardar Conversión</button>
+              <p id="convFormError" class="text-danger small mb-2 d-none" role="alert"></p>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-outline-primary">Guardar Conversión</button>
             </div>
           </form>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -94,4 +118,40 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var form = document.getElementById("formNuevaConversionUnidades");
+  var fo = document.getElementById("conv_unidad_origen");
+  var fd = document.getElementById("conv_unidad_destino");
+  var errEl = document.getElementById("convFormError");
+  if (!form || !fo || !fd) return;
+  function ocultarError() {
+    if (errEl) {
+      errEl.textContent = "";
+      errEl.classList.add("d-none");
+    }
+  }
+  function evitarOrigenIgualDestino() {
+    ocultarError();
+    if (fo.value && fd.value && fo.value === fd.value) {
+      fd.selectedIndex = 0;
+    }
+  }
+  fo.addEventListener("change", evitarOrigenIgualDestino);
+  fd.addEventListener("change", evitarOrigenIgualDestino);
+  form.addEventListener("submit", function (e) {
+    ocultarError();
+    if (!fo.value || !fd.value || fo.value === fd.value) {
+      e.preventDefault();
+      if (errEl) {
+        errEl.textContent = "Elija origen y destino distintos (no puede ser la misma unidad).";
+        errEl.classList.remove("d-none");
+      }
+    }
+  });
+})();
+</script>
 {% endblock %}

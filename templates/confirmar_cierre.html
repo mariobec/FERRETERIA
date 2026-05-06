@@ -23,49 +23,49 @@
         <!-- Fondos e Ingresos -->
         <div class="summary-item">
             <span><i class="fas fa-wallet me-2 text-secondary"></i>Monto Inicial</span>
-            <span class="fw-bold">$ {{ "{:,.0f}".format(caja.monto_inicial) }}</span>
+            <span class="fw-bold">$ {{ "{:,.0f}".format(caja.monto_inicial).replace(",", ".") }}</span>
         </div>
 
         <!-- DESGLOSE POR MÉTODO DE PAGO -->
         <div class="summary-item">
             <span><i class="fas fa-money-bill-wave me-2 text-success"></i>Ventas (Efectivo)</span>
-            <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(total_efectivo) }}</span>
+            <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(total_efectivo).replace(",", ".") }}</span>
         </div>
         
         <div class="summary-item">
             <span><i class="fas fa-credit-card me-2 text-digital"></i>Ventas (Débito)</span>
-            <span class="fw-bold text-digital">+ $ {{ "{:,.0f}".format(total_debito) }}</span>
+            <span class="fw-bold text-digital">+ $ {{ "{:,.0f}".format(total_debito).replace(",", ".") }}</span>
         </div>
 
         <div class="summary-item">
             <span><i class="fas fa-university me-2 text-info"></i>Ventas (Transferencia)</span>
-            <span class="fw-bold text-info">+ $ {{ "{:,.0f}".format(total_transferencia) }}</span>
+            <span class="fw-bold text-info">+ $ {{ "{:,.0f}".format(total_transferencia).replace(",", ".") }}</span>
         </div>
 
         <div class="summary-item">
             <span><i class="fas fa-file-invoice-dollar me-2 text-danger"></i>Ventas (Crédito / cartera)</span>
-            <span class="fw-bold text-danger">$ {{ "{:,.0f}".format(total_fiado) }}</span>
+            <span class="fw-bold text-danger">$ {{ "{:,.0f}".format(total_fiado).replace(",", ".") }}</span>
         </div>
         <p class="small text-muted mb-0">El crédito no suma efectivo en gaveta; queda como cartera del cliente.</p>
 
         <!-- Movimientos -->
         <div class="summary-item">
             <span><i class="fas fa-plus-circle me-2 text-primary"></i>Otros Ingresos</span>
-            <span class="fw-bold text-primary">+ $ {{ "{:,.0f}".format(ingresos) }}</span>
+            <span class="fw-bold text-primary">+ $ {{ "{:,.0f}".format(ingresos).replace(",", ".") }}</span>
         </div>
         <div class="summary-item">
             <span><i class="fas fa-minus-circle me-2 text-danger"></i>Egresos / Gastos</span>
-            <span class="fw-bold text-danger">- $ {{ "{:,.0f}".format(egresos) }}</span>
+            <span class="fw-bold text-danger">- $ {{ "{:,.0f}".format(egresos).replace(",", ".") }}</span>
         </div>
 
         <!-- EL TOTAL FISCO (LO QUE DEBE HABER EN BILLETES) -->
         <div class="total-box">
             <p class="small text-uppercase fw-bold text-secondary mb-1">EFECTIVO ESPERADO EN GAVETA</p>
-            <h2 class="display-6 fw-bold text-dark m-0">$ {{ "{:,.0f}".format(monto_teorico) }}</h2>
+            <h2 class="display-6 fw-bold text-dark m-0">$ {{ "{:,.0f}".format(monto_teorico).replace(",", ".") }}</h2>
         </div>
         
         <div class="text-center mt-3">
-            <p class="text-muted small">Ventas Totales del Día: <strong>$ {{ "{:,.0f}".format(gran_total_ventas) }}</strong></p>
+            <p class="text-muted small">Ventas Totales del Día: <strong>$ {{ "{:,.0f}".format(gran_total_ventas).replace(",", ".") }}</strong></p>
         </div>
 
         {% if ventas_turno %}
@@ -89,7 +89,7 @@
                             <td>{{ v.fecha.strftime('%d/%m %H:%M') if v.fecha else '-' }}</td>
                             <td>{{ v.metodo_pago or '—' }}</td>
                             <td>{{ v.estado }}</td>
-                            <td class="text-end">${{ "{:,.0f}".format(v.monto_total) }}</td>
+                            <td class="text-end">${{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

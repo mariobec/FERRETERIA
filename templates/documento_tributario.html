@@ -2,181 +2,308 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>{{ venta.tipo_documento }} - Ferretería Santo Domingo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ venta.tipo_documento }} 80mm - {{ empresa_cfg.nombre_comercial }}</title>
     <style>
-        /* 1. FUERZA EL TAMAÑO DE LA HOJA Y ELIMINA MÁRGENES DE NAVEGADOR */
+        /* Ticket térmico 80 mm (ancho papel ~72–80 mm útil) */
         @page {
-            size: letter;
-            margin: 0mm; /* Eliminamos el margen físico de la página */
+            size: 80mm auto;
+            margin: 0;
         }
 
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            color: #333; 
-            margin: 0; 
-            padding: 1.5cm; /* Añadimos el margen nosotros para control total */
-            background-color: #fff; 
-            width: 216mm; /* Ancho estándar carta */
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
-        .header { width: 100%; margin-bottom: 25px; display: block; overflow: hidden; }
-        .logo-area { width: 65%; float: left; }
-        
-        .rut-box { 
-        width: 35%; 
-        float: right; 
-        border: 5px solid #D32F2F !important; /* Aquí creas la franja roja gruesa */
-        text-align: center; 
-        padding: 15px; 
-        color: #D32F2F;
-        background-color: #fff;
-        margin-top: -10px;
-        display: block;
-        box-sizing: border-box;
-        -webkit-print-color-adjust: exact;
-        }
-        .rut-box h2 { margin: 5px 0; font-size: 22px; }
-
-        .cliente-info { 
-            width: 100%; border: 1px solid #333; padding: 15px; 
-            border-radius: 5px; margin-bottom: 20px; font-size: 13px;
-            clear: both; box-sizing: border-box;
-        }
-
-        table { width: 100% !important; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
-        th { 
-            background-color: #2c3e50 !important; color: white !important; 
-            padding: 10px; font-size: 11px; text-align: left; 
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #111;
+            font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+            font-size: 10px;
+            line-height: 1.25;
             -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
-        td { padding: 10px; border-bottom: 1px solid #ddd; font-size: 11px; word-wrap: break-word; }
 
-        .footer-container { width: 100%; margin-top: 30px; display: block; overflow: hidden; }
-        .timbre-area { width: 40%; float: left; text-align: center; border: 1px dashed #666; padding: 10px; border-radius: 10px; }
-        .totales-area { width: 45%; float: right; }
-        
-        .total-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
-        .gran-total { font-size: 22px; font-weight: bold; border-top: 3px solid #2c3e50; padding-top: 10px; margin-top: 5px; }
+        .ticket {
+            width: 72mm;
+            max-width: 80mm;
+            margin: 0 auto;
+            padding: 3mm 2mm 4mm;
+        }
 
-        .no-print { text-align: center; margin-bottom: 30px; }
-        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; margin: 0 5px; color: white; }
+        .no-print {
+            text-align: center;
+            padding: 8px 4px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 4mm;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 8px 12px;
+            margin: 2px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+            text-decoration: none;
+            color: #fff;
+        }
+
+        .doc-head {
+            text-align: center;
+            border-bottom: 1px dashed #333;
+            padding-bottom: 3mm;
+            margin-bottom: 3mm;
+        }
+
+        .doc-head h1 {
+            margin: 0 0 2px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .doc-head .razon {
+            font-size: 9px;
+            color: #333;
+            margin: 0 0 2px;
+        }
+
+        .doc-head .emp-mini {
+            font-size: 8px;
+            color: #444;
+            line-height: 1.35;
+        }
+
+        .doc-badge {
+            margin-top: 3mm;
+            border: 2px solid #c62828;
+            color: #c62828;
+            padding: 4px 6px;
+            font-weight: 800;
+            font-size: 12px;
+            display: inline-block;
+            min-width: 85%;
+        }
+
+        .doc-badge span {
+            display: block;
+            font-size: 9px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        .bloque {
+            margin-bottom: 3mm;
+            font-size: 9px;
+        }
+
+        .bloque strong { font-size: 9px; }
+
+        .linea {
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
+            border-bottom: 1px dotted #ccc;
+            padding: 2px 0;
+        }
+
+        .linea .v {
+            text-align: right;
+            max-width: 58%;
+            word-break: break-word;
+        }
+
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8px;
+            margin: 2mm 0;
+        }
+
+        table.items th,
+        table.items td {
+            padding: 3px 2px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: top;
+        }
+
+        table.items th {
+            background: #2c3e50;
+            color: #fff;
+            font-weight: 700;
+            text-align: left;
+        }
+
+        table.items th.num,
+        table.items td.num { text-align: right; white-space: nowrap; }
+
+        table.items .desc {
+            word-break: break-word;
+            max-width: 38mm;
+        }
+
+        .totales {
+            margin-top: 2mm;
+            font-size: 10px;
+        }
+
+        .totales .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .totales .gran {
+            font-size: 14px;
+            font-weight: 800;
+            border-top: 2px solid #111;
+            border-bottom: none;
+            margin-top: 2px;
+            padding-top: 4px;
+        }
+
+        .qr-wrap {
+            text-align: center;
+            margin-top: 3mm;
+            padding-top: 2mm;
+            border-top: 1px dashed #666;
+        }
+
+        .qr-wrap img {
+            width: 22mm;
+            height: 22mm;
+            image-rendering: pixelated;
+        }
+
+        .qr-wrap .leyenda {
+            font-size: 7px;
+            color: #444;
+            margin-top: 2px;
+            line-height: 1.3;
+        }
+
+        .pie {
+            text-align: center;
+            font-size: 7px;
+            color: #555;
+            margin-top: 3mm;
+            padding-top: 2mm;
+            border-top: 1px solid #ddd;
+        }
 
         @media print {
             .no-print { display: none !important; }
-            body { padding: 1.5cm; margin: 0; width: 100%; }
+            body { background: #fff; }
+            .ticket { width: 72mm; max-width: 80mm; padding: 2mm; }
+        }
+
+        @media screen {
+            body { background: #e9ecef; padding: 8px 0; }
         }
     </style>
 </head>
 <body>
 
-    <div class="no-print">
-        <button onclick="window.print()" class="btn" style="background: #2c3e50;">IMPRIMIR</button>
-        <a href="{{ url_for('mostrar_ventas') }}" class="btn" style="background: #0d6efd;">VENTAS</a>
-        <a href="{{ url_for('caja_pendientes') }}" class="btn" style="background: #198754;">CAJA</a>
-        <button onclick="window.close()" class="btn" style="background: #f37021;">CERRAR</button>
-    </div>
+<div class="no-print">
+    <button type="button" class="btn" style="background:#2c3e50;" onclick="window.print()">IMPRIMIR (80mm)</button>
+    <a href="{{ url_for('mostrar_ventas') }}" class="btn" style="background:#0d6efd;">VENTAS</a>
+    <a href="{{ url_for('caja_pendientes') }}" class="btn" style="background:#198754;">CAJA</a>
+    <a href="{{ url_for('descargar_pdf', id=venta.id) }}" class="btn" style="background:#6f42c1;">PDF 80mm</a>
+    <button type="button" class="btn" style="background:#f37021;" onclick="window.close()">CERRAR</button>
+</div>
 
-    <div class="header">
-        <div class="logo-area">
-            <h1 style="margin: 0; color: #f37021;">FERRETERÍA SANTO DOMINGO</h1>
-            <div style="font-size: 11px; color: #555; margin-top: 5px;">
-                <strong>Comercializadora de Materiales Ltda.</strong><br>
-                R.U.T.: 76.123.456-K | Av. Principal #123, Florida<br>
-                Giro: Venta de materiales de construcción y herramientas.
-            </div>
+<div class="ticket">
+    <div class="doc-head">
+        <h1>{{ (empresa_cfg.razon_social or empresa_cfg.nombre_comercial) | upper }}</h1>
+        {% if empresa_cfg.razon_social and empresa_cfg.nombre_comercial and empresa_cfg.razon_social != empresa_cfg.nombre_comercial %}
+        <p class="razon"><strong>{{ empresa_cfg.nombre_comercial }}</strong></p>
+        {% endif %}
+        <div class="emp-mini">
+            <strong>R.U.T.:</strong> {{ empresa_cfg.rut_empresa or '—' }}<br>
+            {% if empresa_cfg.direccion %}<strong>Dir.:</strong> {{ empresa_cfg.direccion }}<br>{% endif %}
+            {% if empresa_cfg.comuna_empresa or empresa_cfg.ciudad_empresa %}
+            <strong>Comuna/Ciudad:</strong>
+            {{ empresa_cfg.comuna_empresa or '' }}{% if empresa_cfg.comuna_empresa and empresa_cfg.ciudad_empresa %} · {% endif %}{{ empresa_cfg.ciudad_empresa or '' }}<br>
+            {% endif %}
+            {% if empresa_cfg.telefono or empresa_cfg.correo %}
+            <strong>Tel.:</strong> {{ empresa_cfg.telefono or '—' }}
+            {% if empresa_cfg.correo %} | <strong>Email:</strong> {{ empresa_cfg.correo }}{% endif %}<br>
+            {% endif %}
+            {% if empresa_cfg.giro_empresa %}<strong>Giro:</strong> {{ empresa_cfg.giro_empresa }}<br>{% endif %}
+            <strong>TIPO DE VENTA:</strong> {{ empresa_cfg.tipo_venta_giro or 'DEL GIRO' }}
         </div>
-        <div class="rut-box">
-            R.U.T.: 76.123.456-K<br>
-            <h2 style="text-transform: uppercase;">{{ venta.tipo_documento }}</h2>
-            N° {{ venta.id }}
+        <div class="doc-badge">
+            {% if venta.tipo_documento == 'Factura' or venta.tipo_documento == '33' %}FACTURA ELECTRÓNICA{% else %}BOLETA ELECTRÓNICA{% endif %}
+            <span>N° {{ venta.id }}</span>
+            {% if empresa_cfg.oficina_sii %}<span style="font-size:8px;">{{ empresa_cfg.oficina_sii }}</span>{% endif %}
+            <span style="font-size:8px;">Emisión: {{ venta.fecha.strftime('%d/%m/%Y') if venta.fecha else '—' }}</span>
         </div>
     </div>
 
-    <div class="cliente-info">
-        <table style="border: none; margin: 0; width: 100%;">
-            <tr>
-                <td style="border:none; width: 60%;"><strong>SEÑOR(ES):</strong> {{ (venta.cliente.nombre or 'CLIENTE PARTICULAR') | upper }}</td>
-                <td style="border:none;"><strong>FECHA:</strong> {{ venta.fecha.strftime('%d/%m/%Y') }}</td>
-            </tr>
-            <tr>
-                <td style="border:none;"><strong>R.U.T.:</strong> {{ venta.cliente.rut or '1-9' }}</td>
-                <td style="border:none;"><strong>GIRO:</strong> {{ (venta.cliente.giro or 'PARTICULAR') | upper }}</td>
-            </tr>
-            <tr>
-                <td style="border:none;"><strong>DIRECCIÓN:</strong> {{ (venta.cliente.direccion or 'S/D') | upper }}</td>
-                <td style="border:none;"><strong>COMUNA:</strong> FLORIDA</td>
-            </tr>
-        </table>
+    <div class="bloque" style="border-top:1px dashed #999;padding-top:2mm;">
+        <div style="font-weight:800;font-size:9px;margin-bottom:2px;text-align:center;">RECEPTOR (CLIENTE)</div>
+        <div class="linea"><strong>Señor(es)</strong><span class="v">{{ (venta.cliente.nombre if venta.cliente else 'CLIENTE PARTICULAR') | upper }}</span></div>
+        <div class="linea"><strong>R.U.T.</strong><span class="v">{{ venta.cliente.rut if venta.cliente and venta.cliente.rut else '—' }}</span></div>
+        <div class="linea"><strong>Giro</strong><span class="v">{{ (venta.cliente.giro if venta.cliente and venta.cliente.giro else 'PARTICULAR') | upper }}</span></div>
+        <div class="linea"><strong>Dirección</strong><span class="v">{{ (venta.cliente.direccion if venta.cliente and venta.cliente.direccion else 'S/D') | upper }}</span></div>
+        <div class="linea"><strong>Comuna</strong><span class="v">{{ (venta.cliente.comuna if venta.cliente and venta.cliente.comuna else '—') | upper }}</span></div>
+        <div class="linea"><strong>Ciudad</strong><span class="v">{{ (venta.cliente.ciudad if venta.cliente and venta.cliente.ciudad else '—') | upper }}</span></div>
+        <div class="linea"><strong>Fecha doc.</strong><span class="v">{{ venta.fecha.strftime('%d/%m/%Y %H:%M') if venta.fecha else '—' }}</span></div>
+        <div class="linea"><strong>TIPO DE COMPRA</strong><span class="v">{{ empresa_cfg.tipo_venta_giro or 'DEL GIRO' }}</span></div>
     </div>
 
-    <table>
+    <table class="items">
         <thead>
             <tr>
-                <th style="width: 10%;">CANT.</th>
-                <th style="width: 50%;">DESCRIPCIÓN</th>
-                <th style="width: 20%; text-align: right;">P. UNITARIO</th>
-                <th style="width: 20%; text-align: right;">TOTAL</th>
+                <th style="width:8%;">Cant</th>
+                <th>Descripción</th>
+                <th class="num" style="width:22%;">P.Unit</th>
+                <th class="num" style="width:24%;">Total</th>
             </tr>
         </thead>
         <tbody>
             {% for d in venta.detalles %}
+            {% set linea_total = ((d.cantidad or 0) * (d.precio_unitario or 0) * (1 - ((d.descuento or 0) / 100.0))) %}
             <tr>
-                <td>{{ d.cantidad }}</td>
-                <td>{{ d.producto.nombre }}</td>
-                <td style="text-align: right;">$ {{ "{:,.0f}".format(d.precio_unitario) }}</td>
-                <td style="text-align: right; font-weight: bold;">$ {{ "{:,.0f}".format(d.cantidad * d.precio_unitario) }}</td>
+                <td class="num">{{ d.cantidad }}</td>
+                <td class="desc">{{ d.producto.nombre if d.producto else ('#' ~ d.id_producto) }}</td>
+                <td class="num">$ {{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+                <td class="num"><strong>$ {{ "{:,.0f}".format(linea_total).replace(",", ".") }}</strong></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <div class="footer-container">
-        <!-- CONTENEDOR DE CIERRE (QR + TOTALES) -->
-<div style="margin-top: 30px; display: block; overflow: hidden; width: 100%;">
-    
-    <!-- LADO IZQUIERDO: TIMBRE SII -->
-    <div style="float: left; width: 45%; border: 1px dashed #666; padding: 15px; border-radius: 10px; text-align: center;">
-        <img src="data:image/png;base64,{{ qr_code }}" 
-             style="width: 120px; height: 120px; display: block; margin: 0 auto 10px;" 
-             alt="QR Tributario">
-        
-        <div style="font-size: 10px; line-height: 1.2;">
-            <strong style="display: block; margin-bottom: 5px;">TIMBRE ELECTRÓNICO SII</strong>
-            Res. Nro. 80 del 2024 - Verifique en www.sii.cl<br>
-            <span style="color: #D32F2F; font-weight: bold;">DOCUMENTO EN MARCHA BLANCA</span>
-        </div>
-    </div>
-
-    <!-- LADO DERECHO: CUADRO DE TOTALES -->
-    <div style="float: right; width: 45%;">
-        {% if venta.tipo_documento == 'Factura' %}
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px;">
-            <span style="color: #666;">MONTO NETO:</span>
-            <strong style="color: #2c3e50;">$ {{ "{:,.0f}".format(venta.neto) }}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px;">
-            <span style="color: #666;">I.V.A. (19%):</span>
-            <strong style="color: #2c3e50;">$ {{ "{:,.0f}".format(venta.iva) }}</strong>
-        </div>
+    <div class="totales">
+        {% if venta.tipo_documento == 'Factura' or venta.tipo_documento == '33' %}
+        <div class="row"><span>MONTO NETO</span><strong>$ {{ "{:,.0f}".format(venta.neto or 0).replace(",", ".") }}</strong></div>
+        <div class="row"><span>I.V.A. 19%</span><strong>$ {{ "{:,.0f}".format(venta.iva or 0).replace(",", ".") }}</strong></div>
         {% endif %}
-        
-        <div style="display: flex; justify-content: space-between; padding: 15px 0; font-size: 22px; border-top: 3px solid #2c3e50; margin-top: 5px;">
-            <span style="font-weight: bold;">TOTAL:</span>
-            <strong style="color: #000;">$ {{ "{:,.0f}".format(venta.monto_total) }}</strong>
+        <div class="row gran"><span>TOTAL</span><strong>$ {{ "{:,.0f}".format(venta.monto_total or 0).replace(",", ".") }}</strong></div>
+    </div>
+
+    {% if qr_code %}
+    <div class="qr-wrap">
+        <img src="data:image/png;base64,{{ qr_code }}" alt="QR">
+        <div class="leyenda">
+            <strong>TIMBRE ELECTRÓNICO SII</strong><br>
+            Res. Nro. 80 del 2024 — Verifique en www.sii.cl<br>
+            <span style="color:#c62828;font-weight:700;">DOCUMENTO EN MARCHA BLANCA</span>
         </div>
+    </div>
+    {% endif %}
+
+    <div class="pie">
+        Gracias por su compra en <strong>{{ empresa_cfg.nombre_comercial }}</strong><br>
+        Comprobante para despacho de materiales.
     </div>
 </div>
 
-<div style="clear: both; margin-top: 50px; font-size: 11px; text-align: center; color: #888; border-top: 1px solid #eee; padding-top: 15px;">
-    Gracias por su compra en <strong>FERRETERÍA SANTO DOMINGO</strong><br>
-    Este documento es un comprobante de uso interno para despacho de materiales.
-</div>
-
-    <script>
-        window.onload = function() {
-            setTimeout(function() { window.print(); }, 800);
-        };
-    </script>
 </body>
 </html>

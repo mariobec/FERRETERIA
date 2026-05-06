@@ -13,22 +13,43 @@
     <!-- Filtros y búsqueda -->
     <div class="card card-ds mb-4">
       <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
-        <form method="GET" action="/productos" class="d-flex flex-wrap w-100 mb-2">
-          <input type="text" name="q" class="form-control me-2 mb-2" placeholder="Buscar por nombre o texto libre" value="{{ query or '' }}">
-          <input type="text" name="codigo_barra" class="form-control me-2 mb-2" placeholder="Código de barra" value="{{ codigo_barra or '' }}">
-          <select name="categoria" class="form-select me-2 mb-2">
+        <form method="GET" action="/productos" class="d-flex flex-wrap w-100 mb-2 align-items-end gap-2" id="form_filtro_productos" data-catalogo="{{ 1 if catalogo_maestro_disponible else 0 }}">
+          <div class="flex-grow-1" style="min-width: 14rem; max-width: 38rem">
+            <label class="form-label small text-muted mb-0">Producto (autocompletar como en POS)</label>
+            <select id="filtro_buscar_producto_inv" data-placeholder="Escriba nombre o código de barra…" style="width:100%">
+              <option></option>
+            </select>
+            <input type="hidden" name="codigo_barra" id="inv_hidden_codigo_barra" value="{{ codigo_barra or '' }}">
+          </div>
+          <div style="min-width: 10rem; max-width: 15rem">
+            <label class="form-label small text-muted mb-0">Contiene (opcional)</label>
+            <input type="search" name="q" id="filtro_q_contiene" class="form-control form-control-sm" placeholder="Mín. 2 letras" value="{{ query or '' }}" autocomplete="off">
+          </div>
+          <select name="categoria" id="filtro_categoria" class="form-select" style="min-width: 11rem; max-width: 18rem">
             <option value="">Todas las categorías</option>
             {% for c in categorias or [] %}
             <option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>
             {% endfor %}
           </select>
-          <select name="subcategoria" class="form-select me-2 mb-2">
+          {% if mostrar_filtro_sub_id %}
+          <select name="sub_id" id="filtro_sub_id" class="form-select" style="min-width: 12rem; max-width: 22rem">
+            <option value="">Todas las hojas del maestro</option>
+            {% for o in catalogo_sub_opciones or [] %}
+            <option value="{{ o.id }}" {% if sub_id == o.id %}selected{% endif %}>{{ o.etiqueta }}</option>
+            {% endfor %}
+          </select>
+          <select name="subcategoria" id="filtro_sub_legacy" class="form-select" style="display:none; min-width: 12rem; max-width: 22rem" disabled aria-hidden="true">
+            <option value="">—</option>
+          </select>
+          {% else %}
+          <select name="subcategoria" id="filtro_sub_legacy" class="form-select" style="min-width: 12rem; max-width: 22rem">
             <option value="">Todas las subcategorías</option>
             {% for s in subcategorias or [] %}
             <option value="{{ s }}" {% if subcategoria == s %}selected{% endif %}>{{ s }}</option>
             {% endfor %}
           </select>
-          <button type="submit" class="btn btn-outline-primary fw-bold mb-2">Buscar</button>
+          {% endif %}
+          <button type="submit" class="btn btn-outline-primary fw-bold">Buscar</button>
         </form>
         <div class="ms-3 mb-2">
           <a href="/productos/filtro/sin_stock" class="btn btn-sm btn-outline-danger me-1">Sin Stock</a>
@@ -37,6 +58,50 @@
         </div>
       </div>
     </div>
+
+    {% if puede_editar_stock_admin %}
+    <div class="card card-ds mb-4 border-warning-subtle">
+      <div class="card-header bg-white py-3">
+        <h5 class="card-title m-0 fw-bold text-warning-emphasis">
+          <i class="fas fa-triangle-exclamation me-2"></i>Ajuste inicial de stock (masivo)
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('actualizar_stock_masivo_productos') }}" class="row g-2 align-items-end" onsubmit="return confirm('Se actualizará stock en múltiples productos. ¿Desea continuar?');">
+          <div class="col-md-3">
+            <label class="form-label fw-bold mb-1">Stock objetivo</label>
+            <input type="number" name="stock_objetivo" min="0" step="1" class="form-control" placeholder="0 o 100" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold mb-1">Aplicar a</label>
+            <select name="alcance" class="form-select">
+              <option value="todos">Todos los productos</option>
+              <option value="filtrados">Solo productos filtrados actualmente</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold mb-1">Escriba CONFIRMAR</label>
+            <input type="text" name="confirmacion" class="form-control text-uppercase" placeholder="CONFIRMAR" required>
+          </div>
+          <input type="hidden" name="q" value="{{ query or '' }}">
+          <input type="hidden" name="codigo_barra" value="{{ codigo_barra or '' }}">
+          <input type="hidden" name="categoria" value="{{ categoria or '' }}">
+          <input type="hidden" name="subcategoria" value="{{ subcategoria or '' }}">
+          <input type="hidden" name="sub_id" value="{{ sub_id or '' }}">
+          <div class="col-md-2 text-md-end">
+            <button type="submit" class="btn btn-warning fw-bold">
+              <i class="fas fa-layer-group me-2"></i>Aplicar ajuste masivo
+            </button>
+          </div>
+          <div class="col-12">
+            <p class="small text-muted mb-0">
+              Use esta opción para conteo físico y carga inicial. Ejemplos: poner todo en <code>0</code> o todo en <code>100</code>.
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Formulario de Registro en Tarjeta -->
     <div class="card card-ds mb-5">
@@ -69,9 +134,36 @@
                     <label class="form-label fw-bold">Stock Inicial</label>
                     <input type="number" name="stock" class="form-control" required>
                 </div>
+
+                <div class="col-12">
+                    <div class="accordion mb-1" id="accordionAyudaConversionProd">
+                        <div class="accordion-item border shadow-sm">
+                            <h2 class="accordion-header m-0">
+                                <button class="accordion-button collapsed py-2 px-3 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAyudaConversionProd" aria-expanded="false">
+                                    <i class="fas fa-circle-question text-primary me-2"></i> Ayuda: unidades de compra, venta y factor de conversión
+                                </button>
+                            </h2>
+                            <div id="collapseAyudaConversionProd" class="accordion-collapse collapse" data-bs-parent="#accordionAyudaConversionProd">
+                                <div class="accordion-body small text-body-secondary">
+                                    <p class="mb-2"><strong>Unidad compra</strong> es cómo te factura el proveedor o cómo ingresa la mercadería (caja, saco, rollo…).</p>
+                                    <p class="mb-2"><strong>Unidad venta</strong> es cómo cobrás en mostrador o Punto de Venta (pieza, metro, kilo…).</p>
+                                    <p class="mb-2"><strong>Factor de conversión</strong> del producto se usa cuando <strong>comprás en una unidad distinta a la de venta</strong> y en el sistema <strong>no hay</strong> una conversión equivalente en el maestro global. Significa:</p>
+                                    <blockquote class="border-start border-primary border-3 ps-3 mb-2 ms-1">
+                                        <em>1 unidad de compra</em> trae <strong>tantas unidades de venta</strong> como indique el factor.
+                                    </blockquote>
+                                    <p class="mb-2"><strong>Ejemplo:</strong> comprás por <strong>Caja</strong>, vendés por <strong>Pieza</strong> y cada caja trae 12 piezas → factor <strong>12</strong>. Si el factor es <strong>1</strong>, comprás y vendés en la misma escala (o el sistema ya resolvió la conversión en otro lado).</p>
+                                    <p class="mb-2"><strong>Stock al vender (POS):</strong> el descuento de inventario usa la relación entre <strong>Unidad venta</strong> y la <strong>Unidad base</strong> del producto (campo <em>Modelo simple</em> más abajo). Si son distintas, debe existir una conversión en
+                                        {% if puede_administrar %}<a href="{{ url_for('admin_unidades') }}">Unidades y conversiones</a>{% else %}<strong>Unidades y conversiones</strong> (menú administración){% endif %}. Si no hay registro, el sistema asume <strong>1 venta = 1 unidad de stock</strong>.</p>
+                                    <p class="mb-0 text-muted"><i class="fas fa-lightbulb me-1"></i> Conviene usar siempre el mismo nombre de unidad que en el maestro (ej. “Pieza”, “Metro”) para que las conversiones globales coincidan con el producto.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Unidad compra</label>
-                    <select name="unidad_compra" class="form-select">
+                    <select name="unidad_compra" class="form-select" title="Unidad en que ingresa del proveedor (factura, recepción).">
                         <option value="Caja">Caja</option>
                         <option value="Pieza">Pieza</option>
                         <option value="Rollo">Rollo</option>
@@ -82,7 +174,7 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label fw-bold">Unidad venta</label>
-                    <select name="unidad_venta" class="form-select">
+                    <select name="unidad_venta" class="form-select" title="Unidad en que se vende en POS y tickets.">
                         <option value="Unidad">Unidad</option>
                         <option value="Metro">Metro</option>
                         <option value="Pieza">Pieza</option>
@@ -92,12 +184,36 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label fw-bold">Factor conv.</label>
-                    <input type="number" step="0.01" min="0.01" name="factor_conversion" class="form-control" value="1" required>
+                    <input type="number" step="0.01" min="0.01" name="factor_conversion" class="form-control" value="1" required title="Cuántas unidades de venta equivalen a 1 unidad de compra, si no hay conversión en el maestro. Ej.: 12 si 1 caja = 12 piezas.">
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold">Modelo simple (legacy)</label>
-                    <input type="text" name="unidad" class="form-control" placeholder="Se sincroniza con unidad venta">
+                    <label class="form-label fw-bold">Unidad base / modelo simple</label>
+                    <input type="text" name="unidad" class="form-control" placeholder="Ej. Pieza (unidad del stock en sistema)" title="Unidad en que cuenta el inventario interno. Si difiere de Unidad venta, definir conversión en Administración → Unidades.">
                 </div>
+                {% if catalogo_registro_tree %}
+                <div class="col-12"><p class="small text-muted mb-0">Clasificación con maestro de categorías (orden del import).</p></div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Categoría</label>
+                    <select id="reg_cat_maestro" class="form-select">
+                        <option value="">Seleccione…</option>
+                        {% for n1 in catalogo_registro_tree %}
+                        <option value="{{ n1.id }}">{{ n1.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Familia (nivel 2)</label>
+                    <select id="reg_n2_maestro" class="form-select" disabled>
+                        <option value="">Primero categoría…</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Ítem (nivel 3)</label>
+                    <select name="subcategoria_catalogo_id" id="reg_hoja_maestro" class="form-select" disabled>
+                        <option value="">Primero familia…</option>
+                    </select>
+                </div>
+                {% else %}
                 <div class="col-md-4">
                     <label class="form-label fw-bold">Categoría</label>
                     <select name="categoria" class="form-select">
@@ -111,6 +227,7 @@
                     <label class="form-label fw-bold">Subcategoría</label>
                     <input type="text" name="subcategoria" class="form-control" placeholder="Ej. Cemento, Martillos, Cables">
                 </div>
+                {% endif %}
                 <div class="col-md-4">
                     <label class="form-label fw-bold">Pasillo</label>
                     <input type="text" name="ubicacion_pasillo" class="form-control" placeholder="P02">
@@ -140,16 +257,26 @@
         <div class="card-body p-4">
             <form action="/cargar_productos" method="POST" enctype="multipart/form-data" class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label fw-bold">Subir archivo CSV</label>
-                    <input type="file" name="archivo" accept=".csv" class="form-control" required>
+                    <label class="form-label fw-bold">Subir archivo (CSV o Excel)</label>
+                    <input type="file" name="archivo" accept=".csv,.xlsx,.xlsm" class="form-control" required>
                 </div>
-                <div class="col-md-6 d-flex align-items-end">
+                <div class="col-md-6 d-flex align-items-end flex-wrap gap-2">
                     <button type="submit" class="btn btn-outline-primary fw-bold">
                         <i class="fas fa-upload me-2"></i> Cargar Datos
                     </button>
-                    <a href="{{ url_for('descargar_plantilla_productos') }}" class="btn btn-outline-info fw-bold ms-3">
-                        <i class="fas fa-download me-2"></i> Descargar Plantilla
+                    <a href="{{ url_for('exportar_productos_excel', q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}" class="btn btn-outline-success fw-bold">
+                        <i class="fas fa-file-excel me-2"></i> Descargar productos (Excel)
                     </a>
+                    <a href="{{ url_for('descargar_plantilla_productos') }}" class="btn btn-outline-info fw-bold">
+                        <i class="fas fa-download me-2"></i> Plantilla vacía
+                    </a>
+                </div>
+                <div class="col-12">
+                    <p class="small text-muted mb-0">
+                        <strong>Excel:</strong> descarga el listado actual (respeta filtros de búsqueda arriba), edita y vuelve a subir el .xlsx.
+                        Solo se actualizan columnas presentes en el archivo. <strong>Stock</strong> en tienda: columna <code>stock</code>.
+                        <strong>Precio venta sugerido:</strong> deje <code>precio_venta</code> vacío y defina <code>precio_compra</code>; opcional <code>margen_venta</code> y <code>terminacion</code> (0, 90 o 990).
+                    </p>
                 </div>
             </form>
         </div>
@@ -185,7 +312,7 @@
               <td>{{ p.ubicacion_codigo or '—' }}</td>
               <td>{{ p.unidad_compra or '—' }} / {{ p.unidad_venta_final }} {% if p.factor_conversion and p.factor_conversion != 1 %}<small class="text-muted">(x{{ p.factor_conversion }})</small>{% endif %}</td>
               <td>{{ p.stock }}</td>
-              <td>{{ p.precio_venta }}</td>
+              <td>${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
               <td>{{ 'Sí' if p.activo else 'No' }}</td>
               <td>{{ 'Sí' if p.stock > 0 and p.precio_venta > 0 and p.activo else 'No' }}</td>
               <td>
@@ -194,6 +321,21 @@
                     {{ 'Activo' if p.activo else 'Inactivo' }}
                   </button>
                 </form>
+                {% if puede_editar_stock_admin %}
+                <form method="POST" action="{{ url_for('editar_stock_producto', id=p.id) }}" class="d-inline-flex align-items-center gap-1 mt-2">
+                  <input
+                    type="number"
+                    name="stock"
+                    min="0"
+                    step="1"
+                    value="{{ p.stock }}"
+                    class="form-control form-control-sm"
+                    style="width: 88px"
+                    aria-label="Nuevo stock para {{ p.nombre }}"
+                  >
+                  <button type="submit" class="btn btn-sm btn-outline-primary">Editar</button>
+                </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -206,16 +348,226 @@
     <nav class="mt-3">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not productos_pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.prev_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria) }}">Anterior</a>
+          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.prev_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}">Anterior</a>
         </li>
         <li class="page-item disabled">
           <span class="page-link">Página {{ productos_pagination.page }} de {{ productos_pagination.pages }}</span>
         </li>
         <li class="page-item {% if not productos_pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.next_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria) }}">Siguiente</a>
+          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.next_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}">Siguiente</a>
         </li>
       </ul>
     </nav>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="inv-prod-config" type="application/json">{{ { 'buscar_producto': url_for('buscar_producto') } | tojson }}</script>
+<script>
+(function () {
+  const LEGACY_SUBS = {{ (subcategorias_todas_legacy or subcategorias)|tojson }};
+  const formFiltro = document.getElementById('form_filtro_productos');
+  if (!formFiltro) return;
+
+  function submitFiltroProductos() {
+    try {
+      if (typeof formFiltro.requestSubmit === 'function') {
+        formFiltro.requestSubmit();
+      } else {
+        formFiltro.submit();
+      }
+    } catch (err) {
+      formFiltro.submit();
+    }
+  }
+
+  function debounce(fn, ms) {
+    var t;
+    return function () {
+      clearTimeout(t);
+      var a = arguments, th = this;
+      t = setTimeout(function () { fn.apply(th, a); }, ms);
+    };
+  }
+
+  var qCont = document.getElementById('filtro_q_contiene');
+  function maybeAutoSubmitFiltro() {
+    var qv = (qCont && qCont.value) ? qCont.value.trim() : '';
+    if (qv.length === 1) {
+      return;
+    }
+    submitFiltroProductos();
+  }
+
+  var debSubmitFiltro = debounce(maybeAutoSubmitFiltro, 220);
+  if (qCont) qCont.addEventListener('input', debSubmitFiltro);
+
+  formFiltro.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || t.tagName !== 'SELECT') return;
+    if (t.id === 'filtro_sub_id' || t.id === 'filtro_sub_legacy') {
+      submitFiltroProductos();
+    }
+  });
+
+  const catSel = document.getElementById('filtro_categoria');
+  if (formFiltro && catSel && formFiltro.dataset.catalogo === '1') {
+    const apiSubs = "{{ url_for('api_catalogo_subs_por_categoria') }}";
+    catSel.addEventListener('change', async function () {
+      const cat = (catSel.value || '').trim();
+      let subId = document.getElementById('filtro_sub_id');
+      let subLegacy = document.getElementById('filtro_sub_legacy');
+      if (!subLegacy) return;
+      if (!cat) {
+        if (subId) { subId.style.display = 'none'; subId.disabled = true; subId.removeAttribute('name'); }
+        subLegacy.style.display = '';
+        subLegacy.disabled = false;
+        subLegacy.name = 'subcategoria';
+        subLegacy.innerHTML = '<option value=\"\">Todas las subcategorías</option>';
+        (LEGACY_SUBS || []).forEach(function (s) {
+          const o = document.createElement('option');
+          o.value = s;
+          o.textContent = s;
+          subLegacy.appendChild(o);
+        });
+        submitFiltroProductos();
+        return;
+      }
+      if (!subId) {
+        subId = document.createElement('select');
+        subId.className = 'form-select';
+        subId.style.cssText = 'min-width:12rem;max-width:22rem';
+        subId.id = 'filtro_sub_id';
+        subId.name = 'sub_id';
+        catSel.insertAdjacentElement('afterend', subId);
+      }
+      subId.style.display = '';
+      subId.disabled = false;
+      subId.name = 'sub_id';
+      subLegacy.style.display = 'none';
+      subLegacy.disabled = true;
+      subLegacy.removeAttribute('name');
+      subId.innerHTML = '<option value=\"\">Todas las hojas del maestro</option>';
+      try {
+        const r = await fetch(apiSubs + '?categoria=' + encodeURIComponent(cat));
+        const rows = await r.json();
+        rows.forEach(function (row) {
+          const o = document.createElement('option');
+          o.value = row.id;
+          o.textContent = row.etiqueta;
+          subId.appendChild(o);
+        });
+      } catch (e) {}
+      submitFiltroProductos();
+    });
+  } else if (catSel) {
+    catSel.addEventListener('change', submitFiltroProductos);
+  }
+
+  var jq = window.jQuery || window.$;
+  if (jq && jq.fn && jq.fn.select2) {
+    var buscarUrl = "{{ url_for('buscar_producto') }}";
+    try {
+      var cfgEl = document.getElementById('inv-prod-config');
+      if (cfgEl && cfgEl.textContent) {
+        var cfg = JSON.parse(cfgEl.textContent);
+        if (cfg && cfg.buscar_producto) buscarUrl = cfg.buscar_producto;
+      }
+    } catch (eCfg) {}
+    var $sel = jq('#filtro_buscar_producto_inv');
+    if ($sel.length) {
+      var ph = $sel.data('placeholder') || 'Escriba nombre o código de barra…';
+      $sel.select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: ph,
+        allowClear: true,
+        minimumInputLength: 2,
+        language: {
+          inputTooShort: function () {
+            return 'Introduzca 2 o más caracteres';
+          },
+          noResults: function () {
+            return 'No se encontraron productos';
+          },
+          searching: function () {
+            return 'Buscando...';
+          },
+        },
+        ajax: {
+          url: buscarUrl,
+          dataType: 'json',
+          delay: 300,
+          data: function (params) {
+            return { q: params.term, solo_vendibles: '0', origen: 'inventario' };
+          },
+          processResults: function (data) {
+            return { results: data.results || [] };
+          },
+          cache: true,
+        },
+      });
+      $sel.on('select2:select', function (e) {
+        var d = e.params.data;
+        var hid = document.getElementById('inv_hidden_codigo_barra');
+        if (hid) hid.value = d.id || '';
+        if (qCont) qCont.value = '';
+        submitFiltroProductos();
+      });
+      $sel.on('select2:clear', function () {
+        var hid = document.getElementById('inv_hidden_codigo_barra');
+        if (hid) hid.value = '';
+        submitFiltroProductos();
+      });
+      var hidIni = document.getElementById('inv_hidden_codigo_barra');
+      var ini = hidIni && hidIni.value ? String(hidIni.value).trim() : '';
+      if (ini) {
+        var optIni = new Option(ini + ' (código)', ini, true, true);
+        $sel.append(optIni);
+      }
+    }
+  }
+
+  const TREE = {{ (catalogo_registro_tree or [])|tojson }};
+  if (!TREE.length) return;
+  const c1 = document.getElementById('reg_cat_maestro');
+  const n2 = document.getElementById('reg_n2_maestro');
+  const hoja = document.getElementById('reg_hoja_maestro');
+  if (!c1 || !n2 || !hoja) return;
+
+  function catById(id) {
+    return TREE.find(function (x) { return String(x.id) === String(id); });
+  }
+  c1.addEventListener('change', function () {
+    const cat = catById(c1.value);
+    n2.innerHTML = '<option value=\"\">Seleccione familia…</option>';
+    hoja.innerHTML = '<option value=\"\">Seleccione ítem…</option>';
+    hoja.disabled = true;
+    if (!cat) { n2.disabled = true; return; }
+    n2.disabled = false;
+    (cat.nivel2 || []).forEach(function (blk, idx) {
+      const o = document.createElement('option');
+      o.value = String(idx);
+      o.textContent = blk.n2 || '(General)';
+      o.dataset.idx = String(idx);
+      n2.appendChild(o);
+    });
+  });
+  n2.addEventListener('change', function () {
+    const cat = catById(c1.value);
+    hoja.innerHTML = '<option value=\"\">Seleccione ítem…</option>';
+    if (!cat || n2.value === '') { hoja.disabled = true; return; }
+    const blk = cat.nivel2[parseInt(n2.value, 10)];
+    if (!blk || !blk.subs) { hoja.disabled = true; return; }
+    hoja.disabled = false;
+    blk.subs.forEach(function (s) {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.n3;
+      hoja.appendChild(o);
+    });
+  });
+})();
+</script>
 {% endblock %}

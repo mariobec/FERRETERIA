@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 960px;">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-book-open text-primary me-2"></i>Centro de ayuda</h3>
+      <p class="page-subtitle mb-0">Guía <strong>operacional</strong>: qué hace cada parte del ERP y en qué orden suele usarse en el día a día. Esta sección <strong>no modifica datos</strong>.</p>
+    </div>
+  </div>
+
+  <div class="alert alert-light border mb-4">
+    <strong>Permisos.</strong> Algunas pantallas dependen del rol (ej. <code>panel_gerencia</code> para el simulador, <code>anular_vale_caja</code> para anular vales, <code>autorizar_descuento_pos</code> para aplicar descuentos sin supervisor). Los roles <em>Administrador</em> / <em>Admin</em> suelen tener acceso amplio sin listar cada permiso.
+  </div>
+
+  <nav class="card card-ds mb-4">
+    <div class="card-body py-3">
+      <div class="fw-semibold mb-2">Saltar a un módulo</div>
+      <div class="d-flex flex-wrap gap-1">
+        <a href="#inicio-dashboard" class="btn btn-sm btn-outline-secondary">Inicio</a>
+        <a href="#caja-pos-vales" class="btn btn-sm btn-outline-secondary">Caja y POS</a>
+        <a href="#productos" class="btn btn-sm btn-outline-secondary">Productos</a>
+        <a href="#revision-precios" class="btn btn-sm btn-outline-secondary">Revisión precios</a>
+        <a href="#compras-logistica" class="btn btn-sm btn-outline-secondary">Compras y recepciones</a>
+        <a href="#historial-ventas" class="btn btn-sm btn-outline-secondary">Historial ventas</a>
+        <a href="#kardex-stock" class="btn btn-sm btn-outline-secondary">Kardex y stock crítico</a>
+        <a href="#bi-reportes" class="btn btn-sm btn-outline-secondary">BI Reportes</a>
+        <a href="#simulador-margen" class="btn btn-sm btn-outline-secondary">Simulador margen</a>
+        <a href="#ia-abastecimiento" class="btn btn-sm btn-outline-secondary">IA Abastecimiento</a>
+        <a href="#creditos-clientes" class="btn btn-sm btn-outline-secondary">Créditos clientes</a>
+        <a href="#mantenedores" class="btn btn-sm btn-outline-secondary">Mantenedores</a>
+      </div>
+    </div>
+  </nav>
+
+  <article class="card card-ds mb-3" id="inicio-dashboard">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-home text-secondary me-2"></i>Inicio</h4>
+      <p class="text-muted mb-2">Tablero al iniciar sesión: lectura rápida del día y accesos a alertas.</p>
+      <ul class="mb-2">
+        <li><strong>Ventas y transacciones del día</strong>: ritmo respecto a ayer (variación aproximada).</li>
+        <li><strong>Stock / productos críticos</strong>: enlaces al detalle de bajo stock.</li>
+        <li><strong>Créditos y retiros de caja</strong>: montos agregados; el detalle está en <strong>Créditos clientes</strong> y <strong>Movimientos de caja</strong>.</li>
+        <li><strong>Órdenes de compra pendientes</strong>: cantidad y monto estimado de OC en estado borrador/enviada/parcial.</li>
+      </ul>
+      <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-primary">Ir a Inicio</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="caja-pos-vales">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-cash-register text-secondary me-2"></i>Caja, Punto de Venta y vales</h4>
+      <p class="text-muted mb-2">Flujo típico de un turno de venta en mostrador:</p>
+      <ol class="mb-3">
+        <li><strong>Abrir caja</strong>: registrar monto inicial del turno.</li>
+        <li><strong>Punto de Venta</strong>: solo disponible con <strong>caja abierta</strong>. Se arma el pedido, descuentos sensibles pueden requerir <strong>usuario supervisor</strong> (permiso <code>autorizar_descuento_pos</code>) con clave.</li>
+        <li><strong>Emitir vale</strong>: el cliente lleva el vale a <strong>Vales pendientes</strong>; allí se registra método de pago y se cobra (ahí se descuenta stock si corresponde).</li>
+        <li><strong>Movimientos de caja</strong>: ingresos/egresos (ej. retiros); no confundir con cobro de vales.</li>
+        <li><strong>Cerrar caja</strong>: cierre del turno con conciliación.</li>
+      </ol>
+      <h6 class="fw-semibold">Vales pendientes y anulaciones</h6>
+      <p class="small mb-2">Si el cliente <strong>no vuelve a pagar</strong>, quien tenga permiso puede <strong>Anular</strong> el vale con un motivo elegido de lista; el historial queda en estado Anulada y no se había descontado stock hasta el cobro.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('abrir_caja') }}" class="btn btn-sm btn-outline-primary">Abrir caja</a>
+        <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-outline-primary">Punto de Venta</a>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-primary">Vales pendientes</a>
+        <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-primary">Movimientos</a>
+        <a href="{{ url_for('cerrar_caja') }}" class="btn btn-sm btn-outline-primary">Cerrar caja</a>
+      </div>
+      <h6 class="fw-semibold mt-3">Punto de Venta (detalle útil)</h6>
+      <ul class="small mb-0">
+        <li>Filtro <strong>solo productos con stock en tienda y precio</strong> (venta o mayoreo) para evitar líneas en $0.</li>
+        <li>Búsqueda de producto con autocompletado; cantidades y límites de stock se validan antes de emitir el vale.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="productos">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-boxes text-secondary me-2"></i>Productos</h4>
+      <p class="text-muted mb-2">Catálogo maestro: artículos que vendés y registrás stock.</p>
+      <ul class="mb-2">
+        <li><strong>Alta y edición</strong>: nombre, código de barras, precios, stock inicial o ajustes según política del negocio.</li>
+        <li><strong>Unidad compra / venta / factor</strong>: definen cómo ingresa la mercadería vs cómo se vende; hay ayuda desplegable en el mismo formulario. Conversiones globales se arman en <strong>Unidades de medida</strong> (Mantenedores).</li>
+        <li><strong>Importación masiva</strong>: CSV según formato indicado en pantalla; revisar precios y stock después.</li>
+      </ul>
+      <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-primary">Ir a Productos</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="revision-precios">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-tags text-secondary me-2"></i>Revisión de precios</h4>
+      <p class="text-muted mb-2">Trabajo de sobremesa para alinear <strong>precio de venta</strong> con costo y margen objetivo.</p>
+      <ul class="mb-2">
+        <li>Lista productos con costo y precio actual vs <strong>sugerido</strong> según reglas del sistema.</li>
+        <li>Aplicá cambios producto a producto o en lote cuando corresponda.</li>
+      </ul>
+      <a href="{{ url_for('revision_precios') }}" class="btn btn-sm btn-outline-primary">Ir a Revisión precios</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="compras-logistica">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-dolly text-secondary me-2"></i>Órdenes de compra, recepciones y proveedores</h4>
+      <p class="text-muted mb-2">Cadena compra → ingreso físico:</p>
+      <ul class="mb-2">
+        <li><strong>Proveedores</strong>: maestro de datos (RUT, nombre, contacto) para asociar OC y recepciones.</li>
+        <li><strong>Órdenes de compra</strong>: documento interno al proveedor (número, líneas, estado borrador/enviada/parcial/cerrada). Sirve de referencia antes de recibir.</li>
+        <li><strong>Recepciones</strong>: cuando entra mercadería se registra contra proveedor y documento; actualiza inventario según configuración de almacenes.</li>
+      </ul>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('mostrar_proveedores') }}" class="btn btn-sm btn-outline-primary">Proveedores</a>
+        <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-sm btn-outline-primary">Órdenes compra</a>
+        <a href="{{ url_for('lista_recepciones') }}" class="btn btn-sm btn-outline-primary">Recepciones</a>
+      </div>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="historial-ventas">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-shopping-cart text-secondary me-2"></i>Historial de ventas</h4>
+      <p class="text-muted mb-2">Consulta de ventas registradas (incluye flujos fuera del vale POS si se usaron).</p>
+      <ul class="mb-2">
+        <li>Búsqueda y listado por período o filtros disponibles en pantalla.</li>
+        <li>Edición puntual solo cuando la operación lo permite (ventas históricas suelen estar cerradas).</li>
+      </ul>
+      <a href="{{ url_for('mostrar_ventas') }}" class="btn btn-sm btn-outline-primary">Ir a Historial ventas</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="kardex-stock">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-clipboard-list text-secondary me-2"></i>Kardex y stock crítico</h4>
+      <p class="text-muted mb-2">Traza de movimientos de inventario y alertas.</p>
+      <ul class="mb-2">
+        <li><strong>Kardex</strong>: entradas/salidas por producto con tipo de movimiento y referencia (venta, recepción, ajuste, etc.).</li>
+        <li><strong>Stock crítico</strong> (desde Inicio o menú si está enlazado): lista de artículos bajo umbral para reponer o revisar.</li>
+      </ul>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('kardex') }}" class="btn btn-sm btn-outline-primary">Kardex</a>
+        <a href="{{ url_for('stock_critico') }}" class="btn btn-sm btn-outline-primary">Stock crítico</a>
+      </div>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="bi-reportes">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-chart-line text-secondary me-2"></i>BI Reportes</h4>
+      <p class="text-muted mb-2">Análisis de ventas por fechas, método de pago y ranking de productos.</p>
+      <ul class="mb-2">
+        <li>Rango de fechas y comparación con período anterior.</li>
+        <li>Reportes desde detalle: ABC volumen/margen, mix categoría × medio de pago, picos por hora y día (ventas <strong>Pagado</strong>).</li>
+        <li>Exportación <strong>CSV</strong> para Excel.</li>
+      </ul>
+      <a href="{{ url_for('business_intelligence') }}" class="btn btn-sm btn-outline-primary">Ir a BI Reportes</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3 border-primary border-opacity-25" id="simulador-margen">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-flask text-primary me-2"></i>Simulador «¿Qué pasa si…?» (margen)</h4>
+      <p class="mb-2">Escenarios sobre ventas ya cobradas: variación % en precio y costo, efecto en <strong>margen bruto</strong>; opcional elasticidad de cantidad.</p>
+      <ul class="small mb-2">
+        <li>Usa ventas <code>Pagado</code> del período y costo de catálogo actual.</li>
+        <li>No reemplaza estados financieros oficiales.</li>
+      </ul>
+      {% if usuario_tiene_permiso('panel_gerencia') %}
+      <a href="{{ url_for('simulador_margen') }}" class="btn btn-ds-primary btn-sm"><i class="fas fa-flask me-1"></i>Abrir simulador</a>
+      {% else %}
+      <p class="small text-warning mb-0"><i class="fas fa-lock me-1"></i>Requiere permiso <code>panel_gerencia</code>.</p>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="ia-abastecimiento">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-robot text-secondary me-2"></i>IA Abastecimiento</h4>
+      <p class="text-muted mb-2">Sugerencias orientativas según reglas del sistema; contrastar siempre con stock físico, OC abiertas y acuerdos con proveedores.</p>
+      <a href="{{ url_for('ia_abastecimiento') }}" class="btn btn-sm btn-outline-primary">Ir a IA Abastecimiento</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-3" id="creditos-clientes">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-hand-holding-usd text-secondary me-2"></i>Créditos clientes</h4>
+      <p class="text-muted mb-2">Cuenta corriente: saldos, límites y abonos.</p>
+      <ul class="mb-2">
+        <li>Consultar deuda y registrar pagos que reduzcan el saldo.</li>
+        <li>Cruce con ventas a crédito registradas en <strong>caja</strong> cuando aplique.</li>
+      </ul>
+      <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-outline-primary">Ir a Créditos clientes</a>
+    </div>
+  </article>
+
+  <article class="card card-ds mb-4" id="mantenedores">
+    <div class="card-body">
+      <h4 class="fw-bold"><i class="fas fa-sliders-h text-secondary me-2"></i>Mantenedores (administración)</h4>
+      <p class="text-muted mb-2">Solo perfiles autorizados. Configuran datos maestros que el resto del sistema usa cada día.</p>
+      <ul class="mb-0">
+        <li><strong>Catálogo categorías</strong>: árbol categoría → familia → ítem para clasificar productos.</li>
+        <li><strong>Unidades de medida</strong>: unidades y tablas de conversión (origen → destino × factor).</li>
+        <li><strong>Almacenes</strong>: tienda, bodega y políticas de stock por ubicación si aplica.</li>
+        <li><strong>Clientes</strong>: alta masiva o mantenimiento de RUT/datos para POS y créditos.</li>
+        <li><strong>Roles y permisos</strong>: qué puede hacer cada rol (POS, anular vales, gerencia, etc.).</li>
+        <li><strong>Datos de empresa</strong>: razón social, logo, textos de documentos.</li>
+        <li><strong>Usuarios</strong>: cuentas de acceso y asignación de rol.</li>
+      </ul>
+      {% if not puede_administrar %}
+      <p class="small text-muted mt-3 mb-0"><i class="fas fa-info-circle me-1"></i>Si no ves el menú Mantenedores, tu usuario no tiene perfil de administración.</p>
+      {% endif %}
+    </div>
+  </article>
+
+</div>
+{% endblock %}

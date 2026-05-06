@@ -21,9 +21,44 @@
         <i class="fas fa-paperclip me-1"></i> Ver documento
       </a>
       {% endif %}
+      {% if usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario') %}
+      <a href="{{ url_for('inventario_enrolamiento') }}" class="btn btn-outline-info btn-sm" target="_blank" rel="noopener">
+        <i class="fas fa-barcode me-1"></i> Enrolamiento
+      </a>
+      {% endif %}
       <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Listado</a>
     </div>
   </div>
+
+  {% if oc_tablas_ok and recepcion.estado in ('Pendiente', 'Incompleta') %}
+  <div class="card card-ds mb-3">
+    <div class="card-header fw-bold">Orden de compra</div>
+    <div class="card-body">
+      {% if recepcion.orden_compra %}
+      <p class="mb-2 small">
+        Vinculada: <strong>OC {{ recepcion.orden_compra.numero }}</strong> ({{ recepcion.orden_compra.estado }})
+        <a href="{{ url_for('orden_compra_editar', oid=recepcion.orden_compra.id) }}" class="btn btn-sm btn-outline-primary ms-1">Abrir OC</a>
+      </p>
+      {% else %}
+      <p class="small text-muted mb-2">Sin vínculo a OC. Puede asociar una orden abierta del mismo proveedor.</p>
+      {% endif %}
+      <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" class="row g-2 align-items-end">
+        <input type="hidden" name="action" value="asociar_oc">
+        <div class="col-md-8">
+          <select name="orden_compra_id" class="form-select form-select-sm">
+            <option value="">— Quitar vínculo / sin OC —</option>
+            {% for o in ordenes_mismo_prov %}
+            <option value="{{ o.id }}" {% if recepcion.orden_compra_id == o.id %}selected{% endif %}>OC {{ o.numero }} — {{ o.estado }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-outline-secondary btn-sm">Guardar vínculo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
 
   {% if recepcion.estado in ('Pendiente', 'Incompleta') %}
   <div class="card card-ds mb-4">
@@ -63,13 +98,66 @@
   </div>
   {% endif %}
 
+  {% if recepcion.estado in ('Pendiente', 'Incompleta') and tiene_documento %}
+  <div class="card card-ds mb-4 border-info">
+    <div class="card-header bg-white fw-bold text-info">
+      <i class="fas fa-robot me-2"></i>Importar líneas desde factura o guía (IA)
+    </div>
+    <div class="card-body">
+      {% if not ia_factura_habilitada %}
+      <p class="small text-muted mb-2">
+        Para habilitar el análisis automático, configure la variable de entorno <code>OPENAI_API_KEY</code> en el servidor.
+        Opcional: <code>OPENAI_VISION_MODEL</code> (por defecto <code>gpt-4o-mini</code>) e <code>IA_FACTURA_PDF_PAGINAS</code> (páginas del PDF a enviar, ej. 2).
+      </p>
+      {% else %}
+      <p class="small text-muted mb-3">
+        Usa OpenAI (visión) sobre el PDF o imagen adjunto (factura o guía de despacho). Revise el emparejamiento con su catálogo antes de aplicar.
+        Requiere <code>pip install PyMuPDF</code> para PDF.
+      </p>
+      <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        <button type="button" class="btn btn-info" id="btnIaAnalizarFactura">
+          <i class="fas fa-magic me-1"></i> Analizar documento con IA
+        </button>
+        <div class="form-check ms-1">
+          <input class="form-check-input" type="checkbox" id="iaAutorizarMargen" value="1">
+          <label class="form-check-label small" for="iaAutorizarMargen">Autorizar margen bajo al aplicar (como en línea manual)</label>
+        </div>
+      </div>
+      <div id="iaFacturaStatus" class="small mb-2"></div>
+      <div id="iaFacturaTablaWrap" class="d-none table-responsive">
+        <table class="table table-sm table-bordered align-middle" id="iaFacturaTabla">
+          <thead class="table-light">
+            <tr>
+              <th><input type="checkbox" id="iaChkTodos" class="form-check-input" title="Marcar todos con producto"></th>
+              <th>Texto en documento</th>
+              <th>Código en documento</th>
+              <th>Match</th>
+              <th>Producto en sistema</th>
+              <th class="text-end" style="width:5rem">Cant. doc.</th>
+              <th class="text-end" style="width:5rem">Cant. rec.</th>
+              <th class="text-end" style="width:7rem">Costo u.</th>
+            </tr>
+          </thead>
+          <tbody id="iaFacturaTbody"></tbody>
+        </table>
+        <button type="button" class="btn btn-primary btn-sm mt-2" id="btnIaAplicarSeleccion">
+          <i class="fas fa-check me-1"></i> Aplicar líneas marcadas
+        </button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card card-ds mb-4">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
       <span class="fw-bold">Líneas registradas</span>
       {% if recepcion.estado in ('Pendiente', 'Incompleta') %}
-      <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" onsubmit="return confirm('¿Cerrar esta recepción? No podrá agregar más líneas.');">
+      <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" class="d-flex align-items-center" onsubmit="return confirm('¿Cerrar esta recepción? No podrá agregar más líneas.');">
         <input type="hidden" name="action" value="finalizar">
-        <button type="submit" class="btn btn-sm btn-outline-dark">Finalizar recepción</button>
+        <button type="submit" class="btn btn-sm btn-primary fw-semibold">
+          <i class="fas fa-check-circle me-1"></i> Finalizar recepción
+        </button>
       </form>
       {% endif %}
     </div>
@@ -78,7 +166,7 @@
         <table class="table table-sm mb-0 table-ds">
           <thead class="table-light">
             <tr>
-              <th>Código</th>
+              <th style="min-width:14rem">Códigos</th>
               <th>Descripción</th>
               <th class="text-end">Doc.</th>
               <th class="text-end">Recibido</th>
@@ -87,12 +175,27 @@
           </thead>
           <tbody>
             {% for d in recepcion.detalles %}
-            <tr>
-              <td><span class="badge bg-secondary">{{ d.producto.codigo_barra if d.producto else '—' }}</span></td>
+            <tr data-pid="{{ d.producto_id }}">
+              <td class="small">
+                {% if recepcion.estado in ('Pendiente', 'Incompleta') and d.producto %}
+                <button type="button" class="btn btn-sm btn-outline-primary mb-1 btn-barras-recep"
+                        data-pid="{{ d.producto_id }}"
+                        data-nombre="{{ d.producto.nombre|e }}">
+                  <i class="fas fa-barcode me-1"></i>Pistola
+                </button>
+                {% endif %}
+                <div><span class="badge bg-dark recep-badge-barras">{{ d.producto.codigo_barra if d.producto else '—' }}</span> <span class="text-muted">barras</span></div>
+                {% if d.producto and (d.producto.codigo_chilemat or '') %}
+                <div class="text-muted">Ref.: <code>{{ d.producto.codigo_chilemat }}</code></div>
+                {% endif %}
+                {% if d.producto and (d.producto.codigo_interno or '') %}
+                <div class="text-muted">Interno: <code>{{ d.producto.codigo_interno }}</code></div>
+                {% endif %}
+              </td>
               <td>{{ d.producto.nombre if d.producto else '—' }}</td>
               <td class="text-end">{{ d.cantidad_documento }}</td>
               <td class="text-end fw-bold">{{ d.cantidad_recibida }}</td>
-              <td class="text-end">${{ "{:,.0f}".format((d.producto.precio_compra or 0)) if d.producto else "—" }}</td>
+              <td class="text-end">${{ "{:,.0f}".format((d.producto.precio_compra or 0)).replace(",", ".") if d.producto else "—" }}</td>
             </tr>
             {% else %}
             <tr>
@@ -105,6 +208,41 @@
     </div>
   </div>
 </div>
+
+{% if recepcion.estado in ('Pendiente', 'Incompleta') %}
+<div class="modal fade" id="modalBarrasRecep" tabindex="-1" aria-labelledby="modalBarrasRecepLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalBarrasRecepLabel"><i class="fas fa-barcode me-2"></i>Código de barras (recepción)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small fw-bold mb-1" id="modalBarrasRecepProd"></p>
+        <p class="small text-muted mb-2">
+          Pistoleá el código del producto y presioná <strong>Enter</strong>. No suma stock: la mercadería ya ingresó con esta recepción (factura o guía).
+          Si el sistema generó un código <code>INT-…</code> al cerrar una recepción anterior, se reemplaza automáticamente por el que pistoleés aquí.
+        </p>
+        <input type="text" id="modalBarrasRecepScan" class="form-control form-control-lg" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Esperando lectura…">
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" id="modalBarrasRecepForzar">
+          <label class="form-check-label small" for="modalBarrasRecepForzar">Forzar reemplazo del código de barras actual del producto (solo si está mal cargado)</label>
+        </div>
+        {% if usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario') %}
+        <div class="small mt-2 d-none" id="modalBarrasRecepAyudaEnrol">
+          <a href="#" class="link-info" id="modalBarrasRecepLinkEnrol" target="_blank" rel="noopener">Abrir módulo Enrolamiento con este código</a>
+          <span class="text-muted"> — para vincular a otro SKU del catálogo o alta manual.</span>
+        </div>
+        {% endif %}
+        <div class="small text-danger mt-2 d-none" id="modalBarrasRecepErr"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
@@ -121,7 +259,9 @@
         url: "{{ url_for('buscar_producto') }}",
         dataType: "json",
         delay: 300,
-        data: function (params) { return { q: params.term }; },
+        data: function (params) {
+          return { q: params.term, solo_vendibles: '0', origen: 'recepcion' };
+        },
         processResults: function (data) {
           return {
             results: (data.results || []).map(function (r) {
@@ -132,5 +272,198 @@
       }
     });
   });
+
+  (function () {
+    var analizarUrl = "{{ url_for('api_ia_factura_analizar', rid=recepcion.id) }}";
+    var aplicarUrl = "{{ url_for('api_ia_factura_aplicar', rid=recepcion.id) }}";
+    var $btnA = $("#btnIaAnalizarFactura");
+    var $btnP = $("#btnIaAplicarSeleccion");
+    if (!$btnA.length) return;
+
+    var ultimosItems = [];
+
+    function setStatus(html, cls) {
+      $("#iaFacturaStatus").removeClass("text-danger text-success text-muted").addClass(cls || "text-muted").html(html || "");
+    }
+
+    $btnA.on("click", function () {
+      setStatus('<i class="fas fa-spinner fa-spin me-1"></i> Analizando… puede tardar hasta 1–2 min.', "text-muted");
+      $("#iaFacturaTablaWrap").addClass("d-none");
+      ultimosItems = [];
+      $btnA.prop("disabled", true);
+      fetch(analizarUrl, { method: "POST", credentials: "same-origin", headers: { "Accept": "application/json" } })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || !x.j.ok) {
+            var m = (x.j && x.j.message) ? x.j.message : "Error al analizar.";
+            if (x.j && x.j.sin_api_key) m = "Falta OPENAI_API_KEY en el servidor.";
+            setStatus(m, "text-danger");
+            return;
+          }
+          ultimosItems = x.j.items || [];
+          if (!ultimosItems.length) {
+            setStatus("La IA no devolvió líneas de producto. Pruebe otra foto, más nitidez o más páginas del PDF.", "text-warning");
+            return;
+          }
+          setStatus("Se encontraron " + ultimosItems.length + " línea(s). Revise el emparejamiento y cantidades antes de aplicar.", "text-success");
+          var $tb = $("#iaFacturaTbody").empty();
+          ultimosItems.forEach(function (row, idx) {
+            var pid = row.producto_id;
+            var chk = pid ? '<input type="checkbox" class="form-check-input ia-row-chk" data-idx="' + idx + '"' + (pid ? " checked" : " disabled") + ">" : '<input type="checkbox" class="form-check-input" disabled>';
+            var match = row.match || "—";
+            var pn = row.producto_nombre ? (row.producto_nombre + " <small class='text-muted'>(" + (row.producto_codigo || "") + ")</small>") : '<span class="text-danger">Sin match</span>';
+            var cost = row.precio_unitario != null ? row.precio_unitario : "";
+            var tr = $("<tr>").attr("data-idx", idx);
+            tr.append($("<td>").html(chk));
+            tr.append($("<td>").text(row.descripcion_factura || ""));
+            tr.append($("<td>").text(row.codigo_factura || "—"));
+            tr.append($("<td>").append($("<span class='badge bg-secondary'>").text(match)));
+            tr.append($("<td>").html(pn));
+            tr.append($("<td class='text-end'>").html('<input type="number" min="0" class="form-control form-control-sm ia-cdoc text-end" data-idx="' + idx + '" value="' + (row.cantidad_documento || 0) + '">'));
+            tr.append($("<td class='text-end'>").html('<input type="number" min="1" class="form-control form-control-sm ia-cfis text-end" data-idx="' + idx + '" value="' + (row.cantidad_recibida || 1) + '">'));
+            tr.append($("<td class='text-end'>").html('<input type="number" step="0.01" min="0" class="form-control form-control-sm ia-costo text-end" data-idx="' + idx + '" value="' + cost + '" placeholder="—">'));
+            $tb.append(tr);
+          });
+          $("#iaFacturaTablaWrap").removeClass("d-none");
+        })
+        .catch(function (e) {
+          setStatus("Error de red o servidor: " + (e && e.message ? e.message : e), "text-danger");
+        })
+        .finally(function () {
+          $btnA.prop("disabled", false);
+        });
+    });
+
+    $("#iaChkTodos").on("change", function () {
+      var on = $(this).prop("checked");
+      $(".ia-row-chk:not(:disabled)").prop("checked", on);
+    });
+
+    $btnP.on("click", function () {
+      var payload = { autorizar_margen_bajo: $("#iaAutorizarMargen").prop("checked"), items: [] };
+      $(".ia-row-chk:checked").each(function () {
+        var idx = parseInt($(this).data("idx"), 10);
+        if (isNaN(idx) || !ultimosItems[idx] || !ultimosItems[idx].producto_id) return;
+        var cdoc = parseInt($('.ia-cdoc[data-idx="' + idx + '"]').val(), 10) || 0;
+        var cfis = parseInt($('.ia-cfis[data-idx="' + idx + '"]').val(), 10) || 0;
+        var costRaw = $('.ia-costo[data-idx="' + idx + '"]').val();
+        var cost = costRaw === "" || costRaw == null ? null : parseFloat(costRaw);
+        payload.items.push({
+          aplicar: true,
+          producto_id: ultimosItems[idx].producto_id,
+          descripcion_factura: ultimosItems[idx].descripcion_factura,
+          cantidad_documento: cdoc,
+          cantidad_recibida: cfis,
+          costo_unitario: cost
+        });
+      });
+      if (!payload.items.length) {
+        setStatus("Marque al menos una línea con producto encontrado.", "text-danger");
+        return;
+      }
+      setStatus('<i class="fas fa-spinner fa-spin me-1"></i> Aplicando ' + payload.items.length + " línea(s)…", "text-muted");
+      $btnP.prop("disabled", true);
+      fetch(aplicarUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || !x.j.ok) {
+            setStatus((x.j && x.j.message) ? x.j.message : "Error al aplicar.", "text-danger");
+            return;
+          }
+          var msg = "Aplicadas: " + (x.j.aplicados || 0) + ".";
+          if (x.j.errores && x.j.errores.length) msg += " Con advertencias en " + x.j.errores.length + " ítem(es).";
+          setStatus(msg + " Recargando…", "text-success");
+          window.location.reload();
+        })
+        .catch(function (e) {
+          setStatus("Error: " + (e && e.message ? e.message : e), "text-danger");
+        })
+        .finally(function () {
+          $btnP.prop("disabled", false);
+        });
+    });
+  })();
+
+  (function () {
+    var recepId = {{ recepcion.id }};
+    var enrolUrlBase = "{{ url_for('inventario_enrolamiento') }}";
+    var $modal = $("#modalBarrasRecep");
+    if (!$modal.length) return;
+    var pidSel = null;
+    var modalBs = null;
+
+    function showErr(msg) {
+      var $e = $("#modalBarrasRecepErr");
+      if (msg) { $e.text(msg).removeClass("d-none"); } else { $e.addClass("d-none").text(""); }
+    }
+    function setAyudaEnrol(code, show) {
+      var $w = $("#modalBarrasRecepAyudaEnrol");
+      var $a = $("#modalBarrasRecepLinkEnrol");
+      if (!$w.length || !$a.length) return;
+      if (!show || !code) { $w.addClass("d-none"); return; }
+      $a.attr("href", enrolUrlBase + "?codigo=" + encodeURIComponent(code));
+      $w.removeClass("d-none");
+    }
+
+    $(document).on("click", ".btn-barras-recep", function () {
+      pidSel = parseInt($(this).data("pid"), 10);
+      $("#modalBarrasRecepProd").text($(this).data("nombre") || ("Producto #" + pidSel));
+      $("#modalBarrasRecepScan").val("");
+      $("#modalBarrasRecepForzar").prop("checked", false);
+      showErr("");
+      setAyudaEnrol("", false);
+      if (!modalBs) modalBs = new bootstrap.Modal(document.getElementById("modalBarrasRecep"));
+      modalBs.show();
+      setTimeout(function () { $("#modalBarrasRecepScan").trigger("focus"); }, 350);
+    });
+
+    $("#modalBarrasRecepScan").on("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      var code = ($(this).val() || "").trim();
+      showErr("");
+      setAyudaEnrol("", false);
+      if (!code || !pidSel) return;
+      var payload = {
+        recepcion_id: recepId,
+        producto_id: pidSel,
+        codigo_barras: code,
+        forzar_reemplazo: $("#modalBarrasRecepForzar").prop("checked")
+      };
+      fetch("{{ url_for('api_recepcion_asignar_codigo_barras') }}", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(payload)
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j, status: r.status }; }); })
+        .then(function (x) {
+          if (!x.ok || !x.j.ok) {
+            var err = (x.j && x.j.error) ? x.j.error : "";
+            var msg = (x.j && x.j.mensaje) ? x.j.mensaje : "No se pudo guardar.";
+            showErr(msg);
+            if (err === "duplicado" || err === "producto_otro_codigo") {
+              setAyudaEnrol(code, true);
+            }
+            return;
+          }
+          var tr = $('tr[data-pid="' + pidSel + '"]');
+          var $td = tr.find("td").first();
+          tr.find(".recep-badge-barras").text(x.j.producto.codigo_barra || "—");
+          if (x.j.producto.codigo_interno && !$td.find(".recep-interno-lbl").length) {
+            $td.append('<div class="text-muted recep-interno-lbl">Interno: <code>' + x.j.producto.codigo_interno + "</code></div>");
+          }
+          if (modalBs) modalBs.hide();
+        })
+        .catch(function (err) {
+          showErr(err && err.message ? err.message : "Error de red.");
+        });
+    });
+  })();
 </script>
 {% endblock %}

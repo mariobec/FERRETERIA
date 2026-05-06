@@ -25,11 +25,28 @@
             <option value="Factura">Factura</option>
             <option value="Guia de Despacho">Guía de despacho</option>
           </select>
+          <div class="small text-muted mt-2">
+            <strong>Recepción física:</strong> suele usarse la <strong>guía de despacho</strong> (documenta lo que envía/entrega el proveedor o transporte).
+            <strong>Costo y contabilidad:</strong> la <strong>factura</strong> es la referencia habitual para precios netos, IVA y crédito fiscal.
+            Si recibe mercadería con la guía y la factura llega después, puede abrir la recepción con la guía y adjuntar la factura cuando la tenga, o registrar otra recepción según su política interna.
+          </div>
         </div>
         <div class="col-md-6">
           <label class="form-label fw-bold">Número de documento</label>
           <input type="text" name="documento_numero" class="form-control" placeholder="Folio SII / número interno" required>
         </div>
+        {% if oc_tablas_ok %}
+        <div class="col-12">
+          <label class="form-label fw-bold">Orden de compra (opcional)</label>
+          <select name="orden_compra_id" class="form-select">
+            <option value="">— Sin orden de compra —</option>
+            {% for o in ordenes_oc %}
+            <option value="{{ o.id }}">OC {{ o.numero }} — {{ o.proveedor.nombre if o.proveedor else '—' }} ({{ o.fecha_emision }})</option>
+            {% endfor %}
+          </select>
+          <div class="small text-muted mt-1">Debe coincidir con el proveedor elegido. Gestione OC en <a href="{{ url_for('lista_ordenes_compra') }}">Órdenes de compra</a>.</div>
+        </div>
+        {% endif %}
         <div class="col-12">
           <label class="form-label fw-bold">Adjuntar documento (Factura/Guía)</label>
           <input type="file" name="documento_archivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp">

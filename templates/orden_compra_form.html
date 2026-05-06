@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title">
+        <i class="fas fa-file-contract text-primary me-2"></i>
+        {% if oc %}Orden #{{ oc.id }}{% else %}Nueva orden de compra{% endif %}
+      </h3>
+      <p class="page-subtitle mb-0">{% if oc %}Edite cabecera y líneas.{% else %}Ingrese datos de cabecera y luego agregue productos.{% endif %}</p>
+    </div>
+    <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-outline-secondary btn-sm">Listado OC</a>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-header fw-bold">{% if oc %}Cabecera{% else %}Datos de la orden{% endif %}</div>
+    <div class="card-body">
+      {% if oc %}
+      <form method="post" action="{{ url_for('orden_compra_editar', oid=oc.id) }}" class="row g-3">
+        <input type="hidden" name="action" value="guardar_cabecera">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Proveedor</label>
+          <select name="proveedor_id" class="form-select" required>
+            {% for p in proveedores %}
+            <option value="{{ p.id }}" {% if p.id == oc.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Número OC</label>
+          <input type="text" name="numero" class="form-control" value="{{ oc.numero }}" maxlength="50" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Emisión</label>
+          <input type="date" name="fecha_emision" class="form-control" value="{{ oc.fecha_emision.strftime('%Y-%m-%d') if oc.fecha_emision else '' }}" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Estado</label>
+          <select name="estado" class="form-select">
+            {% for e in estados %}
+            <option value="{{ e }}" {% if oc.estado == e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observación</label>
+          <input type="text" name="observacion" class="form-control" value="{{ oc.observacion or '' }}" maxlength="500">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary btn-sm">Guardar cabecera</button>
+        </div>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('orden_compra_nueva') }}" class="row g-3">
+        {% if producto_sugerido %}
+        <input type="hidden" name="producto_id_sugerido" value="{{ producto_sugerido.id }}">
+        {% endif %}
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Proveedor</label>
+          <select name="proveedor_id" class="form-select" required>
+            <option value="">—</option>
+            {% for p in proveedores %}
+            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Número OC</label>
+          <input type="text" name="numero" class="form-control" maxlength="50" required placeholder="Ej. OC-2026-0142">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Emisión</label>
+          <input type="date" name="fecha_emision" class="form-control" required value="{{ hoy }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Estado</label>
+          <select name="estado" class="form-select">
+            {% for e in estados %}
+            <option value="{{ e }}" {% if e == 'Borrador' %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observación</label>
+          <input type="text" name="observacion" class="form-control" maxlength="500">
+        </div>
+        {% if producto_sugerido %}
+        <div class="col-12">
+          <div class="alert alert-info mb-0 py-2">
+            Al crear esta OC se agregará automáticamente el producto crítico:
+            <strong>{{ producto_sugerido.nombre }}</strong>
+            {% if producto_sugerido.codigo_barra %}<span class="text-muted">({{ producto_sugerido.codigo_barra }})</span>{% endif %}.
+          </div>
+        </div>
+        {% endif %}
+        <div class="col-12">
+          <button type="submit" class="btn btn-ds-primary">Crear y continuar</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if oc %}
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Agregar línea</div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('orden_compra_editar', oid=oc.id) }}" class="row g-2">
+            <input type="hidden" name="action" value="add_line">
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Producto</label>
+              <select id="ocProductoSelect" name="producto_id" class="form-select" style="width:100%" required></select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Cantidad</label>
+              <input type="number" name="cantidad" class="form-control" min="0.0001" step="any" value="1" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small">Precio unitario</label>
+              <input type="number" name="precio_unitario" class="form-control" min="0" step="0.01" value="0">
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-outline-primary btn-sm">Agregar línea</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card card-ds">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+          <span>Líneas</span>
+          <span class="small text-muted">Total estimado: <strong>${{ "{:,.0f}".format(total_estimado or 0).replace(",", ".") }}</strong></span>
+        </div>
+        <div class="card-body p-0 table-responsive">
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-end">Cant.</th>
+                <th class="text-end">P. unit.</th>
+                <th class="text-end">Subtotal</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in oc.detalles %}
+              <tr>
+                <td>{{ d.producto.nombre if d.producto else '—' }} <small class="text-muted">{{ d.producto.codigo_barra if d.producto else '' }}</small></td>
+                <td class="text-end">{{ d.cantidad }}</td>
+                <td class="text-end">${{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+                <td class="text-end">${{ "{:,.0f}".format((d.cantidad or 0) * (d.precio_unitario or 0)).replace(",", ".") }}</td>
+                <td class="text-end">
+                  <form method="post" action="{{ url_for('orden_compra_editar', oid=oc.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar línea?');">
+                    <input type="hidden" name="action" value="eliminar_linea">
+                    <input type="hidden" name="detalle_id" value="{{ d.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger py-0">Quitar</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-muted text-center py-3">Sin líneas aún.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if oc %}
+<script>
+  $(function () {
+    $("#ocProductoSelect").select2({
+      theme: "bootstrap-5",
+      placeholder: "Buscar por nombre o código…",
+      allowClear: true,
+      minimumInputLength: 2,
+      width: "100%",
+      ajax: {
+        url: "{{ url_for('buscar_producto') }}",
+        dataType: "json",
+        delay: 300,
+        data: function (params) {
+          return { q: params.term, solo_vendibles: '0', origen: 'orden_compra' };
+        },
+        processResults: function (data) {
+          return {
+            results: (data.results || []).map(function (r) {
+              return { id: r.producto_id, text: r.text };
+            })
+          };
+        }
+      }
+    });
+  });
+</script>
+{% endif %}
+{% endblock %}

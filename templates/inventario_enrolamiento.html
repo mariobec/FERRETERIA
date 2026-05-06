@@ -1,0 +1,1143 @@
+{% extends 'base.html' %}
+{% block extra_css %}
+<style>
+  .enrol-shell { max-width: 980px; margin: 0 auto; }
+  .enrol-head-card {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: linear-gradient(180deg, rgba(15, 23, 42, .90), rgba(15, 23, 42, .72));
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 14px 34px rgba(2, 6, 23, .35);
+  }
+  .enrol-title-note { color: #94a3b8; margin-bottom: 0; }
+  .enrol-top-actions .btn { border-radius: 10px; font-weight: 600; letter-spacing: .01em; }
+  .enrol-scan-strip {
+    position: sticky; top: 0; z-index: 1020;
+    background: linear-gradient(180deg, #0b1730 0%, #13284a 100%);
+    color: #fff; border-radius: 14px; padding: 14px 16px;
+    border: 1px solid rgba(148, 163, 184, .22);
+    box-shadow: 0 12px 30px rgba(2, 6, 23, .38);
+  }
+  .enrol-scan-input {
+    position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0;
+  }
+  .enrol-pulse { animation: enrolPulse .6s ease-out 1; }
+  @keyframes enrolPulse { from { box-shadow: 0 0 0 0 rgba(34,197,94,.6);} to { box-shadow: 0 0 0 12px rgba(34,197,94,0);} }
+  .enrol-panel {
+    display: none; border-radius: 12px; border: 1px solid rgba(255,255,255,.12);
+    background: #111827; color: #e5e7eb;
+  }
+  .enrol-panel.show { display: block; }
+  .enrol-result-card {
+    border-radius: 16px;
+    border: 1px solid rgba(34,197,94,.42);
+    background: linear-gradient(180deg, rgba(4,38,20,.98), rgba(6,58,45,.92));
+    color: #e8fff3;
+    box-shadow: 0 14px 32px rgba(0,0,0,.26);
+  }
+  .enrol-result-card .text-white-50 { color: #c4f5de !important; }
+  .enrol-result-card .small { letter-spacing: .01em; }
+  .enrol-section-card {
+    border: 1px solid rgba(148,163,184,.30);
+    border-radius: 12px;
+    background: rgba(2, 6, 23, 0.36);
+    padding: 12px;
+  }
+  .enrol-thumb {
+    width: 72px; height: 72px; border-radius: 10px; object-fit: cover; background: #334155;
+  }
+  .enrol-list-item { cursor: pointer; transition: background .12s; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .enrol-list-item:hover, .enrol-list-item.active { background: rgba(59,130,246,.2); }
+  .enrol-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1040;
+    display: none; align-items: flex-end; justify-content: center; padding: 12px;
+  }
+  .enrol-overlay.show { display: flex; }
+  .enrol-sheet {
+    width: 100%; max-width: 720px; max-height: 85vh; overflow: auto;
+    background: #0b1220; border-radius: 16px 16px 0 0; padding: 16px;
+    color: #e5e7eb;
+  }
+  .enrol-stock-mini { --bs-table-bg: transparent; font-size: 0.8125rem; margin-bottom: 0; }
+  .enrol-stock-mini td { border-color: rgba(255,255,255,.1); vertical-align: middle; padding: 0.35rem 0.5rem; }
+  .enrol-stock-mini tfoot td { border-top: 1px solid rgba(255,255,255,.22); font-weight: 600; }
+  .enrol-stock-caja { border-radius: 12px; border: 1px solid rgba(148,163,184,.24); padding: 10px 12px; background: rgba(2,6,23,.28); }
+  .enrol-detalle-stock { background: rgba(2, 6, 23, 0.75); border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; padding: 8px; }
+  .enrol-detalle-item { display: flex; justify-content: space-between; gap: 8px; padding: 6px 4px; border-bottom: 1px dashed rgba(148, 163, 184, 0.25); }
+  .enrol-detalle-item:last-child { border-bottom: 0; }
+  .enrol-detalle-nombre { color: #e2e8f0; font-size: .9rem; }
+  .enrol-detalle-cantidad { color: #22d3ee; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  .enrol-pos-pill { border-radius: 12px; padding: 10px 12px; font-size: .9rem; line-height: 1.3rem; }
+  .enrol-pos-pill.ok { background: rgba(22,163,74,.2); border: 1px solid rgba(34,197,94,.45); color: #dcfce7; }
+  .enrol-pos-pill.warn { background: rgba(153,27,27,.28); border: 1px solid rgba(248,113,113,.55); color: #fee2e2; }
+  .enrol-btn-entrada { min-height: 42px; border-radius: 10px; font-weight: 700; }
+  .enrol-btn-cerrar-panel { border-radius: 10px; }
+  .enrol-result-headline { font-size: 1rem; font-weight: 700; letter-spacing: .01em; }
+  .enrol-product-main { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: start; }
+  .enrol-product-sub { font-size: .86rem; color: #a7f3d0; margin-bottom: 2px; }
+  .enrol-product-meta { font-size: .94rem; color: #bae6fd; margin-bottom: 4px; }
+  .enrol-divider-soft { border-top: 1px solid rgba(148,163,184,.25); margin: 12px 0; }
+  .enrol-action-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .enrol-caption-muted { color: #cbd5e1; font-size: .82rem; margin: 0; }
+  .enrol-avanzado-flag { font-size: 0.78rem; }
+  .enrol-shell:not(.enrol-avanzado) .enrol-adv { display: none !important; }
+  .enrol-quick-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .enrol-quick-item {
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, .52);
+    padding: 10px 12px;
+  }
+  .enrol-quick-title { font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; color: #93c5fd; margin-bottom: 2px; }
+  .enrol-quick-text { font-size: .88rem; color: #e2e8f0; margin: 0; }
+  .enrol-help details {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 12px;
+    background: rgba(2, 6, 23, .45);
+    padding: 10px 12px;
+  }
+  .enrol-help summary { cursor: pointer; color: #f8fafc; font-weight: 600; }
+  .enrol-help ul { margin: 8px 0 0 0; padding-left: 18px; }
+  .enrol-help li { margin-bottom: 4px; color: #cbd5e1; }
+  @media (max-width: 900px) { .enrol-quick-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<script type="application/json" id="enrol-meta-json">{{ {'almacenes': almacenes_ui, 'puede_traslado': puede_traslado_almacenes} | tojson }}</script>
+<div class="container-fluid py-3 enrol-shell" id="enrol-shell">
+  <div class="enrol-head-card mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+      <h1 class="h4 fw-bold mb-0 text-white"><i class="fas fa-barcode me-2 text-warning"></i>Enrolamiento en tiempo real</h1>
+      <p class="enrol-title-note">Escaneá, revisá y ajustá stock en segundos.</p>
+      </div>
+      <div class="text-end">
+        <label class="small text-muted d-block fw-bold text-white">Almacén de esta toma</label>
+        <select id="enrol-almacen" class="form-select form-select-sm" style="min-width: 240px;" title="Aquí suma el stock al vincular o crear producto nuevo. El conteo de pistoleos es aparte.">
+          {% for a in almacenes_ui %}
+          <option value="{{ a.id }}" data-rol="{{ a.rol or '' }}" {% if id_almacen_default and a.id == id_almacen_default %}selected{% endif %}>
+            {{ a.nombre }}{% if a.rol == 'tienda' %} — Tienda (venta POS){% elif a.rol == 'bodega' %} — Bodega{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <div class="d-flex justify-content-end gap-2 mt-2 enrol-top-actions">
+          <button type="button" class="btn btn-outline-light btn-sm" id="enrol-nueva-sesion"><i class="fas fa-redo me-1"></i>Nueva sesión</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="enrol-toggle-avanzado"><i class="fas fa-sliders-h me-1"></i>Opciones avanzadas</button>
+        </div>
+        <div class="enrol-avanzado-flag text-white-50 mt-1 mb-0">Modo básico activo</div>
+      </div>
+    </div>
+    <div class="enrol-quick-grid">
+      <div class="enrol-quick-item">
+        <div class="enrol-quick-title">Paso 1 · Contexto</div>
+        <p class="enrol-quick-text">Elegí almacén y presioná <strong>Nueva sesión</strong>.</p>
+      </div>
+      <div class="enrol-quick-item">
+        <div class="enrol-quick-title">Paso 2 · Captura</div>
+        <p class="enrol-quick-text">Escaneá y registra cantidad con <strong>Sumar</strong>.</p>
+      </div>
+      <div class="enrol-quick-item">
+        <div class="enrol-quick-title">Paso 3 · Validación</div>
+        <p class="enrol-quick-text">Revisá <strong>Vendible en POS</strong> y stock resumen.</p>
+      </div>
+    </div>
+    <p id="enrol-alerta-almacen" class="small mt-2 mb-0 text-warning d-none">Las ventas POS descuentan solo el almacén marcado como <strong>Tienda</strong>.</p>
+  </div>
+
+  <div class="enrol-help mb-3 small">
+    <details>
+      <summary><i class="fas fa-circle-info me-1 text-warning"></i>Guía extendida (opcional)</summary>
+      <ul>
+        <li><strong>Reconocido:</strong> no suma solo por releer, debes confirmar con <strong>Sumar</strong>.</li>
+        <li><strong>Tienda:</strong> lo que está aquí es lo que el POS puede vender y descontar.</li>
+        <li><strong>Bodega:</strong> reserva interna; puedes mover con traslado en modo avanzado.</li>
+        <li><strong>Tu sesión:</strong> muestra en qué almacén estás registrando esta toma.</li>
+      </ul>
+    </details>
+  </div>
+
+  <div class="enrol-scan-strip mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <span class="badge bg-warning text-dark me-2">LISTO</span>
+        <span class="small">Sesión <strong id="enrol-sesion-lbl">—</strong></span>
+        <span class="small text-white-50 d-block mt-1" id="enrol-lugar-sesion">Ubicación: —</span>
+      </div>
+      <div class="small" id="enrol-estado-msg">Iniciando…</div>
+    </div>
+    <input type="text" id="enrol-scan-input" class="enrol-scan-input" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Captura pistola código de barras">
+    <div class="mt-2 small text-white-50">El foco permanece en el lector invisible: pistoleá y el Enter envía el código.</div>
+  </div>
+
+  <div id="enrol-result-a" class="enrol-result-card p-3 mb-3" style="display:none;"></div>
+  <template id="enrol-entrada-stock-tpl">
+    <div class="enrol-section-card mt-3 enrol-entrada-wrap">
+      <div class="fw-bold text-white mb-2"><i class="fas fa-warehouse me-1"></i>Entrada a inventario</div>
+      <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3">
+          <label class="small text-white-50 mb-0">Cantidad</label>
+          <input type="number" class="form-control enrol-in-cant" min="1" step="1" value="1" inputmode="numeric">
+        </div>
+        <div class="col-12 col-md-6 enrol-adv">
+          <label class="small text-white-50 mb-0">Destino del ingreso</label>
+          <select class="form-select enrol-sel-destino"><option value="">—</option></select>
+        </div>
+        <div class="col-12 col-md-3">
+          <button type="button" class="btn btn-warning text-dark w-100 enrol-btn-entrada"><i class="fas fa-plus me-1"></i>Sumar</button>
+        </div>
+      </div>
+      <label class="form-check mt-2 mb-1 d-flex align-items-center gap-2 small">
+        <input class="form-check-input enrol-chk-precio" type="checkbox">
+        <span>Actualizar precios del maestro</span>
+      </label>
+      <div class="row g-2 enrol-precio-fields d-none">
+        <div class="col-4">
+          <label class="small text-white-50">Venta</label>
+          <input type="number" class="form-control enrol-in-pv" min="0" step="1" placeholder="—" inputmode="numeric">
+        </div>
+        <div class="col-4">
+          <label class="small text-white-50">Compra</label>
+          <input type="number" class="form-control enrol-in-pc" min="0" step="1" placeholder="—" inputmode="numeric">
+        </div>
+        <div class="col-4">
+          <label class="small text-white-50">Mayoreo</label>
+          <input type="number" class="form-control enrol-in-pm" min="0" step="1" placeholder="—" inputmode="numeric">
+        </div>
+      </div>
+      <p class="small text-white-50 mb-0 mt-2">Solo marcar precios si querés sobrescribirlos; si no, dejalos vacíos y sin tilde.</p>
+    </div>
+  </template>
+
+  <template id="enrol-traslado-tpl">
+    <div class="enrol-section-card mt-3 enrol-traslado-wrap enrol-adv">
+      <div class="fw-bold text-white mb-2"><i class="fas fa-exchange-alt me-1"></i>Traslado entre almacenes</div>
+      <p class="small text-white-50 mb-2">Movimiento interno (kardex salida en origen y entrada en destino). Las ventas del POS siguen usando solo el almacén <strong>Tienda</strong>; acá ves el total y podés equilibrar depósitos.</p>
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-6 col-md-3">
+          <label class="small text-white-50 mb-0">Cantidad</label>
+          <input type="number" class="form-control enrol-traslado-cant" min="1" step="1" value="1" inputmode="numeric">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="small text-white-50 mb-0">Origen (resta)</label>
+          <select class="form-select enrol-traslado-origen"></select>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="small text-white-50 mb-0">Destino (suma)</label>
+          <select class="form-select enrol-traslado-destino"></select>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <button type="button" class="btn btn-outline-info btn-sm enrol-preset-traslado" data-dir="bt">Bodega → Tienda</button>
+        <button type="button" class="btn btn-outline-info btn-sm enrol-preset-traslado" data-dir="tb">Tienda → Bodega</button>
+      </div>
+      <button type="button" class="btn btn-outline-warning w-100 enrol-btn-traslado"><i class="fas fa-check me-1"></i>Ejecutar traslado</button>
+    </div>
+  </template>
+
+  <div class="enrol-overlay" id="enrol-overlay-b" aria-hidden="true">
+    <div class="enrol-sheet" id="enrol-sheet-b">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <h2 class="h6 fw-bold text-warning mb-0"><i class="fas fa-link me-1"></i>Vincular código</h2>
+          <div class="small text-muted">Barras: <code id="enrol-pend-codigo" class="text-info"></code></div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" id="enrol-cerrar-b" aria-label="Cerrar"></button>
+      </div>
+      <label class="small fw-bold">Buscar Chilemat / nombre / interno</label>
+      <input type="text" id="enrol-buscar" class="form-control form-control-lg mb-2" placeholder="Ej: martillo, CH-9921…" autocomplete="off">
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <label class="small text-muted">Cantidad stock inicial (al vincular)</label>
+          <input type="number" id="enrol-cant-vinc" class="form-control" value="1" min="0" step="1">
+        </div>
+        <div class="col-6 enrol-adv">
+          <label class="small text-muted">Destino del stock</label>
+          <select id="enrol-vinc-destino" class="form-select"><option value="">Igual que sesión</option></select>
+        </div>
+      </div>
+      <div id="enrol-lista-maestro" class="rounded border border-secondary overflow-auto" style="max-height: 42vh;"></div>
+      <button type="button" class="btn btn-outline-secondary w-100 mt-3" id="enrol-ir-manual">
+        <i class="fas fa-plus-circle me-1"></i>No está en el maestro — alta manual
+      </button>
+    </div>
+  </div>
+
+  <div class="enrol-overlay" id="enrol-overlay-c" aria-hidden="true">
+    <div class="enrol-sheet" id="enrol-sheet-c">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <h2 class="h6 fw-bold text-danger mb-0"><i class="fas fa-file-circle-plus me-1"></i>Alta rápida</h2>
+        <button type="button" class="btn-close btn-close-white" id="enrol-cerrar-c" aria-label="Cerrar"></button>
+      </div>
+      <div class="small text-muted mb-2">Barras: <code id="enrol-manual-codigo" class="text-info"></code></div>
+      <div class="mb-2">
+        <label class="small fw-bold">Nombre <span class="text-danger">*</span></label>
+        <input type="text" id="enrol-manual-nombre" class="form-control form-control-lg" maxlength="100" autocomplete="off">
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-12 col-md-4">
+          <label class="small fw-bold">Precio venta <span class="text-danger">*</span></label>
+          <input type="number" id="enrol-manual-pventa" class="form-control" min="1" step="1" inputmode="numeric" autocomplete="off" required placeholder="Ej: 4990">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="small fw-bold">Precio compra</label>
+          <input type="number" id="enrol-manual-pcompra" class="form-control" min="0" step="1" inputmode="numeric" value="0" autocomplete="off">
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="small fw-bold">Precio mayoreo</label>
+          <input type="number" id="enrol-manual-pmayoreo" class="form-control" min="0" step="1" inputmode="numeric" value="0" autocomplete="off">
+        </div>
+      </div>
+      <script type="application/json" id="enrol-cat-nombres-json">{{ enrol_cat_nombres | tojson }}</script>
+      <div class="mb-2">
+        <label class="small fw-bold">Categoría</label>
+        <select id="enrol-manual-cat-select" class="form-select">
+          <option value="">— Sin categoría —</option>
+          {% if enrol_cat_padres %}
+            {% for c in enrol_cat_padres %}
+            <option value="catpadre:{{ c.id }}">{{ c.nombre }}</option>
+            {% endfor %}
+          {% else %}
+            {% for c in enrol_cat_nombres %}
+            <option value="n:{{ loop.index0 }}">{{ c }}</option>
+            {% endfor %}
+          {% endif %}
+          <option value="__otra__">Otra (escribir)…</option>
+        </select>
+        <div id="enrol-manual-cat-otra-wrap" class="d-none mt-1">
+          <input type="text" id="enrol-manual-cat-otra" class="form-control form-control-sm" maxlength="50" placeholder="Nombre de categoría" autocomplete="off">
+        </div>
+        <div class="form-text text-white-50 small">{% if enrol_cat_padres %}Solo <strong>categoría</strong> (nivel 1) del maestro. La <strong>subcategoría / hoja</strong> queda pendiente: asignala después en <strong>Administración → Catálogo de productos</strong> (sección productos sin clasificar) o al actualizar el Excel desde <strong>Gestión de inventario</strong>.{% else %}Categorías ya usadas en productos o escribí una nueva abajo.{% endif %}</div>
+      </div>
+      <div class="mb-2">
+        <label class="small fw-bold">Código Chilemat (opcional)</label>
+        <input type="text" id="enrol-manual-chilemat" class="form-control" maxlength="80" autocomplete="off">
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-12 col-md-6 mb-3 mb-md-0">
+          <label class="small fw-bold">Cantidad inicial</label>
+          <input type="number" id="enrol-manual-cant" class="form-control" value="1" min="0" step="1" inputmode="numeric">
+          <div class="form-text text-white-50 small">Al pasar desde «Vincular», se copia la cantidad de arriba.</div>
+        </div>
+        <div class="col-12 col-md-6 mb-3 enrol-adv">
+          <label class="small fw-bold">Destino del stock</label>
+          <select id="enrol-manual-destino" class="form-select"><option value="">Igual que sesión</option></select>
+        </div>
+      </div>
+      <button type="button" class="btn btn-success w-100 btn-lg" id="enrol-guardar-manual"><i class="fas fa-save me-1"></i>Guardar e inventariar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null;
+  function beep(freq, dur, type) {
+    try {
+      if (!audioCtx) audioCtx = new AC();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      const t = audioCtx.currentTime;
+      g.gain.setValueAtTime(0.12, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.start(t);
+      o.stop(t + dur);
+    } catch (e) {}
+  }
+  window.enrolSoundOk = function () { beep(920, 0.08, 'square'); };
+  window.enrolSoundBuscar = function () { beep(380, 0.12, 'triangle'); setTimeout(function () { beep(280, 0.1, 'triangle'); }, 90); };
+  window.enrolSoundManual = function () { beep(180, 0.18, 'sawtooth'); };
+
+  let sesionId = null;
+  let codigoPendiente = '';
+  let lastCasoAProductoId = null;
+  var ENROL_ALMACENES = [];
+  var ENROL_PUEDE_TRASLADO = false;
+  var ENROL_MODO_AVANZADO = false;
+  try {
+    var met = document.getElementById('enrol-meta-json');
+    var meta = JSON.parse(met && met.textContent ? met.textContent : '{}');
+    ENROL_ALMACENES = meta.almacenes || [];
+    ENROL_PUEDE_TRASLADO = !!meta.puede_traslado;
+  } catch (eMeta) {}
+  var enrolSesionAlmacenId = null;
+  var enrolSesionAlmacenNombre = '';
+  var enrolShell = document.getElementById('enrol-shell');
+  const scanEl = document.getElementById('enrol-scan-input');
+  const overlayB = document.getElementById('enrol-overlay-b');
+  const overlayC = document.getElementById('enrol-overlay-c');
+  const buscarEl = document.getElementById('enrol-buscar');
+  const listaEl = document.getElementById('enrol-lista-maestro');
+  const resultA = document.getElementById('enrol-result-a');
+  const almacenSel = document.getElementById('enrol-almacen');
+  function enrolActualizarAlertaAlmacen() {
+    var opt = almacenSel && almacenSel.options[almacenSel.selectedIndex];
+    var rol = opt ? (opt.getAttribute('data-rol') || '') : '';
+    var el = document.getElementById('enrol-alerta-almacen');
+    if (el) el.classList.toggle('d-none', rol === 'tienda');
+  }
+  if (almacenSel) {
+    almacenSel.addEventListener('change', function () {
+      enrolActualizarAlertaAlmacen();
+      var opt = almacenSel.options[almacenSel.selectedIndex];
+      var nom = opt ? (opt.textContent || '').trim() : '';
+      var em = document.getElementById('enrol-estado-msg');
+      if (em) em.textContent = 'Almacén seleccionado: ' + (nom || '—') + '. Presioná "Nueva sesión" para aplicarlo.';
+    });
+    enrolActualizarAlertaAlmacen();
+  }
+  const catSelect = document.getElementById('enrol-manual-cat-select');
+  const catOtraWrap = document.getElementById('enrol-manual-cat-otra-wrap');
+
+  function enrolCatReset() {
+    if (catSelect) catSelect.value = '';
+    if (catOtraWrap) catOtraWrap.classList.add('d-none');
+    var o = document.getElementById('enrol-manual-cat-otra');
+    if (o) o.value = '';
+  }
+  function enrolCatOnSelect() {
+    if (catOtraWrap && catSelect) {
+      catOtraWrap.classList.toggle('d-none', catSelect.value !== '__otra__');
+    }
+  }
+  function enrolCatPayload() {
+    var out = { categoria: '', subcategoria_catalogo_id: null, categoria_catalogo_id: null };
+    if (!catSelect) return out;
+    var v = catSelect.value;
+    if (!v) return out;
+    if (v.indexOf('catpadre:') === 0) {
+      out.categoria_catalogo_id = parseInt(v.slice(9), 10);
+      if (isNaN(out.categoria_catalogo_id)) out.categoria_catalogo_id = null;
+      return out;
+    }
+    if (v.indexOf('sub:') === 0) {
+      out.subcategoria_catalogo_id = parseInt(v.slice(4), 10);
+      if (isNaN(out.subcategoria_catalogo_id)) out.subcategoria_catalogo_id = null;
+      return out;
+    }
+    if (v.indexOf('n:') === 0) {
+      var idx = parseInt(v.slice(2), 10);
+      var el = document.getElementById('enrol-cat-nombres-json');
+      var arr = [];
+      try { arr = JSON.parse(el && el.textContent ? el.textContent : '[]'); } catch (e) { arr = []; }
+      if (arr && arr[idx] != null) out.categoria = String(arr[idx]);
+      return out;
+    }
+    if (v === '__otra__') {
+      var oi = document.getElementById('enrol-manual-cat-otra');
+      out.categoria = oi ? (oi.value || '').trim() : '';
+    }
+    return out;
+  }
+
+  function fmtPrecioCLP(n) {
+    var x = Math.round(Number(n || 0));
+    return '$' + x.toLocaleString('es-CL');
+  }
+  function escHtml(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function enrolHtmlOpcionesDestino() {
+    var snom = (enrolSesionAlmacenNombre || 'sesión').trim() || 'sesión';
+    var h = '<option value="">Igual que ubicación de sesión («' + escHtml(snom) + '»)</option>';
+    ENROL_ALMACENES.forEach(function (a) {
+      var suf = '';
+      if (a.rol === 'tienda') suf = ' — venta POS';
+      else if (a.rol === 'bodega') suf = ' — bodega';
+      h += '<option value="' + a.id + '">' + escHtml(a.nombre) + suf + '</option>';
+    });
+    return h;
+  }
+
+  function enrolFillStaticDestinoSelects() {
+    var html = enrolHtmlOpcionesDestino();
+    var v = document.getElementById('enrol-vinc-destino');
+    var m = document.getElementById('enrol-manual-destino');
+    if (v) v.innerHTML = html;
+    if (m) m.innerHTML = html;
+  }
+
+  function enrolSetModoAvanzado(on) {
+    ENROL_MODO_AVANZADO = !!on;
+    if (enrolShell) enrolShell.classList.toggle('enrol-avanzado', ENROL_MODO_AVANZADO);
+    var flag = enrolShell ? enrolShell.querySelector('.enrol-avanzado-flag') : null;
+    if (flag) flag.textContent = ENROL_MODO_AVANZADO ? 'Modo avanzado activo' : 'Modo básico activo';
+    var btn = document.getElementById('enrol-toggle-avanzado');
+    if (btn) {
+      btn.innerHTML = ENROL_MODO_AVANZADO
+        ? '<i class="fas fa-times me-1"></i>Ocultar opciones avanzadas'
+        : '<i class="fas fa-sliders-h me-1"></i>Opciones avanzadas';
+    }
+  }
+
+  function enrolInitTrasladoBlock(wrap) {
+    if (!wrap) return;
+    var oo = wrap.querySelector('.enrol-traslado-origen');
+    var dd = wrap.querySelector('.enrol-traslado-destino');
+    function optsList() {
+      return ENROL_ALMACENES.map(function (a) {
+        var suf = a.rol === 'tienda' ? ' — venta POS' : (a.rol === 'bodega' ? ' — bodega' : '');
+        return '<option value="' + a.id + '">' + escHtml(a.nombre) + suf + '</option>';
+      }).join('');
+    }
+    if (oo) oo.innerHTML = optsList();
+    if (dd) dd.innerHTML = optsList();
+    var tid = null;
+    var bid = null;
+    ENROL_ALMACENES.forEach(function (a) {
+      if (a.rol === 'tienda') tid = a.id;
+      if (a.rol === 'bodega') bid = a.id;
+    });
+    if (bid != null && tid != null && oo && dd) {
+      oo.value = String(bid);
+      dd.value = String(tid);
+    }
+    wrap.querySelectorAll('.enrol-preset-traslado').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var dir = btn.getAttribute('data-dir');
+        if (dir === 'bt' && bid != null && tid != null && oo && dd) {
+          oo.value = String(bid);
+          dd.value = String(tid);
+        } else if (dir === 'tb' && bid != null && tid != null && oo && dd) {
+          oo.value = String(tid);
+          dd.value = String(bid);
+        }
+      });
+    });
+  }
+
+  function enrolAttachStockPanels() {
+    var tplEnt = document.getElementById('enrol-entrada-stock-tpl');
+    if (tplEnt && tplEnt.content) {
+      resultA.appendChild(tplEnt.content.cloneNode(true));
+    }
+    var ewList = resultA.querySelectorAll('.enrol-entrada-wrap');
+    var ew = ewList[ewList.length - 1];
+    if (ew) {
+      var ds = ew.querySelector('.enrol-sel-destino');
+      if (ds) ds.innerHTML = enrolHtmlOpcionesDestino();
+    }
+    if (ENROL_PUEDE_TRASLADO && ENROL_MODO_AVANZADO) {
+      var tplT = document.getElementById('enrol-traslado-tpl');
+      if (tplT && tplT.content) {
+        resultA.appendChild(tplT.content.cloneNode(true));
+      }
+      var twList = resultA.querySelectorAll('.enrol-traslado-wrap');
+      var tw = twList[twList.length - 1];
+      enrolInitTrasladoBlock(tw);
+    }
+  }
+
+  function focoScan() {
+    overlayB.classList.remove('show');
+    overlayC.classList.remove('show');
+    setTimeout(function () { scanEl.focus(); }, 30);
+  }
+
+  function enrolTargetEditable(t) {
+    if (!t || !t.tagName) return false;
+    if (t === scanEl) return false;
+    var tag = String(t.tagName || '').toUpperCase();
+    if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (tag === 'INPUT') {
+      var tp = String(t.type || '').toLowerCase();
+      return tp !== 'button' && tp !== 'submit' && tp !== 'checkbox' && tp !== 'radio' && tp !== 'hidden';
+    }
+    if (t.isContentEditable) return true;
+    return false;
+  }
+
+  /** Pie de tarjeta: cerrar sin tocar inventario (no revierte un ingreso ya guardado en servidor). */
+  function enrolPieCerrarPanel() {
+    return (
+      '<div class="enrol-divider-soft"></div>' +
+      '<div class="enrol-action-row">' +
+      '<button type="button" class="btn btn-outline-light btn-sm enrol-btn-cerrar-panel">' +
+      '<i class="fas fa-times me-1"></i>Cerrar panel</button>' +
+      '<p class="enrol-caption-muted">Oculta esta lectura. Si ya pulsaste <strong>Sumar</strong>, el movimiento quedó registrado.</p>' +
+      '</div>' +
+      '<p class="enrol-caption-muted mt-1">Para corregir cantidad usá traslado o ajuste de stock.</p>' +
+      '</div>'
+    );
+  }
+
+  function enrolCerrarPanelResultado() {
+    lastCasoAProductoId = null;
+    resultA.style.display = 'none';
+    resultA.innerHTML = '';
+    document.getElementById('enrol-estado-msg').textContent = 'Panel cerrado — escanear siguiente.';
+    focoScan();
+  }
+
+  function enrolBadgeStockRol(f) {
+    var bits = '';
+    if (f.es_tienda_pos) bits += '<span class="badge bg-success ms-1">Venta POS</span>';
+    else if (f.rol === 'bodega') bits += '<span class="badge bg-secondary ms-1">Bodega</span>';
+    if (f.es_sesion) bits += '<span class="badge bg-warning text-dark ms-1">Tu sesión</span>';
+    return bits;
+  }
+
+  function renderStockPorAlmacenBlock(p) {
+    var rows = p.stock_por_almacen;
+    if (!rows || !rows.length) {
+      return (
+        '<div class="enrol-stock-caja mt-2">' +
+        '<div class="small fw-bold text-white mb-1"><i class="fas fa-layer-group me-1"></i>Stock (resumen)</div>' +
+        '<div class="small text-white-50 mb-0">No hay detalle por almacén. Total maestro: <strong>' +
+        (p.stock_total_maestro != null && p.stock_total_maestro !== undefined ? p.stock_total_maestro : '—') + '</strong></div></div>'
+      );
+    }
+    var suma = 0;
+    var stTienda = null;
+    var stBodega = null;
+    var stSesion = null;
+    var stOtros = 0;
+    var nomSesion = (p.stock_almacen_sesion_nombre || '').trim();
+    var htmlDet = '';
+    rows.forEach(function (f) {
+      var cant = Number(f.cantidad || 0);
+      suma += cant;
+      if (f.es_tienda_pos) stTienda = cant;
+      if (f.rol === 'bodega' && stBodega == null) stBodega = cant;
+      if (f.es_sesion) stSesion = cant;
+      if (!f.es_tienda_pos && f.rol !== 'bodega') stOtros += cant;
+      htmlDet += '<div class="enrol-detalle-item"><div class="enrol-detalle-nombre">' + escHtml(f.nombre) + enrolBadgeStockRol(f) + '</div>';
+      htmlDet += '<div class="enrol-detalle-cantidad">' + cant + '</div></div>';
+    });
+    var totalSrv = p.stock_total_maestro != null && p.stock_total_maestro !== undefined ? p.stock_total_maestro : null;
+    var resumen =
+      '<div class="row g-2">' +
+      '<div class="col-6 col-md-3"><div class="small text-white-50">Tienda (POS)</div><div class="fw-bold text-success">' + (stTienda != null ? stTienda : '—') + '</div></div>' +
+      '<div class="col-6 col-md-3"><div class="small text-white-50">Bodega</div><div class="fw-bold text-secondary">' + (stBodega != null ? stBodega : '—') + '</div></div>' +
+      '<div class="col-6 col-md-3"><div class="small text-white-50">Tu sesión' + (nomSesion ? ' (' + escHtml(nomSesion) + ')' : '') + '</div><div class="fw-bold text-warning">' + (stSesion != null ? stSesion : '—') + '</div></div>' +
+      '<div class="col-6 col-md-3"><div class="small text-white-50">Total</div><div class="fw-bold text-info">' + (totalSrv != null ? totalSrv : suma) + '</div></div>' +
+      '<div class="col-6 col-md-3"><div class="small text-white-50">Otros almacenes</div><div class="fw-bold text-light">' + stOtros + '</div></div>' +
+      '</div>';
+    return (
+      '<div class="enrol-stock-caja mt-2">' +
+      '<div class="small fw-bold text-white mb-2"><i class="fas fa-layer-group me-1"></i>Stock (resumen claro)</div>' +
+      resumen +
+      '<button type="button" class="btn btn-outline-light btn-sm mt-2 enrol-btn-toggle-detalle-stock"><i class="fas fa-list me-1"></i>Ver detalle</button>' +
+      '<div class="enrol-detalle-stock d-none mt-2">' +
+      htmlDet +
+      '</div>' +
+      '</div>'
+    );
+  }
+
+  function renderPosDisponibilidad(p) {
+    var st = Number(p.stock_tienda || 0);
+    var pv = Number(p.precio_venta || 0);
+    var pm = Number(p.precio_mayoreo || 0);
+    var vendible = st > 0 && (pv > 0 || pm > 0);
+    if (vendible) {
+      return (
+        '<div class="enrol-pos-pill ok mt-2">' +
+        '<strong><i class="fas fa-circle-check me-1"></i>Vendible en POS: SI</strong> ' +
+        '— Disponible en Tienda: <strong>' + st + '</strong> u.' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="enrol-pos-pill warn mt-2">' +
+      '<strong><i class="fas fa-circle-xmark me-1"></i>Vendible en POS: NO</strong> ' +
+      '— En Tienda hay <strong>' + st + '</strong> u. ' +
+      'Accion: cambia la sesion a <strong>Tienda</strong> y suma stock, o traslada <strong>Bodega -> Tienda</strong>.' +
+      '</div>'
+    );
+  }
+
+  function renderProductoCard(p) {
+    const img = (p.imagen_url || '').trim();
+    let src = '';
+    if (img) {
+      if (img.startsWith('http') || img.startsWith('//')) src = img;
+      else if (img.startsWith('/')) src = img;
+      else src = '/static/' + img.replace(/^\/+/, '');
+    }
+    const imgHtml = src
+      ? '<img class="enrol-thumb me-3" src="' + src.replace(/"/g, '') + '" alt="">'
+      : '<div class="enrol-thumb me-3 d-flex align-items-center justify-content-center text-secondary"><i class="fas fa-box fa-2x"></i></div>';
+    return (
+      '<div class="enrol-product-main p-2">' + imgHtml +
+      '<div><div class="fw-bold fs-5">' + (p.nombre || '') + '</div>' +
+      ((p.categoria || p.subcategoria) ? '<div class="enrol-product-sub">Categoría: ' + (p.categoria || '—') + (p.subcategoria ? ' · ' + p.subcategoria : '') + '</div>' : '') +
+      '<div class="enrol-product-sub">Chilemat: ' + (p.codigo_chilemat || '—') +
+      ' · Interno: ' + (p.codigo_interno || '—') + '</div>' +
+      '<div class="enrol-product-meta">Venta ' + fmtPrecioCLP(p.precio_venta) +
+      (p.precio_compra ? ' · Compra ' + fmtPrecioCLP(p.precio_compra) : '') +
+      (p.precio_mayoreo ? ' · Mayoreo ' + fmtPrecioCLP(p.precio_mayoreo) : '') + '</div>' +
+      renderPosDisponibilidad(p) +
+      renderStockPorAlmacenBlock(p) +
+      '<div class="small text-success mt-2 mb-0">Conteo guardado en sesión: <strong>' + (p.conteo_sesion || 0) + '</strong></div></div></div>'
+    );
+  }
+
+  async function apiJson(url, opts) {
+    const r = await fetch(url, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } }, opts || {}));
+    const j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw Object.assign(new Error(j.mensaje || j.error || 'Error'), { status: r.status, body: j });
+    return j;
+  }
+
+  function enrolEtiquetaRol(rol) {
+    if (rol === 'tienda') return 'TIENDA — venta en POS';
+    if (rol === 'bodega') return 'BODEGA';
+    return 'Otro almacén';
+  }
+
+  async function crearSesion() {
+    const id_almacen = parseInt(almacenSel.value, 10) || null;
+    const j = await apiJson('/api/enrolamiento/sesion', { method: 'POST', body: JSON.stringify({ id_almacen: id_almacen }) });
+    sesionId = j.sesion_id;
+    enrolSesionAlmacenId = j.id_almacen != null ? j.id_almacen : null;
+    enrolSesionAlmacenNombre = (j.almacen_nombre || '').trim();
+    enrolFillStaticDestinoSelects();
+    document.getElementById('enrol-sesion-lbl').textContent = '#' + sesionId;
+    var lug = document.getElementById('enrol-lugar-sesion');
+    if (lug) {
+      var nom = enrolSesionAlmacenNombre || ('ID ' + (j.id_almacen || ''));
+      lug.textContent = 'Ubicación de stock inicial / toma: «' + nom + '» · ' + enrolEtiquetaRol(j.almacen_rol);
+    }
+    document.getElementById('enrol-estado-msg').textContent = 'Sesión lista — escaneá.';
+    focoScan();
+  }
+
+  async function procesarEscaneo(codigo) {
+    if (!sesionId || !codigo) return;
+    document.getElementById('enrol-estado-msg').textContent = 'Procesando…';
+    const j = await apiJson('/api/enrolamiento/procesar_escaneo', {
+      method: 'POST',
+      body: JSON.stringify({ sesion_id: sesionId, codigo: codigo }),
+    });
+    if (j.caso === 'A') {
+      window.enrolSoundOk();
+      lastCasoAProductoId = j.producto.id;
+      resultA.style.display = 'block';
+      resultA.classList.remove('enrol-pulse');
+      void resultA.offsetWidth;
+      resultA.classList.add('enrol-pulse');
+      resultA.innerHTML = '<div class="enrol-result-headline text-success mb-1"><i class="fas fa-check-circle me-1"></i>Reconocido</div>' + renderProductoCard(j.producto) + enrolPieCerrarPanel();
+      enrolAttachStockPanels();
+      document.getElementById('enrol-estado-msg').textContent = 'Listo — podés sumar stock o escanear el siguiente.';
+      focoScan();
+    } else if (j.caso === 'B') {
+      window.enrolSoundBuscar();
+      codigoPendiente = j.codigo_pendiente || codigo;
+      document.getElementById('enrol-pend-codigo').textContent = codigoPendiente;
+      document.getElementById('enrol-manual-codigo').textContent = codigoPendiente;
+      enrolFillStaticDestinoSelects();
+      buscarEl.value = '';
+      listaEl.innerHTML = '';
+      overlayB.classList.add('show');
+      setTimeout(function () { buscarEl.focus(); }, 50);
+      document.getElementById('enrol-estado-msg').textContent = 'Buscá el producto en el maestro.';
+    }
+  }
+
+  let tBus = null;
+  async function buscarMaestro() {
+    const q = buscarEl.value.trim();
+    if (q.length < 2) { listaEl.innerHTML = '<div class="p-3 text-muted small">Escribí al menos 2 caracteres.</div>'; return; }
+    const r = await fetch('/api/enrolamiento/buscar_maestro?q=' + encodeURIComponent(q), { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j.ok || !j.items) { listaEl.innerHTML = ''; return; }
+    if (!j.items.length) {
+      listaEl.innerHTML = '<div class="p-3 text-warning small">Sin resultados. Podés usar <strong>Alta manual</strong>.</div>';
+      return;
+    }
+    listaEl.innerHTML = j.items.map(function (it) {
+      const img = (it.imagen_url || '').trim();
+      let src = '';
+      if (img) {
+        if (img.startsWith('http') || img.startsWith('//')) src = img;
+        else if (img.startsWith('/')) src = img;
+        else src = '/static/' + img.replace(/^\/+/, '');
+      }
+      const thumb = src
+        ? '<img class="enrol-thumb me-2" src="' + src.replace(/"/g, '') + '" alt="">'
+        : '<div class="enrol-thumb me-2 d-inline-flex align-items-center justify-content-center text-secondary"><i class="fas fa-box"></i></div>';
+      return '<div class="enrol-list-item p-2 d-flex align-items-center" data-pid="' + it.id + '">' + thumb +
+        '<div><div class="fw-bold">' + (it.nombre || '') + '</div><div class="small text-white-50">' +
+        (it.codigo_chilemat || 'sin Chilemat') + ' · ' + (it.codigo_interno || 'sin interno') + '</div></div></div>';
+    }).join('');
+    listaEl.querySelectorAll('.enrol-list-item').forEach(function (row) {
+      row.addEventListener('click', function () {
+        listaEl.querySelectorAll('.enrol-list-item').forEach(function (x) { x.classList.remove('active'); });
+        row.classList.add('active');
+        vincular(parseInt(row.getAttribute('data-pid'), 10));
+      });
+    });
+  }
+
+  async function vincular(productoId) {
+    const cant = parseInt(document.getElementById('enrol-cant-vinc').value, 10);
+    if (isNaN(cant) || cant < 0) { alert('Cantidad inválida'); return; }
+    try {
+      var vincBody = {
+        sesion_id: sesionId,
+        producto_id: productoId,
+        codigo_barras: (codigoPendiente != null && codigoPendiente !== '') ? String(codigoPendiente).trim() : '',
+        cantidad_inicial: cant,
+      };
+      var vd = document.getElementById('enrol-vinc-destino');
+      if (vd && vd.value) {
+        var vx = parseInt(vd.value, 10);
+        if (!isNaN(vx)) vincBody.id_almacen_destino = vx;
+      }
+      const j = await apiJson('/api/enrolamiento/vincular', {
+        method: 'POST',
+        body: JSON.stringify(vincBody),
+      });
+      window.enrolSoundOk();
+      overlayB.classList.remove('show');
+      resultA.style.display = 'block';
+      resultA.innerHTML = '<div class="enrol-result-headline text-info mb-1"><i class="fas fa-link me-1"></i>Vinculado</div>' + renderProductoCard(j.producto) + enrolPieCerrarPanel();
+      document.getElementById('enrol-estado-msg').textContent = 'Listo para siguiente.';
+      focoScan();
+    } catch (e) {
+      alert(e.body && e.body.mensaje ? e.body.mensaje : e.message);
+    }
+  }
+
+  document.getElementById('enrol-ir-manual').addEventListener('click', function () {
+    window.enrolSoundManual();
+    overlayB.classList.remove('show');
+    overlayC.classList.add('show');
+    document.getElementById('enrol-manual-nombre').value = '';
+    enrolCatReset();
+    document.getElementById('enrol-manual-chilemat').value = '';
+    var qV = parseInt(document.getElementById('enrol-cant-vinc').value, 10);
+    if (isNaN(qV) || qV < 0) qV = 1;
+    document.getElementById('enrol-manual-cant').value = String(qV);
+    document.getElementById('enrol-manual-pventa').value = '';
+    document.getElementById('enrol-manual-pcompra').value = '0';
+    document.getElementById('enrol-manual-pmayoreo').value = '0';
+    setTimeout(function () { document.getElementById('enrol-manual-nombre').focus(); }, 50);
+  });
+
+  document.getElementById('enrol-guardar-manual').addEventListener('click', async function () {
+    var btnGuardar = document.getElementById('enrol-guardar-manual');
+    if (btnGuardar && btnGuardar.disabled) return;
+    try {
+      if (btnGuardar) btnGuardar.disabled = true;
+      var pvRaw = document.getElementById('enrol-manual-pventa').value;
+      if (pvRaw === '' || pvRaw === null) {
+        alert('Indique precio de venta.');
+        document.getElementById('enrol-manual-pventa').focus();
+        return;
+      }
+      var pv = parseFloat(String(document.getElementById('enrol-manual-pventa').value).trim().replace(',', '.'));
+      if (isNaN(pv) || pv <= 0) {
+        alert('Indique un precio de venta mayor que cero.');
+        document.getElementById('enrol-manual-pventa').focus();
+        return;
+      }
+      var pc = parseFloat(document.getElementById('enrol-manual-pcompra').value);
+      var pm = parseFloat(document.getElementById('enrol-manual-pmayoreo').value);
+      if (isNaN(pc) || pc < 0) pc = 0;
+      if (isNaN(pm) || pm < 0) pm = 0;
+      var cp = enrolCatPayload();
+      var codBarras = (codigoPendiente != null && codigoPendiente !== '') ? String(codigoPendiente).trim() : '';
+      var altaBody = {
+        sesion_id: sesionId,
+        codigo_barras: codBarras,
+        nombre: document.getElementById('enrol-manual-nombre').value.trim(),
+        categoria: cp.categoria,
+        subcategoria_catalogo_id: cp.subcategoria_catalogo_id,
+        categoria_catalogo_id: cp.categoria_catalogo_id,
+        codigo_chilemat: document.getElementById('enrol-manual-chilemat').value.trim(),
+        cantidad_inicial: (function () {
+          var t = String(document.getElementById('enrol-manual-cant').value || '').trim().replace(',', '.');
+          if (t === '') return 0;
+          var n = parseInt(t, 10);
+          if (isNaN(n)) n = Math.round(parseFloat(t));
+          return (isNaN(n) || n < 0) ? 0 : n;
+        })(),
+        precio_venta: pv,
+        precio_compra: pc,
+        precio_mayoreo: pm,
+      };
+      var md = document.getElementById('enrol-manual-destino');
+      if (md && md.value) {
+        var mx = parseInt(md.value, 10);
+        if (!isNaN(mx)) altaBody.id_almacen_destino = mx;
+      }
+      const j = await apiJson('/api/enrolamiento/alta_manual', {
+        method: 'POST',
+        body: JSON.stringify(altaBody),
+      });
+      window.enrolSoundOk();
+      overlayC.classList.remove('show');
+      resultA.style.display = 'block';
+      resultA.innerHTML = '<div class="enrol-result-headline text-success mb-1"><i class="fas fa-database me-1"></i>Producto creado</div>' + renderProductoCard(j.producto) + enrolPieCerrarPanel();
+      document.getElementById('enrol-estado-msg').textContent = 'Listo para siguiente.';
+      focoScan();
+    } catch (e) {
+      var msg = (e.body && e.body.mensaje) ? e.body.mensaje : e.message;
+      if (e.status === 409 && e.body && e.body.error === 'barras_duplicado') {
+        msg = (e.body.mensaje || msg) + ' Si ya guardó, escaneá de nuevo: debería reconocerse (Caso A).';
+      }
+      alert(msg);
+    } finally {
+      if (btnGuardar) btnGuardar.disabled = false;
+    }
+  });
+
+  scanEl.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const v = scanEl.value.trim();
+      scanEl.value = '';
+      if (v) procesarEscaneo(v).catch(function (e) { alert(e.message || 'Error'); focoScan(); });
+    }
+  });
+
+  // Fallback global: si el foco se pierde, la pistola igual dispara lectura al Enter.
+  var enrolKbBuffer = '';
+  var enrolKbTs = 0;
+  document.addEventListener('keydown', function (ev) {
+    if (overlayB.classList.contains('show') || overlayC.classList.contains('show')) return;
+    var t = ev.target;
+    if (enrolTargetEditable(t)) return;
+    var now = Date.now();
+    if (ev.key === 'Enter') {
+      var v = (scanEl && scanEl.value ? scanEl.value.trim() : '') || enrolKbBuffer.trim();
+      enrolKbBuffer = '';
+      if (!v) return;
+      ev.preventDefault();
+      if (scanEl) scanEl.value = '';
+      procesarEscaneo(v).catch(function (e) { alert(e.message || 'Error'); focoScan(); });
+      return;
+    }
+    if (ev.key && ev.key.length === 1) {
+      if (!enrolKbTs || (now - enrolKbTs) > 450) enrolKbBuffer = '';
+      enrolKbBuffer += ev.key;
+      enrolKbTs = now;
+    }
+  });
+
+  buscarEl.addEventListener('input', function () {
+    clearTimeout(tBus);
+    tBus = setTimeout(buscarMaestro, 200);
+  });
+
+  document.getElementById('enrol-cerrar-b').addEventListener('click', focoScan);
+  document.getElementById('enrol-cerrar-c').addEventListener('click', function () {
+    overlayC.classList.remove('show');
+    overlayB.classList.add('show');
+    setTimeout(function () { buscarEl.focus(); }, 40);
+  });
+
+  document.getElementById('enrol-nueva-sesion').addEventListener('click', function () {
+    crearSesion().catch(function (e) { alert(e.message); });
+  });
+
+  resultA.addEventListener('change', function (ev) {
+    if (!ev.target.classList || !ev.target.classList.contains('enrol-chk-precio')) return;
+    var wrap = ev.target.closest('.enrol-entrada-wrap');
+    if (!wrap) return;
+    var row = wrap.querySelector('.enrol-precio-fields');
+    if (row) row.classList.toggle('d-none', !ev.target.checked);
+  });
+
+  resultA.addEventListener('click', function (ev) {
+    if (ev.target.closest('.enrol-btn-cerrar-panel')) {
+      enrolCerrarPanelResultado();
+      return;
+    }
+    var btnDet = ev.target.closest('.enrol-btn-toggle-detalle-stock');
+    if (btnDet) {
+      var box = btnDet.closest('.enrol-stock-caja');
+      var det = box ? box.querySelector('.enrol-detalle-stock') : null;
+      if (!det) return;
+      var open = det.classList.contains('d-none');
+      det.classList.toggle('d-none', !open);
+      btnDet.innerHTML = open
+        ? '<i class="fas fa-eye-slash me-1"></i>Ocultar detalle'
+        : '<i class="fas fa-list me-1"></i>Ver detalle';
+      return;
+    }
+    var btnTr = ev.target.closest('.enrol-btn-traslado');
+    if (btnTr && sesionId && lastCasoAProductoId) {
+      var wrapT = btnTr.closest('.enrol-traslado-wrap');
+      if (!wrapT) return;
+      var cantEl = wrapT.querySelector('.enrol-traslado-cant');
+      var oo = wrapT.querySelector('.enrol-traslado-origen');
+      var dd = wrapT.querySelector('.enrol-traslado-destino');
+      var cantT = parseInt(cantEl && cantEl.value ? cantEl.value : '', 10);
+      if (isNaN(cantT) || cantT < 1) {
+        alert('Indique una cantidad mayor a cero.');
+        return;
+      }
+      var io = parseInt(oo && oo.value ? oo.value : '', 10);
+      var idt = parseInt(dd && dd.value ? dd.value : '', 10);
+      if (isNaN(io) || isNaN(idt)) {
+        alert('Elegí origen y destino.');
+        return;
+      }
+      if (io === idt) {
+        alert('Origen y destino deben ser distintos.');
+        return;
+      }
+      btnTr.disabled = true;
+      apiJson('/api/enrolamiento/traslado', {
+        method: 'POST',
+        body: JSON.stringify({
+          sesion_id: sesionId,
+          producto_id: lastCasoAProductoId,
+          cantidad: cantT,
+          id_almacen_origen: io,
+          id_almacen_destino: idt
+        })
+      })
+        .then(function (j) {
+          window.enrolSoundOk();
+          lastCasoAProductoId = j.producto.id;
+          resultA.classList.remove('enrol-pulse');
+          void resultA.offsetWidth;
+          resultA.classList.add('enrol-pulse');
+          resultA.innerHTML = '<div class="enrol-result-headline text-info mb-1"><i class="fas fa-exchange-alt me-1"></i>Traslado registrado</div>' + renderProductoCard(j.producto) + enrolPieCerrarPanel();
+          enrolAttachStockPanels();
+          document.getElementById('enrol-estado-msg').textContent = 'Traslado listo — podés mover más unidades o escanear otro código.';
+        })
+        .catch(function (e) {
+          alert(e.body && e.body.mensaje ? e.body.mensaje : e.message);
+        })
+        .finally(function () {
+          btnTr.disabled = false;
+          focoScan();
+        });
+      return;
+    }
+    var btn = ev.target.closest('.enrol-btn-entrada');
+    if (!btn || !sesionId || !lastCasoAProductoId) return;
+    var wrap = btn.closest('.enrol-entrada-wrap');
+    if (!wrap) return;
+    var cantIn = wrap.querySelector('.enrol-in-cant');
+    var cant = parseInt(cantIn && cantIn.value ? cantIn.value : '', 10);
+    if (isNaN(cant) || cant < 1) {
+      alert('Indique una cantidad mayor a cero.');
+      return;
+    }
+    var chk = wrap.querySelector('.enrol-chk-precio');
+    var actualizar = chk && chk.checked;
+    var body = {
+      sesion_id: sesionId,
+      producto_id: lastCasoAProductoId,
+      cantidad: cant,
+      actualizar_precios: actualizar
+    };
+    var selDest = wrap.querySelector('.enrol-sel-destino');
+    if (selDest && selDest.value) {
+      var aid = parseInt(selDest.value, 10);
+      if (!isNaN(aid)) body.id_almacen_destino = aid;
+    }
+    if (actualizar) {
+      var pvEl = wrap.querySelector('.enrol-in-pv');
+      var pcEl = wrap.querySelector('.enrol-in-pc');
+      var pmEl = wrap.querySelector('.enrol-in-pm');
+      var pvs = pvEl && pvEl.value ? String(pvEl.value).trim().replace(',', '.') : '';
+      var pcs = pcEl && pcEl.value ? String(pcEl.value).trim().replace(',', '.') : '';
+      var pms = pmEl && pmEl.value ? String(pmEl.value).trim().replace(',', '.') : '';
+      if (pvs !== '') {
+        var pv = parseFloat(pvs);
+        if (!isNaN(pv) && pv > 0) body.precio_venta = pv;
+      }
+      if (pcs !== '') {
+        var pcc = parseFloat(pcs);
+        if (!isNaN(pcc) && pcc >= 0) body.precio_compra = pcc;
+      }
+      if (pms !== '') {
+        var pmm = parseFloat(pms);
+        if (!isNaN(pmm) && pmm >= 0) body.precio_mayoreo = pmm;
+      }
+    }
+    btn.disabled = true;
+    apiJson('/api/enrolamiento/entrada_stock', { method: 'POST', body: JSON.stringify(body) })
+      .then(function (j) {
+        window.enrolSoundOk();
+        lastCasoAProductoId = j.producto.id;
+        resultA.classList.remove('enrol-pulse');
+        void resultA.offsetWidth;
+        resultA.classList.add('enrol-pulse');
+        resultA.innerHTML = '<div class="enrol-result-headline text-warning mb-1"><i class="fas fa-warehouse me-1"></i>Stock actualizado</div>' + renderProductoCard(j.producto) + enrolPieCerrarPanel();
+        enrolAttachStockPanels();
+        var msg = 'Listo — podés sumar otra entrada o escanear el siguiente.';
+        if (j && j.producto) {
+          var nomSes = (j.producto.stock_almacen_sesion_nombre || '').trim();
+          var stTi = Number(j.producto.stock_tienda || 0);
+          var stBo = Number(j.producto.stock_bodega || 0);
+          msg = 'Ingreso guardado en ' + (nomSes || 'tu sesión') + '. Tienda=' + stTi + ' · Bodega=' + stBo + '.';
+        }
+        document.getElementById('enrol-estado-msg').textContent = msg;
+      })
+      .catch(function (e) {
+        alert(e.body && e.body.mensaje ? e.body.mensaje : e.message);
+      })
+      .finally(function () {
+        btn.disabled = false;
+        focoScan();
+      });
+  });
+
+  if (catSelect) catSelect.addEventListener('change', enrolCatOnSelect);
+  var btnModoAv = document.getElementById('enrol-toggle-avanzado');
+  if (btnModoAv) {
+    btnModoAv.addEventListener('click', function () {
+      enrolSetModoAvanzado(!ENROL_MODO_AVANZADO);
+    });
+  }
+  enrolSetModoAvanzado(false);
+
+  // Mantener foco en el lector, pero sin bloquear UI (selects/botones/inputs).
+  function _enrolEsElementoInteractivo(t) {
+    if (!t) return false;
+    if (t.closest) {
+      return !!t.closest('select, option, input, textarea, button, a, label, .dropdown, .modal, .enrol-overlay, .enrol-sheet');
+    }
+    return false;
+  }
+  document.addEventListener('click', function (ev) {
+    if (overlayB.classList.contains('show') || overlayC.classList.contains('show')) return;
+    var t = ev && ev.target;
+    if (!t || _enrolEsElementoInteractivo(t)) return;
+    // Solo recuperar foco del lector cuando el click es en áreas neutras del flujo.
+    if (t.closest && (t.closest('.enrol-scan-strip') || t.closest('#enrol-result-a'))) {
+      try { scanEl.focus(); } catch (e) {}
+    }
+  });
+
+  // Evita que el selector de almacén sea "interrumpido" por el focus del scan.
+  if (almacenSel) {
+    ['mousedown', 'click', 'touchstart'].forEach(function (evt) {
+      almacenSel.addEventListener(evt, function (e) { e.stopPropagation(); }, { passive: true });
+    });
+  }
+
+  crearSesion()
+    .then(function () {
+      var params = new URLSearchParams(window.location.search || '');
+      var pre = (params.get('codigo') || '').trim();
+      if (pre && window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      return pre ? procesarEscaneo(pre) : null;
+    })
+    .catch(function (e) {
+      document.getElementById('enrol-estado-msg').textContent = e.message || 'Error al iniciar';
+    });
+})();
+</script>
+{% endblock %}

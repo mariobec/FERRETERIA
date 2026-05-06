@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boucher estado de cuenta</title>
+  <style>
+    :root { --red:#c62828; --green:#2e7d32; --bg:#f5f6f8; --ink:#1a1a1a; --muted:#5f6368; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family: Arial, sans-serif; }
+    .sheet { max-width: 980px; margin: 16px auto; background:#fff; border-radius: 10px; box-shadow:0 2px 10px rgba(0,0,0,.08); padding: 16px; }
+    .head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom: 10px; }
+    .title { font-size: 34px; line-height: 1; margin:0; }
+    .sub { font-size: 18px; margin:4px 0 0; }
+    .meta { font-size:14px; color:var(--muted); line-height:1.5; }
+    .kpis { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin: 10px 0 14px; }
+    .kpi { border:1px solid #ddd; border-radius:8px; overflow:hidden; }
+    .kpi .label { color:#fff; font-weight:700; text-align:center; padding:8px; font-size:14px; }
+    .kpi .value { text-align:center; font-size:42px; font-weight:800; padding:10px 8px; letter-spacing:.5px; }
+    .kpi.red .label { background:var(--red); } .kpi.green .label { background:var(--green); }
+    h3 { margin: 8px 0; font-size: 20px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { border-bottom:1px solid #e6e6e6; padding:8px 6px; vertical-align:top; }
+    th { text-align:left; color:#444; font-size:12px; letter-spacing:.2px; }
+    .right { text-align:right; white-space:nowrap; }
+    .chip { border-radius:12px; padding:3px 8px; font-size:11px; font-weight:700; color:#fff; display:inline-block; }
+    .chip.cargo { background:#a32121; } .chip.abono { background:#1b7f3a; }
+    .actions { max-width:980px; margin: 0 auto 14px; display:flex; justify-content:flex-end; gap:8px; }
+    .btn { border:none; border-radius:8px; padding:10px 12px; font-weight:700; cursor:pointer; }
+    .btn.print { background:#4a0f2f; color:#fff; }
+    .btn.back { background:#3b3f45; color:#fff; text-decoration:none; }
+    @media print {
+      .actions { display:none; }
+      .internal-note { display:none !important; }
+      body { background:#fff; }
+      .sheet { box-shadow:none; margin:0; max-width:none; border-radius:0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button class="btn print" onclick="window.print()">Imprimir boucher</button>
+    <a class="btn back" href="{{ url_for('estado_cuenta_credito', cliente_id=cliente.id, desde=fecha_desde_txt or None, hasta=fecha_hasta_txt or None) }}">Volver</a>
+  </div>
+  <div class="sheet">
+    <div class="head">
+      <div>
+        <h1 class="title">ESTADO DE CUENTA CLIENTE</h1>
+        <p class="sub">FERRETERIA SANTO DOMINGO</p>
+        <div class="meta">
+          <strong>Cliente:</strong> {{ cliente.nombre }}<br>
+          <strong>RUT:</strong> {{ cliente.rut or '—' }}
+        </div>
+      </div>
+      <div class="meta">
+        <strong>Período:</strong>
+        {{ fecha_desde_txt or 'Histórico' }}{% if fecha_hasta_txt %} - {{ fecha_hasta_txt }}{% endif %}<br>
+        <strong>Emitido:</strong> {{ generado_en.strftime('%d/%m/%Y') }}
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi red">
+        <div class="label">DEUDA TOTAL A PAGAR (SEGÚN MOVIMIENTOS)</div>
+        <div class="value">$ {{ "{:,.0f}".format(saldo_actual).replace(",", ".") }}</div>
+      </div>
+      <div class="kpi green">
+        <div class="label">TOTAL PAGOS REALIZADOS</div>
+        <div class="value">$ {{ "{:,.0f}".format(total_abonos).replace(",", ".") }}</div>
+      </div>
+    </div>
+    {% if mostrar_control_interno and diferencia_saldo != 0 %}
+    <div class="internal-note" style="margin:8px 0 12px;padding:8px;border:1px solid #ffe69c;background:#fff3cd;border-radius:6px;font-size:12px;">
+      Nota de control interno: saldo maestro actual = $ {{ "{:,.0f}".format(saldo_maestro).replace(",", ".") }}.
+      Diferencia vs movimientos = $ {{ "{:,.0f}".format(diferencia_saldo|abs).replace(",", ".") }}.
+    </div>
+    {% endif %}
+
+    <h3>HISTORIAL DETALLADO DE MOVIMIENTOS</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>FECHA</th>
+          <th>N° DOC</th>
+          <th>DETALLE</th>
+          <th>MOVIMIENTO</th>
+          <th class="right">MONTO</th>
+          <th class="right">SALDO PENDIENTE</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimientos %}
+        <tr>
+          <td>{{ m.fecha.strftime('%d/%m/%Y') if m.fecha else '—' }}</td>
+          <td>{{ m.ref }}</td>
+          <td>{{ m.detalle }}</td>
+          <td>
+            {% if m.tipo == 'cargo' %}
+              <span class="chip cargo">COMPRA CRÉDITO</span>
+            {% else %}
+              <span class="chip abono">PAGO CLIENTE</span>
+            {% endif %}
+          </td>
+          <td class="right">{% if m.tipo == 'cargo' %}+{% else %}-{% endif %}$ {{ "{:,.0f}".format(m.monto).replace(",", ".") }}</td>
+          <td class="right"><strong>$ {{ "{:,.0f}".format(m.saldo_visual).replace(",", ".") }}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Sin movimientos para este período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

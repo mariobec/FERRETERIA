@@ -36,7 +36,7 @@
                                     <td>{{ v.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
                                     <td><i class="fas fa-user-tag"></i> {{ v.usuario }}</td>
                                     <td class="text-end fw-bold text-primary">
-                                        ${{ "{:,.0f}".format(v.total) }}
+                                        ${{ "{:,.0f}".format(v.total).replace(",", ".") }}
                                     </td>
                                     <td class="text-center">
                                         <button class="btn btn-success btn-sm px-3"
@@ -94,7 +94,7 @@
                         <div class="input-group input-group-lg">
                             <span class="input-group-text">$</span>
                             <input type="number" id="montoRecibido" name="monto_recibido"
-                                   class="form-control" placeholder="Ej: 5000" required>
+                                   class="form-control" placeholder="Ej: 5000" required step="any">
                         </div>
                         <div class="form-text text-success" id="vueltoBox"></div>
                     </div>
@@ -122,7 +122,9 @@ document.addEventListener('DOMContentLoaded', () => {
         totalVale = parseFloat(button.getAttribute('data-total'));
 
         document.getElementById('modalTotal').textContent = "$" + totalVale.toLocaleString();
-        document.getElementById('montoRecibido').setAttribute('min', totalVale);
+        const montoInp = document.getElementById('montoRecibido');
+        montoInp.setAttribute('min', totalVale);
+        montoInp.setAttribute('step', 'any');
 
         // Actualizar action del formulario dinámicamente
         document.getElementById('formCobro').setAttribute('action',

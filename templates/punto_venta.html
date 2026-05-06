@@ -43,8 +43,22 @@
   <div class="card card-ds mb-4">
     <div class="card-body">
       <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="row g-2 align-items-center">
+        <div class="col-12">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="small fw-bold text-muted text-uppercase">Filtro búsqueda</span>
+            <div class="btn-group" role="group" aria-label="Filtro listado POS">
+              <button type="button" class="btn btn-sm btn-primary" id="posBtnFiltroVenta">Solo vendibles (tienda + precio)</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnFiltroCatalogo">Catálogo amplio</button>
+            </div>
+          </div>
+          <p class="small text-muted mb-2 mb-md-0">
+            Por defecto solo aparecen productos con <strong>precio de venta o mayoreo</strong> y <strong>stock en tienda</strong>.
+            Use <em>Catálogo amplio</em> para localizar ítems sin stock o sin precio (agregar a la venta sigue validando stock en tienda y precio).
+          </p>
+          <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
+        </div>
         <div class="col-md-10">
-          <label class="form-label fw-bold">Buscar Producto (Nombre o Código)</label>
+          <label class="form-label fw-bold">Buscar producto</label>
           <select id="buscarProducto" name="codigo" class="form-select" style="width:100%">
             <option value=""></option>
           </select>
@@ -80,6 +94,7 @@
           </thead>
           <tbody>
             {% for d in detalles %}
+            {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
             <tr id="pos_row_{{ d.id }}">
               <td><span class="badge bg-secondary">{{ d.producto.codigo_barra }}</span></td>
               <td>{{ d.producto.nombre }}</td>
@@ -95,14 +110,14 @@
                          data-detalle-id="{{ d.id }}"
                          data-precio="{{ d.precio_unitario }}"
                          data-factor-stock="{{ factor_stock }}"
-                         data-stock-disponible="{{ d.producto.stock or 0 }}">
+                         data-stock-disponible="{{ st_tienda_linea }}">
                   <button type="button" class="btn btn-outline-secondary btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="1" data-precio="{{ d.precio_unitario }}">+</button>
                 </div>
                 <small class="text-muted d-block mt-1">
                   Consumo stock: <span id="consumo_stock_{{ d.id }}">{{ consumos_stock.get(d.id, d.cantidad) }}</span> {{ d.producto.unidad_venta_final }}
                 </small>
                 <small id="stock_alert_{{ d.id }}" class="text-danger d-none">
-                  Excede stock disponible (<span id="stock_disponible_{{ d.id }}">{{ d.producto.stock or 0 }}</span>).
+                  Excede stock disponible en tienda (<span id="stock_disponible_{{ d.id }}">{{ st_tienda_linea }}</span>).
                 </small>
               </td>
               <td>
@@ -116,7 +131,8 @@
                          min="0" max="100"
                          class="form-control form-control-sm descuento-input"
                          data-detalle-id="{{ d.id }}"
-                         data-precio="{{ d.precio_unitario }}">
+                         data-precio="{{ d.precio_unitario }}"
+                         data-descuento-servidor="{{ (d.descuento or 0)|float }}">
                   <span class="input-group-text">%</span>
                 </div>
               </td>
@@ -170,7 +186,11 @@
         <div id="stockValidationAlert" class="alert alert-danger small d-none mb-2">
           Hay items con consumo mayor al stock disponible. Ajusta cantidades antes de emitir el vale.
         </div>
-        <p class="small text-muted mb-0">Cantidad y descuento se guardan en servidor tras una breve pausa al editar (o con el botón Actualizar).</p>
+        {% if usuario_tiene_permiso('autorizar_descuento_pos') %}
+        <p class="small text-muted mb-0">La <strong>cantidad</strong> se guarda sola al editar. El <strong>descuento</strong> se aplica en pantalla al instante, pero debe pulsar <strong>Actualizar</strong> para guardarlo en el servidor. Con su permiso de supervisor <strong>no</strong> se pide otra credencial al subir el descuento. Para probar el flujo de autorización, use un usuario sin el permiso «autorizar descuento POS» en Mantenedores → Roles.</p>
+        {% else %}
+        <p class="small text-muted mb-0">La <strong>cantidad</strong> se guarda sola al editar. Para <strong>aumentar</strong> el descuento, pulse <strong>Actualizar</strong>: se listan supervisores desde el sistema; elige o escribe y luego la contraseña. Bajar o quitar descuento no requiere autorización.</p>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -215,12 +235,25 @@
               <input type="text" id="cliente_direccion" name="cliente_direccion" class="form-control">
             </div>
             <div class="col-md-4">
+              <label class="form-label fw-semibold">Giro</label>
+              <input type="text" id="cliente_giro" name="cliente_giro" class="form-control">
+            </div>
+            <div class="col-md-4">
               <label class="form-label fw-semibold">Teléfono</label>
               <input type="text" id="cliente_telefono" name="cliente_telefono" class="form-control">
             </div>
-            <div class="col-md-4">
+
+            <div class="col-md-6">
               <label class="form-label fw-semibold">Correo</label>
               <input type="email" id="cliente_correo" name="cliente_correo" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Comuna</label>
+              <input type="text" id="cliente_comuna" name="cliente_comuna" class="form-control" maxlength="80" placeholder="Ej: Copiapó">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Ciudad</label>
+              <input type="text" id="cliente_ciudad" name="cliente_ciudad" class="form-control" maxlength="80" placeholder="Ej: Copiapó">
             </div>
 
             <div class="col-12 d-flex justify-content-end gap-2 pt-2">
@@ -233,6 +266,33 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalAutorizarDescuentoPos" tabindex="-1" aria-labelledby="modalAutorizarDescuentoPosLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalAutorizarDescuentoPosLabel">Autorizar mayor descuento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Elija de la lista o escriba para filtrar; al elegir se completa el <strong>correo</strong>. Luego ingrese la contraseña.</p>
+        <div class="mb-2 position-relative">
+          <label class="form-label" for="posSupervisorIdentificador">Supervisor</label>
+          <input type="text" class="form-control" id="posSupervisorIdentificador" autocomplete="username" placeholder="Buscar por nombre o correo…">
+          <div id="posSupervisorSuggestWrap" class="list-group position-absolute w-100 mt-1 shadow-sm d-none overflow-auto border rounded" style="z-index: 2000; max-height: 220px;"></div>
+        </div>
+        <div class="mb-0">
+          <label class="form-label" for="posSupervisorClave">Contraseña</label>
+          <input type="password" class="form-control" id="posSupervisorClave" autocomplete="current-password">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="posConfirmarAutorizacionDescuento">Confirmar y aplicar</button>
       </div>
     </div>
   </div>
@@ -251,10 +311,12 @@
 
 {% block extra_js %}
 <script id="pos-config" type="application/json">{{ {
+  'descuento_libre': usuario_tiene_permiso('autorizar_descuento_pos'),
   'urls': {
     'buscar_producto': url_for('buscar_producto'),
     'actualizar_item': url_for('actualizar_item'),
-    'consultar_cliente': url_for('consultar_cliente')
+    'consultar_cliente': url_for('consultar_cliente'),
+    'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento')
   }
 } | tojson }}</script>
 <script src="{{ url_for('static', filename='js/pos.js') }}"></script>

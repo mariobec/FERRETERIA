@@ -40,38 +40,38 @@
                 <div class="border-top border-dark pt-2 mt-2">
                     <div class="d-flex justify-content-between">
                         <span>(+) MONTO INICIAL:</span>
-                        <span>$ {{ "{:,.0f}".format(caja.monto_inicial) }}</span>
+                        <span>$ {{ "{:,.0f}".format(caja.monto_inicial).replace(",", ".") }}</span>
                     </div>
                     
                     <div class="d-flex justify-content-between text-success">
                         <span>(+) VENTAS EFECTIVO:</span>
-                        <span>$ {{ "{:,.0f}".format(total_efectivo) }}</span>
+                        <span>$ {{ "{:,.0f}".format(total_efectivo).replace(",", ".") }}</span>
                     </div>
 
                     <!-- NUEVO: Dinero de abonos que entra a la gaveta -->
                     <div class="d-flex justify-content-between" style="color: #2e7d32;">
                         <span>(+) ABONOS CRÉDITO:</span>
-                        <span>$ {{ "{:,.0f}".format(total_abonos) }}</span>
+                        <span>$ {{ "{:,.0f}".format(total_abonos).replace(",", ".") }}</span>
                     </div>
 
                     <div class="d-flex justify-content-between text-primary">
                         <span>(+) VENTAS DÉBITO:</span>
-                        <span>$ {{ "{:,.0f}".format(total_debito) }}</span>
+                        <span>$ {{ "{:,.0f}".format(total_debito).replace(",", ".") }}</span>
                     </div>
 
                     <div class="d-flex justify-content-between text-info">
                         <span>(+) TRANSFERENCIAS:</span>
-                        <span>$ {{ "{:,.0f}".format(total_transferencia) }}</span>
+                        <span>$ {{ "{:,.0f}".format(total_transferencia).replace(",", ".") }}</span>
                     </div>
 
                     <div class="d-flex justify-content-between">
                         <span>(+) OTROS INGRESOS:</span>
-                        <span>$ {{ "{:,.0f}".format(ingresos) }}</span>
+                        <span>$ {{ "{:,.0f}".format(ingresos).replace(",", ".") }}</span>
                     </div>
 
                     <div class="d-flex justify-content-between text-danger">
                         <span>(-) EGRESOS / GASTOS:</span>
-                        <span>$ {{ "{:,.0f}".format(egresos) }}</span>
+                        <span>$ {{ "{:,.0f}".format(egresos).replace(",", ".") }}</span>
                     </div>
                 </div>
 
@@ -79,7 +79,7 @@
                 <div class="border-top border-dark border-2 mt-3 pt-3">
                     <div class="text-center mb-2 small fw-bold text-muted">EFECTIVO TOTAL EN GAVETA</div>
                     <div class="text-center h2 fw-bold text-dark">
-                        $ {{ "{:,.0f}".format(caja.monto_final) }}
+                        $ {{ "{:,.0f}".format(caja.monto_final).replace(",", ".") }}
                     </div>
                     <p class="text-center small text-muted">(Monto Inicial + Ventas Efec + Abonos Efec + Ingresos - Egresos)</p>
                 </div>
@@ -88,7 +88,7 @@
                 <div class="border-top border-dark border-dashed mt-3 pt-2 small">
                     <div class="d-flex justify-content-between text-danger">
                         <span>VENTAS FIADAS (CRÉDITO / CARTERA):</span>
-                        <span>$ {{ "{:,.0f}".format(total_fiado) }}</span>
+                        <span>$ {{ "{:,.0f}".format(total_fiado).replace(",", ".") }}</span>
                     </div>
                     <p class="mb-0 mt-1 text-muted" style="font-size: 0.75rem;">
                         No ingresa a efectivo en gaveta. Suma a deuda del cliente al cobrar el vale en caja con método Crédito.
@@ -113,7 +113,7 @@
                                 <td class="ps-0">{{ v.id }}</td>
                                 <td>{{ v.metodo_pago or '—' }}</td>
                                 <td>{{ v.estado }}</td>
-                                <td class="text-end pe-0">{{ "{:,.0f}".format(v.monto_total) }}</td>
+                                <td class="text-end pe-0">{{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -122,7 +122,7 @@
                 {% endif %}
 
                 <div class="text-center mt-4 small text-muted">
-                    <p class="mb-0">Productividad Total: $ {{ "{:,.0f}".format(gran_total_ventas) }}</p>
+                    <p class="mb-0">Productividad Total: $ {{ "{:,.0f}".format(gran_total_ventas).replace(",", ".") }}</p>
                     <p class="mt-3">*** FIN DEL REPORTE ***</p>
                 </div>
 

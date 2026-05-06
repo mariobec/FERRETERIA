@@ -1,0 +1,23 @@
+# Configuración local (contraseñas). Copia env_qa_EJEMPLO.txt a env_qa.txt y edítalo.
+env_qa.txt
+.env.qa
+
+# Python / entorno
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+
+# Flask local
+instance/
+
+# Herramientas / OS
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+.DS_Store
+Thumbs.db

@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ empresa_cfg.nombre_comercial }} {{ empresa_cfg.eslogan }}</title>
     
-    <!-- Bootstrap Local -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-    <!-- Iconos -->
-    <link rel="stylesheet" href="https://jsdelivr.net">
+    <!-- Bootstrap e iconos (local, sin CDN) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <!-- Estilos Personalizados -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
 </head>

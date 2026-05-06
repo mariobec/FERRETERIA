@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h3 class="page-title"><i class="fas fa-heartbeat text-success me-2"></i>Salud del inventario</h3>
+      <p class="page-subtitle mb-0">
+        Detectá desajustes entre el <strong>stock maestro</strong> (campo <code>productos.stock</code>) y la <strong>suma en depósitos activos</strong>.
+        La segunda tarjeta solo lista SKU donde el depósito <strong>Tienda (POS)</strong> tiene cantidad <strong>exactamente 0</strong> y la <strong>bodega</strong> tiene stock disponible para mover — no indica que “toda la tienda está en cero”.
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+      {% if usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario') %}
+      <a href="{{ url_for('inventario_enrolamiento') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-barcode me-1"></i>Enrolamiento</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body">
+      <form method="GET" action="{{ url_for('inventario_salud') }}" class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Buscar</label>
+          <input type="search" name="q" value="{{ q or '' }}" class="form-control" placeholder="Nombre, barras o interno">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold" title="Solo lista reposición">Mín. en bodega</label>
+          <input type="number" name="min_bodega" value="{{ min_bodega }}" min="1" class="form-control">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Aplicar</button>
+        </div>
+      </form>
+      <p class="small text-muted mb-0 mt-2">
+        La suma por almacén considera solo depósitos <strong>activos</strong>. Corregí desajustes con ajuste de stock o ejecutando refresco desde el maestro según tu procedimiento interno.
+      </p>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-balance-scale me-1 text-warning"></i>Maestro vs suma depósitos</span>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge bg-warning text-dark">{{ n_desajuste }}</span>
+        <a href="{{ url_for('inventario_salud', q=q or None, min_bodega=min_bodega, export='desajuste') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-file-csv me-1"></i>CSV
+        </a>
+      </div>
+    </div>
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th>
+            <th>Producto</th>
+            {% if detalle_tienda_bodega %}
+            <th class="text-end" title="Stock en almacén usado por el POS">{{ nom_tienda }}</th>
+            <th class="text-end" title="Stock en almacén bodega estándar">{{ nom_bodega }}</th>
+            {% endif %}
+            <th class="text-end">Stock maestro</th>
+            <th class="text-end">Suma depósitos</th>
+            <th class="text-end">Delta</th>
+            <th class="text-end">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows_des %}
+          {% set sm = (r.stock_maestro or 0)|int %}
+          {% set sa = (r.suma_almacenes or 0)|int %}
+          <tr>
+            <td><code>{{ r.codigo_barra or r.codigo_interno or '—' }}</code></td>
+            <td>{{ r.nombre }}</td>
+            {% if detalle_tienda_bodega %}
+            <td class="text-end font-monospace fw-semibold text-success">{{ (r.qty_tienda or 0)|int }}</td>
+            <td class="text-end font-monospace">{{ (r.qty_bodega or 0)|int }}</td>
+            {% endif %}
+            <td class="text-end font-monospace">{{ sm }}</td>
+            <td class="text-end font-monospace">{{ sa }}</td>
+            <td class="text-end font-monospace fw-bold {% if sm - sa != 0 %}text-danger{% endif %}">{{ sm - sa }}</td>
+            <td class="text-end">
+              {% if r.codigo_barra %}
+              <a href="{{ url_for('inventario_enrolamiento') }}?codigo={{ r.codigo_barra|urlencode }}" class="btn btn-sm btn-outline-primary">Enrolar</a>
+              {% else %}
+              <a href="{{ url_for('mostrar_productos', q=r.nombre) }}" class="btn btn-sm btn-outline-secondary">Productos</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ 8 if detalle_tienda_bodega else 6 }}" class="text-center text-muted py-4">Sin desajustes para este filtro. El maestro coincide con la suma en depósitos activos.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span>
+        <i class="fas fa-dolly me-1 text-info"></i>        Candidatos a traslado (tienda en cero)
+        {% if puede_reposicion_lista %}
+        <span class="text-muted small fw-normal d-block mt-1">
+          Criterio del listado (no es el stock total de la tienda): cantidad en «{{ nom_tienda }}» = <strong>0</strong>
+          y cantidad en «{{ nom_bodega }}» ≥ <strong>{{ min_bodega }}</strong>.
+          Si un SKU tiene unidades en tienda (como en la tabla de arriba), <strong>no entra aquí</strong> — usá Enrolamiento para traslados igualmente.
+        </span>
+        {% endif %}
+      </span>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        {% if puede_reposicion_lista %}
+        <span class="badge bg-info">{{ n_reposicion }}</span>
+        <a href="{{ url_for('inventario_salud', q=q or None, min_bodega=min_bodega, export='reposicion') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-file-csv me-1"></i>CSV
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body p-0 table-responsive">
+      {% if not puede_reposicion_lista %}
+      <div class="p-4 text-muted small">
+        No hay dos almacenes distintos resueltos como <strong>Tienda</strong> y <strong>Bodega</strong> (o solo existe un depósito).
+        Configurá códigos TIENDA/BODEGA en almacenes o variables de entorno.
+      </div>
+      {% else %}
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th>
+            <th>Producto</th>
+            <th class="text-end">{{ nom_tienda }}</th>
+            <th class="text-end">{{ nom_bodega }}</th>
+            <th class="text-end">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows_rep %}
+          <tr>
+            <td><code>{{ r.codigo_barra or r.codigo_interno or '—' }}</code></td>
+            <td>{{ r.nombre }}</td>
+            <td class="text-end font-monospace text-muted">{{ (r.qty_tienda or 0)|int }}</td>
+            <td class="text-end font-monospace fw-bold text-info">{{ (r.qty_bodega or 0)|int }}</td>
+            <td class="text-end">
+              {% if r.codigo_barra %}
+              <a href="{{ url_for('inventario_enrolamiento') }}?codigo={{ r.codigo_barra|urlencode }}" class="btn btn-sm btn-outline-primary">Traslado en enrolamiento</a>
+              {% else %}
+              <a href="{{ url_for('mostrar_productos', q=r.nombre) }}" class="btn btn-sm btn-outline-secondary">Productos</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="text-center text-muted py-4">
+              Ningún SKU cumple «tienda en cero y bodega suficiente» con el filtro actual.
+              Revisá la primera tabla: ahí ves el stock real en tienda y bodega por ítem cuando hay desajuste maestro vs depósitos.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

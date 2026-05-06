@@ -6,6 +6,10 @@
     <div>
       <h3 class="page-title"><i class="fas fa-chart-line text-primary me-2"></i>Business Intelligence</h3>
       <p class="page-subtitle">Reportes premium para ventas, crédito, medios de pago y rotación.</p>
+      <div class="small mt-2">
+        <a href="#reportes-detalle" class="text-decoration-none fw-semibold"><i class="fas fa-layer-group me-1"></i>Reportes desde detalle de ventas</a>
+        <span class="text-muted">· ABC, mix categoría/pago, picos hora y día</span>
+      </div>
     </div>
     <div class="d-flex gap-2">
       <a href="{{ url_for('export_bi_csv', fecha_inicio=fecha_inicio, fecha_fin=fecha_fin) }}" class="btn btn-outline-success btn-sm">
@@ -111,6 +115,170 @@
     </div>
   </div>
 
+  <h4 id="reportes-detalle" class="fw-bold mt-2 mb-3 pb-2 border-bottom">
+    <i class="fas fa-layer-group text-primary me-2"></i>Reportes desde detalle de ventas
+  </h4>
+  <p class="small text-muted mb-3">
+    Basado en líneas de ventas con documentos <strong>Pagado</strong> en el período. Margen estimado = subtotal − cantidad × <code>precio compra</code> actual del catálogo (igual criterio que el simulador gerencial).
+  </p>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="card card-ds h-100 border-warning border-opacity-50">
+        <div class="card-body">
+          <small class="text-muted d-block">ABC volumen (unidades)</small>
+          <p class="mb-0 fw-bold">{{ abc_n80_qty }} SKU<span class="fw-normal text-muted small"> concentran el ~80% de las unidades vendidas</span></p>
+          <small class="text-muted">{{ abc_n_skus }} SKU distintos con movimiento</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card card-ds h-100 border-success border-opacity-50">
+        <div class="card-body">
+          <small class="text-muted d-block">ABC margen ($)</small>
+          <p class="mb-0 fw-bold">{{ abc_n80_margin }} SKU<span class="fw-normal text-muted small"> concentran el ~80% del margen positivo</span></p>
+          <small class="text-muted">Margen total período: ${{ "{:,.0f}".format(abc_total_margin).replace(",", ".") }}{% if abc_skus_margin_neg %} · <span class="text-warning">{{ abc_skus_margin_neg }} SKU con margen negativo</span>{% endif %}</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted d-block">Clases A / B / C</small>
+          <p class="mb-0 small"><strong>A</strong>: hasta 80% acumulado · <strong>B</strong>: hasta 95% · <strong>C</strong>: resto. Priorizá política de precio en A por volumen y compras en A por margen.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-xl-6">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">ABC por volumen (unidades)</div>
+        <div class="table-responsive" style="max-height: 380px;">
+          <table class="table table-sm table-hover mb-0 table-ds align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Clase</th>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th class="text-end">Und.</th>
+                <th class="text-end">% acum.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in abc_volumen %}
+              <tr>
+                <td><span class="badge {% if r.clase == 'A' %}bg-danger{% elif r.clase == 'B' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ r.clase }}</span></td>
+                <td class="small">{{ r.nombre }}</td>
+                <td class="small text-muted">{{ r.categoria }}</td>
+                <td class="text-end">{{ "{:,.0f}".format(r.qty).replace(",", ".") }}</td>
+                <td class="text-end">{{ "{:.1f}".format(r.pct_acum) }}%</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted py-3">Sin líneas Pagado en el rango.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-6">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">ABC por margen ($) — solo SKU con margen positivo</div>
+        <div class="table-responsive" style="max-height: 380px;">
+          <table class="table table-sm table-hover mb-0 table-ds align-middle">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>Clase</th>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th class="text-end">Margen</th>
+                <th class="text-end">% acum.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in abc_margen %}
+              <tr>
+                <td><span class="badge {% if r.clase == 'A' %}bg-success{% elif r.clase == 'B' %}bg-info text-dark{% else %}bg-secondary{% endif %}">{{ r.clase }}</span></td>
+                <td class="small">{{ r.nombre }}</td>
+                <td class="small text-muted">{{ r.categoria }}</td>
+                <td class="text-end">${{ "{:,.0f}".format(r.margin).replace(",", ".") }}</td>
+                <td class="text-end">{{ "{:.1f}".format(r.pct_acum) }}%</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted py-3">Sin margen positivo calculable en el rango.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>Mix categoría × medio de pago ($ subtotal)</span>
+      <small class="text-muted fw-normal">Útil para ver dónde pesa el crédito vs efectivo/débito por rubro</small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 align-middle text-center">
+        <thead class="table-light">
+          <tr>
+            <th class="text-start">Categoría</th>
+            {% for m in mix_metodos %}
+            <th class="small">{{ m }}</th>
+            {% endfor %}
+            <th class="small bg-light">Total cat.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in mix_categorias %}
+          <tr>
+            <td class="text-start fw-semibold small">{{ c }}</td>
+            {% for m in mix_metodos %}
+            <td class="small">${{ "{:,.0f}".format(mix_mat_plain[c].get(m, 0)).replace(",", ".") }}</td>
+            {% endfor %}
+            <td class="small bg-light fw-semibold">${{ "{:,.0f}".format(mix_row_totals[c]).replace(",", ".") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ mix_metodos|length + 2 }}" class="text-muted py-3">Sin datos en el período.</td></tr>
+          {% endfor %}
+          {% if mix_categorias %}
+          <tr class="table-light">
+            <td class="text-start fw-bold">Total medio</td>
+            {% for m in mix_metodos %}
+            <td class="small fw-bold">${{ "{:,.0f}".format(meth_totals[m]).replace(",", ".") }}</td>
+            {% endfor %}
+            <td class="fw-bold">${{ "{:,.0f}".format(mix_grand_total).replace(",", ".") }}</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">Picos por hora del día (documentos Pagado)</div>
+        <div class="card-body">
+          <canvas id="chartBiHora" height="140"></canvas>
+          <p class="small text-muted mb-0 mt-2">Barras: monto cobrado · Línea: cantidad de tickets. Ajustá dotación de caja en horas altas.</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">Ventas por día de la semana</div>
+        <div class="card-body">
+          <canvas id="chartBiDiaSemana" height="140"></canvas>
+          <p class="small text-muted mb-0 mt-2">Lunes a domingo según fecha de la venta. Planificá reposición y personal los días fuertes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-3">
     <div class="col-lg-6">
       <div class="card card-ds">
@@ -175,7 +343,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
 <script>
   (() => {
     const ventasLabels = {{ labels_dias | tojson }};
@@ -228,6 +396,103 @@
             tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtCLP(ctx.parsed)}` } }
           }
         }
+      });
+    }
+
+    const biHorasLabels = {{ bi_horas_labels | tojson }};
+    const biHorasDocs = {{ bi_horas_docs | tojson }};
+    const biHorasMontos = {{ bi_horas_montos | tojson }};
+    const biDiaLabels = {{ bi_dia_labels | tojson }};
+    const biDiaDocs = {{ bi_dia_docs | tojson }};
+    const biDiaMontos = {{ bi_dia_montos | tojson }};
+
+    const ctxBiHora = document.getElementById('chartBiHora');
+    if (ctxBiHora && typeof Chart !== 'undefined') {
+      new Chart(ctxBiHora, {
+        type: 'bar',
+        data: {
+          labels: biHorasLabels,
+          datasets: [
+            {
+              label: 'Monto cobrado',
+              data: biHorasMontos,
+              backgroundColor: 'rgba(243, 112, 33, 0.35)',
+              borderColor: '#f37021',
+              borderWidth: 1,
+              yAxisID: 'y',
+            },
+            {
+              type: 'line',
+              label: 'Tickets',
+              data: biHorasDocs,
+              borderColor: '#0ea5e9',
+              borderWidth: 2,
+              pointRadius: 2,
+              yAxisID: 'y1',
+              tension: 0.2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: {
+              position: 'left',
+              ticks: { callback: (v) => fmtCLP(v) },
+            },
+            y1: {
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { stepSize: 1 },
+            },
+          },
+        },
+      });
+    }
+
+    const ctxBiDia = document.getElementById('chartBiDiaSemana');
+    if (ctxBiDia && typeof Chart !== 'undefined') {
+      new Chart(ctxBiDia, {
+        type: 'bar',
+        data: {
+          labels: biDiaLabels,
+          datasets: [
+            {
+              label: 'Monto cobrado',
+              data: biDiaMontos,
+              backgroundColor: 'rgba(34, 197, 94, 0.35)',
+              borderColor: '#22c55e',
+              borderWidth: 1,
+              yAxisID: 'y',
+            },
+            {
+              type: 'line',
+              label: 'Tickets',
+              data: biDiaDocs,
+              borderColor: '#8b5cf6',
+              borderWidth: 2,
+              pointRadius: 2,
+              yAxisID: 'y1',
+              tension: 0.2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: {
+              position: 'left',
+              ticks: { callback: (v) => fmtCLP(v) },
+            },
+            y1: {
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { stepSize: 1 },
+            },
+          },
+        },
       });
     }
   })();

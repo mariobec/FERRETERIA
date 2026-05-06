@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket cobro #{{ venta.id }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Courier New', monospace; font-size: 12px; background: #f5f5f5; color: #111; }
+    .toolbar { text-align: center; padding: 10px; border-bottom: 1px solid #ccc; }
+    .btn { display: inline-block; padding: 8px 14px; margin: 2px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none; color: #fff; font-size: 12px; }
+    .ticket { width: 80mm; max-width: 100%; margin: 8px auto; padding: 8px; background: #fff; border: 1px solid #ddd; }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+    th, td { padding: 2px 0; border-bottom: 1px dotted #ccc; vertical-align: top; }
+    th { border-bottom: 1px solid #333; }
+    .num { text-align: right; white-space: nowrap; }
+    .total { text-align: right; font-size: 14px; font-weight: bold; margin-top: 8px; padding-top: 6px; border-top: 2px solid #111; }
+    .estado { text-align: center; font-weight: bold; margin-top: 10px; padding: 6px; font-size: 12px; }
+    .ok { color: #198754; }
+    .cred { color: #856404; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
+    @media print { .toolbar { display: none !important; } body { background: #fff; } .ticket { border: none; margin: 0; } }
+  </style>
+</head>
+<body>
+  <div class="toolbar no-print">
+    <a href="{{ url_for('caja_pendientes') }}" class="btn" style="background:#198754;">CAJA</a>
+    <a href="{{ url_for('ver_documento', id=venta.id) }}" class="btn" style="background:#0d6efd;" target="_blank">BOLETA/FACTURA</a>
+    <a href="{{ url_for('descargar_pdf', id=venta.id) }}" class="btn" style="background:#6610f2;" target="_blank" title="PDF archivado en historial">PDF</a>
+    <button type="button" class="btn" style="background:#2c3e50;" onclick="window.print()">IMPRIMIR</button>
+  </div>
+
+  <div class="ticket">
+    <div class="center bold" style="font-size:14px;">{{ empresa_cfg.nombre_comercial }}</div>
+    <div class="center" style="font-size:10px;margin-top:2px;">Ticket de cobro caja</div>
+    <div class="center" style="margin-top:6px;">
+      <span class="bold">Folio N° {{ venta.id }}</span><br>
+      {{ venta.fecha.strftime('%d/%m/%Y %H:%M') if venta.fecha else '—' }}<br>
+      Doc.: {{ venta.tipo_documento or 'Boleta' }} · {{ venta.metodo_pago or '—' }}
+    </div>
+    <div class="center" style="margin:8px 0;font-size:11px;">
+      Cliente: <span class="bold">{{ venta.cliente.nombre if venta.cliente else '—' }}</span>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Producto</th>
+          <th class="num">Cant</th>
+          <th class="num">P.Unit</th>
+          <th class="num">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in detalles %}
+        {% set lt = ((d.cantidad or 0) * (d.precio_unitario or 0) * (1 - ((d.descuento or 0) / 100.0))) %}
+        <tr>
+          <td>{{ d.producto.nombre if d.producto else ('#' ~ d.id_producto) }}</td>
+          <td class="num">{{ d.cantidad }}</td>
+          <td class="num">${{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+          <td class="num">${{ "{:,.0f}".format(lt).replace(",", ".") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="total">TOTAL: ${{ "{:,.0f}".format(venta.monto_total or 0).replace(",", ".") }}</div>
+
+    {% if venta.metodo_pago == 'Credito' %}
+    <div class="estado cred">*** VENTA A CRÉDITO ***<br><span style="font-weight:normal;font-size:10px;">Cargado en cuenta corriente del cliente.</span></div>
+    {% else %}
+    <div style="margin-top:8px;font-size:11px;">
+      <div class="center">Recibido: ${{ "{:,.0f}".format(venta.monto_recibido or 0).replace(",", ".") }}</div>
+      <div class="center">Vuelto: ${{ "{:,.0f}".format(venta.vuelto or 0).replace(",", ".") }}</div>
+    </div>
+    <div class="estado ok">*** COBRO REGISTRADO ***</div>
+    {% endif %}
+  </div>
+
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 350);
+    });
+  </script>
+</body>
+</html>

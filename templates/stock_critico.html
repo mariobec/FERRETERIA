@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-triangle-exclamation text-danger me-2"></i>Stock crítico</h3>
+      <p class="page-subtitle mb-0">Productos activos con stock menor o igual a {{ umbral }}. Desde aquí puede saltar directo a pedido (OC).</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Volver a indicadores</a>
+      <a href="{{ url_for('ia_abastecimiento', solo_alerta=1, from='inicio') }}" class="btn btn-outline-primary btn-sm">Ver sugerencia IA</a>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body">
+      <form method="GET" action="{{ url_for('stock_critico') }}" class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Buscar producto</label>
+          <input type="search" name="q" value="{{ q or '' }}" class="form-control" placeholder="Nombre o código">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Umbral</label>
+          <input type="number" name="umbral" value="{{ umbral }}" min="1" max="200" class="form-control">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+      <span>Listado crítico</span>
+      <span class="badge bg-danger">{{ productos|length }}</span>
+    </div>
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th>
+            <th>Producto</th>
+            <th>Categoría</th>
+            <th class="text-end">Stock</th>
+            <th class="text-end">P. compra</th>
+            <th class="text-end">P. venta</th>
+            <th class="text-end">Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in productos %}
+          <tr>
+            <td><code>{{ p.codigo_barra or '—' }}</code></td>
+            <td>{{ p.nombre }}</td>
+            <td class="small">{{ p.categoria or '—' }}</td>
+            <td class="text-end fw-bold {% if p.stock <= 0 %}text-danger{% else %}text-warning{% endif %}">{{ p.stock }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(p.precio_compra or 0).replace(",", ".") }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
+            <td class="text-end">
+              {% if oc_tablas_ok %}
+              <a href="{{ url_for('orden_compra_nueva', producto_id=p.id, from='inicio') }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-file-contract me-1"></i>Pedir (OC)
+              </a>
+              {% else %}
+              <a href="{{ url_for('mostrar_proveedores', from='inicio') }}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-truck me-1"></i>Proveedores
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">Sin productos críticos para este umbral.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

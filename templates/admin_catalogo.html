@@ -1,0 +1,498 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-sitemap text-primary me-2"></i>Catálogo de categorías</h3>
+      <p class="page-subtitle mb-0">
+        <strong>Categoría</strong> → <strong>Subcategoría 1</strong> (familia, <code>nivel2</code>) → <strong>Subcategoría 2</strong> (hoja).
+        Abajo puede asignar productos que aún no tienen esa clasificación.
+      </p>
+    </div>
+    <a href="{{ url_for('mostrar_productos') }}" class="btn btn-outline-secondary btn-sm">Volver a productos</a>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Nueva categoría</div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_catalogo') }}">
+            <input type="hidden" name="action" value="crear_categoria">
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Nombre</label>
+              <input type="text" name="nombre" class="form-control" maxlength="80" required placeholder="Ej. Todo en Construcción">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Orden</label>
+              <input type="number" name="orden" class="form-control" value="0" step="1">
+            </div>
+            <button type="submit" class="btn btn-ds-primary btn-sm">Crear categoría</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card card-ds mt-3">
+        <div class="card-header fw-bold">Categorías</div>
+        <div class="card-body p-0 table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Orden</th><th>Nombre</th><th>Activo</th><th class="text-end">Acciones</th></tr>
+            </thead>
+            <tbody>
+              {% for c in categorias %}
+              <tr>
+                <td>
+                  <form method="POST" action="{{ url_for('admin_catalogo') }}" id="fc{{ c.id }}" class="d-flex flex-column gap-1">
+                    <input type="hidden" name="action" value="editar_categoria">
+                    <input type="hidden" name="id" value="{{ c.id }}">
+                    <input type="number" name="orden" class="form-control form-control-sm" value="{{ c.orden }}" form="fc{{ c.id }}">
+                  </form>
+                </td>
+                <td>
+                  <input type="text" name="nombre" class="form-control form-control-sm" value="{{ c.nombre }}" maxlength="80" required form="fc{{ c.id }}">
+                </td>
+                <td>
+                  <input class="form-check-input" type="checkbox" name="activo" value="1" form="fc{{ c.id }}" {% if c.activo %}checked{% endif %}>
+                </td>
+                <td class="text-end text-nowrap">
+                  <button type="submit" class="btn btn-outline-primary btn-sm" form="fc{{ c.id }}">Guardar</button>
+                  <form method="POST" action="{{ url_for('admin_catalogo') }}" class="d-inline">
+                    <input type="hidden" name="action" value="toggle_categoria">
+                    <input type="hidden" name="id" value="{{ c.id }}">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Desact.' if c.activo else 'Activar' }}</button>
+                  </form>
+                  <a href="{{ url_for('admin_catalogo', cat_id=c.id) }}" class="btn btn-outline-info btn-sm">Hojas</a>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-muted text-center py-3">Sin categorías. Cree una o importe Excel.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card card-ds">
+        <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span>Nueva hoja (sub 1 + sub 2)</span>
+          {% if cat_filtro %}
+          <a href="{{ url_for('admin_catalogo') }}" class="btn btn-sm btn-outline-secondary">Quitar filtro</a>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_catalogo') }}" class="row g-2">
+            <input type="hidden" name="action" value="crear_sub">
+            {% if cat_filtro %}<input type="hidden" name="redirect_cat_id" value="{{ cat_filtro }}">{% endif %}
+            <div class="col-md-5">
+              <label class="form-label small fw-semibold">Categoría</label>
+              <select name="categoria_id" class="form-select" required>
+                <option value="">—</option>
+                {% for c in categorias %}
+                <option value="{{ c.id }}" {% if cat_filtro == c.id %}selected{% endif %}>{{ c.nombre }}{% if not c.activo %} (inactiva){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">Subcategoría 1 (familia)</label>
+              <input type="text" name="nivel2" class="form-control" maxlength="80" placeholder="Opcional">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">Orden</label>
+              <input type="number" name="orden" class="form-control" value="0">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Subcategoría 2 (hoja)</label>
+              <input type="text" name="nombre_hoja" class="form-control" maxlength="80" required placeholder="Ítem fino del catálogo">
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-ds-primary btn-sm">Agregar hoja</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card card-ds mt-3">
+        <div class="card-header fw-bold">
+          Hojas
+          {% if cat_filtro %}
+            {% for c in categorias %}
+              {% if c.id == cat_filtro %}<span class="text-muted fw-normal">— {{ c.nombre }}</span>{% endif %}
+            {% endfor %}
+          {% endif %}
+        </div>
+        <div class="card-body p-0 table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Categoría</th>
+                <th>Sub 1</th>
+                <th>Sub 2</th>
+                <th>Ord.</th>
+                <th>Act.</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in subcategorias %}
+              <tr>
+                <td class="small">{{ s.categoria.nombre if s.categoria else '—' }}</td>
+                <td>
+                  <input type="text" class="form-control form-control-sm" name="nivel2" value="{{ s.nivel2 or '' }}" maxlength="80" form="fs{{ s.id }}">
+                </td>
+                <td>
+                  <input type="text" class="form-control form-control-sm" name="nombre_hoja" value="{{ s.nombre }}" maxlength="80" required form="fs{{ s.id }}">
+                </td>
+                <td style="width:4rem">
+                  <input type="number" class="form-control form-control-sm" name="orden" value="{{ s.orden }}" form="fs{{ s.id }}">
+                </td>
+                <td>
+                  <input class="form-check-input" type="checkbox" name="activo" value="1" form="fs{{ s.id }}" {% if s.activo %}checked{% endif %}>
+                </td>
+                <td class="text-end text-nowrap">
+                  <form method="POST" action="{{ url_for('admin_catalogo', cat_id=cat_filtro) if cat_filtro else url_for('admin_catalogo') }}" id="fs{{ s.id }}">
+                    <input type="hidden" name="action" value="editar_sub">
+                    <input type="hidden" name="id" value="{{ s.id }}">
+                    {% if s.categoria_id %}<input type="hidden" name="redirect_cat_id" value="{{ s.categoria_id }}">{% endif %}
+                    <button type="submit" class="btn btn-outline-primary btn-sm">Guardar</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin_catalogo', cat_id=cat_filtro) if cat_filtro else url_for('admin_catalogo') }}" class="d-inline" onsubmit="return confirm('¿Invertir activo?');">
+                    <input type="hidden" name="action" value="toggle_sub">
+                    <input type="hidden" name="id" value="{{ s.id }}">
+                    {% if s.categoria_id %}<input type="hidden" name="redirect_cat_id" value="{{ s.categoria_id }}">{% endif %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm py-0">{{ 'Off' if s.activo else 'On' }}</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin_catalogo', cat_id=cat_filtro) if cat_filtro else url_for('admin_catalogo') }}" class="d-inline" onsubmit="return confirm('¿Eliminar? Solo si ningún producto usa esta hoja.');">
+                    <input type="hidden" name="action" value="eliminar_sub">
+                    <input type="hidden" name="id" value="{{ s.id }}">
+                    {% if s.categoria_id %}<input type="hidden" name="redirect_cat_id" value="{{ s.categoria_id }}">{% endif %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm py-0">Elim.</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-muted text-center py-3">Sin hojas{% if cat_filtro %} en esta categoría{% endif %}.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mt-4">
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-list me-1"></i>Listado de categorías creadas</span>
+      <span class="badge bg-primary">{{ categorias|length }}</span>
+    </div>
+    <div class="card-body">
+      {% if categorias %}
+      <div class="d-flex flex-wrap gap-2">
+        {% for c in categorias %}
+        <span class="badge rounded-pill {{ 'bg-success' if c.activo else 'bg-secondary' }}">
+          {{ c.nombre }}
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">Aún no hay categorías creadas.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-ds mt-4">
+    <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-diagram-project me-1"></i>Jerarquía listada (N1 → N2 → N3)</span>
+      <span class="small text-muted">Sección de consulta y edición detallada al final del mantenedor.</span>
+    </div>
+    <div class="card-body">
+      {% if jerarquia_catalogo %}
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold mb-1">Filtrar por categoría (N1)</label>
+          <select id="filtro_jerarquia_cat" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            {% for c in categorias %}
+            <option value="{{ c.id }}">{{ c.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold mb-1">Filtrar por familia (N2)</label>
+          <select id="filtro_jerarquia_fam" class="form-select form-select-sm">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="btn_limpiar_filtros_jerarquia">Limpiar</button>
+        </div>
+      </div>
+      <div class="accordion" id="acc_catalogo_tree">
+        {% for bloque in jerarquia_catalogo %}
+        {% set c = bloque.cat %}
+        <div class="accordion-item jer-cat-item" data-cat-id="{{ c.id }}">
+          <h2 class="accordion-header" id="cat_h_{{ c.id }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cat_b_{{ c.id }}" aria-expanded="false" aria-controls="cat_b_{{ c.id }}">
+              <span class="fw-bold">{{ c.nombre }}</span>
+              <span class="badge ms-2 {{ 'bg-success' if c.activo else 'bg-secondary' }}">{{ 'Activa' if c.activo else 'Inactiva' }}</span>
+              <span class="small text-muted ms-2">{{ bloque.familias|length }} familia(s)</span>
+            </button>
+          </h2>
+          <div id="cat_b_{{ c.id }}" class="accordion-collapse collapse" aria-labelledby="cat_h_{{ c.id }}" data-bs-parent="#acc_catalogo_tree">
+            <div class="accordion-body">
+              {% if bloque.familias %}
+              {% for fam in bloque.familias %}
+              <div class="border rounded p-2 mb-3 bg-light-subtle jer-fam-item" data-fam="{{ (fam.nombre or '')|lower }}">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                  <div>
+                    <span class="badge bg-light text-dark border">Subcategoría 1</span>
+                    <strong class="ms-1">{{ fam.nombre }}</strong>
+                    <span class="small text-muted ms-2">{{ fam.hojas|length }} hoja(s)</span>
+                  </div>
+                </div>
+                <form method="POST" action="{{ url_for('admin_catalogo') }}" class="row g-2 align-items-end mb-2">
+                  <input type="hidden" name="action" value="renombrar_nivel2">
+                  <input type="hidden" name="categoria_id" value="{{ c.id }}">
+                  <input type="hidden" name="nivel2_actual" value="{{ fam.nombre if fam.nombre != 'Sin familia' else '' }}">
+                  <input type="hidden" name="redirect_cat_id" value="{{ c.id }}">
+                  <div class="col-md-5">
+                    <label class="form-label small mb-1">Renombrar familia (N2)</label>
+                    <input type="text" name="nivel2_nuevo" class="form-control form-control-sm" maxlength="80" placeholder="Nuevo nombre N2" required>
+                  </div>
+                  <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-primary btn-sm w-100">Renombrar</button>
+                  </div>
+                </form>
+                <form method="POST" action="{{ url_for('admin_catalogo') }}" class="row g-2 align-items-end mb-3">
+                  <input type="hidden" name="action" value="crear_sub">
+                  <input type="hidden" name="categoria_id" value="{{ c.id }}">
+                  <input type="hidden" name="nivel2" value="{{ '' if fam.nombre == 'Sin familia' else fam.nombre }}">
+                  <input type="hidden" name="redirect_cat_id" value="{{ c.id }}">
+                  <div class="col-md-6">
+                    <label class="form-label small mb-1">Nueva hoja (Subcategoría 2)</label>
+                    <input type="text" name="nombre_hoja" class="form-control form-control-sm" maxlength="80" placeholder="Nombre de hoja (N3)" required>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small mb-1">Orden</label>
+                    <input type="number" name="orden" class="form-control form-control-sm" value="0">
+                  </div>
+                  <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-success btn-sm w-100">Agregar hoja</button>
+                  </div>
+                </form>
+                <div class="table-responsive">
+                  <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Subcategoría 2 (hoja)</th>
+                        <th>Orden</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for h in fam.hojas %}
+                      <tr>
+                        <td>
+                          <form method="POST" action="{{ url_for('admin_catalogo') }}" id="fsh{{ h.id }}">
+                            <input type="hidden" name="action" value="editar_sub">
+                            <input type="hidden" name="id" value="{{ h.id }}">
+                            <input type="hidden" name="nivel2" value="{{ '' if fam.nombre == 'Sin familia' else fam.nombre }}">
+                            <input type="hidden" name="redirect_cat_id" value="{{ c.id }}">
+                          </form>
+                          <input type="text" class="form-control form-control-sm" name="nombre_hoja" maxlength="80" value="{{ h.nombre }}" form="fsh{{ h.id }}" required>
+                        </td>
+                        <td style="width:6rem">
+                          <input type="number" class="form-control form-control-sm" name="orden" value="{{ h.orden }}" form="fsh{{ h.id }}">
+                        </td>
+                        <td style="width:8rem">
+                          <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" name="activo" value="1" id="hact_{{ h.id }}" form="fsh{{ h.id }}" {% if h.activo %}checked{% endif %}>
+                            <label class="form-check-label small" for="hact_{{ h.id }}">Activa</label>
+                          </div>
+                        </td>
+                        <td class="text-end text-nowrap">
+                          <button type="submit" class="btn btn-outline-primary btn-sm" form="fsh{{ h.id }}">Guardar</button>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {% endfor %}
+              {% else %}
+              <p class="text-muted mb-0">Sin familias/hojas en esta categoría.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">No hay jerarquías aún. Cree categorías y hojas para comenzar.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-ds mt-4">
+    <div class="card-header fw-bold">
+      <i class="fas fa-link me-1"></i> Productos sin clasificación de catálogo
+      <span class="badge bg-secondary ms-1">{{ sin_catalogo|length }} (máx. 200)</span>
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-3">Activos sin <code>subcategoria_catalogo_id</code>. Asignación masiva solo a filas marcadas.</p>
+      {% if sin_catalogo and opciones_hojas %}
+      <form method="POST" action="{{ url_for('admin_catalogo') }}" id="form_asignar_masivo">
+        <input type="hidden" name="action" value="asignar_masivo">
+        <div class="row g-2 align-items-end mb-3">
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold">Hoja del catálogo para los marcados</label>
+            <select name="subcategoria_catalogo_id" class="form-select" required>
+              <option value="">— Elija —</option>
+              {% for sid, lab in opciones_hojas %}
+              <option value="{{ sid }}">{{ lab }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <button type="submit" class="btn btn-primary w-100">Asignar a marcados</button>
+          </div>
+        </div>
+      </form>
+      <div class="mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="inv_chk_all">Marcar / desmarcar todos</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th style="width:2.5rem"><input type="checkbox" id="inv_master_chk" class="form-check-input" title="Todos" form="form_asignar_masivo"></th>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Texto actual</th>
+              <th>Asignar una fila</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in sin_catalogo %}
+            <tr>
+              <td><input type="checkbox" class="form-check-input inv-prod-chk" name="producto_ids" value="{{ p.id }}" form="form_asignar_masivo"></td>
+              <td><code>{{ p.codigo_barra or '—' }}</code></td>
+              <td>{{ p.nombre }}</td>
+              <td class="small text-muted">{{ p.categoria or '—' }} / {{ p.subcategoria or '—' }}</td>
+              <td>
+                <form method="POST" action="{{ url_for('admin_catalogo') }}" class="d-flex gap-1 flex-wrap align-items-center">
+                  <input type="hidden" name="action" value="asignar_producto">
+                  <input type="hidden" name="producto_id" value="{{ p.id }}">
+                  <select name="subcategoria_catalogo_id" class="form-select form-select-sm" style="min-width:14rem" required>
+                    <option value="">— Hoja —</option>
+                    {% for sid, lab in opciones_hojas %}
+                    <option value="{{ sid }}">{{ lab }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% elif not opciones_hojas %}
+      <p class="text-warning mb-0">No hay hojas en el catálogo. Cree jerarquía arriba o ejecute el importador Excel.</p>
+      {% else %}
+      <p class="text-success mb-0">No hay productos activos pendientes de clasificación (en este listado).</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var m = document.getElementById('inv_master_chk');
+  var btn = document.getElementById('inv_chk_all');
+  function setAll(checked) {
+    document.querySelectorAll('.inv-prod-chk').forEach(function (el) { el.checked = checked; });
+    if (m) m.checked = checked;
+  }
+  if (m) m.addEventListener('change', function () { setAll(m.checked); });
+  if (btn) btn.addEventListener('click', function () {
+    var any = false;
+    document.querySelectorAll('.inv-prod-chk').forEach(function (el) { if (el.checked) any = true; });
+    setAll(!any);
+  });
+})();
+
+(function () {
+  var catSel = document.getElementById('filtro_jerarquia_cat');
+  var famSel = document.getElementById('filtro_jerarquia_fam');
+  var btnClr = document.getElementById('btn_limpiar_filtros_jerarquia');
+  if (!catSel || !famSel) return;
+
+  function getCategoryItems() {
+    return Array.prototype.slice.call(document.querySelectorAll('.jer-cat-item'));
+  }
+
+  function fillFamilyOptions() {
+    var catVal = (catSel.value || '').trim();
+    var fams = {};
+    getCategoryItems().forEach(function (catItem) {
+      if (catVal && catItem.dataset.catId !== catVal) return;
+      catItem.querySelectorAll('.jer-fam-item').forEach(function (f) {
+        var raw = (f.getAttribute('data-fam') || '').trim();
+        if (!raw) return;
+        fams[raw] = true;
+      });
+    });
+    var chosen = (famSel.value || '').trim();
+    famSel.innerHTML = '<option value="">Todas</option>';
+    Object.keys(fams).sort().forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v;
+      o.textContent = v.charAt(0).toUpperCase() + v.slice(1);
+      famSel.appendChild(o);
+    });
+    if (chosen && fams[chosen]) famSel.value = chosen;
+  }
+
+  function applyHierarchyFilters() {
+    var catVal = (catSel.value || '').trim();
+    var famVal = (famSel.value || '').trim().toLowerCase();
+    getCategoryItems().forEach(function (catItem) {
+      var catMatch = !catVal || catItem.dataset.catId === catVal;
+      var visibleFamilies = 0;
+      catItem.querySelectorAll('.jer-fam-item').forEach(function (famItem) {
+        var fam = (famItem.getAttribute('data-fam') || '').trim().toLowerCase();
+        var famMatch = !famVal || fam === famVal;
+        var show = catMatch && famMatch;
+        famItem.style.display = show ? '' : 'none';
+        if (show) visibleFamilies += 1;
+      });
+      catItem.style.display = (catMatch && visibleFamilies > 0) ? '' : 'none';
+    });
+  }
+
+  catSel.addEventListener('change', function () {
+    fillFamilyOptions();
+    applyHierarchyFilters();
+  });
+  famSel.addEventListener('change', applyHierarchyFilters);
+  if (btnClr) {
+    btnClr.addEventListener('click', function () {
+      catSel.value = '';
+      fillFamilyOptions();
+      famSel.value = '';
+      applyHierarchyFilters();
+    });
+  }
+  fillFamilyOptions();
+  applyHierarchyFilters();
+})();
+</script>
+{% endblock %}

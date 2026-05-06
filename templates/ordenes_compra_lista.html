@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-file-contract text-primary me-2"></i>Órdenes de compra</h3>
+      <p class="page-subtitle mb-0">Base para conciliar después con recepciones y facturas de proveedor.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('orden_compra_nueva') }}" class="btn btn-ds-primary btn-sm">Nueva OC</a>
+      <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Recepciones</a>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Número</th>
+            <th>Proveedor</th>
+            <th>Emisión</th>
+            <th>Estado</th>
+            <th class="text-end">Total estimado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in ordenes %}
+          <tr>
+            <td>{{ o.id }}</td>
+            <td class="fw-semibold">{{ o.numero }}</td>
+            <td>{{ o.proveedor.nombre if o.proveedor else '—' }}</td>
+            <td>{{ o.fecha_emision.strftime('%Y-%m-%d') if o.fecha_emision else '—' }}</td>
+            <td><span class="badge bg-secondary">{{ o.estado }}</span></td>
+            <td class="text-end">${{ "{:,.0f}".format(o.total_estimado or 0).replace(",", ".") }}</td>
+            <td class="text-end">
+              <a href="{{ url_for('orden_compra_editar', oid=o.id) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-muted text-center py-4">Sin órdenes. Cree la primera.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

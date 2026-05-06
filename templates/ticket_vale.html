@@ -56,8 +56,8 @@
                 <tr>
                     <td>{{ d.producto.nombre }}</td>
                     <td>{{ d.cantidad }}</td>
-                    <td>${{ "{:,.0f}".format(d.precio_unitario) }}</td>
-                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario) }}</td>
+                    <td>${{ "{:,.0f}".format(d.precio_unitario).replace(",", ".") }}</td>
+                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario).replace(",", ".") }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -86,7 +86,7 @@
         </table>
 
         <div class="total">
-            TOTAL: ${{ "{:,.0f}".format(venta.monto_total) }}
+            TOTAL: ${{ "{:,.0f}".format(venta.monto_total).replace(",", ".") }}
         </div>
 
         <div class="pendiente">

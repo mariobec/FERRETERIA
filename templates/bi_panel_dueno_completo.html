@@ -1,0 +1,839 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .panel-dueno-anchor {
+    scroll-margin-top: 5.5rem;
+  }
+  .demo-ficcion-banner {
+    background: linear-gradient(135deg, rgba(220, 53, 69, .12), rgba(245, 158, 11, .16));
+    border: 1px solid rgba(220, 53, 69, .28);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 1rem;
+  }
+  .panel-dueno-subnav {
+    position: sticky;
+    top: 3.25rem;
+    z-index: 1018;
+    background: rgba(var(--bs-body-bg-rgb, 255,255,255), .92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--ds-border, rgba(0,0,0,.08));
+    padding: .5rem 0;
+    margin-bottom: 1rem;
+  }
+  .panel-dueno-subnav .nav-link {
+    font-size: .8125rem;
+    padding: .35rem .55rem;
+    border-radius: 8px;
+    color: var(--bs-secondary-color);
+  }
+  .panel-dueno-subnav .nav-link:hover {
+    background: rgba(0,0,0,.04);
+    color: inherit;
+  }
+  .narrativa-impacto {
+    border-left: 4px solid var(--bs-danger);
+    background: linear-gradient(90deg, rgba(220,53,69,.06), transparent);
+    padding: 1rem 1.25rem;
+    border-radius: 0 12px 12px 0;
+  }
+  .quote-fuga {
+    font-size: .95rem;
+    line-height: 1.55;
+    color: var(--bs-secondary-color);
+    border-left: 3px solid #f37021;
+    padding-left: 1rem;
+    margin-bottom: 0;
+  }
+  .heat-row {
+    display: flex;
+    align-items: stretch;
+    gap: .75rem;
+    margin-bottom: .6rem;
+    font-size: .8125rem;
+  }
+  .heat-row-zona {
+    flex: 1;
+    min-width: 0;
+  }
+  .heat-bar-wrap {
+    width: 120px;
+    flex-shrink: 0;
+    height: 1.25rem;
+    border-radius: 6px;
+    background: rgba(0,0,0,.06);
+    overflow: hidden;
+  }
+  .heat-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width .4s ease;
+  }
+  .heat-bar-fill.motor {
+    background: linear-gradient(90deg, #198754, #20c997);
+  }
+  .heat-bar-fill.polvo {
+    background: linear-gradient(90deg, #94a3b8, #cbd5e1);
+  }
+  .pitch-hero-clp {
+    background: linear-gradient(135deg, rgba(25, 135, 84, .08), rgba(13, 110, 253, .06));
+    border: 1px solid rgba(25, 135, 84, .2);
+    border-radius: 14px;
+    padding: 1.25rem 1.35rem;
+  }
+  .m2-split-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 140px 140px;
+    gap: .5rem .75rem;
+    align-items: center;
+    font-size: .8125rem;
+    margin-bottom: .55rem;
+  }
+  @media (max-width: 576px) {
+    .m2-split-row { grid-template-columns: 1fr; }
+  }
+  .m2-bar {
+    height: .65rem;
+    border-radius: 6px;
+    background: rgba(0,0,0,.07);
+    overflow: hidden;
+  }
+  .m2-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 6px;
+  }
+  .semi-rojo { background: #dc3545 !important; color: #fff !important; }
+  .semi-amarillo { background: #ffc107 !important; color: #212529 !important; }
+  .semi-verde { background: #198754 !important; color: #fff !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1180px;">
+  <div class="page-header mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h3 class="page-title"><i class="fas fa-heartbeat text-danger me-2"></i>Radar de Salud Patrimonial y Fuga de Capital</h3>
+        <p class="page-subtitle mb-0">
+          Vista pensada para <strong>gerencia</strong>: capital en pasillos, fugas por lista desactualizada y mix por familia de producto, en <strong>pesos chilenos</strong> y montos verosímiles.
+          La historia muestra <strong>{{ pitch_tienda_demo }}</strong>; los datos siguen siendo <strong>simulación</strong> (no leen tu BD). Abajo, enlaces a <strong>tus reportes reales</strong>.
+        </p>
+      </div>
+      <a href="{{ url_for('inicio', from='informes') }}" class="btn btn-outline-secondary btn-sm">Volver al panel</a>
+    </div>
+  </div>
+
+  <div class="demo-ficcion-banner d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="fw-bold text-dark"><i class="fas fa-theater-masks text-danger me-2"></i>Demostración — no usa tu base de datos</div>
+    <div class="small text-dark mb-0 flex-grow-1 px-md-2">
+      Todo este panel superior es <strong>ficción comercial</strong> para reunión de <strong>gerencia</strong>: no lee tu base de datos. Sirve para mostrar
+      <strong>cuánto efectivo puede liberarse</strong> si se corrige stock muerto y precios rezagados.
+    </div>
+    <a href="{{ url_for('business_intelligence', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}" class="btn btn-sm btn-dark fw-bold text-nowrap">Ir a BI real</a>
+  </div>
+
+  <nav class="panel-dueno-subnav mb-3">
+    <div class="d-flex flex-wrap gap-1 justify-content-center justify-content-md-start">
+      <a class="nav-link" href="#sec-impacto-clp"><i class="fas fa-coins text-success me-1"></i>Impacto CLP</a>
+      <a class="nav-link" href="#sec-durmiente"><i class="fas fa-moon text-secondary me-1"></i>Dinero durmiente</a>
+      <a class="nav-link" href="#sec-semaforo"><i class="fas fa-exclamation-circle text-danger me-1"></i>Semáforo</a>
+      <a class="nav-link" href="#sec-propuesta"><i class="fas fa-chart-area text-info me-1"></i>m² + ERP</a>
+      <a class="nav-link" href="#sec-patrimonio"><i class="fas fa-droplet text-danger me-1"></i>Capital inventario</a>
+      <a class="nav-link" href="#sec-diagnostico"><i class="fas fa-stethoscope text-primary me-1"></i>Diagnóstico</a>
+      <a class="nav-link" href="#sec-tendencias"><i class="fas fa-chart-line text-secondary me-1"></i>Tendencias</a>
+      <a class="nav-link" href="#sec-radar"><i class="fas fa-bullseye text-info me-1"></i>Radar</a>
+      <a class="nav-link" href="#sec-operacion"><i class="fas fa-database text-success me-1"></i>Tu operación</a>
+    </div>
+  </nav>
+
+  <!-- Ejemplo tipo dashboard gerencial que ordena la conversación en sala (CLP) -->
+  <section id="sec-impacto-clp" class="panel-dueno-anchor mb-4">
+    <div class="pitch-hero-clp mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+        <div>
+          <h4 class="h5 fw-bold mb-1"><i class="fas fa-store text-success me-2"></i>Estado de salud · {{ pitch_tienda_demo }}</h4>
+          <p class="small text-muted mb-0">Ejemplo de lo primero que vería <strong>gerencia</strong> al abrir el tablero: <strong>capital atrapado</strong>, fugas y focos accionables.</p>
+        </div>
+      </div>
+      <div class="row g-2 g-md-3">
+        <div class="col-md-6 col-xl-3">
+          <div class="rounded-3 bg-white bg-opacity-75 border border-success border-opacity-25 p-3 h-100">
+            <small class="text-muted">Efectivo en estantes (valor costo total · CLP)</small>
+            <div class="fs-5 fw-bold text-success">${{ "{:,.0f}".format(pitch_efectivo_estantes_clp).replace(",", ".") }}</div>
+          </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+          <div class="rounded-3 bg-white bg-opacity-75 border border-danger border-opacity-25 p-3 h-100">
+            <small class="text-muted">Fuga por inflación (este mes, ejemplo)</small>
+            <div class="fs-5 fw-bold text-danger">-${{ "{:,.0f}".format(pitch_fuga_inflacion_mes_clp).replace(",", ".") }}</div>
+            <small class="text-muted">Por no alinear precios al último costo.</small>
+          </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+          <div class="rounded-3 bg-white bg-opacity-75 border border-primary border-opacity-25 p-3 h-100">
+            <small class="text-muted">Tu «vaca lechera»</small>
+            <div class="small fw-semibold">{{ pitch_vaca_categoria }}</div>
+            <div class="fw-bold text-primary">${{ "{:,.0f}".format(pitch_vaca_utilidad_limpia_clp).replace(",", ".") }}</div>
+            <small class="text-muted">Utilidad limpia este mes (ej.).</small>
+          </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+          <div class="rounded-3 bg-white bg-opacity-75 border border-warning border-opacity-35 p-3 h-100">
+            <small class="text-muted">Tu «ancla»</small>
+            <div class="small fw-semibold">{{ pitch_ancla_producto }}</div>
+            <div class="fw-bold">{{ pitch_ancla_meses_cobertura }} meses de cobertura</div>
+            <small class="text-muted">No compres más por ahora (ejemplo).</small>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="small text-muted mb-0">
+      La operación mueve mucho volumen pero <strong>gerencia</strong> no siempre ve el efectivo: parte del dinero queda en las <strong>paredes del local</strong>. Este layout traduce inventario en <strong>decisión</strong>.
+      · Ancla demo <code>#sec-impacto-clp</code>
+    </p>
+  </section>
+
+  <section id="sec-durmiente" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-2"><span class="text-secondary me-1">●</span> Índice de dinero durmiente · capital inmovilizado</h4>
+    <p class="small mb-3">El sistema identifica SKU sin rotación (ej. &gt; 6 meses). En vez de «stock lento», hablamos de <strong>flujo recuperable</strong> si liquidás con un descuento calculado.</p>
+    {% for fila in ultra_dinero_durmiente_filas %}
+    <div class="card card-ds border-secondary border-opacity-25 mb-3">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+          <div class="fw-bold">{{ fila.zona }}</div>
+          <span class="badge bg-secondary bg-opacity-15 text-secondary">{{ fila.regla }}</span>
+        </div>
+        <div class="row g-2">
+          <div class="col-sm-4">
+            <small class="text-muted">Capital «juntando polvo»</small>
+            <div class="fw-bold text-dark">${{ "{:,.0f}".format(fila.capital_polvo_clp).replace(",", ".") }}</div>
+          </div>
+          <div class="col-sm-4">
+            <small class="text-muted">Liquidación sugerida (ejemplo)</small>
+            <div class="fw-bold">{{ fila.dto_sugerido_pct }}% dto.</div>
+          </div>
+          <div class="col-sm-4">
+            <small class="text-muted">Flujo de caja recuperable ya</small>
+            <div class="fw-bold text-success">${{ "{:,.0f}".format(fila.flujo_si_liquidas_clp).replace(",", ".") }}</div>
+          </div>
+        </div>
+        <p class="small text-muted mt-2 mb-0"><i class="fas fa-lightbulb text-warning me-1"></i>{{ fila.porque_clic }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <!-- Resumen patrimonial en CLP (misma simulación, vista ejecutiva) -->
+  <section id="sec-patrimonio" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-2"><span class="text-danger me-1">●</span> Impacto en inventario · muestra {{ ultra_sku_muestra }} SKU</h4>
+    <div class="narrativa-impacto mb-4">
+      <p class="mb-2 fw-semibold text-dark"><strong>Gerencia</strong> no necesita más filas sueltas en Excel: necesita ver <em>dónde se pierde margen</em> y cuánto capital está <em>dormido</em> en pasillos.</p>
+      <p class="small mb-0 text-muted">Este bloque resume el tipo de historia que el tablero debe contar antes de bajar al detalle operativo.</p>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <div class="card card-ds h-100 border-danger border-opacity-25 shadow-sm">
+          <div class="card-body">
+            <small class="text-muted text-uppercase fw-bold">Inventario a costo (pasillo + bodega)</small>
+            <h4 class="fw-bold mb-1 text-danger">${{ "{:,.0f}".format(ultra_activos_estanteria_clp).replace(",", ".") }}</h4>
+            <p class="small mb-0"><strong>~{{ (ultra_activos_estanteria_clp / 1000000)|round(1) }} millones CLP</strong> contabilizados a costo: una parte sirve de motor y otra es <strong>capital dormido</strong> hasta que la vendás al precio correcto.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card card-ds h-100 border-warning border-opacity-50 shadow-sm">
+          <div class="card-body">
+            <small class="text-muted text-uppercase fw-bold">Alerta · ventas a pérdida</small>
+            <h4 class="fw-bold mb-1">{{ ultra_refs_perdida }} referencias</h4>
+            <p class="small mb-0">Se estarían vendiendo <strong>hoy por debajo del costo de reposición</strong> (efecto inflación / costos desactualizados).</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card card-ds h-100 border-dark border-opacity-10 shadow-sm">
+          <div class="card-body">
+            <small class="text-muted text-uppercase fw-bold">Fuga proyectada (~90 días, ej.)</small>
+            <h4 class="fw-bold mb-1">${{ "{:,.0f}".format(ultra_fuga_proyectada_clp).replace(",", ".") }}</h4>
+            <p class="small mb-0">Si no alineás ventas al <strong>último costo</strong>, el margen se «come» en reposiciones; el número ordena magnitud para reunión con gerencia.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-ds border-warning border-opacity-35 mb-0">
+      <div class="card-body">
+        <h6 class="fw-bold"><i class="fas fa-comment-dollar text-warning me-2"></i>Mensaje de impacto (storytelling)</h6>
+        <blockquote class="quote-fuga mb-3">
+          Por cada bolsa de cemento (≈25 kg) que vendés a <strong>${{ "{:,.0f}".format(ultra_cemento_precio_venta_clp).replace(",", ".") }}</strong>,
+          la próxima compra te puede quedar en <strong>${{ "{:,.0f}".format(ultra_cemento_costo_reposicion_clp).replace(",", ".") }}</strong> según lista proveedor.
+          No estás ganando dinero: estás <strong>achicando la ferretería</strong> con cada venta a pérdida.
+        </blockquote>
+        <p class="small text-muted mb-0">
+          Ancla histórica: antes <code>/bi/demo/dueno</code> · <code>#sec-patrimonio</code>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-diagnostico" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-3"><span class="text-primary me-1">●</span> Diagnóstico de rentabilidad crítica</h4>
+    <p class="small text-muted mb-3">
+      Ranking ilustrativo: <strong>% de utilidad real</strong> atribuible vs <strong>% del inventario</strong> que ocupa cada familia (demo).
+    </p>
+    <div class="card card-ds mb-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Categoría</th>
+              <th class="text-end">% utilidad real (ej.)</th>
+              <th class="text-end">% inventario (ej.)</th>
+              <th>Diagnóstico narrativo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in ultra_ranking_rentabilidad %}
+            <tr>
+              <td class="fw-semibold">{{ row.cat }}</td>
+              <td class="text-end font-monospace {% if row.pct_utilidad_real < 0 %}text-danger{% elif row.pct_utilidad_real >= 25 %}text-success{% endif %}">
+                {{ "{:+.0f}".format(row.pct_utilidad_real) }}%
+              </td>
+              <td class="text-end font-monospace">{{ "{:.0f}".format(row.pct_inventario) }}%</td>
+              <td class="small text-muted">{{ row.diag }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-semaforo" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-3"><span class="text-danger me-1">●</span> Semáforo de reposición peligrosa</h4>
+    <p class="small mb-3">
+      Chile: acero, PVC, madera cambian rápido. Comparás <strong>costo antiguo</strong> vs <strong>última factura</strong> vs <strong>precio de venta hoy</strong>.
+      Marcamos en rojo cuando el margen sobre el <em>costo de hoy</em> cae bajo <strong>{{ ultra_semaforo_umbral_margen_pct }}%</strong> o es negativo (ejemplo).
+    </p>
+    <div class="card card-ds border-danger border-opacity-25 mb-3">
+      <div class="card-body py-3">
+        <h6 class="fw-bold text-danger mb-2"><i class="fas fa-exclamation-triangle me-2"></i>La frase que cierra la venta</h6>
+        <p class="mb-0 fw-semibold">
+          «Cuidado: estás vendiendo el <strong>codo PVC celeste 40 mm</strong> a <strong>${{ "{:,.0f}".format(ultra_semaforo_filas[0].pv).replace(",", ".") }}</strong>,
+          pero mañana la reposición te sale <strong>${{ "{:,.0f}".format(ultra_semaforo_filas[0].costo_ultimo).replace(",", ".") }}</strong>.
+          Perdés <strong>${{ "{:,.0f}".format(ultra_semaforo_filas[0].costo_ultimo - ultra_semaforo_filas[0].pv).replace(",", ".") }}</strong> por cada unidad aunque la caja «cale».»
+        </p>
+      </div>
+    </div>
+    <div class="card card-ds mb-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Referencia (ej.)</th>
+              <th class="text-end">Costo compra antiguo</th>
+              <th class="text-end">Última factura</th>
+              <th class="text-end">P.V. actual</th>
+              <th class="text-end">Margen vs costo hoy</th>
+              <th class="text-center">Semáforo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in ultra_semaforo_filas %}
+            <tr class="{% if r.estado == 'rojo' %}table-danger{% elif r.estado == 'amarillo' %}table-warning{% endif %}">
+              <td class="fw-semibold">{{ r.ref }}</td>
+              <td class="text-end font-monospace">${{ "{:,.0f}".format(r.costo_ant).replace(",", ".") }}</td>
+              <td class="text-end font-monospace">${{ "{:,.0f}".format(r.costo_ultimo).replace(",", ".") }}</td>
+              <td class="text-end font-monospace">${{ "{:,.0f}".format(r.pv).replace(",", ".") }}</td>
+              <td class="text-end font-monospace {% if r.margen_sobre_costo_hoy_pct < ultra_semaforo_umbral_margen_pct %}text-danger fw-bold{% elif r.margen_sobre_costo_hoy_pct >= ultra_semaforo_umbral_margen_pct %}text-success{% endif %}">
+                {{ "{:+.1f}".format(r.margen_sobre_costo_hoy_pct) }}%
+              </td>
+              <td class="text-center">
+                {% if r.estado == 'rojo' %}
+                <span class="badge semi-rojo">Peligro</span>
+                {% elif r.estado == 'amarillo' %}
+                <span class="badge semi-amarillo">Alerta</span>
+                {% else %}
+                <span class="badge semi-verde">OK</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer small text-muted border-top-0 bg-transparent pt-0">
+        Umbrales de ejemplo; producto real usaría último costo por proveedor y política de margen mínimo por familia.
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-propuesta" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-3"><span class="text-warning me-1">●</span> Propuesta de valor · lo que hace «Ultra Premium» al ERP</h4>
+    <p class="small text-muted mb-3">Automatizar la corrección: de la historia a la acción (en demo se muestran enlaces a lo que ya tenés; el botón mágico de sync masivo puede ser roadmap).</p>
+
+    <div class="row g-3 mb-3">
+      <div class="col-lg-4">
+        <div class="card card-ds h-100 border-warning border-opacity-50">
+          <div class="card-body d-flex flex-column">
+            <h5 class="fw-bold"><i class="fas fa-sync-alt text-warning me-2"></i>Sincronización de márgenes</h5>
+            <p class="small text-muted flex-grow-1">Un clic para recalcular precios desde la <strong>última factura de compra</strong> (no del costo promedio viejo). Mensaje a <strong>gerencia</strong>: «El ERP cierra la fuga».</p>
+            {% if usuario_tiene_permiso('panel_gerencia') %}
+            <a href="{{ url_for('simulador_margen', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}" class="btn btn-warning btn-sm fw-semibold text-dark mt-auto">Simular impacto en margen</a>
+            {% else %}
+            <span class="badge bg-secondary align-self-start">Requiere panel gerencia</span>
+            {% endif %}
+            <span class="small text-muted mt-2 mb-0">Ajuste masivo desde compras: roadmap / integración futura.</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card card-ds h-100 border-primary border-opacity-35">
+          <div class="card-body d-flex flex-column">
+            <h5 class="fw-bold"><i class="fas fa-hourglass-half text-primary me-2"></i>Días de inventario</h5>
+            <p class="small text-muted">Mostrar excesos absurdos vs quiebres: tornillería para años vs <strong>cero taladros</strong>.</p>
+            <ul class="small mb-3 ps-3 flex-grow-1">
+              {% for d in ultra_dias_inventario %}
+              <li>
+                <strong>{{ d.familia }}</strong> · {{ d.dias }} días
+                {% if d.estado == 'exceso' %}<span class="badge bg-danger bg-opacity-75">exceso</span>
+                {% elif d.estado == 'quiebre' %}<span class="badge bg-dark">quiebre</span>
+                {% elif d.estado == 'tension' %}<span class="badge bg-warning text-dark">tensión</span>
+                {% else %}<span class="badge bg-secondary">alerta</span>{% endif %}
+                — {{ d.nota }}
+              </li>
+              {% endfor %}
+            </ul>
+            <a href="{{ url_for('stock_critico') }}" class="btn btn-outline-primary btn-sm">Ver stock crítico (real)</a>
+            {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_salud %}
+            <a href="{{ url_for('inventario_salud') }}" class="btn btn-outline-secondary btn-sm mt-1">Salud de inventario</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card card-ds h-100 border-info border-opacity-40">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-fire text-info me-2"></i>Calor por pasillo (actividad)</h5>
+            <p class="small text-muted mb-3">Intensidad de giro percibida: qué pasillo mueve caja y cuál guarda <strong>polvo</strong> (demo).</p>
+            {% for z in ultra_mapa_calor_pasillos %}
+            <div class="heat-row">
+              <div class="heat-row-zona">
+                <div class="fw-semibold text-truncate" title="{{ z.nombre }}">{{ z.nombre }}</div>
+                <span class="badge {% if z.rol == 'motor' %}bg-success{% else %}bg-secondary{% endif %} bg-opacity-25 {% if z.rol == 'motor' %}text-success{% else %}text-secondary{% endif %}">
+                  {% if z.rol == 'motor' %}Motor{% else %}Polvo{% endif %}
+                </span>
+              </div>
+              <div class="heat-bar-wrap" title="Intensidad {{ z.intensidad }}%">
+                <div class="heat-bar-fill {% if z.rol == 'motor' %}motor{% else %}polvo{% endif %}" style="width: {{ z.intensidad }}%;"></div>
+              </div>
+            </div>
+            {% endfor %}
+            <p class="small text-muted mb-0 mt-2">Complemento al cuadro de <strong>rentabilidad por m²</strong> debajo (VIP vs parásito).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sec-m2-rentabilidad" class="row g-3 mb-0">
+      <div class="col-lg-8">
+        <div class="card card-ds border-success border-opacity-25 h-100">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-chart-area text-success me-2"></i>Mapa de calor · rentabilidad por metro cuadrado</h5>
+            <p class="small text-muted mb-3">
+              La ferretería se siente caótica; acá se ve qué franja del local <strong>mantienen las cuentas</strong> y cuál es <strong>parásita</strong> tras gastos de mover volumen (ejemplo).
+            </p>
+            <div class="m2-split-row fw-semibold text-muted d-none d-md-grid">
+              <span>Zona</span>
+              <span class="text-end">% superficie</span>
+              <span class="text-end">% utilidad neta atrib.</span>
+            </div>
+            {% for z in ultra_m2_zonas %}
+            <div class="m2-split-row">
+              <div>
+                <div class="fw-semibold">{{ z.nombre }}</div>
+                <span class="badge {% if z.rol == 'vip' %}bg-success{% elif z.rol == 'parasito' %}bg-danger{% elif z.rol == 'motor' %}bg-primary{% else %}bg-secondary{% endif %} bg-opacity-15 {% if z.rol == 'vip' %}text-success{% elif z.rol == 'parasito' %}text-danger{% endif %}">
+                  {% if z.rol == 'vip' %}Zona VIP{% elif z.rol == 'parasito' %}Zona parásito{% elif z.rol == 'motor' %}Motor{% else %}Mixto{% endif %}
+                </span>
+                <div class="small text-muted">{{ z.nota }}</div>
+              </div>
+              <div class="text-md-end">
+                <div class="small text-muted d-md-none">% superficie</div>
+                <div class="m2-bar mb-1"><span style="width: {{ z.pct_m2 }}%; background: linear-gradient(90deg,#0d6efd,#6ea8fe);"></span></div>
+                <span class="font-monospace">{{ z.pct_m2 }}%</span>
+              </div>
+              <div class="text-md-end">
+                <div class="small text-muted d-md-none">% utilidad</div>
+                <div class="m2-bar mb-1"><span style="width: {{ [z.pct_utilidad * 2, 100] | min }}%; background: linear-gradient(90deg,#198754,#20c997);"></span></div>
+                <span class="font-monospace">{{ z.pct_utilidad }}%</span>
+              </div>
+            </div>
+            {% endfor %}
+            <p class="small text-muted mb-0 mt-3">
+              Pregunta para <strong>gerencia</strong>: ¿seguimos cargando fierro y cemento o enfocamos terminaciones y herramientas de marca donde el margen paga el arriendo?
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card card-ds h-100 border-dark border-opacity-10 bg-light">
+          <div class="card-body d-flex flex-column">
+            <h5 class="fw-bold"><i class="fas fa-bell text-success me-2"></i>Alertas por WhatsApp (roadmap)</h5>
+            <p class="small flex-grow-1">{{ pitch_whatsapp_roadmap }}</p>
+            <p class="small text-muted mb-0">Base técnica: último costo por proveedor en el ERP + política de margen; el canal WhatsApp es disparador, no la fuente de verdad.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Complemento: series ficticias tipo ferretería (CLP en gráficos legacy) -->
+  <section id="sec-tendencias" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-3"><span class="text-secondary me-1">●</span> Tendencias comerciales (demo complementaria)</h4>
+    <p class="small text-muted mb-3">
+      Período ilustrativo <strong>{{ fecha_ini_ej }}</strong> → <strong>{{ fecha_fin_ej }}</strong> · serie diaria en pesos chilenos ficticios para la curva (coherente con el resto del demo).
+    </p>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-3">
+        <div class="card card-ds h-100 border-warning border-opacity-25">
+          <div class="card-body">
+            <small class="text-muted">Ventas cobradas (ejemplo)</small>
+            <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(total_cobrado).replace(",", ".") }}</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card card-ds h-100">
+          <div class="card-body">
+            <small class="text-muted">Tickets (ejemplo)</small>
+            <h4 class="fw-bold mb-0">{{ n_docs }}</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card card-ds h-100">
+          <div class="card-body">
+            <small class="text-muted">Ticket promedio (ejemplo)</small>
+            <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ticket_promedio).replace(",", ".") }}</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card card-ds h-100">
+          <div class="card-body">
+            <small class="text-muted">Crédito facturado (ejemplo)</small>
+            <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(credito_monto).replace(",", ".") }}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-7">
+        <div class="card card-ds h-100">
+          <div class="card-header bg-white fw-bold">Tendencia diaria (serie ficticia — últimos 14 días)</div>
+          <div class="card-body"><canvas id="chartDuenoLinea" height="110"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="card card-ds h-100">
+          <div class="card-header bg-white fw-bold">Participación por categoría (ejemplo)</div>
+          <div class="card-body"><canvas id="chartDuenoDonut" height="200"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-ds mb-0">
+      <div class="card-header bg-white fw-bold">Productos destacados (descripciones ficticias)</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr><th>Producto</th><th class="text-end">Subtotal ilustrativo</th></tr>
+          </thead>
+          <tbody>
+            {% for nombre, sub in top_prod %}
+            <tr>
+              <td>{{ nombre }}</td>
+              <td class="text-end font-monospace">${{ "{:,.0f}".format(sub or 0).replace(",", ".") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-radar" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-3"><span class="text-info me-1">●</span> Radar de mercado (ejemplo)</h4>
+    <p class="small text-muted mb-3">
+      Actual ficticio <strong>{{ fecha_act_ini }}</strong> → <strong>{{ fecha_act_fin }}</strong>
+      vs anterior ficticio <strong>{{ fecha_ant_ini }}</strong> → <strong>{{ fecha_ant_fin }}</strong>
+      <span class="text-muted">· <code>#sec-radar</code> · antes <code>/bi/demo/radar-mercado</code></span>
+    </p>
+
+    <div class="alert alert-light border mb-3 small">
+      Variación total ilustrativa entre períodos de ejemplo:
+      {% if var_total_pct is not none %}
+      <strong class="{% if var_total_pct < 0 %}text-danger{% else %}text-success{% endif %}">{{ "{:+.1f}".format(var_total_pct) }}%</strong>
+      {% endif %}
+      sobre montos ficticios tipo ferretería.
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-lg-5">
+        <div class="card card-ds h-100">
+          <div class="card-header bg-white fw-bold">Mix «actual» (ejemplo)</div>
+          <div class="card-body"><canvas id="chartRadarPie" height="220"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="card card-ds h-100">
+          <div class="card-header bg-white fw-bold">Variación % vs período anterior (ejemplo)</div>
+          <div class="card-body"><canvas id="chartRadarBar" height="220"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-ds mb-0">
+      <div class="card-header bg-white fw-bold">Tabla ilustrativa</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Categoría</th>
+              <th class="text-end">Actual (ej.)</th>
+              <th class="text-end">Anterior (ej.)</th>
+              <th class="text-end">Δ %</th>
+              <th class="text-end">% mix actual</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in radar_filas %}
+            <tr>
+              <td>{{ r.cat }}</td>
+              <td class="text-end font-monospace">${{ "{:,.0f}".format(r.actual).replace(",", ".") }}</td>
+              <td class="text-end font-monospace text-muted">${{ "{:,.0f}".format(r.anterior).replace(",", ".") }}</td>
+              <td class="text-end font-monospace">
+                {% if r.var_pct is none %}
+                <span class="badge bg-secondary">nuevo</span>
+                {% else %}
+                <span class="{% if r.var_pct < 0 %}text-danger{% elif r.var_pct > 0 %}text-success{% endif %}">{{ "{:+.1f}".format(r.var_pct) }}%</span>
+                {% endif %}
+              </td>
+              <td class="text-end font-monospace">{{ "{:.1f}".format(r.share_pct) }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="sec-operacion" class="panel-dueno-anchor mb-4">
+    <h4 class="h6 fw-bold text-uppercase text-muted mb-3"><span class="text-primary me-1">●</span> Tu operación (datos reales)</h4>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card card-ds h-100 border-primary border-opacity-25">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-chart-line text-primary me-2"></i>BI Reportes (premium)</h5>
+            <p class="small text-muted mb-3">KPIs, tendencias, medios de pago, top productos, ABC, mix categoría × pago, picos hora/día.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a href="{{ url_for('business_intelligence', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}" class="btn btn-primary btn-sm">Últimos 30 días</a>
+              <a href="{{ url_for('business_intelligence', fecha_inicio=hace_7_str, fecha_fin=hoy_str) }}" class="btn btn-outline-primary btn-sm">Últimos 7 días</a>
+              <a href="{{ url_for('business_intelligence', fecha_inicio=hoy_str, fecha_fin=hoy_str) }}" class="btn btn-outline-secondary btn-sm">Hoy</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-ds h-100">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-file-csv text-success me-2"></i>Exportar datos</h5>
+            <p class="small text-muted mb-3">CSV de ventas del período.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a href="{{ url_for('export_bi_csv', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}" class="btn btn-outline-success btn-sm"><i class="fas fa-download me-1"></i>CSV 30 días</a>
+              <a href="{{ url_for('export_bi_csv', fecha_inicio=hace_7_str, fecha_fin=hoy_str) }}" class="btn btn-outline-success btn-sm"><i class="fas fa-download me-1"></i>CSV 7 días</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      {% if usuario_tiene_permiso('panel_gerencia') %}
+      <div class="col-md-6">
+        <div class="card card-ds h-100 border-warning border-opacity-35">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-flask text-warning me-2"></i>Simulador de margen</h5>
+            <p class="small text-muted mb-3">Impacto en margen bruto ante cambios % en precio y costo (histórico <strong>Pagado</strong>).</p>
+            <a href="{{ url_for('simulador_margen', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}" class="btn btn-outline-warning btn-sm fw-semibold">Abrir simulador</a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      <div class="col-md-6">
+        <div class="card card-ds h-100">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-shopping-cart text-secondary me-2"></i>Ventas y operación</h5>
+            <ul class="small mb-0 ps-3">
+              <li><a href="{{ url_for('mostrar_ventas') }}">Historial de ventas</a></li>
+              <li><a href="{{ url_for('modulo_creditos') }}">Créditos y cartolas</a></li>
+              <li><a href="{{ url_for('movimiento_caja') }}">Movimientos de caja</a></li>
+              <li><a href="{{ url_for('caja_pendientes') }}">Vales pendientes de cobro</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+      <div class="col-md-6">
+        <div class="card card-ds h-100">
+          <div class="card-body">
+            <h5 class="fw-bold"><i class="fas fa-boxes-stacked text-info me-2"></i>Inventario y compras</h5>
+            <ul class="small mb-0 ps-3">
+              <li><a href="{{ url_for('stock_critico') }}">Stock crítico</a></li>
+              <li><a href="{{ url_for('kardex') }}">Kardex</a></li>
+              {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_salud %}
+              <li><a href="{{ url_for('inventario_salud') }}">Salud del inventario</a></li>
+              {% endif %}
+              {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_enrolamiento %}
+              <li><a href="{{ url_for('inventario_enrolamiento') }}">Enrolamiento</a></li>
+              {% endif %}
+              <li><a href="{{ url_for('lista_ordenes_compra') }}">Órdenes de compra</a></li>
+              <li><a href="{{ url_for('ia_abastecimiento') }}">IA abastecimiento</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-ds h-100 bg-light">
+          <div class="card-body">
+            <h6 class="fw-bold text-muted"><i class="fas fa-key me-2"></i>Permisos</h6>
+            <p class="small mb-0">
+              Esta página requiere <code>panel_gerencia</code> o <code>gestionar_usuarios</code>.
+              El simulador además exige <code>panel_gerencia</code>.
+              Si falta algo en el menú, revisá <strong>Mantenedores → Roles y permisos</strong>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+  (function () {
+    const fmtCLP = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+
+    const labels = {{ labels_dias | tojson }};
+    const datos = {{ data_dias | tojson }};
+    const catLab = {{ cat_labels | tojson }};
+    const catDat = {{ cat_data | tojson }};
+
+    const el = document.getElementById('chartDuenoLinea');
+    if (el && typeof Chart !== 'undefined') {
+      new Chart(el, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Cobrado (ejemplo)',
+            data: datos,
+            borderColor: '#f37021',
+            backgroundColor: 'rgba(243, 112, 33, 0.15)',
+            tension: 0.25,
+            fill: true,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { ticks: { callback: (v) => fmtCLP(v) } } },
+        },
+      });
+    }
+    const d2 = document.getElementById('chartDuenoDonut');
+    if (d2 && typeof Chart !== 'undefined' && catLab.length) {
+      new Chart(d2, {
+        type: 'doughnut',
+        data: {
+          labels: catLab,
+          datasets: [{ data: catDat, backgroundColor: ['#f37021', '#0ea5e9', '#22c55e', '#8b5cf6', '#f59e0b', '#64748b', '#94a3b8'] }],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: (c) => `${c.label}: ${fmtCLP(c.parsed)}` } },
+          },
+        },
+      });
+    }
+
+    const pieLabels = {{ pie_labels | tojson }};
+    const pieData = {{ pie_data | tojson }};
+    const filas = {{ radar_filas | tojson }};
+
+    const p = document.getElementById('chartRadarPie');
+    if (p && typeof Chart !== 'undefined' && pieLabels.length) {
+      new Chart(p, {
+        type: 'pie',
+        data: {
+          labels: pieLabels,
+          datasets: [{ data: pieData, backgroundColor: ['#0ea5e9', '#22c55e', '#f37021', '#8b5cf6', '#f59e0b', '#64748b', '#ec4899'] }],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: (c) => `${c.label}: ${fmtCLP(c.parsed)}` } },
+          },
+        },
+      });
+    }
+
+    const barLab = filas.map((x) => x.cat);
+    const barVar = filas.map((x) => (x.var_pct === null ? null : x.var_pct));
+    const b = document.getElementById('chartRadarBar');
+    if (b && typeof Chart !== 'undefined' && barLab.length) {
+      new Chart(b, {
+        type: 'bar',
+        data: {
+          labels: barLab,
+          datasets: [{
+            label: 'Variación % (ejemplo)',
+            data: barVar,
+            backgroundColor: barVar.map((v) => (v === null ? 'rgba(100,116,139,0.35)' : v < 0 ? 'rgba(220, 53, 69, 0.55)' : 'rgba(25, 135, 84, 0.45)')),
+            borderColor: barVar.map((v) => (v === null ? '#64748b' : v < 0 ? '#dc3545' : '#198754')),
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (c) => {
+                  const v = filas[c.dataIndex];
+                  const pct = v.var_pct === null ? 'nuevo' : `${v.var_pct.toFixed(1)}%`;
+                  return `${pct} · ej. ${fmtCLP(v.actual)} vs ${fmtCLP(v.anterior)}`;
+                },
+              },
+            },
+          },
+          scales: { x: { ticks: { maxRotation: 45, minRotation: 35 } } },
+        },
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -26,6 +26,9 @@
                             <p class="mb-1 small text-uppercase fw-bold">Deuda Actual</p>
                             <h2 class="fw-bold mb-0 text-dark" id="display-saldo">$ 0</h2>
                         </div>
+                        <a id="btn-cartola-cliente" href="#" class="btn btn-outline-dark w-100 rounded-pill mb-3 d-none">
+                            <i class="fas fa-file-invoice me-2"></i>Ver cartola / estado de cuenta
+                        </a>
 
                         <form action="{{ url_for('registrar_abono') }}" method="POST">
                             <input type="hidden" name="cliente_id" id="input-cliente-id">
@@ -71,6 +74,7 @@
                                 <th>Monto</th>
                                 <th>Saldo Resultante</th>
                                 <th class="text-center">Ticket</th>
+                                <th class="text-center">Cartola</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -78,11 +82,16 @@
                             <tr>
                                 <td class="ps-4"><strong>{{ a.cliente.nombre }}</strong></td>
                                 <td class="small">{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td class="text-success fw-bold">$ {{ "{:,.0f}".format(a.monto_abono) }}</td>
-                                <td class="text-muted small">$ {{ "{:,.0f}".format(a.nuevo_saldo) }}</td>
+                                <td class="text-success fw-bold">$ {{ "{:,.0f}".format(a.monto_abono).replace(",", ".") }}</td>
+                                <td class="text-muted small">$ {{ "{:,.0f}".format(a.nuevo_saldo).replace(",", ".") }}</td>
                                 <td class="text-center">
                                     <a href="{{ url_for('ver_ticket_abono', id=a.id) }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Ver / imprimir comprobante">
                                         <i class="fas fa-print"></i>
+                                    </a>
+                                </td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('estado_cuenta_credito', cliente_id=a.cliente_id) }}" class="btn btn-sm btn-outline-primary" title="Ver estado de cuenta">
+                                        <i class="fas fa-list-alt"></i>
                                     </a>
                                 </td>
                             </tr>
@@ -105,13 +114,16 @@ $(document).ready(function() {
         const selected = $(this).find(':selected');
         const saldo = selected.data('saldo');
         const id = $(this).val();
+        const btnCartola = $('#btn-cartola-cliente');
 
         if (id) {
             $('#area-pago').removeClass('d-none');
             $('#display-saldo').text('$ ' + new Intl.NumberFormat('es-CL').format(saldo));
             $('#input-cliente-id').val(id);
+            btnCartola.attr('href', '/creditos/estado_cuenta/' + id).removeClass('d-none');
         } else {
             $('#area-pago').addClass('d-none');
+            btnCartola.addClass('d-none').attr('href', '#');
         }
     });
 });

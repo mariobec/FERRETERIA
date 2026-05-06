@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    .logout-caja-card {
+        max-width: 560px;
+        margin: 24px auto;
+        border-radius: 16px;
+        border: 1px solid var(--ds-border);
+        box-shadow: var(--ds-shadow-md);
+        overflow: hidden;
+    }
+    .logout-caja-head {
+        background: linear-gradient(135deg, #212529 0%, #343a40 100%);
+        color: #fff;
+        padding: 22px;
+        text-align: center;
+    }
+    .logout-caja-body { padding: 1.5rem 1.75rem 1.75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="logout-caja-card bg-white">
+    <div class="logout-caja-head">
+        <h4 class="fw-bold m-0"><i class="fas fa-cash-register me-2"></i>Caja abierta</h4>
+        <p class="small mb-0 mt-2 opacity-75">Caja N°{{ caja.id }} — aún no cerrada</p>
+    </div>
+    <div class="logout-caja-body">
+        <p class="mb-3">
+            Tiene la <strong>caja abierta</strong>. Lo recomendable es <strong>cerrar la caja</strong> antes de salir del sistema para cuadrar el turno.
+        </p>
+        <div class="d-grid gap-2">
+            <a href="{{ url_for('cerrar_caja') }}" class="btn btn-primary btn-lg">
+                <i class="fas fa-door-closed me-2"></i>Ir a cerrar caja
+            </a>
+            <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver al inicio
+            </a>
+            <form action="{{ url_for('logout_forzar') }}" method="post" class="mt-1">
+                <button type="submit" class="btn btn-outline-danger w-100">
+                    <i class="fas fa-sign-out-alt me-2"></i>Cerrar sesión de todas formas
+                </button>
+            </form>
+        </div>
+        <p class="small text-muted mt-3 mb-0">
+            Si cierra sesión sin cerrar la caja, la caja seguirá figurando como abierta hasta que un usuario autorizado la cierre.
+        </p>
+    </div>
+</div>
+{% endblock %}

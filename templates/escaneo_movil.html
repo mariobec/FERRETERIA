@@ -22,7 +22,7 @@
 </div>
 
 <!-- Librería del Escáner -->
-<script src="https://unpkg.com"></script>
+<script src="{{ url_for('static', filename='vendor/html5-qrcode/html5-qrcode.min.js') }}"></script>
 
 <script>
     const html5QrCode = new Html5Qrcode("reader");

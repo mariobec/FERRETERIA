@@ -89,6 +89,73 @@ html, body {
     border-left-color: var(--ds-primary);
 }
 
+/* Grupo colapsable del menú (p. ej. Mantenedores) */
+.app-nav-group {
+    border: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.app-nav-group > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #e2e8f0 !important;
+    text-decoration: none;
+    padding: 11px 20px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.app-nav-group > summary::-webkit-details-marker {
+    display: none;
+}
+
+.app-nav-group > summary > i:first-child {
+    width: 1.1rem;
+    text-align: center;
+    opacity: 0.9;
+}
+
+.app-nav-group > summary::after {
+    content: "\f078";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 0.65rem;
+    margin-left: auto;
+    opacity: 0.75;
+}
+
+.app-nav-group[open] > summary::after {
+    content: "\f077";
+}
+
+.app-nav-group > summary:hover {
+    background: var(--ds-sidebar-hover);
+    color: #fff !important;
+}
+
+.app-nav-group-body {
+    padding-bottom: 6px;
+}
+
+.app-nav-group-body .app-nav-link {
+    padding-left: 28px;
+    font-size: 0.95rem;
+}
+
+.app-nav-group-body .app-nav-link i {
+    opacity: 0.9;
+    width: 1.1rem;
+    text-align: center;
+}
+
 .logout-premium {
     display: flex;
     justify-content: center;
@@ -196,6 +263,12 @@ html, body {
     background: var(--ds-surface-muted);
     border-bottom: 1px solid var(--ds-border);
     font-weight: 600;
+}
+
+/* style_index.css fuerza body .card-header a fondo corporativo oscuro; en card-ds debe verse texto y botones claros */
+body .card.card-ds > .card-header {
+    background: var(--ds-surface-muted) !important;
+    color: var(--ds-text) !important;
 }
 
 .table-ds thead th {

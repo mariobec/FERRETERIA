@@ -5,8 +5,12 @@
   <div class="page-header">
     <div>
       <h3 class="page-title"><i class="fas fa-tags text-primary me-2"></i>Revisión de Precios</h3>
-      <p class="page-subtitle">Sugerencia automática por margen, con aplicación individual o masiva.</p>
+      <p class="page-subtitle">Montos en <strong>pesos chilenos (CLP)</strong>. Sugerencia por margen o edición manual por producto.</p>
     </div>
+  </div>
+
+  <div class="alert alert-light border small mb-3 mb-md-4">
+    <strong>Venta actual</strong> es el precio efectivo en POS: el <em>mayor</em> entre precio <em>lista</em> y <em>mayoreo</em>. Si ves <strong>CLP $0</strong>, falta cargar ambos precios o ambos están en cero.
   </div>
 
   <div class="card card-ds mb-4">
@@ -25,7 +29,7 @@
             {% for s in subcategorias %}<option value="{{ s }}" {% if subcategoria==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
           </select>
         </div>
-        <div class="col-md-2"><input class="form-control" name="margen_obj" type="number" step="0.01" min="0.01" max="0.9" value="{{ margen_obj }}"></div>
+        <div class="col-md-2"><input class="form-control" name="margen_obj" type="text" inputmode="decimal" placeholder="0,30" value="{{ margen_obj }}"></div>
         <div class="col-md-1">
           <select class="form-select" name="terminacion">
             <option value="0" {% if terminacion==0 %}selected{% endif %}>0</option>
@@ -43,9 +47,9 @@
   </div>
 
   <div class="card card-ds">
-    <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
       <strong>Productos evaluados: {{ filas|length }}</strong>
-      <form method="POST" action="{{ url_for('aplicar_precio_sugerido_masivo') }}" class="d-flex gap-2">
+      <form method="POST" action="{{ url_for('aplicar_precio_sugerido_masivo') }}" class="d-flex gap-2 flex-wrap">
         <input type="hidden" name="q" value="{{ q }}">
         <input type="hidden" name="categoria" value="{{ categoria }}">
         <input type="hidden" name="subcategoria" value="{{ subcategoria }}">
@@ -61,7 +65,14 @@
         <table class="table table-sm table-hover align-middle">
           <thead>
             <tr>
-              <th>Código</th><th>Producto</th><th>Categoría</th><th>Costo</th><th>Venta actual</th><th>Sugerido</th><th>Margen actual</th><th>Acción</th>
+              <th>Código</th>
+              <th>Producto</th>
+              <th>Categoría</th>
+              <th>Costo (CLP)</th>
+              <th title="Mayor entre lista y mayoreo (igual que POS).">Venta actual (CLP)</th>
+              <th>Sugerido (CLP)</th>
+              <th>Margen</th>
+              <th class="text-nowrap">Acción</th>
             </tr>
           </thead>
           <tbody>
@@ -70,27 +81,40 @@
               <td>{{ f.codigo }}</td>
               <td>{{ f.nombre }}</td>
               <td>{{ f.categoria }} / {{ f.subcategoria }}</td>
-              <td>${{ "{:,.0f}".format(f.costo).replace(",", ".") }}</td>
-              <td>${{ "{:,.0f}".format(f.venta).replace(",", ".") }}</td>
-              <td>${{ "{:,.0f}".format(f.sugerido).replace(",", ".") }}</td>
+              <td>CLP ${{ "{:,.0f}".format(f.costo).replace(",", ".") }}</td>
+              <td
+                {% if f.precio_lista != f.precio_mayoreo %}
+                title="Lista: CLP ${{ "{:,.0f}".format(f.precio_lista).replace(",", ".") }} · Mayoreo: CLP ${{ "{:,.0f}".format(f.precio_mayoreo).replace(",", ".") }}"
+                {% endif %}
+              >CLP ${{ "{:,.0f}".format(f.venta).replace(",", ".") }}</td>
+              <td>CLP ${{ "{:,.0f}".format(f.sugerido).replace(",", ".") }}</td>
               <td>
                 {% if f.margen_actual is none %}—{% else %}{{ "{:.1f}".format(f.margen_actual*100) }}%{% endif %}
               </td>
               <td>
-                {% if f.requiere %}
-                <form method="POST" action="{{ url_for('aplicar_precio_sugerido', producto_id=f.id) }}" class="d-flex gap-1">
-                  <input type="hidden" name="q" value="{{ q }}">
-                  <input type="hidden" name="categoria" value="{{ categoria }}">
-                  <input type="hidden" name="subcategoria" value="{{ subcategoria }}">
-                  <input type="hidden" name="margen_obj" value="{{ margen_obj }}">
-                  <input type="hidden" name="terminacion" value="{{ terminacion }}">
-                  <input type="hidden" name="solo_alerta" value="{{ '1' if solo_alerta else '0' }}">
-                  <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo" required style="max-width: 150px;">
-                  <button class="btn btn-sm btn-outline-success">Aplicar</button>
-                </form>
-                {% else %}
-                <span class="badge text-bg-secondary">OK</span>
-                {% endif %}
+                <div class="d-flex flex-wrap gap-1 align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-primary btn-editar-precio-clp"
+                    data-bs-toggle="modal" data-bs-target="#modalEditarPrecioCLP"
+                    data-edit-url="{{ url_for('editar_precio_manual_revision', producto_id=f.id) }}"
+                    data-nombre="{{ f.nombre|e }}"
+                    data-lista="{{ (f.precio_lista|round(0))|int }}"
+                    data-mayoreo="{{ (f.precio_mayoreo|round(0))|int }}"
+                  >Editar</button>
+                  {% if f.requiere %}
+                  <form method="POST" action="{{ url_for('aplicar_precio_sugerido', producto_id=f.id) }}" class="d-flex gap-1 align-items-center">
+                    <input type="hidden" name="q" value="{{ q }}">
+                    <input type="hidden" name="categoria" value="{{ categoria }}">
+                    <input type="hidden" name="subcategoria" value="{{ subcategoria }}">
+                    <input type="hidden" name="margen_obj" value="{{ margen_obj }}">
+                    <input type="hidden" name="terminacion" value="{{ terminacion }}">
+                    <input type="hidden" name="solo_alerta" value="{{ '1' if solo_alerta else '0' }}">
+                    <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo" required style="max-width: 120px;">
+                    <button class="btn btn-sm btn-outline-success">Aplicar</button>
+                  </form>
+                  {% else %}
+                  <span class="badge text-bg-secondary">OK</span>
+                  {% endif %}
+                </div>
               </td>
             </tr>
             {% else %}
@@ -109,7 +133,7 @@
         <table class="table table-sm table-hover align-middle">
           <thead>
             <tr>
-              <th>Fecha</th><th>Producto</th><th>Anterior</th><th>Nuevo</th><th>Usuario</th><th>Motivo</th>
+              <th>Fecha</th><th>Producto</th><th>Anterior (CLP)</th><th>Nuevo (CLP)</th><th>Usuario</th><th>Motivo</th>
             </tr>
           </thead>
           <tbody>
@@ -117,8 +141,8 @@
             <tr>
               <td>{{ b.fecha.strftime('%d-%m-%Y %H:%M') if b.fecha else '—' }}</td>
               <td>{{ b.producto.nombre if b.producto else ('#' ~ b.producto_id) }}</td>
-              <td>${{ "{:,.0f}".format(b.precio_anterior or 0).replace(",", ".") }}</td>
-              <td>${{ "{:,.0f}".format(b.precio_nuevo or 0).replace(",", ".") }}</td>
+              <td>CLP ${{ "{:,.0f}".format(b.precio_anterior or 0).replace(",", ".") }}</td>
+              <td>CLP ${{ "{:,.0f}".format(b.precio_nuevo or 0).replace(",", ".") }}</td>
               <td>{{ b.usuario or '—' }}</td>
               <td>{{ b.motivo or '—' }}</td>
             </tr>
@@ -131,4 +155,62 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="modalEditarPrecioCLP" tabindex="-1" aria-labelledby="modalEditarPrecioCLPLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" id="formEditarPrecioCLP" action="">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEditarPrecioCLPLabel">Editar precios (CLP)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3" id="modalEditarPrecioCLPProducto"></p>
+          <div class="mb-3">
+            <label class="form-label">Precio lista (CLP)</label>
+            <input type="text" class="form-control" name="precio_venta" id="inpPrecioListaCLP" required placeholder="Ej: 35990 o 35.990">
+            <div class="form-text">Puede usar punto como separador de miles (ej. 35.990).</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Precio mayoreo (CLP)</label>
+            <input type="text" class="form-control" name="precio_mayoreo" id="inpPrecioMayoreoCLP" placeholder="Opcional; vacío = no cambiar">
+          </div>
+          <div class="mb-0">
+            <label class="form-label">Motivo</label>
+            <input type="text" class="form-control" name="motivo" required placeholder="Ej: Ajuste manual feria / error carga">
+          </div>
+          <input type="hidden" name="q" value="{{ q }}">
+          <input type="hidden" name="categoria" value="{{ categoria }}">
+          <input type="hidden" name="subcategoria" value="{{ subcategoria }}">
+          <input type="hidden" name="margen_obj" value="{{ margen_obj }}">
+          <input type="hidden" name="terminacion" value="{{ terminacion }}">
+          <input type="hidden" name="solo_alerta" value="{{ '1' if solo_alerta else '0' }}">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm">Guardar CLP</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var modalEl = document.getElementById('modalEditarPrecioCLP');
+  if (!modalEl) return;
+  modalEl.addEventListener('show.bs.modal', function (ev) {
+    var btn = ev.relatedTarget;
+    if (!btn || !btn.classList.contains('btn-editar-precio-clp')) return;
+    var form = document.getElementById('formEditarPrecioCLP');
+    form.setAttribute('action', btn.getAttribute('data-edit-url') || '');
+    document.getElementById('modalEditarPrecioCLPProducto').textContent = btn.getAttribute('data-nombre') || '';
+    document.getElementById('inpPrecioListaCLP').value = btn.getAttribute('data-lista') || '0';
+    var pm = btn.getAttribute('data-mayoreo');
+    document.getElementById('inpPrecioMayoreoCLP').value = (pm && pm !== '0') ? pm : '';
+  });
+})();
+</script>
 {% endblock %}

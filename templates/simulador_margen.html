@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <span><i class="fas fa-circle-question me-2"></i><strong>¿Primera vez aquí?</strong> En Ayuda explicamos cada número y supuesto del tablero.</span>
+    <a href="{{ url_for('centro_ayuda') }}#simulador-margen" class="btn btn-sm btn-outline-primary fw-semibold">Ver guía del simulador</a>
+  </div>
+  <div class="page-header">
+    <div>
+      <h3 class="page-title"><i class="fas fa-flask text-primary me-2"></i>Simulador «¿Qué pasa si…?»</h3>
+      <p class="page-subtitle mb-0">Impacto sobre margen bruto y ventas usando el mismo volumen histórico (ventas <strong>Pagado</strong>) y el costo actual del catálogo (<strong>precio compra</strong>).</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('business_intelligence', fecha_inicio=fecha_inicio, fecha_fin=fecha_fin) }}" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-chart-line me-1"></i> BI mismo período
+      </a>
+      <a href="{{ url_for('revision_precios') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-tags me-1"></i> Revisión precios
+      </a>
+    </div>
+  </div>
+
+  {% if factor_qty_invalido %}
+  <div class="alert alert-danger">
+    La combinación de <strong>elasticidad</strong> y <strong>% cambio de precio</strong> hace negativo el factor de cantidad
+    (1 + η × Δprecio%). Ajuste los valores: η × Δprecio% debe ser ≥ −100%.
+  </div>
+  {% endif %}
+
+  {% if sin_costo %}
+  <div class="alert alert-warning">
+    {{ sin_costo }} SKU(s) en el período tienen <strong>precio compra</strong> en cero o vacío: el margen base y simulado puede estar sesgado.
+  </div>
+  {% endif %}
+
+  <div class="card card-ds mb-4">
+    <div class="card-body">
+      <form class="row g-3 align-items-end" method="get" action="{{ url_for('simulador_margen') }}">
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1">Desde</label>
+          <input type="date" name="fecha_inicio" class="form-control form-control-sm" value="{{ fecha_inicio }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1">Hasta</label>
+          <input type="date" name="fecha_fin" class="form-control form-control-sm" value="{{ fecha_fin }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1">Δ Precio venta %</label>
+          <input type="number" step="0.1" name="d_precio" class="form-control form-control-sm" value="{{ d_precio }}" placeholder="Ej. 5 o -3">
+          <div class="form-text">Sobre precio medio histórico por SKU</div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1">Δ Costo compra %</label>
+          <input type="number" step="0.1" name="d_costo" class="form-control form-control-sm" value="{{ d_costo }}" placeholder="Ej. 8">
+          <div class="form-text">Simula alza proveedor</div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1">Elasticidad η</label>
+          <input type="number" step="0.05" name="elasticidad" class="form-control form-control-sm" value="{{ elasticidad }}" placeholder="0">
+          <div class="form-text">Δcantidad ≈ η × Δprecio%. Ej. −0,3 y +10% precio → −3% unidades</div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold mb-1">Categoría</label>
+          <select name="categoria" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            {% for c in categorias_sel %}
+            <option value="{{ c }}" {% if categoria_filtro == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+          <button type="submit" class="btn btn-ds-primary btn-sm fw-bold"><i class="fas fa-calculator me-1"></i> Recalcular</button>
+          <span class="text-muted small">Atajos:</span>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('simulador_margen', fecha_inicio=hoy_str, fecha_fin=hoy_str, d_precio=d_precio, d_costo=d_costo, elasticidad=elasticidad, categoria=categoria_filtro) }}">Hoy</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('simulador_margen', fecha_inicio=hace_7_str, fecha_fin=hoy_str, d_precio=d_precio, d_costo=d_costo, elasticidad=elasticidad, categoria=categoria_filtro) }}">Últimos 7</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('simulador_margen', fecha_inicio=hace_30_str, fecha_fin=hoy_str, d_precio=d_precio, d_costo=d_costo, elasticidad=elasticidad, categoria=categoria_filtro) }}">Últimos 30</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted">Ventas (histórico)</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ventas_base).replace(",", ".") }}</h4>
+          <small class="text-muted">{{ n_skus }} SKU con movimiento</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <small class="text-muted">Margen bruto base</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(margen_base).replace(",", ".") }}</h4>
+          <small class="text-muted">{% if pct_m_base is not none %}{{ "{:.1f}".format(pct_m_base) }}% sobre ventas{% else %}—{% endif %}</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100 border-primary border-opacity-25">
+        <div class="card-body">
+          <small class="text-muted">Ventas simuladas</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ventas_sim).replace(",", ".") }}</h4>
+          <small class="{% if delta_ventas >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {{ "{:+.0f}".format(delta_ventas).replace(",", ".") }} vs histórico
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100 border-primary border-opacity-25">
+        <div class="card-body">
+          <small class="text-muted">Margen bruto simulado</small>
+          <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(margen_sim).replace(",", ".") }}</h4>
+          <small class="{% if delta_margen >= 0 %}text-success{% else %}text-danger{% endif %}">
+            {{ "{:+.0f}".format(delta_margen).replace(",", ".") }} vs base
+            {% if delta_pct_puntos is not none %} · {{ "{:+.1f}".format(delta_pct_puntos) }} pts margen %{% endif %}
+          </small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-body">
+      <h5 class="fw-bold mb-3"><i class="fas fa-info-circle text-secondary me-2"></i>Cómo leer el escenario</h5>
+      <ul class="small text-muted mb-0">
+        <li><strong>Base:</strong> suma de subtotales cobrados menos cantidades × <code>precio_compra</code> actual por producto.</li>
+        <li><strong>Simulación:</strong> precio unitario histórico por SKU se ajusta en Δ%; costo unitario en Δ%; cantidades = histórico × (1 + η × Δprecio%) si η ≠ 0.</li>
+        <li>No incluye ventas no cobradas ni cambios de mix de carrito: es una <strong>aproximación gerencial</strong>, no proyección financiera auditada.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0">
+      <div class="px-3 py-2 border-bottom bg-light">
+        <span class="fw-semibold">Mayor impacto en margen (hasta 40 SKU)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Producto</th>
+              <th>Categoría</th>
+              <th class="text-end">Und vendidas</th>
+              <th class="text-end">Precio medio hist.</th>
+              <th class="text-end">Costo cat.</th>
+              <th class="text-end">Margen base</th>
+              <th class="text-end">Margen simulado</th>
+              <th class="text-end">Δ Margen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in filas %}
+            <tr>
+              <td class="small">{{ r.nombre }}</td>
+              <td class="small text-muted">{{ r.categoria }}</td>
+              <td class="text-end">{{ "{:,.0f}".format(r.qty).replace(",", ".") }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(r.p_hist).replace(",", ".") }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(r.cost).replace(",", ".") }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(r.mb).replace(",", ".") }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(r.ms).replace(",", ".") }}</td>
+              <td class="text-end fw-semibold {% if r.delta >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ "{:+.0f}".format(r.delta).replace(",", ".") }}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">Sin ventas Pagado en el período y filtros seleccionados.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

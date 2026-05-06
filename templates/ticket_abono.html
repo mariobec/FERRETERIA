@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Comprobante abono crédito #{{ abono.id }}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
     <style>
         body { font-family: 'Courier New', monospace; font-size: 13px; background: #f0f2f5; margin: 0; padding: 12px; }
         .ticket { width: 320px; margin: auto; border: 2px solid #6f42c1; border-radius: 8px; padding: 14px; background: #fff; }
@@ -44,11 +44,11 @@
             <div class="line"><span>RUT</span><span>{{ cliente.rut }}</span></div>
         </div>
 
-        <div class="monto">$ {{ "{:,.0f}".format(abono.monto_abono) }}</div>
+        <div class="monto">$ {{ "{:,.0f}".format(abono.monto_abono).replace(",", ".") }}</div>
 
         <div class="line"><span>Método de pago</span><span>{{ abono.metodo_pago or '—' }}</span></div>
-        <div class="line"><span>Saldo anterior</span><span>$ {{ "{:,.0f}".format(abono.saldo_anterior or 0) }}</span></div>
-        <div class="line"><span>Saldo resultante</span><span class="fw-bold">$ {{ "{:,.0f}".format(abono.nuevo_saldo or 0) }}</span></div>
+        <div class="line"><span>Saldo anterior</span><span>$ {{ "{:,.0f}".format(abono.saldo_anterior or 0).replace(",", ".") }}</span></div>
+        <div class="line"><span>Saldo resultante</span><span class="fw-bold">$ {{ "{:,.0f}".format(abono.nuevo_saldo or 0).replace(",", ".") }}</span></div>
 
         <div class="footer">
             Documento interno — Abono a cuenta corriente.<br>

@@ -55,15 +55,15 @@
                 <tr>
                     <td>{{ d.producto.nombre }}</td>
                     <td>{{ d.cantidad }}</td>
-                    <td>${{ "{:,.0f}".format(d.precio_unitario) }}</td>
-                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario) }}</td>
+                    <td>${{ "{:,.0f}".format(d.precio_unitario).replace(",", ".") }}</td>
+                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario).replace(",", ".") }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
 
         <div class="total">
-            TOTAL: ${{ "{:,.0f}".format(venta.total) }}
+            TOTAL: ${{ "{:,.0f}".format(venta.total).replace(",", ".") }}
         </div>
 
         {% if es_vale %}
@@ -73,8 +73,8 @@
         {% else %}
         <div class="total">
             Pago: {{ venta.metodo_pago }}<br>
-            Recibido: ${{ "{:,.0f}".format(venta.monto_recibido) }}<br>
-            Vuelto: ${{ "{:,.0f}".format(venta.vuelto) }}
+            Recibido: ${{ "{:,.0f}".format(venta.monto_recibido).replace(",", ".") }}<br>
+            Vuelto: ${{ "{:,.0f}".format(venta.vuelto).replace(",", ".") }}
         </div>
         <div class="estado pagada">
             *** BOLETA PAGADA ***

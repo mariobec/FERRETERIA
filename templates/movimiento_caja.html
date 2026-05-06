@@ -96,7 +96,7 @@
               <td class="small text-muted">{{ m.registrado_por }}</td>
               <td>{{ m.concepto_limpio }}</td>
               <td class="text-end pe-3 fw-bold {% if m.tipo == 'Ingreso' %}text-success{% else %}text-danger{% endif %}">
-                ${{ "{:,.0f}".format(m.monto) }}
+                ${{ "{:,.0f}".format(m.monto).replace(",", ".") }}
               </td>
             </tr>
             {% else %}

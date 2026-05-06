@@ -16,7 +16,7 @@
     <div class="header-cajera d-flex justify-content-between align-items-center mb-4">
         <div>
             <h4 class="fw-bold mb-1"><i class="fas fa-cash-register me-2"></i>Panel de Cobranza</h4>
-            <p class="mb-0">Cajera: <span class="fw-bold">{{ current_user.nombre }}</span></p>
+            <p class="mb-0">Cajero/a: <span class="fw-bold">{{ current_user.nombre }}</span></p>
         </div>
         <div class="text-end">
             <h3 id="hora-actual" class="fw-bold mb-0">00:00:00</h3>
@@ -51,11 +51,11 @@
 
     <!-- 3. INDICADORES -->
     <div class="row g-3 mb-4">
-        <div class="col-md"><div class="card card-indicador bg-primary text-white p-3"><h4>{{ tickets_emitidos }}</h4><p>Tickets Hoy</p></div></div>
-        <div class="col-md"><div class="card card-indicador bg-success text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_apertura) }}</h4><p>Apertura Caja</p></div></div>
-        <div class="col-md"><div class="card card-indicador bg-warning text-dark p-3"><h4>$ {{ "{:,.0f}".format(monto_vendido) }}</h4><p>Monto Vendido</p></div></div>
-        <div class="col-md"><div class="card card-indicador bg-danger text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_pendiente) }}</h4><p>Pendiente</p></div></div>
-        <div class="col-md"><div class="card card-indicador bg-info text-white p-3"><h4>$ {{ "{:,.0f}".format(vuelto_entregado) }}</h4><p>Vueltos</p></div></div>
+        <div class="col-md"><div class="card card-indicador bg-primary text-white p-3"><h4>{{ tickets_emitidos }}</h4><p class="mb-0">Docs cobrados hoy</p><small class="opacity-75">Esta caja</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-success text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_apertura).replace(",", ".") }}</h4><p class="mb-0">Apertura Caja</p><small class="opacity-75">Turno actual</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-warning text-dark p-3"><h4>$ {{ "{:,.0f}".format(monto_vendido).replace(",", ".") }}</h4><p class="mb-0">Monto cobrado hoy</p><small class="opacity-75">Pagado · esta caja</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-danger text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_pendiente).replace(",", ".") }}</h4><p class="mb-0">Por cobrar</p><small class="opacity-75">Cola de vales (sin método)</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-info text-white p-3"><h4>$ {{ "{:,.0f}".format(vuelto_entregado).replace(",", ".") }}</h4><p class="mb-0">Vueltos hoy</p><small class="opacity-75">Pagado · esta caja</small></div></div>
     </div>
 
     <div class="card card-ds mb-4">
@@ -80,7 +80,7 @@
                             <td class="ps-3">#{{ c.id }}</td>
                             <td>{{ c.cliente.nombre if c.cliente else 'Sin cliente' }}</td>
                             <td>{{ c.fecha.strftime('%H:%M') }}</td>
-                            <td class="fw-bold text-warning">$ {{ "{:,.0f}".format(c.monto_total) }}</td>
+                            <td class="fw-bold text-warning">$ {{ "{:,.0f}".format(c.monto_total).replace(",", ".") }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -113,11 +113,18 @@
                             <td class="ps-4"><span class="badge bg-light text-dark border">#{{ v.id }}</span></td>
                             <td>{{ v.fecha.strftime('%H:%M') }}</td>
                             <td>{{ v.usuario }}</td>
-                            <td><h5 class="fw-bold text-success mb-0">$ {{ "{:,.0f}".format(v.monto_total) }}</h5></td>
+                            <td><h5 class="fw-bold text-success mb-0">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h5></td>
                             <td class="text-center">
-                                <button class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
-                                    COBRAR
-                                </button>
+                                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                    <button type="button" class="btn btn-success fw-bold px-3 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
+                                        COBRAR
+                                    </button>
+                                    {% if usuario_tiene_permiso('anular_vale_caja') %}
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalAnular{{ v.id }}" title="Cliente no retorna">
+                                        Anular
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
 
@@ -132,8 +139,18 @@
                                         </div>
                                         <div class="modal-body p-4">
                                             <div class="text-center mb-4">
-                                                <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(v.monto_total) }}</h1>
+                                                <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h1>
                                             </div>
+                                            {% if v.cliente %}
+                                            <div class="alert {% if (v.cliente.saldo_deudor or 0) > 0 %}alert-warning{% else %}alert-light{% endif %} py-2 mb-3">
+                                                <div class="small">
+                                                    <strong>Cliente:</strong> {{ v.cliente.nombre }}
+                                                    <span class="mx-2">|</span>
+                                                    <strong>Deuda pendiente actual:</strong>
+                                                    $ {{ "{:,.0f}".format(v.cliente.saldo_deudor or 0).replace(",", ".") }}
+                                                </div>
+                                            </div>
+                                            {% endif %}
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">Documento</label>
                                                 <select name="tipo_documento" class="form-select" required>
@@ -151,7 +168,7 @@
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">Monto Recibido</label>
-                                                <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ v.monto_total }}" data-total="{{ v.monto_total }}">
+                                                <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ v.monto_total }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
                                                 <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total.</div>
                                             </div>
                                         </div>
@@ -163,6 +180,39 @@
                                 </div>
                             </div>
                         </div>
+
+                        {% if usuario_tiene_permiso('anular_vale_caja') %}
+                        <div class="modal fade modal-premium" id="modalAnular{{ v.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content shadow-lg border-danger border-opacity-25">
+                                    <form action="{{ url_for('anular_vale_caja', id=v.id) }}" method="POST">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold text-danger"><i class="fas fa-ban me-2"></i>Anular vale #{{ v.id }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <p class="small text-muted mb-2">Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock no se había descontado aún.</p>
+                                            <label class="form-label fw-bold" for="motivo_anular_{{ v.id }}">Motivo</label>
+                                            <select name="motivo" id="motivo_anular_{{ v.id }}" class="form-select" required>
+                                                <option value="" disabled selected>Seleccione una opción…</option>
+                                                <option value="Cliente no retorna a pagar / se fue">Cliente no retorna a pagar / se fue</option>
+                                                <option value="Cliente se arrepiente del pedido">Cliente se arrepiente del pedido</option>
+                                                <option value="Error en productos o montos del vale">Error en productos o montos del vale</option>
+                                                <option value="Vale duplicado o emitido por error">Vale duplicado o emitido por error</option>
+                                                <option value="Cliente pagará con otro medio (reemitir vale)">Cliente pagará con otro medio (reemitir vale)</option>
+                                                <option value="Prueba o capacitación">Prueba o capacitación</option>
+                                                <option value="Otro (detalle en caja)">Otro (detalle en caja)</option>
+                                            </select>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                            <button type="submit" class="btn btn-danger fw-bold">Confirmar anulación</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                         {% else %}
                         <tr><td colspan="5" class="text-center py-5 text-muted">No hay vales.</td></tr>
                         {% endfor %}
@@ -175,7 +225,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://jsdelivr.net"></script>
 <script>
     function actualizarReloj() {
         const ahora = new Date();
@@ -192,14 +241,22 @@
         const inp = document.getElementById('monto_recibido_' + id);
         const hint = document.getElementById('hint_monto_' + id);
         const total = parseFloat(inp.dataset.total || inp.min || 0);
+        const saldo = parseFloat(inp.dataset.saldo || 0) || 0;
+        const cliente = inp.dataset.cliente || 'cliente';
         if (sel.value === 'Credito') {
             inp.value = 0;
             inp.min = 0;
+            inp.step = 'any';
             inp.readOnly = true;
-            if (hint) hint.textContent = 'Venta a crédito: no requiere monto recibido en caja.';
+            if (hint) {
+                hint.textContent = saldo > 0
+                    ? ('Venta a crédito: no requiere monto recibido. Atención: ' + cliente + ' ya debe $' + Math.round(saldo).toLocaleString('es-CL') + '.')
+                    : 'Venta a crédito: no requiere monto recibido en caja.';
+            }
         } else {
             inp.readOnly = false;
             inp.min = total;
+            inp.step = 'any';
             if (!inp.value || parseFloat(inp.value) < total) {
                 inp.value = total;
             }

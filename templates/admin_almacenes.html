@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-warehouse text-primary me-2"></i>Almacenes</h3>
+      <p class="page-subtitle mb-0">
+        El POS descuenta stock del código <strong>{{ codigo_tienda_esperado }}</strong>
+        (o variable <code>ALMACEN_CODIGO_TIENDA</code> / <code>ALMACEN_ID_TIENDA</code>).
+        Las recepciones ingresan por defecto a <strong>{{ codigo_bodega_esperado }}</strong>
+        (<code>ALMACEN_CODIGO_BODEGA</code> / <code>ALMACEN_ID_BODEGA</code>).
+        Si solo existe <strong>un</strong> almacén activo (ej. código <code>001</code>), el sistema lo usa como Tienda y Bodega sin cambiar el .env.
+      </p>
+    </div>
+    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+  </div>
+
+  <div class="alert alert-light border small mb-4">
+    Resolución actual:
+    {% if id_tienda_resuelto %}<span class="badge bg-primary me-1">Tienda → id {{ id_tienda_resuelto }}</span>{% else %}<span class="badge bg-warning text-dark me-1">Tienda no resuelta</span>{% endif %}
+    {% if id_bodega_resuelto %}<span class="badge bg-secondary">Bodega → id {{ id_bodega_resuelto }}</span>{% else %}<span class="badge bg-warning text-dark">Bodega no resuelta</span>{% endif %}
+    {% if modo_almacen_unico_auto %}
+    <div class="mt-2 small text-muted mb-0"><i class="fas fa-circle-info text-primary me-1"></i><strong>Un solo depósito:</strong> POS y recepciones comparten este almacén. Cuando agregues un segundo almacén, definí códigos <code>TIENDA</code> y <code>BODEGA</code> (o variables <code>ALMACEN_ID_*</code>) para separar mostrador y bodega.</div>
+    {% endif %}
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Nuevo almacén</div>
+        <div class="card-body">
+          <form method="POST" action="{{ url_for('admin_almacenes') }}">
+            <input type="hidden" name="action" value="crear">
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Código</label>
+              <input type="text" name="codigo" class="form-control text-uppercase" maxlength="20" required placeholder="Ej. TIENDA, BODEGA">
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Nombre</label>
+              <input type="text" name="nombre" class="form-control" maxlength="100" required placeholder="Nombre visible">
+            </div>
+            <button type="submit" class="btn btn-ds-primary btn-sm">Crear</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Listado</div>
+        <div class="card-body p-0 table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Activo</th>
+                <th class="text-end">Stock ≠0 (SKU)</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in almacenes %}
+              <tr>
+                <td>
+                  <input type="text" class="form-control form-control-sm text-uppercase" name="codigo" value="{{ a.codigo }}" maxlength="20" required form="falm{{ a.id }}">
+                  <div class="mt-1">
+                    {% if a.id == id_tienda_resuelto %}<span class="badge bg-primary">POS</span>{% endif %}
+                    {% if a.id == id_bodega_resuelto %}<span class="badge bg-secondary">Recepciones</span>{% endif %}
+                  </div>
+                </td>
+                <td>
+                  <input type="text" class="form-control form-control-sm" name="nombre" value="{{ a.nombre }}" maxlength="100" required form="falm{{ a.id }}">
+                </td>
+                <td>
+                  <input class="form-check-input" type="checkbox" name="activo" value="1" form="falm{{ a.id }}" {% if a.activo %}checked{% endif %}>
+                </td>
+                <td class="text-end small">{{ conteos_stock_no_cero.get(a.id, 0) }}</td>
+                <td class="text-end text-nowrap">
+                  <form method="POST" action="{{ url_for('admin_almacenes') }}" id="falm{{ a.id }}">
+                    <input type="hidden" name="action" value="editar">
+                    <input type="hidden" name="id" value="{{ a.id }}">
+                    <button type="submit" class="btn btn-outline-primary btn-sm">Guardar</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin_almacenes') }}" class="d-inline" onsubmit="return confirm('¿Cambiar estado activo?');">
+                    <input type="hidden" name="action" value="toggle">
+                    <input type="hidden" name="id" value="{{ a.id }}">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm py-0">{{ 'Off' if a.activo else 'On' }}</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('admin_almacenes') }}" class="d-inline" onsubmit="return confirm('¿Eliminar este almacén? Solo si no hay stock ni kardex.');">
+                    <input type="hidden" name="action" value="eliminar">
+                    <input type="hidden" name="id" value="{{ a.id }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm py-0">Elim.</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-muted text-center py-3">Sin registros.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

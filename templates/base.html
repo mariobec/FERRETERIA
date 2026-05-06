@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERP {{ empresa_cfg.nombre_comercial }}</title>
        
-    <!-- 1. Bootstrap -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- 2. Font Awesome (Iconos) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- 1. Bootstrap (local, sin CDN) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
 
-    <!-- 3. Select2 -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <!-- 2. Font Awesome (local) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+
+    <!-- 3. Select2 (local) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/select2/select2.min.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/select2/select2-bootstrap-5-theme.min.css') }}" />
 
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
@@ -34,22 +34,59 @@
                 <div class="app-sidebar-nav mt-3 flex-grow-1">
                     <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-home"></i> Inicio</a>
                     <a href="{{ url_for('punto_venta') }}" class="app-nav-link {% if request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta'] %}active{% endif %}"><i class="fas fa-cash-register"></i> Punto de Venta</a>
-                    <a href="{{ url_for('mostrar_productos') }}" class="app-nav-link {% if request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos'] %}active{% endif %}"><i class="fas fa-boxes"></i> Productos</a>
-                    <a href="{{ url_for('revision_precios') }}" class="app-nav-link {% if request.endpoint in ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo'] %}active{% endif %}"><i class="fas fa-tags"></i> Revisión Precios</a>
+                    {% if usuario_tiene_permiso('revision_precios') %}
+                    <a href="{{ url_for('revision_precios') }}" class="app-nav-link {% if request.endpoint in ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision'] %}active{% endif %}"><i class="fas fa-tags"></i> Revisión Precios</a>
+                    {% endif %}
                     <a href="{{ url_for('business_intelligence') }}" class="app-nav-link {% if request.endpoint == 'business_intelligence' %}active{% endif %}"><i class="fas fa-chart-line"></i> BI Reportes</a>
+                    {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+                    <a href="{{ url_for('panel_dueno') }}" class="app-nav-link {% if request.endpoint == 'panel_dueno' %}active{% endif %}"><i class="fas fa-briefcase"></i> Informes gerencia</a>
+                    {% endif %}
+                    {% if usuario_tiene_permiso('panel_gerencia') %}
+                    <a href="{{ url_for('simulador_margen') }}" class="app-nav-link {% if request.endpoint == 'simulador_margen' %}active{% endif %}"><i class="fas fa-flask"></i> Simulador margen</a>
+                    {% endif %}
+                    <a href="{{ url_for('centro_ayuda') }}" class="app-nav-link {% if request.endpoint == 'centro_ayuda' %}active{% endif %}"><i class="fas fa-circle-question"></i> Ayuda</a>
                     <a href="{{ url_for('ia_abastecimiento') }}" class="app-nav-link {% if request.endpoint == 'ia_abastecimiento' %}active{% endif %}"><i class="fas fa-robot"></i> IA Abastecimiento</a>
-                    <a href="{{ url_for('kardex') }}" class="app-nav-link {% if request.endpoint == 'kardex' %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Kardex</a>
+                    {% set ep_inv = request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos', 'kardex', 'stock_critico', 'consulta_stock_publica']
+                      or (nav_inventario_enrolamiento and request.endpoint == 'inventario_enrolamiento')
+                      or (nav_inventario_salud and request.endpoint == 'inventario_salud') %}
+                    <details class="app-nav-group" {% if ep_inv %}open{% endif %}>
+                        <summary><i class="fas fa-boxes-stacked"></i> Inventario y Stock</summary>
+                        <div class="app-nav-group-body">
+                            <a href="{{ url_for('mostrar_productos') }}" class="app-nav-link {% if request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos'] %}active{% endif %}"><i class="fas fa-boxes"></i> Productos</a>
+                            {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_enrolamiento %}
+                            <a href="{{ url_for('inventario_enrolamiento') }}" class="app-nav-link {% if request.endpoint == 'inventario_enrolamiento' %}active{% endif %}"><i class="fas fa-barcode"></i> Enrolamiento inventario</a>
+                            {% endif %}
+                            {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_salud %}
+                            <a href="{{ url_for('inventario_salud') }}" class="app-nav-link {% if request.endpoint == 'inventario_salud' %}active{% endif %}"><i class="fas fa-heartbeat"></i> Salud inventario</a>
+                            {% endif %}
+                            <a href="{{ url_for('stock_critico') }}" class="app-nav-link {% if request.endpoint == 'stock_critico' %}active{% endif %}"><i class="fas fa-triangle-exclamation"></i> Stock crítico</a>
+                            <a href="{{ url_for('kardex') }}" class="app-nav-link {% if request.endpoint == 'kardex' %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Kardex</a>
+                            <a href="{{ url_for('consulta_stock_publica') }}" class="app-nav-link {% if request.endpoint == 'consulta_stock_publica' %}active{% endif %}"><i class="fas fa-magnifying-glass-chart"></i> Consulta stock</a>
+                        </div>
+                    </details>
                     <a href="{{ url_for('lista_recepciones') }}" class="app-nav-link {% if request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion'] %}active{% endif %}"><i class="fas fa-dolly"></i> Recepciones</a>
+                    <a href="{{ url_for('lista_ordenes_compra') }}" class="app-nav-link {% if request.endpoint in ['lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar'] %}active{% endif %}"><i class="fas fa-file-contract"></i> Órdenes compra</a>
                     <a href="{{ url_for('mostrar_proveedores') }}" class="app-nav-link {% if request.endpoint in ['mostrar_proveedores', 'guardar_proveedor'] %}active{% endif %}"><i class="fas fa-truck"></i> Proveedores</a>
                     <a href="{{ url_for('mostrar_ventas') }}" class="app-nav-link {% if request.endpoint in ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta'] %}active{% endif %}"><i class="fas fa-shopping-cart"></i> Historial Ventas</a>
                     <a href="{{ url_for('abrir_caja') }}" class="app-nav-link {% if request.endpoint == 'abrir_caja' %}active{% endif %}"><i class="fas fa-door-open"></i> Abrir Caja</a>
                     <a href="{{ url_for('movimiento_caja') }}" class="app-nav-link {% if request.endpoint == 'movimiento_caja' %}active{% endif %}"><i class="fas fa-exchange-alt"></i> Movimientos</a>
                     <a href="{{ url_for('cerrar_caja') }}" class="app-nav-link {% if request.endpoint == 'cerrar_caja' %}active{% endif %}"><i class="fas fa-door-closed"></i> Cerrar Caja</a>
                     <a href="{{ url_for('caja_pendientes') }}" class="app-nav-link {% if request.endpoint in ['caja_pendientes', 'procesar_cobro_caja'] %}active{% endif %}"><i class="fas fa-file-invoice-dollar"></i> Vales Pendientes</a>
+                    <a href="{{ url_for('modulo_creditos') }}" class="app-nav-link {% if request.endpoint in ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'registrar_abono', 'ver_ticket_abono'] %}active{% endif %}"><i class="fas fa-hand-holding-usd"></i> Créditos y Cartolas</a>
                     {% if puede_administrar %}
-                    <a href="{{ url_for('usuarios') }}" class="app-nav-link {% if request.endpoint in ['usuarios', 'editar_usuario'] %}active{% endif %}"><i class="fas fa-users-cog"></i> Usuarios</a>
-                    <a href="{{ url_for('admin_empresa') }}" class="app-nav-link {% if request.endpoint == 'admin_empresa' %}active{% endif %}"><i class="fas fa-building"></i> Empresa</a>
-                    <a href="{{ url_for('admin_unidades') }}" class="app-nav-link {% if request.endpoint == 'admin_unidades' %}active{% endif %}"><i class="fas fa-balance-scale"></i> Unidades</a>
+                    {% set ep_mant = request.endpoint in ['usuarios', 'editar_usuario', 'admin_empresa', 'admin_unidades', 'admin_catalogo', 'admin_almacenes', 'admin_clientes', 'admin_roles_permisos'] %}
+                    <details class="app-nav-group" {% if ep_mant %}open{% endif %}>
+                        <summary><i class="fas fa-sliders-h"></i> Mantenedores</summary>
+                        <div class="app-nav-group-body">
+                            <a href="{{ url_for('admin_catalogo') }}" class="app-nav-link {% if request.endpoint == 'admin_catalogo' %}active{% endif %}"><i class="fas fa-sitemap"></i> Catálogo categorías</a>
+                            <a href="{{ url_for('admin_unidades') }}" class="app-nav-link {% if request.endpoint == 'admin_unidades' %}active{% endif %}"><i class="fas fa-balance-scale"></i> Unidades de medida</a>
+                            <a href="{{ url_for('admin_almacenes') }}" class="app-nav-link {% if request.endpoint == 'admin_almacenes' %}active{% endif %}"><i class="fas fa-warehouse"></i> Almacenes</a>
+                            <a href="{{ url_for('admin_clientes') }}" class="app-nav-link {% if request.endpoint == 'admin_clientes' %}active{% endif %}"><i class="fas fa-address-book"></i> Clientes</a>
+                            <a href="{{ url_for('admin_roles_permisos') }}" class="app-nav-link {% if request.endpoint == 'admin_roles_permisos' %}active{% endif %}"><i class="fas fa-user-shield"></i> Roles y permisos</a>
+                            <a href="{{ url_for('admin_empresa') }}" class="app-nav-link {% if request.endpoint == 'admin_empresa' %}active{% endif %}"><i class="fas fa-building"></i> Datos de empresa</a>
+                            <a href="{{ url_for('usuarios') }}" class="app-nav-link {% if request.endpoint in ['usuarios', 'editar_usuario'] %}active{% endif %}"><i class="fas fa-users-cog"></i> Usuarios y roles</a>
+                        </div>
+                    </details>
                     {% endif %}
                 </div>
 
@@ -66,7 +103,14 @@
             <main class="col-md-10 app-main">
                 <div class="app-topbar d-flex justify-content-between align-items-center">
                     <div class="app-topbar-title">ERP {{ empresa_cfg.nombre_comercial }}</div>
-                    <div class="app-topbar-user">{{ current_user.nombre if current_user.is_authenticated else 'Invitado' }}</div>
+                    <div class="d-flex align-items-center gap-2">
+                        {% if request.endpoint != 'inicio' and request.args.get('from') == 'inicio' %}
+                        <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-arrow-left me-1"></i>Volver a indicadores
+                        </a>
+                        {% endif %}
+                        <div class="app-topbar-user">{{ current_user.nombre if current_user.is_authenticated else 'Invitado' }}</div>
+                    </div>
                 </div>
                 {% with messages = get_flashed_messages(with_categories=true) %}
                   {% if messages %}
@@ -86,10 +130,10 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Scripts (local, sin CDN) -->
+    <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/select2/select2.min.js') }}"></script>
 
     {% block extra_js %}{% endblock %}
 </body>

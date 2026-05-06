@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-user-shield text-primary me-2"></i>Roles y permisos</h3>
+      <p class="page-subtitle mb-0">
+        Marque los permisos de cada rol y pulse <strong>Guardar</strong> en esa fila.
+        Los roles con nombre <em>admin</em> / <em>administrador</em> siguen teniendo acceso completo por compatibilidad.
+        Los usuarios se gestionan en <a href="{{ url_for('usuarios') }}">Usuarios</a>.
+      </p>
+    </div>
+    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+  </div>
+
+  {% if not permisos %}
+  <div class="alert alert-warning">No hay permisos en la base de datos; recargue la página para crear los permisos mínimos del sistema.</div>
+  {% else %}
+  <div class="card card-ds">
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="text-nowrap">Rol</th>
+            {% for p in permisos %}
+            <th class="small text-center text-nowrap" title="{{ p.nombre }}">{{ p.nombre }}</th>
+            {% endfor %}
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rol in roles %}
+          <tr>
+            <td class="fw-semibold">{{ rol.nombre }}</td>
+            {% for p in permisos %}
+            <td class="text-center">
+              <input class="form-check-input" type="checkbox" name="permiso_id" value="{{ p.id }}" form="form-rol-{{ rol.id }}"
+                {% if p.id in rol_permiso_ids.get(rol.id, []) %}checked{% endif %}>
+            </td>
+            {% endfor %}
+            <td class="text-end">
+              <form method="POST" action="{{ url_for('admin_roles_permisos') }}" id="form-rol-{{ rol.id }}" class="d-inline">
+                <input type="hidden" name="action" value="guardar_rol">
+                <input type="hidden" name="rol_id" value="{{ rol.id }}">
+                <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 2 + permisos|length }}" class="text-muted text-center py-3">No hay roles en la base de datos.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="small text-muted mt-3 mb-0">
+    Permisos reconocidos por el código: <code>gestionar_usuarios</code> (mantenedores y administración),
+    <code>admin_inventario</code> (cierre de auditoría con ajuste de stock / kardex).
+  </p>
+</div>
+{% endblock %}

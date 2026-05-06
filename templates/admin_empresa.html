@@ -5,7 +5,7 @@
   <div class="page-header">
     <div>
       <h2 class="page-title"><i class="fas fa-building me-2 text-primary"></i>Administración de Empresa</h2>
-      <p class="page-subtitle">Personaliza identidad comercial visible en portada y panel ERP.</p>
+      <p class="page-subtitle">Identidad comercial y datos del <strong>emisor</strong> en boleta/factura (ticket 80&nbsp;mm y PDF).</p>
     </div>
     <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home me-1"></i> Inicio</a>
   </div>
@@ -40,6 +40,30 @@
           <div class="col-12">
             <label class="form-label fw-semibold">Dirección</label>
             <input type="text" name="direccion" class="form-control" value="{{ empresa.direccion }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">RUT empresa (emisor)</label>
+            <input type="text" name="rut_empresa" class="form-control" value="{{ empresa.rut_empresa or '' }}" placeholder="Ej: 76.123.456-K">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">Giro emisor</label>
+            <input type="text" name="giro_empresa" class="form-control" value="{{ empresa.giro_empresa or '' }}" placeholder="Ej: Ferretería, venta de materiales…">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Comuna</label>
+            <input type="text" name="comuna_empresa" class="form-control" value="{{ empresa.comuna_empresa or '' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Ciudad</label>
+            <input type="text" name="ciudad_empresa" class="form-control" value="{{ empresa.ciudad_empresa or '' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">Oficina SII (texto libre)</label>
+            <input type="text" name="oficina_sii" class="form-control" value="{{ empresa.oficina_sii or '' }}" placeholder="Ej: S.I.I. - CONCEPCIÓN">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Tipo de venta (giro)</label>
+            <input type="text" name="tipo_venta_giro" class="form-control" value="{{ empresa.tipo_venta_giro or 'DEL GIRO' }}" placeholder="DEL GIRO">
           </div>
         </div>
         <div class="mt-4 text-end">
