@@ -807,6 +807,7 @@ def forzar_cambio_clave_si_corresponde():
     # Auto-migraciones idempotentes para instancias con esquema legacy (Render/Neon).
     _asegurar_columnas_caja_cuadratura()
     _asegurar_columnas_ventas_legacy()
+    _asegurar_columnas_productos_legacy()
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
@@ -5140,6 +5141,57 @@ def _asegurar_columnas_ventas_legacy():
     except Exception as ex:
         db.session.rollback()
         app.logger.exception("No se pudo asegurar columnas legacy de ventas: %s", ex)
+        return False
+
+
+def _asegurar_columnas_productos_legacy():
+    """Asegura columnas agregadas en `productos` para bases legacy."""
+    if app.config.get('_PRODUCTOS_LEGACY_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'productos' not in set(insp.get_table_names()):
+            app.config['_PRODUCTOS_LEGACY_OK'] = True
+            return True
+        cols = {c['name'] for c in insp.get_columns('productos')}
+        cambios = False
+        if 'codigo_chilemat' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN codigo_chilemat VARCHAR(80) NULL"))
+            cambios = True
+        if 'codigo_interno' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN codigo_interno VARCHAR(32) NULL"))
+            cambios = True
+        if 'imagen_url' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN imagen_url VARCHAR(500) NULL"))
+            cambios = True
+        if 'unidad_compra' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN unidad_compra VARCHAR(20) NULL"))
+            cambios = True
+        if 'unidad_venta' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN unidad_venta VARCHAR(20) NULL"))
+            cambios = True
+        if 'factor_conversion' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN factor_conversion NUMERIC(12,4) NULL"))
+            cambios = True
+        if 'subcategoria_catalogo_id' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN subcategoria_catalogo_id INTEGER NULL"))
+            cambios = True
+        if 'ubicacion_pasillo' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN ubicacion_pasillo VARCHAR(12) NULL"))
+            cambios = True
+        if 'ubicacion_estante' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN ubicacion_estante VARCHAR(12) NULL"))
+            cambios = True
+        if 'ubicacion_nivel' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN ubicacion_nivel VARCHAR(12) NULL"))
+            cambios = True
+        if cambios:
+            db.session.commit()
+        app.config['_PRODUCTOS_LEGACY_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo asegurar columnas legacy de productos: %s", ex)
         return False
 
 
