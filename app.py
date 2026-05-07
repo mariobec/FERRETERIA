@@ -6576,8 +6576,8 @@ def procesar_cobro_caja(id):
         return redirect(url_for('caja_pendientes'))
 
     try:
-        monto_recibido = float(request.form.get('monto_recibido', 0))
-        usar_saldo_favor = float(request.form.get('usar_saldo_favor', 0) or 0)
+        monto_recibido = float(request.form.get('monto_recibido') or 0)
+        usar_saldo_favor = float(request.form.get('usar_saldo_favor') or 0)
     except (TypeError, ValueError):
         flash("Monto recibido inválido.", "warning")
         return redirect(url_for('caja_pendientes'))

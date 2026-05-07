@@ -385,6 +385,9 @@
         const saldoFavor = calcularSaldoFavorCobro(id);
         const totalPagar = Math.max(0, total - saldoFavor);
         inp.min = totalPagar;
+        if (totalPagar <= 0 && !inp.readOnly) {
+            inp.value = 0;
+        }
         if (!inp.readOnly && (!inp.value || parseFloat(inp.value) < totalPagar)) {
             inp.value = Math.round(totalPagar);
         }
@@ -401,8 +404,13 @@
     }
 
    function manejarEnvioSeguro(form) {
+    const montoInput = form.querySelector('input[name="monto_recibido"]');
+    if (montoInput && !montoInput.value && parseFloat(montoInput.min || 0) <= 0) {
+        montoInput.value = 0;
+    }
+
     const btn = form.querySelector('button[type="submit"]');
-    
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> PROCESANDO...';
     return true;
