@@ -6437,7 +6437,8 @@ def anular_vale_caja(id):
 @caja_requerida
 @permisos_required('caja_cobrar_vale')
 def procesar_cobro_caja(id):
-    venta = Venta.query.get_or_404(id)
+    db.session.rollback()
+    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
     caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
     metodo = request.form.get('metodo_pago')
     tipo_doc = request.form.get('tipo_documento', 'Boleta')
@@ -6467,8 +6468,34 @@ def procesar_cobro_caja(id):
     if monto_recibido < 0:
         flash("El monto recibido no puede ser negativo.", "warning")
         return redirect(url_for('caja_pendientes'))
-    
-    try: # <--- ESTA PALABRA ES LA QUE FALTA
+
+    try:
+        # Preparamos y validamos todas las líneas antes de mutar venta/stock.
+        lineas_stock = []
+        for d in list(venta.detalles or []):
+            producto = Producto.query.get(d.id_producto)
+            if not producto:
+                raise ValueError(f"Producto no encontrado en línea #{d.id}.")
+            factor_venta_stock = _factor_venta_a_stock(producto)
+            consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
+            if consumo_stock <= 0:
+                raise ValueError(f"Conversión inválida para {producto.nombre}.")
+            disp = stock_disponible_venta_tienda(producto)
+            if disp < consumo_stock:
+                raise ValueError(f"Stock insuficiente para {producto.nombre}.")
+            lineas_stock.append({
+                'detalle_id': d.id,
+                'producto_id': producto.id,
+                'cantidad_venta': d.cantidad or 0,
+                'consumo_stock': consumo_stock,
+            })
+
+        # Partimos la transacción real desde un estado limpio. Esto evita que
+        # un SELECT/validación previa deje Postgres en InFailedSqlTransaction.
+        db.session.rollback()
+        venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
+        caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
+
         venta.metodo_pago = metodo
         venta.tipo_documento = tipo_doc
         venta.caja_id = caja_activa.id
@@ -6489,31 +6516,26 @@ def procesar_cobro_caja(id):
             venta.monto_recibido = monto_recibido
             venta.vuelto = monto_recibido - venta.monto_total
 
-        for d in venta.detalles:
-            producto = Producto.query.get(d.id_producto)
-            if producto:
-                factor_venta_stock = _factor_venta_a_stock(producto)
-                consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
-                if consumo_stock <= 0:
-                    raise ValueError(f"Conversión inválida para {producto.nombre}.")
-                disp = stock_disponible_venta_tienda(producto)
-                if disp < consumo_stock:
-                    raise ValueError(f"Stock insuficiente para {producto.nombre}.")
-                err_st = descontar_stock_venta_tienda(producto, consumo_stock)
-                if err_st:
-                    raise ValueError(f"{producto.nombre}: {err_st}")
-                registrar_movimiento_kardex(
-                    producto.id,
-                    'SALIDA',
-                    consumo_stock,
-                    f"Cobro vale/venta #{venta.id} ({metodo})"
-                    f" ({d.cantidad} {producto.unidad_venta_final} -> {consumo_stock} stock)",
-                    usuario=current_user.nombre,
-                    id_almacen=id_almacen_tienda() or 1,
-                    referencia_tipo='venta',
-                    referencia_id=venta.id,
-                    stock_saldo=None,
-                )
+        for linea in lineas_stock:
+            producto = Producto.query.get(linea['producto_id'])
+            if not producto:
+                raise ValueError(f"Producto no encontrado en línea #{linea['detalle_id']}.")
+            consumo_stock = linea['consumo_stock']
+            err_st = descontar_stock_venta_tienda(producto, consumo_stock)
+            if err_st:
+                raise ValueError(f"{producto.nombre}: {err_st}")
+            registrar_movimiento_kardex(
+                producto.id,
+                'SALIDA',
+                consumo_stock,
+                f"Cobro vale/venta #{venta.id} ({metodo})"
+                f" ({linea['cantidad_venta']} {producto.unidad_venta_final} -> {consumo_stock} stock)",
+                usuario=current_user.nombre,
+                id_almacen=id_almacen_tienda() or 1,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                stock_saldo=None,
+            )
 
         db.session.commit()
         
