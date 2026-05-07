@@ -647,6 +647,7 @@ def caja_requerida(f):
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
+        _asegurar_columnas_caja_cuadratura()
         # Buscamos si existe una caja que esté en estado 'Abierta'
         caja_activa = Caja.query.filter_by(estado='Abierta').order_by(Caja.id.desc()).first()
         if not caja_activa:
@@ -667,6 +668,7 @@ def caja_requerida(f):
 
 def obtener_caja_activa():
     """Retorna la caja abierta más reciente o None."""
+    _asegurar_columnas_caja_cuadratura()
     return Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
 
 
@@ -5119,6 +5121,44 @@ def _asegurar_columna_ventas_punto_retiro():
         return False
 
 
+def _asegurar_columnas_caja_cuadratura():
+    """Asegura columnas de cuadratura/cierre en `caja` para bases legacy."""
+    if app.config.get('_CAJA_CUADRATURA_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'caja' not in set(insp.get_table_names()):
+            app.config['_CAJA_CUADRATURA_OK'] = True
+            return True
+
+        cols = {c['name'] for c in insp.get_columns('caja')}
+        cambios = False
+        if 'monto_teorico_cierre' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_teorico_cierre NUMERIC(14,2) NULL"))
+            cambios = True
+        if 'monto_contado_cierre' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_contado_cierre NUMERIC(14,2) NULL"))
+            cambios = True
+        if 'diferencia_cierre' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN diferencia_cierre NUMERIC(14,2) NULL"))
+            cambios = True
+        if 'observacion_cierre' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN observacion_cierre VARCHAR(255) NULL"))
+            cambios = True
+        if 'supervisor_cierre' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN supervisor_cierre VARCHAR(80) NULL"))
+            cambios = True
+
+        if cambios:
+            db.session.commit()
+        app.config['_CAJA_CUADRATURA_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo asegurar columnas de cuadratura de caja: %s", ex)
+        return False
+
+
 def _redondear_montos_ventas_pendientes():
     """Limpia montos_total con decimales en vales pendientes (legado).
 
@@ -5152,6 +5192,9 @@ def _redondear_montos_ventas_pendientes():
 @caja_requerida     # <--- ESTA ES LA LÍNEA QUE FALTA
 @permisos_required('pos_emitir_vale')
 def punto_venta():
+    if not _asegurar_columnas_caja_cuadratura():
+        flash("No se pudo preparar la tabla de caja (cuadratura). Revise permisos de BD.", "danger")
+        return redirect(url_for('mostrar_ventas'))
     if not _asegurar_columna_ventas_punto_retiro():
         flash("No se pudo preparar el campo de punto de retiro en ventas. Revise permisos de BD.", "danger")
         return redirect(url_for('mostrar_ventas'))
