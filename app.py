@@ -809,6 +809,8 @@ def forzar_cambio_clave_si_corresponde():
     _asegurar_columnas_ventas_legacy()
     _asegurar_columnas_productos_legacy()
     _asegurar_columnas_detalle_ventas_legacy()
+    # Si alguna comprobación legacy dejó Postgres en estado abortado, limpiamos antes de la ruta.
+    db.session.rollback()
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
@@ -5082,21 +5084,32 @@ def _venta_validar_stock_tienda(venta):
     faltantes = []
     if not venta:
         return faltantes
-    for d in (venta.detalles or []):
-        producto = d.producto or Producto.query.get(d.id_producto)
-        if not producto:
-            faltantes.append("Producto no encontrado en línea de venta.")
-            continue
-        factor_venta_stock = _factor_venta_a_stock(producto)
-        consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
-        disp = stock_disponible_venta_tienda(producto)
-        if consumo_stock <= 0:
-            faltantes.append(f"{producto.nombre}: conversión inválida.")
-            continue
-        if disp < consumo_stock:
-            faltantes.append(
-                f"{producto.nombre} (disponible tienda: {disp}, requerido: {consumo_stock})"
-            )
+    try:
+        detalles = list(venta.detalles or [])
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo cargar detalle de venta %s para validar stock: %s", getattr(venta, 'id', None), ex)
+        return ["No se pudo validar stock del vale (revise detalle)."]
+    for d in detalles:
+        try:
+            producto = d.producto or Producto.query.get(d.id_producto)
+            if not producto:
+                faltantes.append("Producto no encontrado en línea de venta.")
+                continue
+            factor_venta_stock = _factor_venta_a_stock(producto)
+            consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
+            disp = stock_disponible_venta_tienda(producto)
+            if consumo_stock <= 0:
+                faltantes.append(f"{producto.nombre}: conversión inválida.")
+                continue
+            if disp < consumo_stock:
+                faltantes.append(
+                    f"{producto.nombre} (disponible tienda: {disp}, requerido: {consumo_stock})"
+                )
+        except Exception as ex:
+            db.session.rollback()
+            app.logger.exception("No se pudo validar stock de línea %s: %s", getattr(d, 'id', None), ex)
+            faltantes.append("No se pudo validar una línea del vale.")
     return faltantes
 
 
@@ -5366,80 +5379,95 @@ def punto_venta():
 @caja_requerida
 @permisos_required('pos_emitir_vale')
 def agregar_producto_venta():
-    codigo = (request.form.get('codigo') or '').strip()
-    producto_id_raw = request.form.get('producto_id')
-    caja = obtener_caja_activa()
-    if not caja:
-        flash("No hay caja abierta para operar en Punto de Venta.", "warning")
-        return redirect(url_for('abrir_caja'))
+    try:
+        codigo = (request.form.get('codigo') or '').strip()
+        producto_id_raw = request.form.get('producto_id')
+        caja = obtener_caja_activa()
+        if not caja:
+            flash("No hay caja abierta para operar en Punto de Venta.", "warning")
+            return redirect(url_for('abrir_caja'))
 
-    producto = None
-    if producto_id_raw:
-        try:
-            producto = Producto.query.get(int(producto_id_raw))
-        except (TypeError, ValueError):
-            producto = None
-    if not producto and codigo:
-        cnorm = codigo.strip().upper()
-        producto = (
-            Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
-            .first()
-        )
-    if not producto and codigo:
-        cnorm = codigo.strip().upper()
-        producto = (
-            Producto.query.filter(
-                Producto.codigo_interno.isnot(None),
-                db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
+        producto = None
+        if producto_id_raw:
+            try:
+                producto = Producto.query.get(int(producto_id_raw))
+            except (TypeError, ValueError):
+                producto = None
+        if not producto and codigo:
+            cnorm = codigo.strip().upper()
+            producto = (
+                Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
+                .first()
             )
-            .first()
-        )
-    if not producto:
-        flash(f"Producto no encontrado ({codigo or 'sin código'}).", "warning")
-        return redirect(url_for('punto_venta'))
+        if not producto and codigo:
+            cnorm = codigo.strip().upper()
+            producto = (
+                Producto.query.filter(
+                    Producto.codigo_interno.isnot(None),
+                    db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
+                )
+                .first()
+            )
+        if not producto and codigo:
+            cnorm = codigo.strip().upper()
+            producto = (
+                Producto.query.filter(
+                    Producto.codigo_chilemat.isnot(None),
+                    db.func.upper(db.func.trim(Producto.codigo_chilemat)) == cnorm,
+                )
+                .first()
+            )
+        if not producto:
+            flash(f"Producto no encontrado ({codigo or 'sin código'}).", "warning")
+            return redirect(url_for('punto_venta'))
 
-    if stock_disponible_venta_tienda(producto) <= 0:
-        flash(f"Sin stock disponible en tienda para {producto.nombre}.", "warning")
-        return redirect(url_for('punto_venta'))
+        if stock_disponible_venta_tienda(producto) <= 0:
+            flash(f"Sin stock disponible en tienda para {producto.nombre}.", "warning")
+            return redirect(url_for('punto_venta'))
 
-    db.session.refresh(producto)
-    pu_ef = precio_efectivo_pos_producto(producto)
-    if pu_ef <= 0:
-        flash(
-            f"El producto «{producto.nombre}» no tiene precio de venta ni mayoreo configurado.",
-            "warning",
-        )
-        return redirect(url_for('punto_venta'))
+        db.session.refresh(producto)
+        pu_ef = precio_efectivo_pos_producto(producto)
+        if pu_ef <= 0:
+            flash(
+                f"El producto «{producto.nombre}» no tiene precio de venta ni mayoreo configurado.",
+                "warning",
+            )
+            return redirect(url_for('punto_venta'))
 
-    vendedor_actual = _nombre_usuario_pos_actual()
-    venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
-    if not venta:
-        venta = Venta(
-            usuario=vendedor_actual,
-            estado="Abierta",
-            monto_total=0,
-            caja_id=caja.id,
-            fecha=db.func.current_timestamp()
+        vendedor_actual = _nombre_usuario_pos_actual()
+        venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
+        if not venta:
+            venta = Venta(
+                usuario=vendedor_actual,
+                estado="Abierta",
+                monto_total=0,
+                caja_id=caja.id,
+                fecha=db.func.current_timestamp()
+            )
+            db.session.add(venta)
+            db.session.flush()
+
+        cantidad = 1
+        precio_unitario = pu_ef
+        desc = 0.0
+        detalle = DetalleVenta(
+            id_venta=venta.id,
+            id_producto=producto.id,
+            cantidad=cantidad,
+            precio_unitario=precio_unitario,
+            descuento=desc,
+            subtotal=precio_unitario * cantidad * (1 - desc / 100.0),
         )
-        db.session.add(venta)
+        db.session.add(detalle)
         db.session.flush()
-
-    cantidad = 1
-    precio_unitario = pu_ef
-    desc = 0.0
-    detalle = DetalleVenta(
-        id_venta=venta.id,
-        id_producto=producto.id,
-        cantidad=cantidad,
-        precio_unitario=precio_unitario,
-        descuento=desc,
-        subtotal=precio_unitario * cantidad * (1 - desc / 100.0),
-    )
-    db.session.add(detalle)
-    db.session.flush()
-    venta.recalcular_total()
-    db.session.commit()
-    return redirect(url_for('punto_venta'))
+        venta.recalcular_total()
+        db.session.commit()
+        return redirect(url_for('punto_venta'))
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo agregar producto al vale: %s", ex)
+        flash(f"No se pudo agregar el producto al vale: {ex}", "danger")
+        return redirect(url_for('punto_venta'))
 
 # proceso de eliminar producto de venta abierta desde punto de venta........................................
 
@@ -5841,6 +5869,7 @@ def _aplicar_mov_saldo_favor(cliente_id, cambio_id, tipo, monto, observacion):
 @permisos_required('caja_cobrar_vale')
 def caja_pendientes():
     _redondear_montos_ventas_pendientes()
+    db.session.rollback()
     hoy = datetime.now().date()
     dt_ini_hoy = datetime.combine(hoy, datetime.min.time())
     dt_fin_hoy = datetime.combine(hoy + timedelta(days=1), datetime.min.time())
@@ -5880,10 +5909,12 @@ def caja_pendientes():
         .order_by(Venta.fecha.desc())
         .all()
     )
+    db.session.rollback()
     for v in vales:
         falt = _venta_validar_stock_tienda(v)
         v.stock_cobrable = len(falt) == 0
         v.stock_alerta = "; ".join(falt[:2]) if falt else ""
+    db.session.rollback()
     monto_pendiente = float(
         db.session.query(db.func.coalesce(db.func.sum(Venta.monto_total), 0))
         .filter(Venta.estado == "Pendiente", Venta.metodo_pago.is_(None))
