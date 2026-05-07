@@ -68,6 +68,16 @@
                         <span>$ {{ "{:,.0f}".format(total_transferencia).replace(",", ".") }}</span>
                     </div>
 
+                    <div class="d-flex justify-content-between text-success">
+                        <span>(+) DIFERENCIA CAMBIOS:</span>
+                        <span>$ {{ "{:,.0f}".format(cambios_efectivo_recibido or 0).replace(",", ".") }}</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between text-danger">
+                        <span>(-) DEVOLUCIONES EFECTIVO:</span>
+                        <span>$ {{ "{:,.0f}".format(cambios_efectivo_devuelto or 0).replace(",", ".") }}</span>
+                    </div>
+
                     <div class="d-flex justify-content-between">
                         <span>(+) OTROS INGRESOS:</span>
                         <span>$ {{ "{:,.0f}".format(ingresos).replace(",", ".") }}</span>
@@ -117,8 +127,16 @@
                         <span>VENTAS FIADAS (CRÉDITO / CARTERA):</span>
                         <span>$ {{ "{:,.0f}".format(total_fiado).replace(",", ".") }}</span>
                     </div>
+                    <div class="d-flex justify-content-between">
+                        <span>SALDO FAVOR GENERADO:</span>
+                        <span>$ {{ "{:,.0f}".format(cambios_saldo_generado or 0).replace(",", ".") }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>SALDO FAVOR USADO:</span>
+                        <span>$ {{ "{:,.0f}".format(cambios_saldo_usado or 0).replace(",", ".") }}</span>
+                    </div>
                     <p class="mb-0 mt-1 text-muted" style="font-size: 0.75rem;">
-                        No ingresa a efectivo en gaveta. Suma a deuda del cliente al cobrar el vale en caja con método Crédito.
+                        Crédito y saldo a favor son informativos: no ingresan a efectivo en gaveta.
                     </p>
                 </div>
 

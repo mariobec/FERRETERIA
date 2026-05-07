@@ -188,6 +188,9 @@
                         </tr>
 
                         <!-- MODAL -->
+                        {% set saldo_disp = v.saldo_favor_disponible or 0 %}
+                        {% set saldo_sugerido = saldo_disp if saldo_disp < (v.monto_total or 0) else (v.monto_total or 0) %}
+                        {% set total_sugerido = (v.monto_total or 0) - saldo_sugerido %}
                         <div class="modal fade modal-premium" id="modalCobro{{ v.id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content shadow-lg">
@@ -209,6 +212,31 @@
                                                     $ {{ "{:,.0f}".format(v.cliente.saldo_deudor or 0).replace(",", ".") }}
                                                 </div>
                                             </div>
+                                            {% if saldo_disp > 0 %}
+                                            <div class="alert alert-warning py-2 mb-3">
+                                                <div class="fw-bold"><i class="fas fa-wallet me-1"></i>Este cliente tiene saldo a favor.</div>
+                                                <div class="small">
+                                                    Disponible: <strong>$ {{ "{:,.0f}".format(saldo_disp).replace(",", ".") }}</strong>.
+                                                    Se sugiere usar <strong>$ {{ "{:,.0f}".format(saldo_sugerido).replace(",", ".") }}</strong>
+                                                    para dejar el pago en <strong>$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</strong>.
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-bold">Usar saldo a favor</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">$</span>
+                                                    <input type="number" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" class="form-control" value="{{ saldo_sugerido|round(0)|int }}" min="0" max="{{ saldo_sugerido|round(0)|int }}" step="any" data-disponible="{{ saldo_disp }}" data-total="{{ v.monto_total }}" oninput="actualizarSaldoFavorCobro({{ v.id }})">
+                                                    <button class="btn btn-outline-warning" type="button" onclick="usarMaximoSaldoFavor({{ v.id }})">Usar máximo</button>
+                                                </div>
+                                                <div class="form-text">Puedes cambiarlo a 0 si el cliente prefiere no usar su saldo ahora.</div>
+                                            </div>
+                                            <div class="alert alert-light border py-2 mb-3">
+                                                <strong>Total a pagar ahora:</strong>
+                                                <span id="total_a_pagar_{{ v.id }}">$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</span>
+                                            </div>
+                                            {% else %}
+                                            <input type="hidden" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" value="0" data-disponible="0" data-total="{{ v.monto_total }}">
+                                            {% endif %}
                                             {% endif %}
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">Documento</label>
@@ -227,8 +255,8 @@
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">Monto Recibido</label>
-                                                <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ v.monto_total }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
-                                                <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total.</div>
+                                                <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
+                                                <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.</div>
                                             </div>
                                         </div>
                                         <div class="modal-footer">
@@ -300,10 +328,15 @@
         const sel = document.getElementById('metodo_pago_' + id);
         const inp = document.getElementById('monto_recibido_' + id);
         const hint = document.getElementById('hint_monto_' + id);
+        const saldoInp = document.getElementById('usar_saldo_favor_' + id);
         const total = parseFloat(inp.dataset.total || inp.min || 0);
         const saldo = parseFloat(inp.dataset.saldo || 0) || 0;
         const cliente = inp.dataset.cliente || 'cliente';
         if (sel.value === 'Credito') {
+            if (saldoInp) {
+                saldoInp.value = 0;
+                saldoInp.readOnly = true;
+            }
             inp.value = 0;
             inp.min = 0;
             inp.step = 'any';
@@ -314,14 +347,57 @@
                     : 'Venta a crédito: no requiere monto recibido en caja.';
             }
         } else {
+            if (saldoInp) saldoInp.readOnly = false;
             inp.readOnly = false;
-            inp.min = total;
+            const saldoFavor = calcularSaldoFavorCobro(id);
+            const totalPagar = Math.max(0, total - saldoFavor);
+            inp.min = totalPagar;
             inp.step = 'any';
-            if (!inp.value || parseFloat(inp.value) < total) {
-                inp.value = total;
+            if (!inp.value || parseFloat(inp.value) < totalPagar) {
+                inp.value = Math.round(totalPagar);
             }
-            if (hint) hint.textContent = 'Para efectivo/débito debe ser mayor o igual al total.';
+            if (hint) hint.textContent = 'Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.';
         }
+        actualizarSaldoFavorCobro(id);
+    }
+
+    function formatoCajaCLP(valor) {
+        return '$ ' + Math.round(valor || 0).toLocaleString('es-CL');
+    }
+
+    function calcularSaldoFavorCobro(id) {
+        const saldoInp = document.getElementById('usar_saldo_favor_' + id);
+        if (!saldoInp) return 0;
+        const disponible = parseFloat(saldoInp.dataset.disponible || 0) || 0;
+        const total = parseFloat(saldoInp.dataset.total || 0) || 0;
+        const maximo = Math.max(0, Math.min(disponible, total));
+        let valor = parseFloat(saldoInp.value || 0) || 0;
+        valor = Math.max(0, Math.min(valor, maximo));
+        saldoInp.value = Math.round(valor);
+        return valor;
+    }
+
+    function actualizarSaldoFavorCobro(id) {
+        const inp = document.getElementById('monto_recibido_' + id);
+        const totalEl = document.getElementById('total_a_pagar_' + id);
+        if (!inp) return;
+        const total = parseFloat(inp.dataset.total || 0) || 0;
+        const saldoFavor = calcularSaldoFavorCobro(id);
+        const totalPagar = Math.max(0, total - saldoFavor);
+        inp.min = totalPagar;
+        if (!inp.readOnly && (!inp.value || parseFloat(inp.value) < totalPagar)) {
+            inp.value = Math.round(totalPagar);
+        }
+        if (totalEl) totalEl.textContent = formatoCajaCLP(totalPagar);
+    }
+
+    function usarMaximoSaldoFavor(id) {
+        const saldoInp = document.getElementById('usar_saldo_favor_' + id);
+        if (!saldoInp || saldoInp.readOnly) return;
+        const disponible = parseFloat(saldoInp.dataset.disponible || 0) || 0;
+        const total = parseFloat(saldoInp.dataset.total || 0) || 0;
+        saldoInp.value = Math.round(Math.max(0, Math.min(disponible, total)));
+        actualizarSaldoFavorCobro(id);
     }
 
    function manejarEnvioSeguro(form) {

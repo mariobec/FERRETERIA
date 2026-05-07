@@ -317,8 +317,18 @@
         if (ciudad) ciudad.value = data.cliente.ciudad || "";
         telefono.value = data.cliente.telefono || "";
         correo.value = data.cliente.correo || "";
-        status.innerHTML =
+        const saldoFavor = Number(data.cliente.saldo_favor || 0);
+        let html =
           '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Cliente encontrado. Datos cargados.</span>';
+        if (saldoFavor > 0) {
+          html +=
+            '<div class="alert alert-warning py-2 px-3 mt-2 mb-0">' +
+            '<i class="fas fa-wallet me-1"></i><strong>Saldo a favor disponible: ' +
+            formatoCLP(saldoFavor) +
+            "</strong>. Revísalo antes de emitir/cobrar el vale." +
+            "</div>";
+        }
+        status.innerHTML = html;
       } else {
         nombre.value = "";
         direccion.value = "";

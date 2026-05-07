@@ -48,6 +48,20 @@
         </div>
         <p class="small text-muted mb-0">El crédito no suma efectivo en gaveta; queda como cartera del cliente.</p>
 
+        <div class="summary-item">
+            <span><i class="fas fa-rotate me-2 text-success"></i>Cambios: diferencia pagada</span>
+            <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(cambios_efectivo_recibido or 0).replace(",", ".") }}</span>
+        </div>
+        <div class="summary-item">
+            <span><i class="fas fa-hand-holding-dollar me-2 text-danger"></i>Devoluciones en efectivo</span>
+            <span class="fw-bold text-danger">- $ {{ "{:,.0f}".format(cambios_efectivo_devuelto or 0).replace(",", ".") }}</span>
+        </div>
+        <p class="small text-muted mb-0">
+            Saldos a favor generados/usados no son efectivo: generado
+            <strong>$ {{ "{:,.0f}".format(cambios_saldo_generado or 0).replace(",", ".") }}</strong>,
+            usado <strong>$ {{ "{:,.0f}".format(cambios_saldo_usado or 0).replace(",", ".") }}</strong>.
+        </p>
+
         <!-- Movimientos -->
         <div class="summary-item">
             <span><i class="fas fa-plus-circle me-2 text-primary"></i>Otros Ingresos</span>

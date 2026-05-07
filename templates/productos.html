@@ -1,18 +1,79 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  .inv-hero {
+    border-radius: 18px;
+    background: linear-gradient(135deg, #111827, #14532d);
+    color: #fff;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
+    padding: 22px;
+  }
+  .inv-hero .badge { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.2); }
+  .inv-panel { border: 0; border-radius: 16px; box-shadow: 0 10px 30px rgba(15, 23, 42, .08); }
+  .inv-panel .card-header { border-bottom: 1px solid #eef2f7; border-radius: 16px 16px 0 0; }
+  .inv-action-tile {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    border: 1px solid #e5e7eb; border-radius: 14px; text-decoration: none;
+    color: #111827; background: #fff; transition: .15s ease;
+  }
+  .inv-action-tile:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, .08); }
+  .inv-action-icon {
+    width: 34px; height: 34px; border-radius: 10px; display: inline-flex;
+    align-items: center; justify-content: center; background: #eef2ff; color: #1d4ed8;
+  }
+  .inv-details {
+    border: 1px solid #e5e7eb; border-radius: 16px; background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .06); overflow: hidden;
+  }
+  .inv-details summary {
+    cursor: pointer; list-style: none; padding: 16px 18px; font-weight: 800;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .inv-details summary::-webkit-details-marker { display: none; }
+  .inv-details summary:after { content: "Abrir"; font-size: .8rem; color: #64748b; font-weight: 700; }
+  .inv-details[open] summary:after { content: "Cerrar"; }
+  .inv-details-body { border-top: 1px solid #eef2f7; padding: 18px; }
+  .stock-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 54px; padding: 4px 10px; border-radius: 999px; font-weight: 800;
+  }
+  .stock-ok { background: #dcfce7; color: #166534; }
+  .stock-zero { background: #fee2e2; color: #991b1b; }
+  .stock-low { background: #fef3c7; color: #92400e; }
+  .inv-table td, .inv-table th { vertical-align: middle; }
+  .product-name { font-weight: 800; color: #111827; }
+  .product-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #64748b; font-size: .82rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
-    <div class="page-header">
+    <div class="inv-hero d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <h3 class="page-title"><i class="fas fa-boxes text-primary me-2"></i>Gestión de Inventario</h3>
-            <p class="page-subtitle">Control de catálogo, stock y disponibilidad para venta.</p>
+            <span class="badge px-3 py-2 mb-2"><i class="fas fa-warehouse me-1"></i> Inventario operativo</span>
+            <h3 class="fw-bold mb-1">Gestión de Inventario</h3>
+            <p class="mb-0 opacity-75">Control de catálogo, stock disponible, precios y ubicación para venta.</p>
         </div>
-        <span class="badge bg-primary px-3 py-2">Ferretería Santo Domingo</span>
+        <div class="text-end">
+            <div class="small opacity-75">Listado visible</div>
+            <div class="h4 fw-bold mb-0">{{ productos|length }} productos</div>
+            <a href="{{ url_for('inventario_dashboard_premium') }}" class="btn btn-sm btn-outline-light mt-2">
+              <i class="fas fa-wand-magic-sparkles me-1"></i> Ver prototipo premium
+            </a>
+        </div>
     </div>
 
     <!-- Filtros y búsqueda -->
-    <div class="card card-ds mb-4">
-      <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
+    <div class="card inv-panel mb-4">
+      <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h5 class="m-0 fw-bold"><i class="fas fa-magnifying-glass text-primary me-2"></i>Buscar y filtrar</h5>
+          <div class="small text-muted">Encuentra productos por código, nombre, categoría o maestro.</div>
+        </div>
+        <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-secondary">Limpiar filtros</a>
+      </div>
+      <div class="card-body">
         <form method="GET" action="/productos" class="d-flex flex-wrap w-100 mb-2 align-items-end gap-2" id="form_filtro_productos" data-catalogo="{{ 1 if catalogo_maestro_disponible else 0 }}">
           <div class="flex-grow-1" style="min-width: 14rem; max-width: 38rem">
             <label class="form-label small text-muted mb-0">Producto (autocompletar como en POS)</label>
@@ -49,24 +110,37 @@
             {% endfor %}
           </select>
           {% endif %}
-          <button type="submit" class="btn btn-outline-primary fw-bold">Buscar</button>
+          <button type="submit" class="btn btn-primary fw-bold"><i class="fas fa-search me-1"></i>Buscar</button>
         </form>
-        <div class="ms-3 mb-2">
-          <a href="/productos/filtro/sin_stock" class="btn btn-sm btn-outline-danger me-1">Sin Stock</a>
-          <a href="/productos/filtro/activos" class="btn btn-sm btn-outline-success me-1">Activos</a>
-          <a href="/productos/filtro/venta" class="btn btn-sm btn-outline-info">Disponibles Venta</a>
+        <div class="row g-2 mt-2">
+          <div class="col-md-4">
+            <a href="/productos/filtro/sin_stock" class="inv-action-tile">
+              <span class="inv-action-icon" style="background:#fee2e2;color:#991b1b;"><i class="fas fa-circle-exclamation"></i></span>
+              <span><strong>Sin stock</strong><br><small class="text-muted">Productos agotados</small></span>
+            </a>
+          </div>
+          <div class="col-md-4">
+            <a href="/productos/filtro/activos" class="inv-action-tile">
+              <span class="inv-action-icon" style="background:#dcfce7;color:#166534;"><i class="fas fa-check"></i></span>
+              <span><strong>Activos</strong><br><small class="text-muted">Catálogo habilitado</small></span>
+            </a>
+          </div>
+          <div class="col-md-4">
+            <a href="/productos/filtro/venta" class="inv-action-tile">
+              <span class="inv-action-icon" style="background:#e0f2fe;color:#075985;"><i class="fas fa-cart-shopping"></i></span>
+              <span><strong>Disponibles venta</strong><br><small class="text-muted">Con stock y precio</small></span>
+            </a>
+          </div>
         </div>
       </div>
     </div>
 
     {% if puede_editar_stock_admin %}
-    <div class="card card-ds mb-4 border-warning-subtle">
-      <div class="card-header bg-white py-3">
-        <h5 class="card-title m-0 fw-bold text-warning-emphasis">
-          <i class="fas fa-triangle-exclamation me-2"></i>Ajuste inicial de stock (masivo)
-        </h5>
-      </div>
-      <div class="card-body">
+    <details class="inv-details mb-4">
+      <summary>
+        <span><i class="fas fa-triangle-exclamation text-warning me-2"></i>Ajuste inicial de stock masivo</span>
+      </summary>
+      <div class="inv-details-body">
         <form method="POST" action="{{ url_for('actualizar_stock_masivo_productos') }}" class="row g-2 align-items-end" onsubmit="return confirm('Se actualizará stock en múltiples productos. ¿Desea continuar?');">
           <div class="col-md-3">
             <label class="form-label fw-bold mb-1">Stock objetivo</label>
@@ -100,15 +174,15 @@
           </div>
         </form>
       </div>
-    </div>
+    </details>
     {% endif %}
 
     <!-- Formulario de Registro en Tarjeta -->
-    <div class="card card-ds mb-5">
-        <div class="card-header bg-white py-3">
-            <h5 class="card-title m-0 fw-bold text-secondary">Registrar Nuevo Producto</h5>
-        </div>
-        <div class="card-body p-4">
+    <details class="inv-details mb-4">
+        <summary>
+            <span><i class="fas fa-plus-circle text-primary me-2"></i>Registrar nuevo producto</span>
+        </summary>
+        <div class="inv-details-body">
             <form action="/guardar_producto" method="POST" class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label fw-bold">Nombre del Artículo</label>
@@ -247,14 +321,14 @@
                 </div>
             </form>
         </div>
-    </div>
+    </details>
 
     <!-- Carga Masiva de Productos -->
-    <div class="card card-ds mb-5">
-        <div class="card-header bg-white py-3">
-            <h5 class="card-title m-0 fw-bold text-secondary">Carga Masiva de Productos</h5>
-        </div>
-        <div class="card-body p-4">
+    <details class="inv-details mb-4">
+        <summary>
+            <span><i class="fas fa-file-import text-success me-2"></i>Carga masiva y exportación</span>
+        </summary>
+        <div class="inv-details-body">
             <form action="/cargar_productos" method="POST" enctype="multipart/form-data" class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label fw-bold">Subir archivo (CSV o Excel)</label>
@@ -280,44 +354,72 @@
                 </div>
             </form>
         </div>
-    </div>
+    </details>
 
     <!-- Tabla de productos -->
-    <div class="card card-ds">
-      <div class="card-header bg-white py-3">
-        <h5 class="card-title m-0 fw-bold text-secondary">Listado de Productos</h5>
+    <div class="card inv-panel">
+      <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <h5 class="card-title m-0 fw-bold"><i class="fas fa-list-check text-primary me-2"></i>Listado de productos</h5>
+          <div class="small text-muted">Stock, ubicación, precio y disponibilidad para venta.</div>
+        </div>
+        <a href="{{ url_for('exportar_productos_excel', q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}" class="btn btn-sm btn-outline-success fw-bold">
+          <i class="fas fa-file-excel me-1"></i> Exportar vista
+        </a>
       </div>
-      <div class="card-body">
-        <table class="table table-hover align-middle table-ds">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-hover align-middle table-ds inv-table mb-0">
           <thead class="table-light">
             <tr>
               <th>Código</th>
-              <th>Descripción</th>
-              <th>Categoría</th>
+              <th>Producto</th>
+              <th>Clasificación</th>
               <th>Ubicación</th>
               <th>UM Compra/Venta</th>
               <th>Stock</th>
               <th>Precio Venta</th>
-              <th>Activo</th>
-              <th>Disponible Venta</th>
+              <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {% for p in productos %}
             <tr>
-              <td>{{ p.codigo_barra }}</td>
-              <td>{{ p.nombre }}</td>
-              <td>{{ p.categoria }}</td>
-              <td>{{ p.ubicacion_codigo or '—' }}</td>
-              <td>{{ p.unidad_compra or '—' }} / {{ p.unidad_venta_final }} {% if p.factor_conversion and p.factor_conversion != 1 %}<small class="text-muted">(x{{ p.factor_conversion }})</small>{% endif %}</td>
-              <td>{{ p.stock }}</td>
-              <td>${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
-              <td>{{ 'Sí' if p.activo else 'No' }}</td>
-              <td>{{ 'Sí' if p.stock > 0 and p.precio_venta > 0 and p.activo else 'No' }}</td>
+              <td><div class="product-code">{{ p.codigo_barra or p.codigo_interno or '—' }}</div></td>
+              <td>
+                <div class="product-name">{{ p.nombre }}</div>
+                <div class="small text-muted">ID #{{ p.id }}</div>
+              </td>
+              <td>
+                <div>{{ p.categoria or 'Sin categoría' }}</div>
+                <small class="text-muted">{{ p.subcategoria or '—' }}</small>
+              </td>
+              <td><span class="badge text-bg-light border">{{ p.ubicacion_codigo or 'Sin ubicación' }}</span></td>
+              <td>
+                {{ p.unidad_compra or '—' }} / {{ p.unidad_venta_final }}
+                {% if p.factor_conversion and p.factor_conversion != 1 %}<small class="text-muted">(x{{ p.factor_conversion }})</small>{% endif %}
+              </td>
+              <td>
+                {% set st = p.stock or 0 %}
+                <span class="stock-badge {% if st <= 0 %}stock-zero{% elif st <= 5 %}stock-low{% else %}stock-ok{% endif %}">{{ st }}</span>
+              </td>
+              <td class="fw-bold">${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
+              <td>
+                {% if p.activo %}
+                  <span class="badge text-bg-success">Activo</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">Inactivo</span>
+                {% endif %}
+                {% if (p.stock or 0) > 0 and (p.precio_venta or 0) > 0 and p.activo %}
+                  <div class="small text-success mt-1"><i class="fas fa-check-circle me-1"></i>Disponible venta</div>
+                {% else %}
+                  <div class="small text-muted mt-1">No disponible venta</div>
+                {% endif %}
+              </td>
               <td>
                 <form method="POST" action="{{ url_for('toggle_producto', id=p.id) }}" class="d-inline">
-                  <button type="submit" class="btn btn-sm {{ 'btn-success' if p.activo else 'btn-secondary' }}">
+                  <button type="submit" class="btn btn-sm {{ 'btn-outline-success' if p.activo else 'btn-outline-secondary' }}">
                     {{ 'Activo' if p.activo else 'Inactivo' }}
                   </button>
                 </form>
@@ -338,9 +440,14 @@
                 {% endif %}
               </td>
             </tr>
+            {% else %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-5">No hay productos para los filtros seleccionados.</td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
 

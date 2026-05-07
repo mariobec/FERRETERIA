@@ -75,6 +75,10 @@
     <div class="estado cred">*** VENTA A CRÉDITO ***<br><span style="font-weight:normal;font-size:10px;">Cargado en cuenta corriente del cliente.</span></div>
     {% else %}
     <div style="margin-top:8px;font-size:11px;">
+      {% if (venta.saldo_favor_usado or 0) > 0 %}
+      <div class="center">Saldo a favor usado: ${{ "{:,.0f}".format(venta.saldo_favor_usado or 0).replace(",", ".") }}</div>
+      <div class="center">Saldo pagado en caja: ${{ "{:,.0f}".format((venta.monto_total or 0) - (venta.saldo_favor_usado or 0)).replace(",", ".") }}</div>
+      {% endif %}
       <div class="center">Recibido: ${{ "{:,.0f}".format(venta.monto_recibido or 0).replace(",", ".") }}</div>
       <div class="center">Vuelto: ${{ "{:,.0f}".format(venta.vuelto or 0).replace(",", ".") }}</div>
     </div>

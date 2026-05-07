@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h4 class="fw-bold mb-0"><i class="fas fa-wallet me-2 text-primary"></i>Clientes con Saldo a Favor</h4>
+      <small class="text-muted">Saldos vigentes generados por cambios o devoluciones pendientes de usar.</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('caja_cambios') }}" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-rotate me-1"></i> Nuevo cambio
+      </a>
+      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-cash-register me-1"></i> Volver a Caja
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Clientes con saldo</small>
+        <h5 class="fw-bold mb-0">{{ clientes_con_saldo }}</h5>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Saldo total vigente</small>
+        <h5 class="fw-bold mb-0 text-primary">$ {{ "{:,.0f}".format(total_saldo).replace(",", ".") }}</h5>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Límite de listado</small>
+        <h5 class="fw-bold mb-0">{{ limite }}</h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <form method="GET" class="row g-2 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label mb-1">Buscar cliente</label>
+          <input type="text" class="form-control" name="q" value="{{ busqueda }}" placeholder="Nombre o RUT">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search me-1"></i> Buscar
+          </button>
+        </div>
+        <div class="col-md-2 d-grid">
+          <a href="{{ url_for('caja_saldos_favor') }}" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Cliente</th>
+            <th>RUT</th>
+            <th class="text-end">Saldo a favor</th>
+            <th>Último movimiento</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in saldos %}
+          {% set c = s.cliente %}
+          {% set mov = ultimos_movs.get(s.cliente_id) %}
+          <tr>
+            <td class="fw-semibold">{{ c.nombre }}</td>
+            <td><code>{{ c.rut }}</code></td>
+            <td class="text-end fw-bold text-primary">$ {{ "{:,.0f}".format(s.saldo or 0).replace(",", ".") }}</td>
+            <td class="small">
+              {% if mov %}
+                <span class="badge {% if mov.tipo == 'CREDITO' %}text-bg-success{% else %}text-bg-warning{% endif %}">{{ mov.tipo }}</span>
+                $ {{ "{:,.0f}".format(mov.monto or 0).replace(",", ".") }}
+                <span class="text-muted">· {{ mov.fecha.strftime('%d-%m-%Y %H:%M') if mov.fecha else '' }}</span>
+              {% else %}
+                <span class="text-muted">Sin movimientos visibles</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap">
+              <a href="{{ url_for('caja_cambios', cliente_id=c.id) }}" class="btn btn-outline-primary btn-sm">
+                Usar en cambio
+              </a>
+              <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-success btn-sm">
+                POS
+              </a>
+              {% if usuario_tiene_permiso('gestionar_usuarios') %}
+              <a href="{{ url_for('admin_clientes', edit=c.id) }}" class="btn btn-outline-secondary btn-sm">
+                Cliente
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="text-center text-muted py-4">
+              No hay clientes con saldo a favor vigente.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

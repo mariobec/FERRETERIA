@@ -5,11 +5,16 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h4 class="fw-bold mb-0"><i class="fas fa-history me-2 text-primary"></i>Historial de Cierres de Caja</h4>
-            <small class="text-muted">Control de cuadratura y desempeño por cajero/a.</small>
+            <small class="text-muted">Control de cuadratura, arqueo mensual y reimpresión de tickets de cierre.</small>
         </div>
-        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-arrow-left me-1"></i> Volver a Caja
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('caja_historial_cierres', desde=mes_actual_inicio, hasta=hoy) }}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-calendar-days me-1"></i> Mes actual
+            </a>
+            <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> Volver a Caja
+            </a>
+        </div>
     </div>
 
     <div class="card shadow-sm border-0 mb-3">
@@ -65,6 +70,33 @@
         </div>
     </div>
 
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Efectivo teórico acumulado</small>
+                <h5 class="fw-bold mb-0">$ {{ "{:,.0f}".format(total_teorico or 0).replace(",", ".") }}</h5>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Efectivo contado acumulado</small>
+                <h5 class="fw-bold mb-0">$ {{ "{:,.0f}".format(total_contado or 0).replace(",", ".") }}</h5>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Faltantes acumulados</small>
+                <h5 class="fw-bold mb-0 text-danger">$ {{ "{:,.0f}".format(diferencia_faltante or 0).replace(",", ".") }}</h5>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Sobrantes acumulados</small>
+                <h5 class="fw-bold mb-0 text-success">$ {{ "{:,.0f}".format(diferencia_sobrante or 0).replace(",", ".") }}</h5>
+            </div>
+        </div>
+    </div>
+
     <div class="card border-0 shadow-sm">
         <div class="table-responsive">
             <table class="table table-sm table-hover mb-0 align-middle">
@@ -78,6 +110,7 @@
                         <th class="text-end">Contado</th>
                         <th class="text-end">Diferencia</th>
                         <th>Supervisor</th>
+                        <th class="text-end">Ticket</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -93,18 +126,23 @@
                             $ {{ "{:,.0f}".format(c.diferencia_cierre or 0).replace(",", ".") }}
                         </td>
                         <td>{{ c.supervisor_cierre or '-' }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('ticket_cierre_historico', id=c.id) }}" target="_blank" class="btn btn-sm btn-outline-dark">
+                                <i class="fas fa-receipt me-1"></i>Ver
+                            </a>
+                        </td>
                     </tr>
                     {% if c.observacion_cierre %}
                     <tr>
                         <td></td>
-                        <td colspan="7" class="small text-muted">
+                        <td colspan="8" class="small text-muted">
                             <strong>Observación:</strong> {{ c.observacion_cierre }}
                         </td>
                     </tr>
                     {% endif %}
                     {% else %}
                     <tr>
-                        <td colspan="8" class="text-center text-muted py-4">No hay cierres para los filtros seleccionados.</td>
+                        <td colspan="9" class="text-center text-muted py-4">No hay cierres para los filtros seleccionados.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

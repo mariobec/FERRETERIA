@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .premium-stock-shell {
+    min-height: calc(100vh - 90px);
+    margin: -1rem;
+    padding: 28px;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(37, 99, 235, .35), transparent 28%),
+      radial-gradient(circle at 88% 12%, rgba(220, 38, 38, .24), transparent 26%),
+      radial-gradient(circle at 55% 88%, rgba(16, 185, 129, .18), transparent 30%),
+      #020617;
+    color: #e5e7eb;
+    overflow: hidden;
+  }
+  .premium-stock-shell * { letter-spacing: -.01em; }
+  .glass-card {
+    background: rgba(15, 23, 42, .62);
+    border: 1px solid rgba(148, 163, 184, .2);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255,255,255,.04);
+    backdrop-filter: blur(16px);
+    border-radius: 24px;
+  }
+  .premium-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .premium-kicker {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    color: #93c5fd;
+    background: rgba(59, 130, 246, .12);
+    border: 1px solid rgba(147, 197, 253, .2);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-weight: 800;
+    font-size: .82rem;
+  }
+  .premium-title {
+    font-size: clamp(2rem, 4vw, 4rem);
+    line-height: .95;
+    margin: 12px 0 8px;
+    font-weight: 900;
+    color: #f8fafc;
+  }
+  .premium-subtitle { color: #94a3b8; max-width: 680px; }
+  .demo-ribbon {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 9px 12px;
+    border-radius: 14px;
+    color: #fde68a;
+    background: rgba(245, 158, 11, .12);
+    border: 1px solid rgba(251, 191, 36, .24);
+    font-size: .86rem;
+    font-weight: 700;
+  }
+  .premium-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .command-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: min(460px, 100%);
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: rgba(2, 6, 23, .72);
+    border: 1px solid rgba(148, 163, 184, .22);
+  }
+  .command-bar input {
+    background: transparent;
+    border: 0;
+    color: #e5e7eb;
+    outline: 0;
+    width: 100%;
+  }
+  .command-hint {
+    border: 1px solid rgba(148, 163, 184, .3);
+    border-radius: 8px;
+    padding: 2px 7px;
+    color: #94a3b8;
+    font-size: .76rem;
+  }
+  .metric-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .metric-card { padding: 16px; }
+  .metric-label { color: #94a3b8; font-size: .82rem; font-weight: 700; }
+  .metric-value { color: #f8fafc; font-size: 1.6rem; font-weight: 900; margin-top: 4px; }
+  .metric-foot { color: #64748b; font-size: .78rem; margin-top: 3px; }
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1.1fr .9fr;
+    gap: 18px;
+  }
+  .bento-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+  }
+  .category-card {
+    position: relative;
+    min-height: 190px;
+    padding: 18px;
+    cursor: pointer;
+    transition: transform .4s ease, border-color .4s ease, box-shadow .4s ease;
+    overflow: hidden;
+  }
+  .category-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(96, 165, 250, .55);
+    box-shadow: 0 24px 80px rgba(37, 99, 235, .16), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .span-3 { grid-column: span 3; }
+  .span-2 { grid-column: span 2; }
+  .category-glow {
+    position: absolute;
+    inset: auto -20% -45% auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 999px;
+    filter: blur(20px);
+    opacity: .32;
+  }
+  .health-ring {
+    width: 76px;
+    height: 76px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(var(--ring) calc(var(--score) * 1%), rgba(30,41,59,.9) 0);
+    box-shadow: 0 0 28px rgba(59, 130, 246, .18);
+  }
+  .health-ring span {
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: #020617;
+    font-weight: 900;
+    color: #f8fafc;
+  }
+  .category-head { display: flex; justify-content: space-between; gap: 12px; position: relative; z-index: 1; }
+  .category-name { font-size: 1.15rem; font-weight: 900; color: #f8fafc; }
+  .category-meta { color: #94a3b8; font-size: .86rem; }
+  .category-footer {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #cbd5e1;
+    font-size: .86rem;
+  }
+  .product-list { padding: 16px; }
+  .product-row {
+    display: grid;
+    grid-template-columns: 1fr 120px 96px;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 10px;
+    border-bottom: 1px solid rgba(148, 163, 184, .12);
+    cursor: pointer;
+    transition: background .25s ease;
+  }
+  .product-row:hover { background: rgba(59, 130, 246, .08); border-radius: 14px; }
+  .product-title { font-weight: 900; color: #f8fafc; }
+  .product-code { color: #64748b; font-size: .8rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: .76rem;
+    font-weight: 900;
+    padding: 5px 9px;
+  }
+  .ok { color: #67e8f9; background: rgba(8, 145, 178, .16); border: 1px solid rgba(103, 232, 249, .2); }
+  .warn { color: #fbbf24; background: rgba(245, 158, 11, .12); border: 1px solid rgba(251, 191, 36, .18); }
+  .risk { color: #fca5a5; background: rgba(220, 38, 38, .14); border: 1px solid rgba(252, 165, 165, .18); }
+  .sparkline { width: 108px; height: 34px; }
+  .slide-over {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(460px, 94vw);
+    height: 100vh;
+    z-index: 1060;
+    transform: translateX(105%);
+    transition: transform .4s ease-out;
+    padding: 18px;
+    background: rgba(2, 6, 23, .78);
+    border-left: 1px solid rgba(148, 163, 184, .18);
+    backdrop-filter: blur(20px);
+    color: #e5e7eb;
+    overflow-y: auto;
+  }
+  .slide-over.open { transform: translateX(0); }
+  .product-visual {
+    min-height: 180px;
+    border-radius: 22px;
+    background:
+      linear-gradient(135deg, rgba(59, 130, 246, .2), rgba(15, 23, 42, .92)),
+      radial-gradient(circle at 70% 30%, rgba(34, 211, 238, .3), transparent 35%);
+    display: grid;
+    place-items: center;
+    margin: 16px 0;
+  }
+  .product-visual i { font-size: 4rem; color: #93c5fd; filter: drop-shadow(0 0 22px rgba(96,165,250,.5)); }
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .timeline-dot { width: 10px; height: 10px; margin-top: 6px; border-radius: 999px; background: #38bdf8; box-shadow: 0 0 16px #38bdf8; }
+  .demo-note-card {
+    border-radius: 18px;
+    padding: 14px;
+    background: rgba(2, 6, 23, .45);
+    border: 1px solid rgba(148, 163, 184, .14);
+  }
+  .fade-in { animation: fadeInUp .4s ease-out both; }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @media (max-width: 1180px) {
+    .premium-topbar, .dashboard-grid { grid-template-columns: 1fr; display: block; }
+    .command-bar { margin-top: 18px; }
+    .metric-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .bento-grid { grid-template-columns: repeat(2, 1fr); }
+    .span-3, .span-2 { grid-column: span 1; }
+  }
+  @media (max-width: 720px) {
+    .premium-stock-shell { padding: 18px; margin: -1rem; }
+    .metric-row, .bento-grid { grid-template-columns: 1fr; }
+    .product-row { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="premium-stock-shell">
+  <div class="premium-topbar">
+    <div>
+      <div class="premium-kicker"><i class="fas fa-wand-magic-sparkles"></i> Demo premium Ferretería Santo Domingo</div>
+      <h1 class="premium-title">Stock Command Center</h1>
+      <p class="premium-subtitle">Prototipo comercial para mostrar una visión ejecutiva del inventario: salud por familia, riesgo de quiebre, reposición sugerida y detalle de movimientos.</p>
+      <div class="demo-ribbon">
+        <i class="fas fa-shield-halved"></i>
+        Modo demo: datos simulados, no modifica stock real ni operaciones del ERP.
+      </div>
+    </div>
+    <div>
+      <div class="command-bar">
+        <i class="fas fa-search text-info"></i>
+        <input id="stockCommandInput" type="search" placeholder="Buscar categoría, producto o código..." autocomplete="off">
+        <span class="command-hint">CTRL K</span>
+      </div>
+      <div class="premium-actions">
+        <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-light">
+          <i class="fas fa-arrow-left me-1"></i> Volver a inventario real
+        </a>
+        <a href="{{ url_for('stock_critico') }}" class="btn btn-sm btn-outline-warning">
+          <i class="fas fa-triangle-exclamation me-1"></i> Ver stock crítico real
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="metric-row">
+    <div class="glass-card metric-card"><div class="metric-label">Salud global demo</div><div class="metric-value">87%</div><div class="metric-foot">Familias con cobertura sana</div></div>
+    <div class="glass-card metric-card"><div class="metric-label">Unidades monitoreadas</div><div class="metric-value">12.480</div><div class="metric-foot">Stock simulado multi-familia</div></div>
+    <div class="glass-card metric-card"><div class="metric-label">Alertas críticas</div><div class="metric-value text-danger">14</div><div class="metric-foot">Riesgo de quiebre</div></div>
+    <div class="glass-card metric-card"><div class="metric-label">Reposición sugerida</div><div class="metric-value text-info">$4.8M</div><div class="metric-foot">Compra sugerida demo</div></div>
+  </div>
+
+  <div class="dashboard-grid">
+    <section>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h4 class="fw-bold mb-0 text-white" id="mainPanelTitle">Categorías</h4>
+          <div class="text-secondary small" id="mainPanelSubtitle">Nivel general: selecciona una categoría para profundizar.</div>
+        </div>
+        <button class="btn btn-sm btn-outline-light d-none" id="backToCategories"><i class="fas fa-arrow-left me-1"></i>Categorías</button>
+      </div>
+      <div id="categoryGrid" class="bento-grid"></div>
+      <div id="productList" class="glass-card product-list d-none"></div>
+    </section>
+
+    <aside class="glass-card p-4">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          <div class="text-secondary small fw-bold">FOCO DEL DÍA · DEMO</div>
+          <h5 class="fw-bold text-white mb-0">Reposición inteligente para ferretería</h5>
+        </div>
+        <span class="status-pill warn">IA demo</span>
+      </div>
+      <p class="text-secondary small">La idea es que el dueño o jefe de bodega vea rápido dónde falta mercadería, cuánto comprar y qué familia necesita atención antes de perder ventas.</p>
+      <div class="demo-note-card mb-3">
+        <div class="fw-bold text-white"><i class="fas fa-bullseye text-info me-1"></i>Valor comercial</div>
+        <div class="small text-secondary">Esta vista no reemplaza la tabla operativa. Sirve para demo, gerencia y decisiones rápidas de reposición.</div>
+      </div>
+      <div class="mt-4">
+        <div class="d-flex justify-content-between small mb-2"><span>Herramientas manuales</span><strong class="text-info">92%</strong></div>
+        <div class="progress bg-dark" style="height:8px"><div class="progress-bar bg-info" style="width:92%"></div></div>
+      </div>
+      <div class="mt-3">
+        <div class="d-flex justify-content-between small mb-2"><span>Fijaciones / tornillos</span><strong class="text-warning">41%</strong></div>
+        <div class="progress bg-dark" style="height:8px"><div class="progress-bar bg-warning" style="width:41%"></div></div>
+      </div>
+      <div class="mt-3">
+        <div class="d-flex justify-content-between small mb-2"><span>Eléctricos</span><strong class="text-danger">22%</strong></div>
+        <div class="progress bg-dark" style="height:8px"><div class="progress-bar bg-danger" style="width:22%"></div></div>
+      </div>
+      <div class="demo-note-card mt-4">
+        <div class="small text-secondary fw-bold mb-2">Siguiente evolución real</div>
+        <div class="small">Conectar esta vista a ventas reales, stock por almacén, órdenes de compra y rotación de los últimos 30 días.</div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<aside class="slide-over" id="productPanel">
+  <button class="btn btn-sm btn-outline-light" id="closePanel"><i class="fas fa-xmark me-1"></i>Cerrar</button>
+  <div id="productPanelContent"></div>
+</aside>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const categories = [
+    { id: "herramientas", name: "Herramientas y máquinas", items: 284, score: 92, color: "#38bdf8", span: "span-3" },
+    { id: "fijaciones", name: "Fijaciones y tornillería", items: 1180, score: 41, color: "#f43f5e", span: "span-3" },
+    { id: "electricidad", name: "Electricidad domiciliaria", items: 426, score: 63, color: "#f59e0b", span: "span-2" },
+    { id: "pinturas", name: "Pinturas y terminaciones", items: 198, score: 88, color: "#22c55e", span: "span-2" },
+    { id: "construccion", name: "Materiales de construcción", items: 354, score: 76, color: "#818cf8", span: "span-2" },
+  ];
+  const products = {
+    herramientas: [
+      { code: "HER-120", name: "Martillo carpintero mango fibra", stock: 42, status: "OK", trend: [8,12,9,15,18,17,21] },
+      { code: "HER-221", name: "Taladro percutor 650W", stock: 9, status: "Medio", trend: [20,18,16,13,11,10,9] },
+      { code: "HER-510", name: "Disco corte metal 4 1/2", stock: 6, status: "Reponer", trend: [28,24,22,18,14,10,6] },
+    ],
+    fijaciones: [
+      { code: "FIX-001", name: "Tornillo madera 8x1 zincado", stock: 119, status: "OK", trend: [140,138,132,130,126,120,119] },
+      { code: "FIX-221", name: "Tarugo nylon 6 mm bolsa", stock: 4, status: "Crítico", trend: [18,14,12,8,6,5,4] },
+      { code: "FIX-340", name: "Clavo corriente 2 pulgadas", stock: 17, status: "Medio", trend: [24,20,18,19,17,16,17] },
+    ],
+    electricidad: [
+      { code: "ELE-030", name: "Cable paralelo 2x1.5", stock: 3, status: "Crítico", trend: [20,18,12,9,6,4,3] },
+      { code: "ELE-155", name: "Automático 16A", stock: 24, status: "OK", trend: [18,21,19,22,25,23,24] },
+    ],
+    pinturas: [
+      { code: "PIN-100", name: "Esmalte sintético blanco 1 galón", stock: 31, status: "OK", trend: [22,26,25,27,30,29,31] },
+      { code: "PIN-240", name: "Rodillo chiporro 18 cm", stock: 11, status: "Medio", trend: [20,18,15,14,13,12,11] },
+    ],
+    construccion: [
+      { code: "CON-025", name: "Cemento especial 25 kg", stock: 55, status: "OK", trend: [60,58,57,56,55,54,55] },
+      { code: "CON-087", name: "Saco gravilla fina", stock: 8, status: "Reponer", trend: [30,24,20,16,12,10,8] },
+    ],
+  };
+
+  const categoryGrid = document.getElementById("categoryGrid");
+  const productList = document.getElementById("productList");
+  const backBtn = document.getElementById("backToCategories");
+  const title = document.getElementById("mainPanelTitle");
+  const subtitle = document.getElementById("mainPanelSubtitle");
+  const input = document.getElementById("stockCommandInput");
+  const panel = document.getElementById("productPanel");
+  const panelContent = document.getElementById("productPanelContent");
+
+  function statusClass(status) {
+    if (status === "Crítico" || status === "Reponer") return "risk";
+    if (status === "Medio") return "warn";
+    return "ok";
+  }
+
+  function sparkline(points) {
+    const max = Math.max(...points);
+    const min = Math.min(...points);
+    const coords = points.map((p, i) => {
+      const x = (i / (points.length - 1)) * 108;
+      const y = 30 - ((p - min) / Math.max(1, max - min)) * 24;
+      return x + "," + y;
+    }).join(" ");
+    return '<svg class="sparkline" viewBox="0 0 108 34"><polyline fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="' + coords + '"/></svg>';
+  }
+
+  function renderCategories(rows) {
+    categoryGrid.classList.remove("d-none");
+    productList.classList.add("d-none");
+    backBtn.classList.add("d-none");
+    title.textContent = "Categorías";
+    subtitle.textContent = "Nivel general: salud de inventario por familia ferretera.";
+    categoryGrid.innerHTML = rows.map((c, idx) => (
+      '<button type="button" class="glass-card category-card ' + c.span + ' fade-in" style="--score:' + c.score + ';--ring:' + c.color + ';animation-delay:' + (idx * 45) + 'ms" data-cat="' + c.id + '">' +
+      '<div class="category-glow" style="background:' + c.color + '"></div>' +
+      '<div class="category-head"><div><div class="category-name">' + c.name + '</div><div class="category-meta">' + c.items + ' SKU demo monitoreados</div></div>' +
+      '<div class="health-ring"><span>' + c.score + '%</span></div></div>' +
+      '<div class="category-footer"><span>Ver productos y riesgo</span><i class="fas fa-arrow-right"></i></div>' +
+      '</button>'
+    )).join("");
+    categoryGrid.querySelectorAll("[data-cat]").forEach(btn => {
+      btn.addEventListener("click", () => renderProducts(btn.dataset.cat));
+    });
+  }
+
+  function renderProducts(categoryId) {
+    const cat = categories.find(c => c.id === categoryId);
+    const rows = products[categoryId] || [];
+    categoryGrid.classList.add("d-none");
+    productList.classList.remove("d-none");
+    backBtn.classList.remove("d-none");
+    title.textContent = cat ? cat.name : "Productos";
+    subtitle.textContent = "Nivel particular: productos con tendencia de consumo y estado de reposición.";
+    productList.innerHTML = rows.map((p) => (
+      '<div class="product-row fade-in" data-product="' + encodeURIComponent(JSON.stringify(p)) + '">' +
+      '<div><div class="product-title">' + p.name + '</div><div class="product-code">' + p.code + '</div></div>' +
+      '<div>' + sparkline(p.trend) + '</div>' +
+      '<div class="text-end"><span class="status-pill ' + statusClass(p.status) + '">' + p.status + '</span><div class="small text-secondary mt-1">Stock ' + p.stock + '</div></div>' +
+      '</div>'
+    )).join("");
+    productList.querySelectorAll("[data-product]").forEach(row => {
+      row.addEventListener("click", () => openProduct(JSON.parse(decodeURIComponent(row.dataset.product))));
+    });
+  }
+
+  function openProduct(p) {
+    panelContent.innerHTML =
+      '<div class="product-visual"><i class="fas fa-box-open"></i></div>' +
+      '<div class="text-secondary small fw-bold">' + p.code + '</div>' +
+      '<h3 class="fw-bold text-white">' + p.name + '</h3>' +
+      '<div class="d-flex gap-2 my-3"><span class="status-pill ' + statusClass(p.status) + '">' + p.status + '</span><span class="status-pill ok">Stock ' + p.stock + '</span></div>' +
+      '<div class="glass-card p-3 my-3"><div class="small text-secondary mb-2">Proyección de stock demo</div>' + sparkline(p.trend.concat([Math.max(0, p.stock - 3), Math.max(0, p.stock - 8)])) + '<div class="small text-secondary mt-2">Lectura esperada: si la curva baja, sugerir compra antes de quiebre.</div></div>' +
+      '<h6 class="fw-bold text-white mt-4">Timeline de movimientos</h6>' +
+      '<div class="timeline-item"><span class="timeline-dot"></span><div><strong>Venta POS mostrador</strong><br><small class="text-secondary">Salida registrada hace 2 horas</small></div></div>' +
+      '<div class="timeline-item"><span class="timeline-dot"></span><div><strong>Recepción proveedor</strong><br><small class="text-secondary">Entrada parcial esta semana</small></div></div>' +
+      '<div class="timeline-item"><span class="timeline-dot"></span><div><strong>Compra sugerida</strong><br><small class="text-secondary">Revisar punto de reposición y margen</small></div></div>' +
+      '<div class="demo-note-card mt-3"><strong>Modo demo</strong><br><small class="text-secondary">Este panel es conceptual; no descuenta ni ajusta inventario real.</small></div>';
+    panel.classList.add("open");
+  }
+
+  backBtn.addEventListener("click", () => renderCategories(categories));
+  document.getElementById("closePanel").addEventListener("click", () => panel.classList.remove("open"));
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) return renderCategories(categories);
+    const catRows = categories.filter(c => c.name.toLowerCase().includes(q));
+    if (catRows.length) return renderCategories(catRows);
+    const matches = Object.values(products).flat().filter(p => (p.name + " " + p.code).toLowerCase().includes(q));
+    categoryGrid.classList.add("d-none");
+    productList.classList.remove("d-none");
+    backBtn.classList.remove("d-none");
+    title.textContent = "Resultados";
+    subtitle.textContent = "Búsqueda inteligente sobre datos simulados de ferretería.";
+    productList.innerHTML = matches.map(p => (
+      '<div class="product-row fade-in" data-product="' + encodeURIComponent(JSON.stringify(p)) + '">' +
+      '<div><div class="product-title">' + p.name + '</div><div class="product-code">' + p.code + '</div></div><div>' + sparkline(p.trend) + '</div>' +
+      '<div class="text-end"><span class="status-pill ' + statusClass(p.status) + '">' + p.status + '</span><div class="small text-secondary mt-1">Stock ' + p.stock + '</div></div></div>'
+    )).join("") || '<div class="text-center text-secondary py-4">Sin resultados.</div>';
+    productList.querySelectorAll("[data-product]").forEach(row => {
+      row.addEventListener("click", () => openProduct(JSON.parse(decodeURIComponent(row.dataset.product))));
+    });
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      input.focus();
+    }
+  });
+
+  renderCategories(categories);
+})();
+</script>
+{% endblock %}

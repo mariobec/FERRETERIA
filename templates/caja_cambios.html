@@ -10,6 +10,55 @@
   .venta-busqueda-results { max-height: 240px; overflow-y: auto; }
   .venta-busqueda-results .list-group-item { cursor: pointer; }
   .venta-busqueda-results .list-group-item:hover { background: #eef6ff; }
+  .stock-return-summary {
+    border: 1px solid #b7e4c7;
+    background: #f0fdf4;
+    border-radius: 10px;
+    color: #166534;
+  }
+  .stock-return-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #166534;
+    font-weight: 700;
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
+  .cambio-qty { text-align: center; font-weight: 700; }
+  .resultado-cambio-box {
+    border-radius: 12px;
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+  }
+  .resultado-cambio-box.a-favor {
+    border-color: #b7e4c7;
+    background: #f0fdf4;
+    color: #166534;
+  }
+  .resultado-cambio-box.por-pagar {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+  }
+  .resultado-cambio-box.neutro {
+    border-color: #e5e7eb;
+    background: #f8fafc;
+    color: #334155;
+  }
+  .comp-avanzada {
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #f8fafc;
+  }
+  .comp-avanzada summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: #475569;
+  }
 </style>
 {% endblock %}
 {% block content %}
@@ -102,10 +151,14 @@
                   <input class="form-control" id="dev_precio" type="number" min="0" step="any" placeholder="Precio" style="max-width:120px">
                   <button class="btn btn-success" type="button" id="btnAddDev">Agregar</button>
                 </div>
-                <div class="small text-muted mb-2">Pistolea código y Enter. Si no indica precio, se usa el precio actual del producto.</div>
+                <div class="stock-return-summary small px-3 py-2 mb-2">
+                  <div class="fw-bold"><i class="fas fa-warehouse me-1"></i>Reingreso a inventario</div>
+                  <div id="stockReingresoTxt">Sin productos para reingresar a stock.</div>
+                </div>
+                <div class="small text-muted mb-2">Pistolea código y Enter. Ajusta la cantidad si el cliente devuelve solo una parte.</div>
                 <div class="table-responsive">
                   <table class="table table-sm cambio-grid mb-0" id="tablaDevueltos">
-                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Cant. vuelve</th><th>Movimiento stock</th><th>Sub</th><th></th></tr></thead>
                     <tbody><tr><td colspan="5" class="text-center text-muted">Sin líneas</td></tr></tbody>
                   </table>
                 </div>
@@ -142,27 +195,36 @@
         <div class="card card-ds mb-3">
           <div class="card-header fw-bold">Compensación</div>
           <div class="card-body">
-            <div class="row g-2">
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Usar saldo a favor</label>
-                <input type="number" step="any" min="0" class="form-control" name="usar_saldo_favor" id="usar_saldo_favor" value="0">
+            <details class="comp-avanzada mb-3">
+              <summary>Opciones avanzadas de compensación</summary>
+              <div class="small text-muted mt-1 mb-2">
+                Abrir solo si el cliente usa saldo previo, paga una diferencia o se devuelve dinero en efectivo.
               </div>
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Monto pagado por cliente</label>
-                <input type="number" step="any" min="0" class="form-control" name="monto_pagado" id="monto_pagado" value="0">
+              <div class="row g-2">
+                <div class="col-12">
+                  <label class="form-label small fw-semibold">Usar saldo a favor anterior</label>
+                  <input type="number" step="any" min="0" class="form-control" name="usar_saldo_favor" id="usar_saldo_favor" value="0">
+                </div>
+                <div class="col-12">
+                  <label class="form-label small fw-semibold">Monto pagado por cliente</label>
+                  <input type="number" step="any" min="0" class="form-control" name="monto_pagado" id="monto_pagado" value="0">
+                </div>
+                <div class="col-12">
+                  <label class="form-label small fw-semibold">Devuelto en efectivo</label>
+                  <input type="number" step="any" min="0" class="form-control" name="monto_devuelto_efectivo" id="monto_devuelto_efectivo" value="0">
+                </div>
               </div>
-              <div class="col-12">
-                <label class="form-label small fw-semibold">Devuelto en efectivo</label>
-                <input type="number" step="any" min="0" class="form-control" name="monto_devuelto_efectivo" id="monto_devuelto_efectivo" value="0">
-              </div>
-            </div>
+            </details>
             <hr>
             <div class="d-flex justify-content-between"><span>Devuelto</span><strong id="sumDev">$ 0</strong></div>
             <div class="d-flex justify-content-between"><span>Entregado</span><strong id="sumEnt">$ 0</strong></div>
             <div class="d-flex justify-content-between"><span>Saldo usado</span><strong id="sumSaldo">$ 0</strong></div>
             <hr class="my-2">
-            <div class="d-flex justify-content-between"><span>Neto</span><strong id="netoCambio">$ 0</strong></div>
-            <div id="resumenNeto" class="small mt-2 text-muted"></div>
+            <div class="resultado-cambio-box neutro p-3" id="resultadoCambioBox">
+              <div class="small fw-semibold" id="accionCambioTxt">Resultado del cambio</div>
+              <div class="h5 fw-bold mb-1" id="netoCambio">$ 0</div>
+              <div id="resumenNeto" class="small">Seleccione productos para calcular.</div>
+            </div>
             <div id="warnCambio" class="alert alert-warning py-2 px-2 mt-2 mb-0 d-none small"></div>
           </div>
         </div>
@@ -172,7 +234,7 @@
             <label class="form-label fw-semibold">Observación</label>
             <textarea class="form-control" name="observacion" maxlength="500" rows="3" placeholder="Ej: Cambio por falla de fabricación"></textarea>
             <button class="btn btn-primary fw-bold w-100 mt-3" type="submit" id="btnGuardarCambio">
-              <i class="fas fa-save me-1"></i>Registrar cambio definitivo
+              <i class="fas fa-save me-1"></i><span id="btnGuardarCambioTxt">Registrar cambio definitivo</span>
             </button>
           </div>
         </div>
@@ -254,6 +316,16 @@
   }
 
   function aplicarVentaOrigen(venta) {
+    if (!(venta.detalles || []).length) {
+      showVentaError(
+        venta.devolucion_completa
+          ? "Este vale ya fue devuelto completamente. No quedan productos disponibles para devolver."
+          : "Este vale no tiene líneas disponibles para devolución."
+      );
+      setSinReferencia();
+      refresh();
+      return;
+    }
     ventaOrigenIdActual = venta.id;
     byId("venta_origen_id").value = String(venta.id);
     byId("ventaOrigenBadge").className = "badge text-bg-success";
@@ -278,6 +350,7 @@
         codigo: code,
         nombre: d.nombre || ("Producto #" + d.producto_id),
         cantidad: parseInt(d.cantidad || 0, 10) || 0,
+        maxCantidad: parseInt(d.cantidad || 0, 10) || 0,
         precio: precioEf,
         subtotal: precioEf * (parseInt(d.cantidad || 0, 10) || 0),
       });
@@ -288,6 +361,7 @@
       " del " + (venta.fecha || "—") +
       (venta.cliente_nombre ? " · Cliente: <strong>" + escapeHtml(venta.cliente_nombre) + "</strong>" : "") +
       " · Total: <strong>" + clp(venta.monto_total) + "</strong>." +
+      (venta.tiene_devoluciones_previas ? "<br><span class='small text-warning fw-semibold'>Este vale ya tiene devoluciones previas. Solo se precargan cantidades pendientes.</span>" : "") +
       "<br><span class='small'>Líneas precargadas en <em>Devueltos</em>. Ajuste cantidades o quite las que el cliente no devolverá.</span>"
     );
     refresh();
@@ -366,10 +440,28 @@
       tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + emptyText + "</td></tr>";
       return;
     }
+    if (tableId === "tablaDevueltos") {
+      tb.innerHTML = rows.map((r, i) => (
+        "<tr>" +
+        "<td><div class='fw-semibold'>" + r.nombre + "</div>" +
+        "<div class='small text-muted'>" + r.codigo + " · Precio devolución " + clp(r.precio) + "</div></td>" +
+        "<td><input type='number' class='form-control form-control-sm cambio-qty' style='width:76px' min='1' " +
+        (r.maxCantidad ? "max='" + r.maxCantidad + "' " : "") +
+        "value='" + r.cantidad + "' data-qty='" + i + "'></td>" +
+        "<td><span class='stock-return-pill'><i class='fas fa-plus-circle'></i>+" + r.cantidad + " a stock tienda</span>" +
+        "<div class='small text-muted mt-1'>Reingresa al inventario al registrar.</div></td>" +
+        "<td class='fw-bold text-success'>" + clp(r.subtotal) + "</td>" +
+        "<td><button type='button' class='btn btn-sm btn-outline-danger' data-del='" + i + "'>x</button></td>" +
+        "</tr>"
+      )).join("");
+      return;
+    }
     tb.innerHTML = rows.map((r, i) => (
       "<tr>" +
       "<td><div class='fw-semibold'>" + r.nombre + "</div><div class='small text-muted'>" + r.codigo + "</div></td>" +
-      "<td>" + r.cantidad + "</td>" +
+      "<td><input type='number' class='form-control form-control-sm cambio-qty' style='width:76px' min='1' " +
+      (r.maxCantidad ? "max='" + r.maxCantidad + "' " : "") +
+      "value='" + r.cantidad + "' data-qty='" + i + "'></td>" +
       "<td>" + clp(r.precio) + "</td>" +
       "<td>" + clp(r.subtotal) + "</td>" +
       "<td><button type='button' class='btn btn-sm btn-outline-danger' data-del='" + i + "'>x</button></td>" +
@@ -377,14 +469,34 @@
     )).join("");
   }
 
+  function bindQtyInputs(tableId, rows) {
+    byId(tableId).querySelectorAll("[data-qty]").forEach((inp) => {
+      inp.onchange = () => {
+        const idx = parseInt(inp.dataset.qty, 10);
+        const row = rows[idx];
+        if (!row) return;
+        let qty = parseInt(inp.value || "0", 10) || 1;
+        qty = Math.max(1, qty);
+        if (row.maxCantidad) qty = Math.min(qty, row.maxCantidad);
+        row.cantidad = qty;
+        row.subtotal = qty * row.precio;
+        inp.value = qty;
+        refresh();
+      };
+    });
+  }
+
   function refresh() {
     renderTabla(devoluciones, "tablaDevueltos", "Sin líneas");
     renderTabla(entregas, "tablaEntregados", "Sin líneas");
     byId("tablaDevueltos").querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { devoluciones.splice(parseInt(b.dataset.del, 10), 1); refresh(); });
     byId("tablaEntregados").querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { entregas.splice(parseInt(b.dataset.del, 10), 1); refresh(); });
+    bindQtyInputs("tablaDevueltos", devoluciones);
+    bindQtyInputs("tablaEntregados", entregas);
 
     const sDev = devoluciones.reduce((a, r) => a + r.subtotal, 0);
     const sEnt = entregas.reduce((a, r) => a + r.subtotal, 0);
+    const unidadesDev = devoluciones.reduce((a, r) => a + (parseInt(r.cantidad || 0, 10) || 0), 0);
     const sSaldo = Math.max(0, toNum(byId("usar_saldo_favor").value));
     const neto = sEnt - sDev - sSaldo;
     byId("totalDevueltos").textContent = clp(sDev);
@@ -392,14 +504,24 @@
     byId("sumDev").textContent = clp(sDev);
     byId("sumEnt").textContent = clp(sEnt);
     byId("sumSaldo").textContent = clp(sSaldo);
-    byId("netoCambio").textContent = clp(neto);
+    byId("stockReingresoTxt").innerHTML = unidadesDev > 0
+      ? "<strong>+" + unidadesDev + " unidad(es)</strong> volverán al stock de tienda. El descuento de la venta original se mantiene para lo no devuelto."
+      : "Sin productos para reingresar a stock.";
 
     const mPag = Math.max(0, toNum(byId("monto_pagado").value));
     const mDev = Math.max(0, toNum(byId("monto_devuelto_efectivo").value));
     const warn = byId("warnCambio");
+    const resultadoBox = byId("resultadoCambioBox");
+    const accionTxt = byId("accionCambioTxt");
+    const btnTxt = byId("btnGuardarCambioTxt");
     warn.classList.add("d-none");
+    resultadoBox.classList.remove("a-favor", "por-pagar", "neutro");
     if (neto > 0) {
-      byId("resumenNeto").textContent = "Cliente debe pagar diferencia.";
+      resultadoBox.classList.add("por-pagar");
+      accionTxt.textContent = "Cliente debe pagar diferencia";
+      byId("netoCambio").textContent = clp(neto);
+      byId("resumenNeto").textContent = "Complete el monto pagado por cliente antes de registrar.";
+      btnTxt.textContent = "Registrar cambio y cobrar diferencia";
       if (mPag + 1e-6 < neto) {
         warn.textContent = "Falta pago para cerrar: " + clp(neto - mPag);
         warn.classList.remove("d-none");
@@ -408,8 +530,29 @@
         warn.textContent = "No corresponde devolver efectivo cuando neto es por pagar.";
         warn.classList.remove("d-none");
       }
+    } else if (neto < 0) {
+      const saldoFavor = Math.abs(neto) - mDev;
+      resultadoBox.classList.add("a-favor");
+      accionTxt.textContent = "Cliente queda con saldo a favor";
+      byId("netoCambio").textContent = clp(Math.max(0, saldoFavor));
+      byId("resumenNeto").textContent = mDev > 0
+        ? "Se devuelve parte en efectivo y el resto queda como saldo a favor."
+        : "No se cobra dinero. Este monto quedará guardado para una próxima compra.";
+      btnTxt.textContent = "Registrar devolución y generar saldo";
+      if (mPag > 0) {
+        warn.textContent = "No corresponde monto pagado cuando hay saldo a favor.";
+        warn.classList.remove("d-none");
+      }
+      if (Math.abs(neto) + 1e-6 < mDev) {
+        warn.textContent = "Devuelto en efectivo supera la diferencia a favor.";
+        warn.classList.remove("d-none");
+      }
     } else {
-      byId("resumenNeto").textContent = "Cliente tiene diferencia a favor.";
+      resultadoBox.classList.add("neutro");
+      accionTxt.textContent = "Cambio compensado";
+      byId("netoCambio").textContent = clp(0);
+      byId("resumenNeto").textContent = "No hay diferencia por cobrar ni saldo a favor.";
+      btnTxt.textContent = "Registrar cambio definitivo";
       if (mPag > 0) {
         warn.textContent = "No corresponde monto pagado cuando hay saldo a favor.";
         warn.classList.remove("d-none");
@@ -443,6 +586,7 @@
         codigo: p.codigo_barra || p.codigo_interno || code,
         nombre: p.nombre,
         cantidad: qty,
+        maxCantidad: null,
         precio: precio,
         subtotal: qty * precio
       };
@@ -471,9 +615,9 @@
 
   byId("formCambioPremium").addEventListener("submit", function (e) {
     refresh();
-    if (!devoluciones.length || !entregas.length) {
+    if (!devoluciones.length) {
       e.preventDefault();
-      alert("Debes ingresar al menos un producto devuelto y uno entregado.");
+      alert("Debes ingresar al menos un producto devuelto.");
       return;
     }
     if (byId("warnCambio").classList.contains("d-none") === false) {

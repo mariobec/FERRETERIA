@@ -49,7 +49,7 @@
                             <a href="{{ url_for('modulo_creditos') }}" class="app-nav-link {% if request.endpoint in ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'registrar_abono', 'ver_ticket_abono'] %}active{% endif %}"><i class="fas fa-hand-holding-usd"></i> Créditos y cartolas</a>
                         </div>
                     </details>
-                    {% set ep_caja = request.endpoint in ['abrir_caja', 'movimiento_caja', 'cerrar_caja', 'caja_pendientes', 'procesar_cobro_caja', 'caja_historial_cierres', 'caja_cambios', 'caja_cambios_historial'] %}
+                    {% set ep_caja = request.endpoint in ['abrir_caja', 'movimiento_caja', 'cerrar_caja', 'caja_pendientes', 'procesar_cobro_caja', 'caja_historial_cierres', 'caja_cambios', 'caja_cambios_historial', 'caja_saldos_favor'] %}
                     {% set mostrar_grupo_caja = puede_cobrar_caja or puede_abrir_caja or puede_mov_caja or puede_cerrar_caja or usuario_tiene_permiso('gestionar_usuarios') %}
                     {% if mostrar_grupo_caja %}
                     <details class="app-nav-group" {% if ep_caja %}open{% endif %}>
@@ -59,6 +59,7 @@
                             <a href="{{ url_for('caja_pendientes') }}" class="app-nav-link {% if request.endpoint in ['caja_pendientes', 'procesar_cobro_caja'] %}active{% endif %}"><i class="fas fa-file-invoice-dollar"></i> Vales pendientes</a>
                             <a href="{{ url_for('caja_cambios') }}" class="app-nav-link {% if request.endpoint == 'caja_cambios' %}active{% endif %}"><i class="fas fa-rotate"></i> Cambios / devoluciones</a>
                             <a href="{{ url_for('caja_cambios_historial') }}" class="app-nav-link {% if request.endpoint == 'caja_cambios_historial' %}active{% endif %}"><i class="fas fa-clock-rotate-left"></i> Historial cambios</a>
+                            <a href="{{ url_for('caja_saldos_favor') }}" class="app-nav-link {% if request.endpoint == 'caja_saldos_favor' %}active{% endif %}"><i class="fas fa-wallet"></i> Saldos a favor</a>
                             {% endif %}
                             {% if puede_abrir_caja %}
                             <a href="{{ url_for('abrir_caja') }}" class="app-nav-link {% if request.endpoint == 'abrir_caja' %}active{% endif %}"><i class="fas fa-door-open"></i> Abrir caja</a>

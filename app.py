@@ -336,11 +336,16 @@ def _resolver_id_almacen_por_codigo(codigo):
         return None
     try:
         row = db.session.execute(
-            text("SELECT id FROM almacenes WHERE UPPER(TRIM(codigo)) = :c AND activo = 1 ORDER BY id ASC LIMIT 1"),
+            text(
+                "SELECT id FROM almacenes "
+                "WHERE UPPER(TRIM(codigo)) = :c AND activo IS NOT FALSE "
+                "ORDER BY id ASC LIMIT 1"
+            ),
             {"c": codigo.strip().upper()},
         ).scalar()
         return int(row) if row is not None else None
     except Exception:
+        db.session.rollback()
         return None
 
 
@@ -392,6 +397,7 @@ def stock_producto_en_almacen(id_producto, id_almacen):
         # Esto permite fallback a productos.stock en POS cuando aún no existe distribución por almacén.
         return None if v is None else int(v)
     except Exception:
+        db.session.rollback()
         return None
 
 
@@ -400,12 +406,15 @@ def _refrescar_stock_total_producto(producto):
     if not producto or not _tablas_inventario_almacen_existen():
         return
     try:
+        # Asegura que cambios pendientes en stock_por_almacen se reflejen en el SUM.
+        db.session.flush()
         s = db.session.execute(
             text("SELECT COALESCE(SUM(cantidad), 0) FROM stock_por_almacen WHERE id_producto = :p"),
             {"p": int(producto.id)},
         ).scalar()
         producto.stock = int(s or 0)
     except Exception:
+        db.session.rollback()
         pass
 
 
@@ -1203,6 +1212,7 @@ class Venta(db.Model):
     metodo_pago = db.Column(db.String(20), nullable=True)
     monto_recibido = db.Column(db.Float, nullable=True)
     vuelto = db.Column(db.Float, nullable=True)
+    saldo_favor_usado = db.Column(db.Float, nullable=False, default=0.0)
     prioridad = db.Column(db.Integer)
 
     motivo_anulacion = db.Column(db.String(500), nullable=True)
@@ -1373,6 +1383,8 @@ class Cliente(db.Model):
     direccion = db.Column(db.String(200))
     telefono = db.Column(db.String(20))
     correo = db.Column(db.String(100))
+    comuna = db.Column(db.String(80))
+    ciudad = db.Column(db.String(80))
 
     # --- CAMPOS PREMIUM PARA CRÉDITO ---
     saldo_deudor = db.Column(db.Float, default=0.0)      # Cuánto debe actualmente
@@ -3677,6 +3689,13 @@ def stock_critico():
     )
 
 
+@app.route('/inventario/dashboard-premium')
+@login_required
+def inventario_dashboard_premium():
+    """Vista conceptual aislada para explorar un dashboard premium de stock."""
+    return render_template('stock_dashboard_premium.html')
+
+
 def _inventario_salud_payload(q, min_bodega):
     """
     Desajuste: productos.stock vs suma de stock_por_almacen en almacenes activos.
@@ -5136,6 +5155,9 @@ def _asegurar_columnas_ventas_legacy():
         if 'vuelto' not in cols:
             db.session.execute(text("ALTER TABLE ventas ADD COLUMN vuelto NUMERIC(14,2) NULL"))
             cambios = True
+        if 'saldo_favor_usado' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN saldo_favor_usado NUMERIC(14,2) DEFAULT 0"))
+            cambios = True
         if 'prioridad' not in cols:
             db.session.execute(text("ALTER TABLE ventas ADD COLUMN prioridad INTEGER NULL"))
             cambios = True
@@ -5531,8 +5553,11 @@ def finalizar_venta():
 
     nombre = request.form.get('cliente_nombre')
     direccion = request.form.get('cliente_direccion')
+    giro = request.form.get('cliente_giro')
     telefono = request.form.get('cliente_telefono')
     correo = request.form.get('cliente_correo')
+    comuna = request.form.get('cliente_comuna')
+    ciudad = request.form.get('cliente_ciudad')
     es_cliente_final = request.form.get('cliente_final') == '1'
 
     if es_cliente_final:
@@ -5547,8 +5572,11 @@ def finalizar_venta():
 
         if cliente:
             cliente.direccion = direccion or cliente.direccion
+            cliente.giro = giro or cliente.giro
             cliente.telefono = telefono or cliente.telefono
             cliente.correo = correo or cliente.correo
+            cliente.comuna = comuna or cliente.comuna
+            cliente.ciudad = ciudad or cliente.ciudad
 
             if nombre and nombre != cliente.nombre:
                 flash("El cliente ya existe, no puedes cambiar el nombre.", "warning")
@@ -5557,8 +5585,16 @@ def finalizar_venta():
             if not nombre:
                 flash("Error: Nombre es obligatorio para nuevo cliente.", "danger")
                 return redirect(url_for('punto_venta'))
-            cliente = Cliente(nombre=nombre, rut=rut,
-                              direccion=direccion, telefono=telefono, correo=correo)
+            cliente = Cliente(
+                nombre=nombre,
+                rut=rut,
+                giro=giro,
+                direccion=direccion,
+                telefono=telefono,
+                correo=correo,
+                comuna=comuna,
+                ciudad=ciudad,
+            )
             db.session.add(cliente)
 
     db.session.commit()
@@ -5914,6 +5950,7 @@ def caja_pendientes():
         falt = _venta_validar_stock_tienda(v)
         v.stock_cobrable = len(falt) == 0
         v.stock_alerta = "; ".join(falt[:2]) if falt else ""
+        v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
     db.session.rollback()
     monto_pendiente = float(
         db.session.query(db.func.coalesce(db.func.sum(Venta.monto_total), 0))
@@ -5980,8 +6017,8 @@ def caja_cambios():
             flash(str(ex), "warning")
             return redirect(url_for('caja_cambios', cliente_id=cliente_id or None))
 
-        if not devueltos or not entregados:
-            flash("Debe ingresar al menos una línea devuelta y una entregada.", "warning")
+        if not devueltos:
+            flash("Debe ingresar al menos una línea devuelta.", "warning")
             return redirect(url_for('caja_cambios', cliente_id=cliente_id or None))
 
         observacion = (request.form.get('observacion') or '').strip()[:500]
@@ -6181,20 +6218,46 @@ def api_cambios_producto(codigo):
     )
 
 
+def _devoluciones_previas_por_producto(venta_id):
+    rows = (
+        db.session.query(CambioDetalle.producto_id, db.func.coalesce(db.func.sum(CambioDetalle.cantidad), 0))
+        .join(CambioOperacion, CambioOperacion.id == CambioDetalle.cambio_id)
+        .filter(
+            CambioOperacion.venta_origen_id == venta_id,
+            CambioDetalle.tipo == 'DEVUELTO',
+        )
+        .group_by(CambioDetalle.producto_id)
+        .all()
+    )
+    return {int(pid): int(qty or 0) for pid, qty in rows}
+
+
 def _venta_a_dict_para_cambio(v):
+    devueltas_restantes = _devoluciones_previas_por_producto(v.id)
     detalles = []
     for d in (v.detalles or []):
         prod = d.producto
+        producto_id = int(d.id_producto)
+        cantidad_vendida = int(d.cantidad or 0)
+        ya_devuelta_disponible = int(devueltas_restantes.get(producto_id, 0) or 0)
+        ya_devuelta_linea = min(cantidad_vendida, ya_devuelta_disponible)
+        cantidad_pendiente = max(0, cantidad_vendida - ya_devuelta_linea)
+        devueltas_restantes[producto_id] = max(0, ya_devuelta_disponible - ya_devuelta_linea)
+        if cantidad_pendiente <= 0:
+            continue
         detalles.append({
-            'producto_id': d.id_producto,
+            'producto_id': producto_id,
             'codigo_barra': ((prod.codigo_barra or '').strip() if prod else ''),
             'codigo_interno': ((prod.codigo_interno or '').strip() if prod else ''),
-            'nombre': (prod.nombre if prod else f"Producto #{d.id_producto}"),
-            'cantidad': int(d.cantidad or 0),
+            'nombre': (prod.nombre if prod else f"Producto #{producto_id}"),
+            'cantidad': cantidad_pendiente,
+            'cantidad_original': cantidad_vendida,
+            'cantidad_ya_devuelta': ya_devuelta_linea,
             'precio_unitario': float(d.precio_unitario or 0),
             'descuento': float(d.descuento or 0),
             'subtotal': float(d.subtotal or 0),
         })
+    cambios_previos = CambioOperacion.query.filter_by(venta_origen_id=v.id).count()
     return {
         'id': v.id,
         'fecha': v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else None,
@@ -6203,6 +6266,8 @@ def _venta_a_dict_para_cambio(v):
         'cliente_id': v.cliente_id,
         'cliente_nombre': v.cliente.nombre if v.cliente else None,
         'cliente_rut': (v.cliente.rut if v.cliente else None),
+        'tiene_devoluciones_previas': cambios_previos > 0,
+        'devolucion_completa': cambios_previos > 0 and not detalles,
         'detalles': detalles,
     }
 
@@ -6400,6 +6465,56 @@ def caja_cambios_historial():
     )
 
 
+@app.route('/caja/saldos-favor')
+@login_required
+@permisos_required('caja_cobrar_vale', 'gestionar_usuarios')
+def caja_saldos_favor():
+    """Clientes con saldo a favor vigente por devoluciones/cambios."""
+    if not _asegurar_tablas_cambios():
+        flash("No se pudo preparar tablas de saldos a favor. Revise permisos de BD.", "danger")
+        return redirect(url_for('caja_pendientes'))
+
+    q = (request.args.get('q') or '').strip()
+    consulta = (
+        ClienteSaldoFavor.query
+        .join(Cliente, Cliente.id == ClienteSaldoFavor.cliente_id)
+        .filter(ClienteSaldoFavor.saldo > 0)
+    )
+    if q:
+        like_q = f"%{q}%"
+        consulta = consulta.filter(or_(Cliente.nombre.like(like_q), Cliente.rut.like(like_q)))
+
+    saldos = (
+        consulta
+        .order_by(ClienteSaldoFavor.saldo.desc(), Cliente.nombre.asc())
+        .limit(500)
+        .all()
+    )
+    total_saldo = sum(float(s.saldo or 0) for s in saldos)
+    clientes_con_saldo = len(saldos)
+    ultimos_movs = {}
+    if saldos:
+        ids = [s.cliente_id for s in saldos]
+        movimientos = (
+            MovimientoSaldoFavor.query
+            .filter(MovimientoSaldoFavor.cliente_id.in_(ids))
+            .order_by(MovimientoSaldoFavor.fecha.desc(), MovimientoSaldoFavor.id.desc())
+            .all()
+        )
+        for mov in movimientos:
+            ultimos_movs.setdefault(mov.cliente_id, mov)
+
+    return render_template(
+        'caja_saldos_favor.html',
+        saldos=saldos,
+        ultimos_movs=ultimos_movs,
+        total_saldo=total_saldo,
+        clientes_con_saldo=clientes_con_saldo,
+        busqueda=q,
+        limite=500,
+    )
+
+
 @app.route('/caja/vales/<int:id>/anular', methods=['POST'])
 @login_required
 @caja_requerida
@@ -6462,12 +6577,16 @@ def procesar_cobro_caja(id):
 
     try:
         monto_recibido = float(request.form.get('monto_recibido', 0))
+        usar_saldo_favor = float(request.form.get('usar_saldo_favor', 0) or 0)
     except (TypeError, ValueError):
         flash("Monto recibido inválido.", "warning")
         return redirect(url_for('caja_pendientes'))
-    if monto_recibido < 0:
-        flash("El monto recibido no puede ser negativo.", "warning")
+    if monto_recibido < 0 or usar_saldo_favor < 0:
+        flash("Los montos no pueden ser negativos.", "warning")
         return redirect(url_for('caja_pendientes'))
+    saldo_cliente_actual = _saldo_favor_actual(venta.cliente_id) if venta.cliente_id else 0.0
+    saldo_favor_usado = min(float(usar_saldo_favor or 0), saldo_cliente_actual, float(venta.monto_total or 0))
+    total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
 
     try:
         # Preparamos y validamos todas las líneas antes de mutar venta/stock.
@@ -6506,15 +6625,32 @@ def procesar_cobro_caja(id):
             venta.estado = "Pendiente"
             venta.monto_recibido = 0
             venta.vuelto = 0
+            venta.saldo_favor_usado = 0
             if venta.cliente:
                 venta.cliente.saldo_deudor = (venta.cliente.saldo_deudor or 0) + venta.monto_total
         else:
-            if monto_recibido < venta.monto_total:
-                flash("El monto recibido no puede ser menor al total para pagos no crédito.", "warning")
+            if saldo_favor_usado > 0:
+                if not venta.cliente_id:
+                    flash("Para usar saldo a favor el vale debe tener cliente identificado.", "warning")
+                    return redirect(url_for('caja_pendientes'))
+                saldo_cliente_actual = _saldo_favor_actual(venta.cliente_id)
+                saldo_favor_usado = min(saldo_favor_usado, saldo_cliente_actual, float(venta.monto_total or 0))
+                total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
+            if monto_recibido < total_a_pagar:
+                flash("El monto recibido no puede ser menor al total pendiente después de saldo a favor.", "warning")
                 return redirect(url_for('caja_pendientes'))
             venta.estado = "Pagado"
             venta.monto_recibido = monto_recibido
-            venta.vuelto = monto_recibido - venta.monto_total
+            venta.vuelto = monto_recibido - total_a_pagar
+            venta.saldo_favor_usado = saldo_favor_usado
+            if saldo_favor_usado > 0:
+                _aplicar_mov_saldo_favor(
+                    venta.cliente_id,
+                    None,
+                    'DEBITO',
+                    saldo_favor_usado,
+                    f'Uso en venta #{venta.id}',
+                )
 
         for linea in lineas_stock:
             producto = Producto.query.get(linea['producto_id'])
@@ -6773,9 +6909,12 @@ def cerrar_caja():
     def _metodo_pago(v):
         return (v.metodo_pago or "").strip()
 
-    total_efectivo = sum(v.monto_total for v in ventas if _metodo_pago(v) == "Efectivo") or 0
-    total_debito = sum(v.monto_total for v in ventas if _metodo_pago(v) == "Debito") or 0
-    total_transferencia = sum(v.monto_total for v in ventas if _metodo_pago(v) == "Transferencia") or 0
+    def _monto_cobrado_por_medio(v):
+        return max(0.0, float(v.monto_total or 0) - float(getattr(v, 'saldo_favor_usado', 0) or 0))
+
+    total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Efectivo") or 0
+    total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Debito") or 0
+    total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Transferencia") or 0
     total_fiado = sum(v.monto_total for v in ventas if _metodo_pago(v).lower() == "credito") or 0
 
     ventas_turno = [v for v in ventas if v.estado != "Abierta"]
@@ -6786,14 +6925,27 @@ def cerrar_caja():
     abonos_hoy = AbonoCredito.query.filter_by(caja_id=caja.id).all()
     total_abonos_efectivo = sum(a.monto_abono for a in abonos_hoy if a.metodo_pago == "Efectivo") or 0
     total_abonos_otros = sum(a.monto_abono for a in abonos_hoy if a.metodo_pago != "Efectivo") or 0
+
+    # Cambios/devoluciones del turno: solo el efectivo pagado/devuelto afecta gaveta.
+    cambios_turno = CambioOperacion.query.filter_by(caja_id=caja.id).order_by(CambioOperacion.fecha.desc()).all()
+    cambios_efectivo_recibido = sum(float(c.monto_pagado or 0) for c in cambios_turno) or 0
+    cambios_efectivo_devuelto = sum(float(c.monto_devuelto_efectivo or 0) for c in cambios_turno) or 0
+    cambios_saldo_generado = sum(float(c.saldo_generado or 0) for c in cambios_turno) or 0
+    cambios_saldo_usado = sum(float(c.saldo_usado or 0) for c in cambios_turno) or 0
     
     # 4. Movimientos manuales de Caja (Ingresos/Egresos)
     ingresos_manuales = sum(m.monto for m in caja.movimientos if m.tipo == "Ingreso") or 0
     egresos = sum(m.monto for m in caja.movimientos if m.tipo == "Egreso") or 0
     
     # 5. MONTO TEÓRICO EN GAVETA (Lo que Ana debe entregar en billetes/monedas)
-    # Inicial + Ventas Efec + Abonos Efec + Ingresos Manuales - Gastos
-    monto_teorico = (caja.monto_inicial + total_efectivo + total_abonos_efectivo + ingresos_manuales) - egresos
+    # Inicial + Ventas Efec + Abonos Efec + pagos por cambios + Ingresos Manuales - devoluciones efectivo - Gastos
+    monto_teorico = (
+        caja.monto_inicial
+        + total_efectivo
+        + total_abonos_efectivo
+        + cambios_efectivo_recibido
+        + ingresos_manuales
+    ) - cambios_efectivo_devuelto - egresos
     
     # 6. GRAN TOTAL DE MOVIMIENTOS (Productividad total)
     gran_total_dia = total_efectivo + total_debito + total_transferencia + total_fiado + total_abonos_efectivo + total_abonos_otros
@@ -6875,6 +7027,11 @@ def cerrar_caja():
                                total_transferencia=total_transferencia,
                                total_abonos=(total_abonos_efectivo + total_abonos_otros),
                                total_fiado=total_fiado,
+                               cambios_efectivo_recibido=cambios_efectivo_recibido,
+                               cambios_efectivo_devuelto=cambios_efectivo_devuelto,
+                               cambios_saldo_generado=cambios_saldo_generado,
+                               cambios_saldo_usado=cambios_saldo_usado,
+                               cambios_turno=cambios_turno,
                                ingresos=ingresos_manuales, 
                                egresos=egresos,
                                monto_teorico=monto_teorico,
@@ -6891,6 +7048,11 @@ def cerrar_caja():
                            total_debito=total_debito,
                            total_transferencia=total_transferencia,
                            total_fiado=total_fiado,
+                           cambios_efectivo_recibido=cambios_efectivo_recibido,
+                           cambios_efectivo_devuelto=cambios_efectivo_devuelto,
+                           cambios_saldo_generado=cambios_saldo_generado,
+                           cambios_saldo_usado=cambios_saldo_usado,
+                           cambios_turno=cambios_turno,
                            ingresos=ingresos_manuales,
                            egresos=egresos,
                            monto_teorico=monto_teorico,
@@ -6898,6 +7060,66 @@ def cerrar_caja():
                            gran_total_ventas=gran_total_dia,
                            ventas_count=len(ventas),
                            ventas_turno=ventas_turno)
+
+
+def _resumen_caja_cerrada(caja):
+    """Recalcula el desglose operativo de una caja cerrada para auditoría/reimpresión."""
+    ventas = Venta.query.filter_by(caja_id=caja.id).all()
+
+    def _metodo_pago(v):
+        return (v.metodo_pago or "").strip()
+
+    def _monto_cobrado_por_medio(v):
+        return max(0.0, float(v.monto_total or 0) - float(getattr(v, 'saldo_favor_usado', 0) or 0))
+
+    total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Efectivo") or 0
+    total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Debito") or 0
+    total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Transferencia") or 0
+    total_fiado = sum(float(v.monto_total or 0) for v in ventas if _metodo_pago(v).lower() == "credito") or 0
+    ventas_turno = [v for v in ventas if v.estado != "Abierta"]
+    ventas_turno.sort(key=lambda x: x.fecha or datetime.min, reverse=True)
+
+    abonos_hoy = AbonoCredito.query.filter_by(caja_id=caja.id).all()
+    total_abonos_efectivo = sum(float(a.monto_abono or 0) for a in abonos_hoy if a.metodo_pago == "Efectivo") or 0
+    total_abonos_otros = sum(float(a.monto_abono or 0) for a in abonos_hoy if a.metodo_pago != "Efectivo") or 0
+
+    cambios_turno = CambioOperacion.query.filter_by(caja_id=caja.id).order_by(CambioOperacion.fecha.desc()).all()
+    cambios_efectivo_recibido = sum(float(c.monto_pagado or 0) for c in cambios_turno) or 0
+    cambios_efectivo_devuelto = sum(float(c.monto_devuelto_efectivo or 0) for c in cambios_turno) or 0
+    cambios_saldo_generado = sum(float(c.saldo_generado or 0) for c in cambios_turno) or 0
+    cambios_saldo_usado = sum(float(c.saldo_usado or 0) for c in cambios_turno) or 0
+
+    ingresos = sum(float(m.monto or 0) for m in caja.movimientos if m.tipo == "Ingreso") or 0
+    egresos = sum(float(m.monto or 0) for m in caja.movimientos if m.tipo == "Egreso") or 0
+    monto_teorico = float(caja.monto_teorico_cierre or 0)
+    if not monto_teorico:
+        monto_teorico = (
+            float(caja.monto_inicial or 0)
+            + total_efectivo
+            + total_abonos_efectivo
+            + cambios_efectivo_recibido
+            + ingresos
+        ) - cambios_efectivo_devuelto - egresos
+
+    return dict(
+        total_efectivo=total_efectivo,
+        total_debito=total_debito,
+        total_transferencia=total_transferencia,
+        total_abonos=total_abonos_efectivo + total_abonos_otros,
+        total_fiado=total_fiado,
+        cambios_efectivo_recibido=cambios_efectivo_recibido,
+        cambios_efectivo_devuelto=cambios_efectivo_devuelto,
+        cambios_saldo_generado=cambios_saldo_generado,
+        cambios_saldo_usado=cambios_saldo_usado,
+        cambios_turno=cambios_turno,
+        ingresos=ingresos,
+        egresos=egresos,
+        monto_teorico=monto_teorico,
+        monto_contado=float(caja.monto_contado_cierre or caja.monto_final or 0),
+        diferencia_cuadratura=float(caja.diferencia_cierre or 0),
+        gran_total_ventas=total_efectivo + total_debito + total_transferencia + total_fiado + total_abonos_efectivo + total_abonos_otros,
+        ventas_turno=ventas_turno,
+    )
 
 
 @app.route('/caja/historial_cierres')
@@ -6933,19 +7155,50 @@ def caja_historial_cierres():
     cierres = q.limit(300).all()
     total_cierres = len(cierres)
     total_diferencia = sum(float(c.diferencia_cierre or 0) for c in cierres)
+    total_teorico = sum(float(c.monto_teorico_cierre or 0) for c in cierres)
+    total_contado = sum(float(c.monto_contado_cierre or c.monto_final or 0) for c in cierres)
+    diferencia_faltante = sum(float(c.diferencia_cierre or 0) for c in cierres if float(c.diferencia_cierre or 0) < 0)
+    diferencia_sobrante = sum(float(c.diferencia_cierre or 0) for c in cierres if float(c.diferencia_cierre or 0) > 0)
+    cierres_con_diferencia = sum(1 for c in cierres if abs(float(c.diferencia_cierre or 0)) >= 0.0001)
     cierres_exactos = sum(1 for c in cierres if abs(float(c.diferencia_cierre or 0)) < 0.0001)
     pct_exactitud = (cierres_exactos * 100.0 / total_cierres) if total_cierres else 0.0
+    hoy = datetime.now().date()
+    mes_actual_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
 
     return render_template(
         'caja_historial_cierres.html',
         cierres=cierres,
         total_cierres=total_cierres,
         total_diferencia=total_diferencia,
+        total_teorico=total_teorico,
+        total_contado=total_contado,
+        diferencia_faltante=diferencia_faltante,
+        diferencia_sobrante=diferencia_sobrante,
+        cierres_con_diferencia=cierres_con_diferencia,
         cierres_exactos=cierres_exactos,
         pct_exactitud=pct_exactitud,
         q_usuario=q_usuario,
         q_desde=q_desde,
         q_hasta=q_hasta,
+        mes_actual_inicio=mes_actual_inicio,
+        hoy=hoy.strftime('%Y-%m-%d'),
+    )
+
+
+@app.route('/caja/historial_cierres/<int:id>/ticket')
+@login_required
+@permisos_required('gestionar_usuarios', 'caja_cerrar')
+def ticket_cierre_historico(id):
+    caja = Caja.query.get_or_404(id)
+    if caja.estado != "Cerrada":
+        flash("Solo se puede reimprimir el ticket de una caja cerrada.", "warning")
+        return redirect(url_for('caja_historial_cierres'))
+    resumen = _resumen_caja_cerrada(caja)
+    return render_template(
+        'ticket_cierre.html',
+        caja=caja,
+        umbral_diferencia=float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000'),
+        **resumen,
     )
 
 # editar usuario....................................................................................
@@ -7025,13 +7278,18 @@ def consultar_cliente():
         cliente = Cliente.query.filter(Cliente.rut.in_(variantes)).first()
 
         if cliente:
+            saldo_favor = _saldo_favor_actual(cliente.id)
             return jsonify({
                 'existe': True,
                 'cliente': {
                     'nombre': cliente.nombre,
                     'direccion': cliente.direccion,
+                    'giro': cliente.giro,
                     'telefono': cliente.telefono,
                     'correo': cliente.correo,
+                    'comuna': cliente.comuna,
+                    'ciudad': cliente.ciudad,
+                    'saldo_favor': saldo_favor,
                 },
             })
         return jsonify({'existe': False})
@@ -7391,6 +7649,8 @@ def admin_clientes():
                             direccion=(request.form.get('direccion') or '').strip()[:200] or None,
                             telefono=(request.form.get('telefono') or '').strip()[:20] or None,
                             correo=(request.form.get('correo') or '').strip()[:100] or None,
+                            comuna=(request.form.get('comuna') or '').strip()[:80] or None,
+                            ciudad=(request.form.get('ciudad') or '').strip()[:80] or None,
                             limite_credito=float(lim),
                             estado_credito=(request.form.get('estado_credito') or 'Activo').strip()[:20] or 'Activo',
                             saldo_deudor=0.0,
@@ -7426,6 +7686,8 @@ def admin_clientes():
                             c.direccion = (request.form.get('direccion') or '').strip()[:200] or None
                             c.telefono = (request.form.get('telefono') or '').strip()[:20] or None
                             c.correo = (request.form.get('correo') or '').strip()[:100] or None
+                            c.comuna = (request.form.get('comuna') or '').strip()[:80] or None
+                            c.ciudad = (request.form.get('ciudad') or '').strip()[:80] or None
                             lim = request.form.get('limite_credito', type=float)
                             if lim is not None and lim >= 0:
                                 c.limite_credito = float(lim)
