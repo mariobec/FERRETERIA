@@ -669,6 +669,7 @@ def caja_requerida(f):
 def obtener_caja_activa():
     """Retorna la caja abierta más reciente o None."""
     _asegurar_columnas_caja_cuadratura()
+    _asegurar_columnas_ventas_legacy()
     return Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
 
 
@@ -5094,16 +5095,17 @@ def _venta_validar_stock_tienda(venta):
     return faltantes
 
 
-def _asegurar_columna_ventas_punto_retiro():
-    """Asegura ventas.punto_retiro en bases ya creadas. Sintaxis ANSI portable (MySQL/Postgres)."""
-    if app.config.get('_VENTAS_PUNTO_RETIRO_OK'):
+def _asegurar_columnas_ventas_legacy():
+    """Asegura columnas agregadas en `ventas` para bases legacy (MySQL/Postgres)."""
+    if app.config.get('_VENTAS_LEGACY_OK'):
         return True
     try:
         insp = sa_inspect(db.engine)
         if 'ventas' not in set(insp.get_table_names()):
-            app.config['_VENTAS_PUNTO_RETIRO_OK'] = True
+            app.config['_VENTAS_LEGACY_OK'] = True
             return True
         cols = {c['name'] for c in insp.get_columns('ventas')}
+        cambios = False
         if 'punto_retiro' not in cols:
             db.session.execute(text(
                 "ALTER TABLE ventas ADD COLUMN punto_retiro VARCHAR(30) DEFAULT 'Bodega'"
@@ -5112,12 +5114,29 @@ def _asegurar_columna_ventas_punto_retiro():
                 "UPDATE ventas SET punto_retiro = 'Bodega' "
                 "WHERE punto_retiro IS NULL OR punto_retiro = ''"
             ))
+            cambios = True
+        if 'vuelto' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN vuelto NUMERIC(14,2) NULL"))
+            cambios = True
+        if 'prioridad' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN prioridad INTEGER NULL"))
+            cambios = True
+        if 'motivo_anulacion' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN motivo_anulacion VARCHAR(500) NULL"))
+            cambios = True
+        if 'fecha_anulacion' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN fecha_anulacion TIMESTAMP NULL"))
+            cambios = True
+        if 'usuario_anulacion' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN usuario_anulacion VARCHAR(80) NULL"))
+            cambios = True
+        if cambios:
             db.session.commit()
-        app.config['_VENTAS_PUNTO_RETIRO_OK'] = True
+        app.config['_VENTAS_LEGACY_OK'] = True
         return True
     except Exception as ex:
         db.session.rollback()
-        app.logger.exception("No se pudo asegurar ventas.punto_retiro: %s", ex)
+        app.logger.exception("No se pudo asegurar columnas legacy de ventas: %s", ex)
         return False
 
 
@@ -5195,8 +5214,8 @@ def punto_venta():
     if not _asegurar_columnas_caja_cuadratura():
         flash("No se pudo preparar la tabla de caja (cuadratura). Revise permisos de BD.", "danger")
         return redirect(url_for('mostrar_ventas'))
-    if not _asegurar_columna_ventas_punto_retiro():
-        flash("No se pudo preparar el campo de punto de retiro en ventas. Revise permisos de BD.", "danger")
+    if not _asegurar_columnas_ventas_legacy():
+        flash("No se pudo preparar la tabla de ventas (campos legacy). Revise permisos de BD.", "danger")
         return redirect(url_for('mostrar_ventas'))
 
     # Buscar la última caja abierta
