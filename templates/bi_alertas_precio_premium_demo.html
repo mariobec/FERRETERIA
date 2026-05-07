@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .premium-dark {
+    background: radial-gradient(1200px 500px at 15% -10%, rgba(56, 189, 248, .16), transparent 50%),
+                radial-gradient(900px 420px at 110% -20%, rgba(16, 185, 129, .15), transparent 45%),
+                #0f172a;
+    border: 1px solid rgba(148, 163, 184, .25);
+    border-radius: 14px;
+    color: #e2e8f0;
+  }
+  .premium-dark .text-muted { color: #94a3b8 !important; }
+  .widget-critical { border-left: 4px solid #ef4444; }
+  .widget-warning { border-left: 4px solid #f59e0b; }
+  .widget-positive { border-left: 4px solid #10b981; }
+  .table-premium thead th { white-space: nowrap; }
+  .table-premium td, .table-premium th { vertical-align: middle; }
+  .loss-col { font-weight: 700; color: #dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1220px;">
+  <div class="page-header mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h3 class="page-title"><i class="fas fa-shield-alt text-danger me-2"></i>Centro de Alertas de Precios Premium</h3>
+        <p class="page-subtitle mb-0">Simulación gerencial para priorizar decisiones por <strong>dinero en riesgo</strong> (CLP).</p>
+      </div>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('panel_dueno') }}#sec-semaforo">Volver al panel</a>
+        <a class="btn btn-dark btn-sm" href="{{ url_for('business_intelligence', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}">Ir a BI real</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="premium-dark p-3 p-md-4 mb-3">
+    <div class="small text-uppercase fw-semibold mb-2">Panel de control de fugas de capital · demo</div>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-critical">
+          <small class="text-muted">Dinero en riesgo hoy</small>
+          <div class="fs-3 fw-bold">${{ "{:,.0f}".format(dinero_en_riesgo).replace(",", ".") }}</div>
+          <div class="small text-muted">Pérdida proyectada si se vende con precios desactualizados.</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-warning">
+          <small class="text-muted">Productos críticos</small>
+          <div class="fs-3 fw-bold">{{ productos_criticos }}</div>
+          <div class="small text-muted">SKUs con margen comprometido o negativo.</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-positive">
+          <small class="text-muted">Oportunidad de recuperación</small>
+          <div class="fs-3 fw-bold text-success">${{ "{:,.0f}".format(oportunidad_recuperacion).replace(",", ".") }}</div>
+          <div class="small text-muted">Recuperación estimada al aplicar precios sugeridos.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-8">
+      <div class="card card-ds">
+        <div class="card-header bg-white fw-bold">Tabla de alertas inteligentes (ordenada por gravedad económica)</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 table-premium">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-end">Costo actual</th>
+                <th class="text-end">Precio hoy</th>
+                <th class="text-end">Margen real</th>
+                <th class="text-end">Pérdida estimada</th>
+                <th class="text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in filas_alerta %}
+              <tr class="{% if f.estado == 'critico' %}table-danger{% elif f.estado == 'alerta' %}table-warning{% endif %}">
+                <td>
+                  <div class="fw-semibold">{{ f.producto }}</div>
+                  <div class="small text-muted">{{ f.categoria }}</div>
+                </td>
+                <td class="text-end font-monospace">${{ "{:,.0f}".format(f.costo_actual).replace(",", ".") }}</td>
+                <td class="text-end font-monospace">${{ "{:,.0f}".format(f.precio_hoy).replace(",", ".") }}</td>
+                <td class="text-end font-monospace {% if f.margen_real_pct < 0 %}text-danger fw-bold{% elif f.margen_real_pct < 15 %}text-warning fw-semibold{% else %}text-success{% endif %}">
+                  {{ "{:+.1f}".format(f.margen_real_pct) }}%
+                </td>
+                <td class="text-end font-monospace loss-col">-${{ "{:,.0f}".format(f.perdida_estimada).replace(",", ".") }}</td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" title="Demo sin efecto en BD">
+                    Ajustar a ${{ "{:,.0f}".format(f.precio_sugerido).replace(",", ".") }}
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">Brecha de utilidad (impacto del ERP)</div>
+        <div class="card-body">
+          <canvas id="chartBrechaUtilidad" height="220"></canvas>
+          <hr>
+          <div class="small text-muted mb-2">Top categorías por dinero en riesgo</div>
+          <canvas id="chartRiesgoCategorias" height="180"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds border-danger border-opacity-25 mb-4">
+    <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="fw-bold mb-1"><i class="fas fa-bolt text-danger me-2"></i>Botón de pánico (demo)</h6>
+        <p class="small text-muted mb-0">Aplicar todos los precios sugeridos y notificar a sala de ventas.</p>
+      </div>
+      <button type="button" class="btn btn-danger fw-bold" title="Acción demo, no persiste cambios">
+        Actualizar todos los precios sugeridos
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+  (function () {
+    const fmt = (v) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+
+    const brecha = document.getElementById('chartBrechaUtilidad');
+    if (brecha && typeof Chart !== 'undefined') {
+      new Chart(brecha, {
+        type: 'bar',
+        data: {
+          labels: ['Sin acciones', 'Aplicando sugeridos'],
+          datasets: [{
+            data: [{{ utilidad_sin_accion }}, {{ utilidad_con_accion }}],
+            backgroundColor: ['rgba(239,68,68,.55)', 'rgba(16,185,129,.55)'],
+            borderColor: ['#ef4444', '#10b981'],
+            borderWidth: 1.2
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } } },
+          scales: { y: { ticks: { callback: (v) => fmt(v) } } }
+        }
+      });
+    }
+
+    const rc = document.getElementById('chartRiesgoCategorias');
+    if (rc && typeof Chart !== 'undefined') {
+      new Chart(rc, {
+        type: 'doughnut',
+        data: {
+          labels: {{ categorias_riesgo_labels | tojson }},
+          datasets: [{ data: {{ categorias_riesgo_data | tojson }}, backgroundColor: ['#ef4444','#f97316','#eab308','#22c55e','#38bdf8'] }]
+        },
+        options: {
+          plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: (c) => `${c.label}: ${fmt(c.parsed)}` } } }
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

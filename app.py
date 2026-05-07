@@ -368,7 +368,9 @@ def stock_producto_en_almacen(id_producto, id_almacen):
             ),
             {"p": int(id_producto), "a": int(id_almacen)},
         ).scalar()
-        return int(v or 0)
+        # Diferenciar entre "sin fila en stock_por_almacen" (None) y "fila con cantidad 0".
+        # Esto permite fallback a productos.stock en POS cuando aún no existe distribución por almacén.
+        return None if v is None else int(v)
     except Exception:
         return None
 
@@ -626,10 +628,19 @@ def caja_requerida(f):
     @login_required
     def decorated_function(*args, **kwargs):
         # Buscamos si existe una caja que esté en estado 'Abierta'
-        caja_activa = Caja.query.filter_by(estado='Abierta').first()
+        caja_activa = Caja.query.filter_by(estado='Abierta').order_by(Caja.id.desc()).first()
         if not caja_activa:
             flash("⚠️ ACCESO RESTRINGIDO: Debe realizar la Apertura de Caja.", "warning")
             return redirect(url_for('abrir_caja'))
+        # Si la caja abierta es de un día anterior, obligamos su cierre.
+        fecha_apertura = caja_activa.fecha_apertura.date() if caja_activa.fecha_apertura else None
+        if fecha_apertura and fecha_apertura < datetime.now().date():
+            flash(
+                f"La caja N°{caja_activa.id} quedó abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
+                "Debe cerrar esa caja antes de continuar en el POS.",
+                "warning",
+            )
+            return redirect(url_for('cerrar_caja'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -675,7 +686,81 @@ _PERMISOS_SISTEMA_INICIAL = (
     'anular_vale_caja',
     'autorizar_descuento_pos',
     'revision_precios',
+    'pos_emitir_vale',
+    'caja_cobrar_vale',
+    'caja_abrir',
+    'caja_movimientos',
+    'caja_cerrar',
 )
+
+
+def _normalizar_nombre_rol(nombre):
+    n = (nombre or '').strip().lower()
+    reemplazos = (
+        ('á', 'a'),
+        ('é', 'e'),
+        ('í', 'i'),
+        ('ó', 'o'),
+        ('ú', 'u'),
+    )
+    for a, b in reemplazos:
+        n = n.replace(a, b)
+    return n
+
+
+def _seed_permisos_roles_operativos():
+    """
+    Asigna permisos base por rol operativo sin quitar permisos existentes.
+    """
+    try:
+        permisos = {p.nombre: p for p in Permiso.query.all()}
+        if not permisos:
+            return
+
+        mapa_por_rol = {
+            'vendedor': {'pos_emitir_vale'},
+            'vendedora': {'pos_emitir_vale'},
+            'ventas': {'pos_emitir_vale'},
+            'meson': {'pos_emitir_vale'},
+            'cajera': {'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'},
+            'cajero': {'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'},
+            'caja': {'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'},
+            'supervisor': {
+                'pos_emitir_vale',
+                'caja_cobrar_vale',
+                'caja_abrir',
+                'caja_movimientos',
+                'caja_cerrar',
+                'anular_vale_caja',
+                'autorizar_descuento_pos',
+            },
+            'encargado': {
+                'pos_emitir_vale',
+                'caja_cobrar_vale',
+                'caja_abrir',
+                'caja_movimientos',
+                'caja_cerrar',
+                'anular_vale_caja',
+                'autorizar_descuento_pos',
+            },
+        }
+
+        cambios = False
+        for rol in Rol.query.options(joinedload(Rol.rol_permisos)).all():
+            clave = _normalizar_nombre_rol(rol.nombre)
+            if clave not in mapa_por_rol:
+                continue
+            actuales = {rp.permiso_id for rp in (rol.rol_permisos or []) if rp.permiso_id}
+            for nombre_perm in mapa_por_rol[clave]:
+                perm = permisos.get(nombre_perm)
+                if not perm or perm.id in actuales:
+                    continue
+                db.session.add(RolPermiso(rol_id=rol.id, permiso_id=perm.id))
+                cambios = True
+        if cambios:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def _seed_permisos_catalogo_si_vacio():
@@ -687,6 +772,7 @@ def _seed_permisos_catalogo_si_vacio():
             for p in nuevos:
                 db.session.add(p)
             db.session.commit()
+        _seed_permisos_roles_operativos()
     except Exception:
         db.session.rollback()
 
@@ -983,18 +1069,18 @@ def _enrol_destino_almacen(sesion_row, id_almacen_destino):
 
 
 def stock_disponible_venta_tienda(producto):
-    """Stock usable en POS: almacén TIENDA si existe inventario por almacén; si no, productos.stock."""
+    """Stock usable en POS: solo almacén TIENDA (fuente única definitiva)."""
     if not producto:
         return 0
     aid = id_almacen_tienda()
     if aid and _tablas_inventario_almacen_existen():
         v = stock_producto_en_almacen(producto.id, aid)
-        return int(v if v is not None else (producto.stock or 0))
+        return int(v or 0)
     return int(producto.stock or 0)
 
 
 def stock_tienda_por_producto_ids(ids):
-    """Mapa id_producto -> stock en tienda (o total legacy)."""
+    """Mapa id_producto -> stock en TIENDA (fuente única definitiva)."""
     ids = [int(x) for x in ids if x is not None]
     if not ids:
         return {}
@@ -1011,9 +1097,9 @@ def stock_tienda_por_producto_ids(ids):
         por_id = {int(pid): int(cant or 0) for pid, cant in rows}
         faltan = [i for i in ids if i not in por_id]
         if faltan:
-            prods = Producto.query.filter(Producto.id.in_(faltan)).all()
-            for p in prods:
-                por_id[p.id] = int(p.stock or 0)
+            # Si no hay fila en TIENDA, se considera 0.
+            for pid in faltan:
+                por_id[int(pid)] = 0
         return por_id
     prods = Producto.query.filter(Producto.id.in_(ids)).all()
     return {p.id: int(p.stock or 0) for p in prods}
@@ -1092,6 +1178,7 @@ class Venta(db.Model):
     motivo_anulacion = db.Column(db.String(500), nullable=True)
     fecha_anulacion = db.Column(db.DateTime, nullable=True)
     usuario_anulacion = db.Column(db.String(80), nullable=True)
+    punto_retiro = db.Column(db.String(30), nullable=True, default='Bodega')
 
     # Relaciones
     caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True)
@@ -1161,6 +1248,11 @@ class Caja(db.Model):
     fecha_cierre = db.Column(db.DateTime, nullable=True)
     monto_inicial = db.Column(db.Float, nullable=False)
     monto_final = db.Column(db.Float, nullable=True)
+    monto_teorico_cierre = db.Column(db.Float, nullable=True)
+    monto_contado_cierre = db.Column(db.Float, nullable=True)
+    diferencia_cierre = db.Column(db.Float, nullable=True)
+    observacion_cierre = db.Column(db.String(255), nullable=True)
+    supervisor_cierre = db.Column(db.String(80), nullable=True)
     estado = db.Column(db.String(20), default="Abierta")
     usuario_apertura = db.Column(db.String(50))
     usuario_cierre = db.Column(db.String(50))
@@ -1419,6 +1511,66 @@ class BitacoraPrecioVenta(db.Model):
     motivo = db.Column(db.String(255), nullable=True)
 
     producto = db.relationship('Producto')
+
+
+class CambioOperacion(db.Model):
+    __tablename__ = 'cambios_operacion'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=db.func.current_timestamp())
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
+    caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
+    venta_origen_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=True)
+    total_devuelto = db.Column(db.Float, nullable=False, default=0.0)
+    total_entregado = db.Column(db.Float, nullable=False, default=0.0)
+    saldo_usado = db.Column(db.Float, nullable=False, default=0.0)
+    monto_pagado = db.Column(db.Float, nullable=False, default=0.0)
+    monto_devuelto_efectivo = db.Column(db.Float, nullable=False, default=0.0)
+    saldo_generado = db.Column(db.Float, nullable=False, default=0.0)
+    observacion = db.Column(db.String(500), nullable=True)
+
+    cliente = db.relationship('Cliente', backref='cambios_operacion')
+    caja = db.relationship('Caja')
+    usuario = db.relationship('Usuario')
+    venta_origen = db.relationship('Venta', foreign_keys=[venta_origen_id])
+
+
+class CambioDetalle(db.Model):
+    __tablename__ = 'cambios_detalle'
+    id = db.Column(db.Integer, primary_key=True)
+    cambio_id = db.Column(db.Integer, db.ForeignKey('cambios_operacion.id', ondelete='CASCADE'), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id', ondelete='RESTRICT'), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False)  # DEVUELTO / ENTREGADO
+    cantidad = db.Column(db.Integer, nullable=False, default=1)
+    precio_unitario = db.Column(db.Float, nullable=False, default=0.0)
+    subtotal = db.Column(db.Float, nullable=False, default=0.0)
+
+    cambio = db.relationship('CambioOperacion', backref='detalles')
+    producto = db.relationship('Producto')
+
+
+class ClienteSaldoFavor(db.Model):
+    __tablename__ = 'clientes_saldos_favor'
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id', ondelete='CASCADE'), primary_key=True)
+    saldo = db.Column(db.Float, nullable=False, default=0.0)
+    actualizado_en = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    cliente = db.relationship('Cliente', backref=db.backref('saldo_favor_registro', uselist=False))
+
+
+class MovimientoSaldoFavor(db.Model):
+    __tablename__ = 'movimientos_saldo_favor'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=db.func.current_timestamp())
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id', ondelete='CASCADE'), nullable=False)
+    cambio_id = db.Column(db.Integer, db.ForeignKey('cambios_operacion.id', ondelete='SET NULL'), nullable=True)
+    tipo = db.Column(db.String(20), nullable=False)  # CREDITO / DEBITO
+    monto = db.Column(db.Float, nullable=False, default=0.0)
+    saldo_resultante = db.Column(db.Float, nullable=False, default=0.0)
+    observacion = db.Column(db.String(255), nullable=True)
+
+    cliente = db.relationship('Cliente', backref='movimientos_saldo_favor')
+    cambio = db.relationship('CambioOperacion')
 
 
 def registrar_movimiento_kardex(
@@ -2031,6 +2183,33 @@ def business_intelligence():
         .all()
     )
 
+    ventas_vendedor_rows = (
+        db.session.query(
+            db.func.coalesce(Venta.usuario, "Sin vendedor").label("vendedor"),
+            db.func.count(Venta.id).label("n_ventas"),
+            db.func.coalesce(db.func.sum(Venta.monto_total), 0).label("monto_total"),
+        )
+        .filter(
+            Venta.estado == 'Pagado',
+            Venta.fecha >= dt_inicio,
+            Venta.fecha < dt_fin_excl,
+        )
+        .group_by(db.func.coalesce(Venta.usuario, "Sin vendedor"))
+        .order_by(db.func.coalesce(db.func.sum(Venta.monto_total), 0).desc())
+        .all()
+    )
+    ventas_vendedor = []
+    for vendedor, n_ventas, monto_total_v in ventas_vendedor_rows:
+        n = int(n_ventas or 0)
+        m = float(monto_total_v or 0)
+        ticket_v = (m / n) if n else 0.0
+        ventas_vendedor.append({
+            'vendedor': str(vendedor or 'Sin vendedor'),
+            'n_ventas': n,
+            'monto_total': m,
+            'ticket_promedio': ticket_v,
+        })
+
     ultimas_ventas = (
         Venta.query.filter(Venta.fecha >= dt_inicio, Venta.fecha < dt_fin_excl)
         .order_by(Venta.id.desc())
@@ -2212,6 +2391,7 @@ def business_intelligence():
         metodos_labels=metodos_labels,
         metodos_data=metodos_data,
         top_productos=top_productos_rows,
+        ventas_vendedor=ventas_vendedor,
         ultimas_ventas=ultimas_ventas,
         abc_volumen=abc_volumen,
         abc_margen=abc_margen,
@@ -2526,6 +2706,94 @@ def _contexto_panel_dueno_pitch():
     )
 
 
+def _contexto_alertas_precio_premium_demo():
+    """Demo Ultra Premium de alertas de precio, priorizadas por dinero en riesgo (CLP)."""
+    hoy = datetime.now().date()
+    hace_30 = hoy - timedelta(days=29)
+
+    filas = [
+        {
+            'producto': 'FIERRO ESTRIADO 10 MM X 12 M',
+            'categoria': 'Construcción',
+            'costo_actual': 6200,
+            'precio_hoy': 6150,
+            'margen_real_pct': -0.8,
+            'perdida_estimada': 450000,
+            'precio_sugerido': 7400,
+            'estado': 'critico',
+        },
+        {
+            'producto': 'SACO CEMENTO ESPECIAL (25 KG)',
+            'categoria': 'Construcción',
+            'costo_actual': 4850,
+            'precio_hoy': 5100,
+            'margen_real_pct': 4.9,
+            'perdida_estimada': 120000,
+            'precio_sugerido': 5600,
+            'estado': 'critico',
+        },
+        {
+            'producto': 'CODO PVC CELESTE 90° 40MM - PN10 IMP A02',
+            'categoria': 'Gasfitería',
+            'costo_actual': 718,
+            'precio_hoy': 649,
+            'margen_real_pct': -9.6,
+            'perdida_estimada': 98500,
+            'precio_sugerido': 890,
+            'estado': 'critico',
+        },
+        {
+            'producto': 'ACRILINA CRUDA G-25 4GL (SOQUINA)',
+            'categoria': 'Pinturas',
+            'costo_actual': 23680,
+            'precio_hoy': 25190,
+            'margen_real_pct': 6.0,
+            'perdida_estimada': 45000,
+            'precio_sugerido': 29500,
+            'estado': 'alerta',
+        },
+        {
+            'producto': 'MANGUERA SALIDA LAVADORA UNIVERSAL',
+            'categoria': 'Gasfitería',
+            'costo_actual': 1688,
+            'precio_hoy': 1749,
+            'margen_real_pct': 3.5,
+            'perdida_estimada': 32500,
+            'precio_sugerido': 2190,
+            'estado': 'alerta',
+        },
+        {
+            'producto': 'CANDADO HIERRO LATÓN 40MM CORTO BASIC',
+            'categoria': 'Hogar',
+            'costo_actual': 1645,
+            'precio_hoy': 1849,
+            'margen_real_pct': 11.0,
+            'perdida_estimada': 16000,
+            'precio_sugerido': 2190,
+            'estado': 'alerta',
+        },
+    ]
+    filas = sorted(filas, key=lambda x: x['perdida_estimada'], reverse=True)
+    dinero_en_riesgo = sum(f['perdida_estimada'] for f in filas)
+    productos_criticos = sum(1 for f in filas if f['margen_real_pct'] < 0 or f['estado'] == 'critico')
+    oportunidad_recuperacion = sum(max(0, f['precio_sugerido'] - f['precio_hoy']) * 120 for f in filas)
+    utilidad_sin_accion = 9860000
+    utilidad_con_accion = utilidad_sin_accion + oportunidad_recuperacion
+
+    return dict(
+        hoy_str=hoy.strftime('%Y-%m-%d'),
+        hace_30_str=hace_30.strftime('%Y-%m-%d'),
+        dinero_en_riesgo=dinero_en_riesgo,
+        productos_criticos=productos_criticos,
+        oportunidad_recuperacion=oportunidad_recuperacion,
+        utilidad_sin_accion=utilidad_sin_accion,
+        utilidad_con_accion=utilidad_con_accion,
+        filas_alerta=filas,
+        categorias_riesgo_labels=[f['categoria'] for f in filas[:5]],
+        categorias_riesgo_data=[f['perdida_estimada'] for f in filas[:5]],
+    )
+
+
 @app.route('/bi/panel-dueno')
 @app.route('/gerencia/informes-dueno')
 @permisos_required('panel_gerencia', 'gestionar_usuarios')
@@ -2549,6 +2817,13 @@ def bi_dueno_demo():
 def bi_radar_mercado_demo():
     """Compatibilidad: antes página aparte; ahora ancla al panel unificado."""
     return redirect(url_for('panel_dueno') + '#sec-radar')
+
+
+@app.route('/bi/demo/alertas-precio-premium')
+@permisos_required('panel_gerencia', 'gestionar_usuarios')
+def bi_alertas_precio_premium_demo():
+    """Centro demo de alertas inteligentes de precios, ordenado por dinero en riesgo."""
+    return render_template('bi_alertas_precio_premium_demo.html', **_contexto_alertas_precio_premium_demo())
 
 
 @app.route('/gerencia/simulador-margen')
@@ -2857,6 +3132,59 @@ def export_bi_csv():
         ])
 
     nombre = f"bi_ventas_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={nombre}"},
+    )
+
+
+@app.route('/bi/export_vendedores.csv')
+@login_required
+def export_bi_vendedores_csv():
+    fi_raw = (request.args.get('fecha_inicio') or '').strip()
+    ff_raw = (request.args.get('fecha_fin') or '').strip()
+    hoy = datetime.now().date()
+    try:
+        fecha_inicio = datetime.strptime(fi_raw, "%Y-%m-%d").date() if fi_raw else (hoy - timedelta(days=29))
+    except ValueError:
+        fecha_inicio = hoy - timedelta(days=29)
+    try:
+        fecha_fin = datetime.strptime(ff_raw, "%Y-%m-%d").date() if ff_raw else hoy
+    except ValueError:
+        fecha_fin = hoy
+    if fecha_inicio > fecha_fin:
+        fecha_inicio, fecha_fin = fecha_fin, fecha_inicio
+
+    dt_inicio = datetime.combine(fecha_inicio, datetime.min.time())
+    dt_fin_excl = datetime.combine(fecha_fin + timedelta(days=1), datetime.min.time())
+
+    filas = (
+        db.session.query(
+            db.func.coalesce(Venta.usuario, "Sin vendedor").label("vendedor"),
+            db.func.count(Venta.id).label("n_ventas"),
+            db.func.coalesce(db.func.sum(Venta.monto_total), 0).label("monto_total"),
+        )
+        .filter(
+            Venta.estado == 'Pagado',
+            Venta.fecha >= dt_inicio,
+            Venta.fecha < dt_fin_excl,
+        )
+        .group_by(db.func.coalesce(Venta.usuario, "Sin vendedor"))
+        .order_by(db.func.coalesce(db.func.sum(Venta.monto_total), 0).desc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["vendedor", "ventas_pagadas", "monto_total", "ticket_promedio"])
+    for vendedor, n_ventas, monto_total in filas:
+        n = int(n_ventas or 0)
+        m = float(monto_total or 0)
+        ticket = (m / n) if n else 0.0
+        writer.writerow([vendedor or "Sin vendedor", n, f"{m:.2f}", f"{ticket:.2f}"])
+
+    nombre = f"bi_ventas_vendedor_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.csv"
     return Response(
         output.getvalue(),
         mimetype="text/csv",
@@ -4702,22 +5030,89 @@ def _reparar_precios_cero_lineas_venta_abierta(venta):
     return True
 
 
+def _nombre_usuario_pos_actual():
+    nom = (getattr(current_user, 'nombre', None) or '').strip()
+    return nom or "POS"
+
+
+def _venta_abierta_por_caja_y_usuario(caja_id, usuario_nombre):
+    return (
+        Venta.query.filter_by(estado="Abierta", caja_id=caja_id, usuario=usuario_nombre)
+        .order_by(Venta.id.desc())
+        .first()
+    )
+
+
+def _venta_validar_stock_tienda(venta):
+    """
+    Revisa si una venta puede cobrarse/descontarse en TIENDA.
+    Retorna lista de mensajes de faltantes (vacía si todo ok).
+    """
+    faltantes = []
+    if not venta:
+        return faltantes
+    for d in (venta.detalles or []):
+        producto = d.producto or Producto.query.get(d.id_producto)
+        if not producto:
+            faltantes.append("Producto no encontrado en línea de venta.")
+            continue
+        factor_venta_stock = _factor_venta_a_stock(producto)
+        consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
+        disp = stock_disponible_venta_tienda(producto)
+        if consumo_stock <= 0:
+            faltantes.append(f"{producto.nombre}: conversión inválida.")
+            continue
+        if disp < consumo_stock:
+            faltantes.append(
+                f"{producto.nombre} (disponible tienda: {disp}, requerido: {consumo_stock})"
+            )
+    return faltantes
+
+
+def _asegurar_columna_ventas_punto_retiro():
+    """Compatibilidad para bases locales que aun no aplicaron la migracion de retiro."""
+    if app.config.get('_VENTAS_PUNTO_RETIRO_OK'):
+        return True
+    try:
+        cols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas')}
+        if 'punto_retiro' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE ventas ADD COLUMN punto_retiro VARCHAR(30) NULL DEFAULT 'Bodega'"
+            ))
+            db.session.execute(text(
+                "UPDATE ventas SET punto_retiro = 'Bodega' WHERE punto_retiro IS NULL OR punto_retiro = ''"
+            ))
+            db.session.commit()
+        app.config['_VENTAS_PUNTO_RETIRO_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo asegurar ventas.punto_retiro: %s", ex)
+        return False
+
+
 # proceso de punto de venta, creación de venta abierta y manejo de vales pendientes........................................
 @app.route('/punto_venta')
 @login_required      # Verifica que el usuario esté logueado
 @caja_requerida     # <--- ESTA ES LA LÍNEA QUE FALTA
+@permisos_required('pos_emitir_vale')
 def punto_venta():
+    if not _asegurar_columna_ventas_punto_retiro():
+        flash("No se pudo preparar el campo de punto de retiro en ventas. Revise permisos de BD.", "danger")
+        return redirect(url_for('mostrar_ventas'))
+
     # Buscar la última caja abierta
     caja = obtener_caja_activa()
     if not caja:
         flash("No hay caja abierta. Debe abrir la caja antes de usar el punto de venta.")
         return redirect(url_for('mostrar_ventas'))
 
-    # Buscar la última venta abierta del turno actual (no de otra caja)
-    venta = Venta.query.filter_by(estado="Abierta", caja_id=caja.id).order_by(Venta.id.desc()).first()
+    vendedor_actual = _nombre_usuario_pos_actual()
+    # Cada vendedor trabaja su vale abierto dentro de la misma caja.
+    venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
     if not venta:
         venta = Venta(
-            usuario="POS",
+            usuario=vendedor_actual,
             estado="Abierta",
             monto_total=0,
             caja_id=caja.id,
@@ -4763,16 +5158,38 @@ def punto_venta():
 @app.route('/agregar_producto_venta', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale')
 def agregar_producto_venta():
-    codigo = request.form['codigo']
+    codigo = (request.form.get('codigo') or '').strip()
+    producto_id_raw = request.form.get('producto_id')
     caja = obtener_caja_activa()
     if not caja:
         flash("No hay caja abierta para operar en Punto de Venta.", "warning")
         return redirect(url_for('abrir_caja'))
 
-    producto = Producto.query.filter_by(codigo_barra=codigo).first()
+    producto = None
+    if producto_id_raw:
+        try:
+            producto = Producto.query.get(int(producto_id_raw))
+        except (TypeError, ValueError):
+            producto = None
+    if not producto and codigo:
+        cnorm = codigo.strip().upper()
+        producto = (
+            Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
+            .first()
+        )
+    if not producto and codigo:
+        cnorm = codigo.strip().upper()
+        producto = (
+            Producto.query.filter(
+                Producto.codigo_interno.isnot(None),
+                db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
+            )
+            .first()
+        )
     if not producto:
-        flash("Producto no encontrado.", "warning")
+        flash(f"Producto no encontrado ({codigo or 'sin código'}).", "warning")
         return redirect(url_for('punto_venta'))
 
     if stock_disponible_venta_tienda(producto) <= 0:
@@ -4788,10 +5205,11 @@ def agregar_producto_venta():
         )
         return redirect(url_for('punto_venta'))
 
-    venta = Venta.query.filter_by(estado="Abierta", caja_id=caja.id).order_by(Venta.id.desc()).first()
+    vendedor_actual = _nombre_usuario_pos_actual()
+    venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
     if not venta:
         venta = Venta(
-            usuario="POS",
+            usuario=vendedor_actual,
             estado="Abierta",
             monto_total=0,
             caja_id=caja.id,
@@ -4822,6 +5240,7 @@ def agregar_producto_venta():
 @app.route('/eliminar_detalle/<int:id>', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale')
 def eliminar_detalle(id):
     detalle = DetalleVenta.query.get_or_404(id)
     venta = detalle.venta
@@ -4852,16 +5271,28 @@ def eliminar_venta(id):
 @app.route('/finalizar_venta', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale')
 def finalizar_venta():
     caja = obtener_caja_activa()
     if not caja:
         flash("No hay caja abierta para emitir vale.", "warning")
         return redirect(url_for('abrir_caja'))
 
-    # Buscar la última venta abierta
-    venta = Venta.query.filter_by(estado="Abierta", caja_id=caja.id).order_by(Venta.id.desc()).first()
+    vendedor_actual = _nombre_usuario_pos_actual()
+    # Cada vendedor finaliza su propio vale abierto.
+    venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
     if not venta or venta.monto_total == 0:
         flash("Error: La venta está vacía.", "danger")
+        return redirect(url_for('punto_venta'))
+    # Persistencia explícita para reportes por vendedor.
+    venta.usuario = vendedor_actual
+    faltantes = _venta_validar_stock_tienda(venta)
+    if faltantes:
+        flash(
+            "No se puede emitir el vale: falta stock en tienda para "
+            + "; ".join(faltantes[:3]),
+            "warning",
+        )
         return redirect(url_for('punto_venta'))
 
     nombre = request.form.get('cliente_nombre')
@@ -4900,9 +5331,15 @@ def finalizar_venta():
 
     # Marcar la venta como pendiente y asignar prioridad
     pendientes = Venta.query.filter_by(estado="Pendiente").count()
+    punto_retiro = (request.form.get('punto_retiro') or '').strip()
+    puntos_validos = {'Bodega', 'Tienda', 'Despacho'}
+    if (not punto_retiro) or punto_retiro == '__PENDIENTE__' or punto_retiro not in puntos_validos:
+        flash("Debe seleccionar dónde retirará el cliente (Bodega, Tienda o Despacho).", "warning")
+        return redirect(url_for('punto_venta'))
     venta.prioridad = pendientes + 1
     venta.cliente_id = cliente.id
     venta.estado = "Pendiente"
+    venta.punto_retiro = punto_retiro
     db.session.commit()
 
     # Mensaje de confirmación
@@ -4981,6 +5418,7 @@ def pos_usuarios_autorizar_descuento():
 @app.route('/actualizar_item', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale')
 def actualizar_item():
     detalle_id = request.form.get('actualizar')
     solo_cantidad = request.form.get('solo_cantidad') == '1'
@@ -5079,10 +5517,159 @@ def actualizar_item():
     return redirect(url_for('punto_venta'))
 
 
+def _asegurar_tablas_cambios():
+    if app.config.get('_CAMBIOS_TABLAS_OK'):
+        return True
+    try:
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS cambios_operacion (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                cliente_id INT NULL,
+                caja_id INT NULL,
+                usuario_id INT NULL,
+                total_devuelto DOUBLE NOT NULL DEFAULT 0,
+                total_entregado DOUBLE NOT NULL DEFAULT 0,
+                saldo_usado DOUBLE NOT NULL DEFAULT 0,
+                monto_pagado DOUBLE NOT NULL DEFAULT 0,
+                monto_devuelto_efectivo DOUBLE NOT NULL DEFAULT 0,
+                saldo_generado DOUBLE NOT NULL DEFAULT 0,
+                observacion VARCHAR(500) NULL,
+                KEY idx_cambio_cliente (cliente_id),
+                KEY idx_cambio_caja (caja_id),
+                KEY idx_cambio_usuario (usuario_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS cambios_detalle (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                cambio_id INT NOT NULL,
+                producto_id INT NOT NULL,
+                tipo VARCHAR(20) NOT NULL,
+                cantidad INT NOT NULL DEFAULT 1,
+                precio_unitario DOUBLE NOT NULL DEFAULT 0,
+                subtotal DOUBLE NOT NULL DEFAULT 0,
+                KEY idx_cdet_cambio (cambio_id),
+                KEY idx_cdet_producto (producto_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS clientes_saldos_favor (
+                cliente_id INT PRIMARY KEY,
+                saldo DOUBLE NOT NULL DEFAULT 0,
+                actualizado_en DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+        db.session.execute(text("""
+            CREATE TABLE IF NOT EXISTS movimientos_saldo_favor (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
+                cliente_id INT NOT NULL,
+                cambio_id INT NULL,
+                tipo VARCHAR(20) NOT NULL,
+                monto DOUBLE NOT NULL DEFAULT 0,
+                saldo_resultante DOUBLE NOT NULL DEFAULT 0,
+                observacion VARCHAR(255) NULL,
+                KEY idx_ms_cliente (cliente_id),
+                KEY idx_ms_cambio (cambio_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """))
+        cols_cambio = {c['name'] for c in sa_inspect(db.engine).get_columns('cambios_operacion')}
+        if 'venta_origen_id' not in cols_cambio:
+            db.session.execute(text(
+                "ALTER TABLE cambios_operacion ADD COLUMN venta_origen_id INT NULL, "
+                "ADD KEY idx_cambio_venta_origen (venta_origen_id)"
+            ))
+        db.session.commit()
+        app.config['_CAMBIOS_TABLAS_OK'] = True
+        return True
+    except Exception:
+        db.session.rollback()
+        return False
+
+
+def _producto_por_codigo_pos(codigo):
+    c = (codigo or '').strip().upper()
+    if not c:
+        return None
+    p = Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == c).first()
+    if p:
+        return p
+    return (
+        Producto.query.filter(
+            Producto.codigo_interno.isnot(None),
+            db.func.upper(db.func.trim(Producto.codigo_interno)) == c,
+        ).first()
+    )
+
+
+def _parse_lineas_cambio(raw_txt):
+    rows = []
+    for idx, raw in enumerate((raw_txt or '').splitlines(), start=1):
+        line = (raw or '').strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in line.replace(';', ',').split(',') if p.strip() != '']
+        if len(parts) < 2:
+            raise ValueError(f"Línea {idx}: use formato codigo,cantidad[,precio].")
+        codigo = parts[0]
+        try:
+            cantidad = int(parts[1])
+        except (TypeError, ValueError):
+            raise ValueError(f"Línea {idx}: cantidad inválida.")
+        if cantidad <= 0:
+            raise ValueError(f"Línea {idx}: cantidad debe ser mayor a 0.")
+        precio_manual = None
+        if len(parts) >= 3:
+            try:
+                precio_manual = float(str(parts[2]).replace('.', '').replace(',', '.'))
+            except (TypeError, ValueError):
+                raise ValueError(f"Línea {idx}: precio inválido.")
+            if precio_manual < 0:
+                raise ValueError(f"Línea {idx}: precio no puede ser negativo.")
+        rows.append({'codigo': codigo, 'cantidad': cantidad, 'precio_manual': precio_manual})
+    return rows
+
+
+def _saldo_favor_actual(cliente_id):
+    if not cliente_id:
+        return 0.0
+    row = ClienteSaldoFavor.query.filter_by(cliente_id=cliente_id).first()
+    return float(row.saldo or 0) if row else 0.0
+
+
+def _aplicar_mov_saldo_favor(cliente_id, cambio_id, tipo, monto, observacion):
+    if not cliente_id or float(monto or 0) <= 0:
+        return 0.0
+    reg = ClienteSaldoFavor.query.filter_by(cliente_id=cliente_id).first()
+    if not reg:
+        reg = ClienteSaldoFavor(cliente_id=cliente_id, saldo=0)
+        db.session.add(reg)
+        db.session.flush()
+    actual = float(reg.saldo or 0)
+    if tipo == 'CREDITO':
+        nuevo = actual + float(monto)
+    else:
+        nuevo = max(0.0, actual - float(monto))
+    reg.saldo = nuevo
+    db.session.add(
+        MovimientoSaldoFavor(
+            cliente_id=cliente_id,
+            cambio_id=cambio_id,
+            tipo=tipo,
+            monto=float(monto),
+            saldo_resultante=nuevo,
+            observacion=(observacion or '')[:255] if observacion else None,
+        )
+    )
+    return nuevo
+
+
 # CAJA vales pendientes
 @app.route('/caja/vales_pendientes')
 @login_required
 @caja_requerida
+@permisos_required('caja_cobrar_vale')
 def caja_pendientes():
     hoy = datetime.now().date()
     dt_ini_hoy = datetime.combine(hoy, datetime.min.time())
@@ -5123,6 +5710,10 @@ def caja_pendientes():
         .order_by(Venta.fecha.desc())
         .all()
     )
+    for v in vales:
+        falt = _venta_validar_stock_tienda(v)
+        v.stock_cobrable = len(falt) == 0
+        v.stock_alerta = "; ".join(falt[:2]) if falt else ""
     monto_pendiente = float(
         db.session.query(db.func.coalesce(db.func.sum(Venta.monto_total), 0))
         .filter(Venta.estado == "Pendiente", Venta.metodo_pago.is_(None))
@@ -5163,6 +5754,451 @@ def caja_pendientes():
     )
 
 
+@app.route('/caja/cambios', methods=['GET', 'POST'])
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def caja_cambios():
+    if not _asegurar_tablas_cambios():
+        flash("No se pudo preparar tablas de cambios/saldos. Revise permisos de BD.", "danger")
+        return redirect(url_for('caja_pendientes'))
+
+    cliente_id = request.form.get('cliente_id', type=int) if request.method == 'POST' else request.args.get('cliente_id', type=int)
+    cliente = Cliente.query.get(cliente_id) if cliente_id else None
+
+    if request.method == 'POST':
+        caja_activa = obtener_caja_activa()
+        if not caja_activa:
+            flash("Debe tener caja abierta para registrar cambios.", "warning")
+            return redirect(url_for('abrir_caja'))
+
+        try:
+            devueltos = _parse_lineas_cambio(request.form.get('lineas_devueltas'))
+            entregados = _parse_lineas_cambio(request.form.get('lineas_entregadas'))
+        except ValueError as ex:
+            flash(str(ex), "warning")
+            return redirect(url_for('caja_cambios', cliente_id=cliente_id or None))
+
+        if not devueltos or not entregados:
+            flash("Debe ingresar al menos una línea devuelta y una entregada.", "warning")
+            return redirect(url_for('caja_cambios', cliente_id=cliente_id or None))
+
+        observacion = (request.form.get('observacion') or '').strip()[:500]
+        try:
+            monto_pagado = float(request.form.get('monto_pagado') or 0)
+            monto_devuelto = float(request.form.get('monto_devuelto_efectivo') or 0)
+        except (TypeError, ValueError):
+            flash("Monto pagado/devuelto inválido.", "warning")
+            return redirect(url_for('caja_cambios', cliente_id=cliente_id or None))
+        if monto_pagado < 0 or monto_devuelto < 0:
+            flash("Los montos no pueden ser negativos.", "warning")
+            return redirect(url_for('caja_cambios', cliente_id=cliente_id or None))
+
+        try:
+            usar_saldo = float(request.form.get('usar_saldo_favor') or 0)
+        except (TypeError, ValueError):
+            usar_saldo = 0
+        usar_saldo = max(0.0, usar_saldo)
+
+        detalle_devueltos = []
+        detalle_entregados = []
+        total_devuelto = 0.0
+        total_entregado = 0.0
+        aid_tienda = id_almacen_tienda() or 1
+
+        try:
+            for row in devueltos:
+                p = _producto_por_codigo_pos(row['codigo'])
+                if not p:
+                    raise ValueError(f"No existe producto devuelto con código: {row['codigo']}")
+                precio = row['precio_manual']
+                if precio is None:
+                    precio = precio_efectivo_pos_producto(p)
+                if precio <= 0:
+                    raise ValueError(f"Producto devuelto sin precio válido: {p.nombre}")
+                subtotal = float(precio) * int(row['cantidad'])
+                detalle_devueltos.append((p, int(row['cantidad']), float(precio), subtotal))
+                total_devuelto += subtotal
+
+            for row in entregados:
+                p = _producto_por_codigo_pos(row['codigo'])
+                if not p:
+                    raise ValueError(f"No existe producto entregado con código: {row['codigo']}")
+                precio = row['precio_manual']
+                if precio is None:
+                    precio = precio_efectivo_pos_producto(p)
+                if precio <= 0:
+                    raise ValueError(f"Producto entregado sin precio válido: {p.nombre}")
+                qty = int(row['cantidad'])
+                disp = stock_disponible_venta_tienda(p)
+                if disp < qty:
+                    raise ValueError(f"Stock insuficiente en tienda para {p.nombre}. Disponible: {disp}.")
+                subtotal = float(precio) * qty
+                detalle_entregados.append((p, qty, float(precio), subtotal))
+                total_entregado += subtotal
+
+            saldo_actual = _saldo_favor_actual(cliente.id) if cliente else 0.0
+            saldo_usado = min(saldo_actual, usar_saldo)
+            neto = float(total_entregado - total_devuelto - saldo_usado)
+            if neto > 0 and monto_pagado + 1e-6 < neto:
+                raise ValueError(f"Faltan ${neto - monto_pagado:,.0f} por pagar para cerrar el cambio.")
+            if neto <= 0:
+                if monto_pagado > 0:
+                    raise ValueError("No corresponde monto pagado cuando hay saldo a favor/compensación.")
+                saldo_resultante = abs(neto) - monto_devuelto
+                if saldo_resultante > 0 and not cliente:
+                    raise ValueError("Para dejar saldo a favor debe seleccionar cliente.")
+                if saldo_resultante < -1e-6:
+                    raise ValueError("Monto devuelto en efectivo excede la diferencia a favor del cliente.")
+            else:
+                if monto_devuelto > 0:
+                    raise ValueError("No corresponde devolución en efectivo cuando el neto es por pagar.")
+
+            venta_origen_id = request.form.get('venta_origen_id', type=int)
+            if venta_origen_id:
+                if not Venta.query.get(venta_origen_id):
+                    venta_origen_id = None
+
+            cambio = CambioOperacion(
+                cliente_id=cliente.id if cliente else None,
+                caja_id=caja_activa.id,
+                usuario_id=current_user.id if current_user.is_authenticated else None,
+                venta_origen_id=venta_origen_id,
+                total_devuelto=total_devuelto,
+                total_entregado=total_entregado,
+                saldo_usado=saldo_usado,
+                monto_pagado=monto_pagado,
+                monto_devuelto_efectivo=monto_devuelto,
+                saldo_generado=max(0.0, abs(neto) - monto_devuelto) if neto <= 0 else 0.0,
+                observacion=observacion or None,
+            )
+            db.session.add(cambio)
+            db.session.flush()
+
+            for p, qty, precio, subtotal in detalle_devueltos:
+                db.session.add(CambioDetalle(
+                    cambio_id=cambio.id, producto_id=p.id, tipo='DEVUELTO',
+                    cantidad=qty, precio_unitario=precio, subtotal=subtotal
+                ))
+                if _tablas_inventario_almacen_existen():
+                    _, err = ajustar_stock_almacen(p.id, aid_tienda, qty, allow_negative=False)
+                    if err:
+                        raise ValueError(f"{p.nombre}: {err}")
+                else:
+                    p.stock = int((p.stock or 0) + qty)
+                _refrescar_stock_total_producto(p)
+                registrar_movimiento_kardex(
+                    p.id, 'ENTRADA', qty, f"Cambio #{cambio.id} (producto devuelto)",
+                    usuario=current_user.nombre, id_almacen=aid_tienda,
+                    referencia_tipo='cambio', referencia_id=cambio.id
+                )
+
+            for p, qty, precio, subtotal in detalle_entregados:
+                db.session.add(CambioDetalle(
+                    cambio_id=cambio.id, producto_id=p.id, tipo='ENTREGADO',
+                    cantidad=qty, precio_unitario=precio, subtotal=subtotal
+                ))
+                if _tablas_inventario_almacen_existen():
+                    _, err = ajustar_stock_almacen(p.id, aid_tienda, -qty, allow_negative=False)
+                    if err:
+                        raise ValueError(f"{p.nombre}: {err}")
+                else:
+                    if int(p.stock or 0) < qty:
+                        raise ValueError(f"Stock insuficiente para {p.nombre}.")
+                    p.stock = int((p.stock or 0) - qty)
+                _refrescar_stock_total_producto(p)
+                registrar_movimiento_kardex(
+                    p.id, 'SALIDA', qty, f"Cambio #{cambio.id} (producto entregado)",
+                    usuario=current_user.nombre, id_almacen=aid_tienda,
+                    referencia_tipo='cambio', referencia_id=cambio.id
+                )
+
+            if cliente and saldo_usado > 0:
+                _aplicar_mov_saldo_favor(cliente.id, cambio.id, 'DEBITO', saldo_usado, f'Uso en cambio #{cambio.id}')
+            if cliente and neto <= 0:
+                saldo_nuevo = max(0.0, abs(neto) - monto_devuelto)
+                if saldo_nuevo > 0:
+                    _aplicar_mov_saldo_favor(cliente.id, cambio.id, 'CREDITO', saldo_nuevo, f'Saldo generado cambio #{cambio.id}')
+
+            db.session.commit()
+            if neto > 0:
+                flash(f"Cambio #{cambio.id} registrado. Diferencia pagada: ${monto_pagado:,.0f}.", "success")
+            else:
+                msg = f"Cambio #{cambio.id} registrado."
+                if cliente and cambio.saldo_generado > 0:
+                    msg += f" Saldo a favor generado: ${cambio.saldo_generado:,.0f}."
+                elif monto_devuelto > 0:
+                    msg += f" Devuelto en efectivo: ${monto_devuelto:,.0f}."
+                flash(msg, "success")
+            return redirect(
+                url_for(
+                    'caja_cambios',
+                    cliente_id=cliente.id if cliente else None,
+                    ultimo_cambio=cambio.id,
+                )
+            )
+        except Exception as ex:
+            db.session.rollback()
+            flash(f"No se pudo registrar el cambio: {ex}", "danger")
+            return redirect(url_for('caja_cambios', cliente_id=cliente.id if cliente else None))
+
+    clientes = Cliente.query.order_by(Cliente.nombre.asc()).all()
+    recientes = CambioOperacion.query.order_by(CambioOperacion.id.desc()).limit(20).all()
+    saldo_actual = _saldo_favor_actual(cliente.id) if cliente else 0.0
+    ultimo_cambio = request.args.get('ultimo_cambio', type=int)
+    cambio_reciente = CambioOperacion.query.get(ultimo_cambio) if ultimo_cambio else None
+    return render_template(
+        'caja_cambios.html',
+        clientes=clientes,
+        cliente_sel=cliente,
+        saldo_actual=saldo_actual,
+        recientes=recientes,
+        cambio_reciente=cambio_reciente,
+    )
+
+
+@app.route('/api/cambios/producto/<codigo>')
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def api_cambios_producto(codigo):
+    p = _producto_por_codigo_pos(codigo)
+    if not p:
+        return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+    precio = float(precio_efectivo_pos_producto(p) or 0)
+    stock_t = stock_disponible_venta_tienda(p)
+    return jsonify(
+        ok=True,
+        producto={
+            'id': p.id,
+            'codigo_barra': (p.codigo_barra or '').strip(),
+            'codigo_interno': (p.codigo_interno or '').strip(),
+            'nombre': p.nombre,
+            'precio': precio,
+            'stock_tienda': int(stock_t if stock_t is not None else (p.stock or 0)),
+        }
+    )
+
+
+def _venta_a_dict_para_cambio(v):
+    detalles = []
+    for d in (v.detalles or []):
+        prod = d.producto
+        detalles.append({
+            'producto_id': d.id_producto,
+            'codigo_barra': ((prod.codigo_barra or '').strip() if prod else ''),
+            'codigo_interno': ((prod.codigo_interno or '').strip() if prod else ''),
+            'nombre': (prod.nombre if prod else f"Producto #{d.id_producto}"),
+            'cantidad': int(d.cantidad or 0),
+            'precio_unitario': float(d.precio_unitario or 0),
+            'descuento': float(d.descuento or 0),
+            'subtotal': float(d.subtotal or 0),
+        })
+    return {
+        'id': v.id,
+        'fecha': v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else None,
+        'estado': v.estado or '',
+        'monto_total': float(v.monto_total or 0),
+        'cliente_id': v.cliente_id,
+        'cliente_nombre': v.cliente.nombre if v.cliente else None,
+        'cliente_rut': (v.cliente.rut if v.cliente else None),
+        'detalles': detalles,
+    }
+
+
+def _parse_folio_vale(q):
+    """Acepta 'VL000123', 'VL123', '123' y devuelve int o None."""
+    if not q:
+        return None
+    s = q.strip().upper()
+    if s.startswith('VL'):
+        s = s[2:]
+    s = s.lstrip('0') or '0'
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+@app.route('/api/cambios/buscar_venta')
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def api_cambios_buscar_venta():
+    """Busca venta original para precargar líneas en cambio.
+
+    Reglas de búsqueda:
+      - Si el texto contiene letras/dígito verificador típico de RUT, busca cliente y devuelve sus últimas ventas.
+      - Si el texto es numérico (con o sin prefijo 'VL'), busca por folio de venta.
+      - Si no encuentra nada, retorna ok=False con mensaje claro.
+    """
+    q = (request.args.get('q') or '').strip()
+    if not q:
+        return jsonify(ok=False, mensaje='Indique folio o RUT a buscar.'), 400
+
+    qup = q.upper()
+
+    if qup.startswith('VL'):
+        folio = _parse_folio_vale(q)
+        if folio is None:
+            return jsonify(ok=False, mensaje=f'Folio inválido: {q}'), 400
+        v = Venta.query.get(folio)
+        if not v:
+            return jsonify(ok=False, mensaje=f'No existe vale con folio #{folio}.'), 404
+        return jsonify(ok=True, modo='venta', venta=_venta_a_dict_para_cambio(v))
+
+    if q.isdigit():
+        folio = int(q.lstrip('0') or '0')
+        if folio > 0:
+            v = Venta.query.get(folio)
+            if v:
+                return jsonify(ok=True, modo='venta', venta=_venta_a_dict_para_cambio(v))
+
+    rut_limpio = q.replace('.', '').replace('-', '').replace(' ', '').upper()
+    if validar_rut(q):
+        rut_db_normalizado = q.replace('.', '').upper()
+        if '-' not in rut_db_normalizado and len(rut_db_normalizado) >= 2:
+            rut_db_normalizado = rut_db_normalizado[:-1] + '-' + rut_db_normalizado[-1]
+        cliente = (
+            Cliente.query.filter(
+                or_(
+                    Cliente.rut == q,
+                    Cliente.rut == rut_db_normalizado,
+                    db.func.replace(db.func.replace(Cliente.rut, '.', ''), '-', '') == rut_limpio,
+                )
+            ).first()
+        )
+        if not cliente:
+            return jsonify(ok=False, mensaje=f'No se encontró cliente con RUT {q}.'), 404
+        ventas = (
+            Venta.query.filter(Venta.cliente_id == cliente.id)
+            .order_by(Venta.fecha.desc(), Venta.id.desc())
+            .limit(15)
+            .all()
+        )
+        return jsonify(
+            ok=True,
+            modo='lista',
+            cliente={
+                'id': cliente.id,
+                'nombre': cliente.nombre,
+                'rut': cliente.rut or '',
+            },
+            ventas=[
+                {
+                    'id': v.id,
+                    'fecha': v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '',
+                    'estado': v.estado or '',
+                    'monto_total': float(v.monto_total or 0),
+                }
+                for v in ventas
+            ],
+        )
+
+    return jsonify(ok=False, mensaje='Sin resultados. Pruebe folio (ej. 1234 o VL001234) o RUT del cliente.'), 404
+
+
+@app.route('/api/cambios/venta/<int:id>')
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def api_cambios_venta_detalle(id):
+    v = Venta.query.get_or_404(id)
+    return jsonify(ok=True, venta=_venta_a_dict_para_cambio(v))
+
+
+@app.route('/caja/cambios/<int:id>/ticket')
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def ticket_cambio(id):
+    cambio = CambioOperacion.query.get_or_404(id)
+    devueltos = [d for d in (cambio.detalles or []) if (d.tipo or '').upper() == 'DEVUELTO']
+    entregados = [d for d in (cambio.detalles or []) if (d.tipo or '').upper() == 'ENTREGADO']
+    neto = float((cambio.total_entregado or 0) - (cambio.total_devuelto or 0) - (cambio.saldo_usado or 0))
+    return render_template(
+        'ticket_cambio.html',
+        cambio=cambio,
+        devueltos=devueltos,
+        entregados=entregados,
+        neto=neto,
+        auto_print=(request.args.get('auto_print') == '1'),
+    )
+
+
+@app.route('/caja/cambios/historial')
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def caja_cambios_historial():
+    if not _asegurar_tablas_cambios():
+        flash("No se pudo preparar tablas de cambios/saldos. Revise permisos de BD.", "danger")
+        return redirect(url_for('caja_pendientes'))
+
+    q_cliente_id = request.args.get('cliente_id', type=int)
+    q_vendedor = (request.args.get('vendedor') or '').strip()
+    q_desde = (request.args.get('desde') or '').strip()
+    q_hasta = (request.args.get('hasta') or '').strip()
+
+    q = CambioOperacion.query
+
+    if q_cliente_id:
+        q = q.filter(CambioOperacion.cliente_id == q_cliente_id)
+
+    if q_vendedor:
+        like_v = f"%{q_vendedor}%"
+        q = q.outerjoin(Usuario, CambioOperacion.usuario_id == Usuario.id).filter(
+            or_(Usuario.nombre.like(like_v), Usuario.correo.like(like_v))
+        )
+
+    try:
+        if q_desde:
+            desde_dt = datetime.strptime(q_desde, '%Y-%m-%d')
+            q = q.filter(CambioOperacion.fecha >= desde_dt)
+    except ValueError:
+        flash("La fecha 'desde' no es válida.", "warning")
+
+    try:
+        if q_hasta:
+            hasta_dt = datetime.strptime(q_hasta, '%Y-%m-%d') + timedelta(days=1)
+            q = q.filter(CambioOperacion.fecha < hasta_dt)
+    except ValueError:
+        flash("La fecha 'hasta' no es válida.", "warning")
+
+    limite = 500
+    cambios = q.order_by(CambioOperacion.fecha.desc(), CambioOperacion.id.desc()).limit(limite).all()
+
+    total_cambios = len(cambios)
+    sum_devuelto = sum(float(c.total_devuelto or 0) for c in cambios)
+    sum_entregado = sum(float(c.total_entregado or 0) for c in cambios)
+    sum_saldo_usado = sum(float(c.saldo_usado or 0) for c in cambios)
+    sum_pagado = sum(float(c.monto_pagado or 0) for c in cambios)
+    sum_devuelto_efectivo = sum(float(c.monto_devuelto_efectivo or 0) for c in cambios)
+    sum_saldo_generado = sum(float(c.saldo_generado or 0) for c in cambios)
+    neto_rango = sum_entregado - sum_devuelto - sum_saldo_usado
+
+    clientes = Cliente.query.order_by(Cliente.nombre.asc()).all()
+
+    return render_template(
+        'caja_cambios_historial.html',
+        cambios=cambios,
+        total_cambios=total_cambios,
+        sum_devuelto=sum_devuelto,
+        sum_entregado=sum_entregado,
+        sum_saldo_usado=sum_saldo_usado,
+        sum_pagado=sum_pagado,
+        sum_devuelto_efectivo=sum_devuelto_efectivo,
+        sum_saldo_generado=sum_saldo_generado,
+        neto_rango=neto_rango,
+        clientes=clientes,
+        q_cliente_id=q_cliente_id,
+        q_vendedor=q_vendedor,
+        q_desde=q_desde,
+        q_hasta=q_hasta,
+        limite=limite,
+    )
+
+
 @app.route('/caja/vales/<int:id>/anular', methods=['POST'])
 @login_required
 @caja_requerida
@@ -5198,6 +6234,7 @@ def anular_vale_caja(id):
 @app.route('/procesar_cobro_caja/<int:id>', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('caja_cobrar_vale')
 def procesar_cobro_caja(id):
     venta = Venta.query.get_or_404(id)
     caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
@@ -5211,6 +6248,14 @@ def procesar_cobro_caja(id):
         return redirect(url_for('caja_pendientes'))
     if venta.metodo_pago is not None:
         flash(f"El vale #{venta.id} ya fue procesado anteriormente.", "info")
+        return redirect(url_for('caja_pendientes'))
+    faltantes_stock = _venta_validar_stock_tienda(venta)
+    if faltantes_stock:
+        flash(
+            "No se puede cobrar el vale por stock insuficiente en tienda: "
+            + "; ".join(faltantes_stock[:3]),
+            "warning",
+        )
         return redirect(url_for('caja_pendientes'))
 
     try:
@@ -5273,14 +6318,41 @@ def procesar_cobro_caja(id):
         
         if metodo == "Credito":
             flash(f"Vale #{venta.id} registrado a crédito para {venta.cliente.nombre if venta.cliente else 'cliente'}.", "success")
+            return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
         else:
             flash(f"¡Venta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}", "success")
-        return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
+            return redirect(
+                url_for(
+                    'ver_ticket_cobro',
+                    id=venta.id,
+                    vuelto=f"{float(venta.vuelto or 0):.2f}",
+                    auto_print='1',
+                )
+            )
 
     except Exception as e: # <--- Ahora este except sí tiene su try
         db.session.rollback()
         flash(f"Error crítico al procesar pago: {str(e)}", "danger")
         return redirect(url_for('caja_pendientes'))
+
+
+@app.route('/caja/vale_retiro/<int:id>')
+@login_required
+@caja_requerida
+@permisos_required('caja_cobrar_vale')
+def ver_ticket_cobro(id):
+    venta = Venta.query.get_or_404(id)
+    if venta.estado != 'Pagado':
+        flash("El vale de retiro solo está disponible para ventas pagadas.", "warning")
+        return redirect(url_for('caja_pendientes'))
+    return render_template(
+        'ticket_cobro.html',
+        venta=venta,
+        detalles=venta.detalles or [],
+        cajero_nombre=(current_user.nombre or '').strip() if current_user.is_authenticated else '',
+        auto_print=(request.args.get('auto_print') == '1'),
+        vuelto=float((request.args.get('vuelto') or venta.vuelto or 0)),
+    )
 
 # busca productos por código o nombre para agregar en venta........................................
 @app.route('/buscar_producto')
@@ -5304,7 +6376,8 @@ def buscar_producto():
         Producto.query.filter(Producto.activo.isnot(False))
         .filter(
             (Producto.nombre.ilike(like)) |
-            (Producto.codigo_barra.ilike(like))
+            (Producto.codigo_barra.ilike(like)) |
+            (Producto.codigo_interno.ilike(like))
         )
         .limit(fetch_limit)
         .all()
@@ -5316,7 +6389,7 @@ def buscar_producto():
 
     results = []
     for p in productos:
-        codigo = (p.codigo_barra or "").strip()
+        codigo = (p.codigo_barra or "").strip() or (p.codigo_interno or "").strip()
         if not codigo:
             continue
         if solo_vendibles:
@@ -5339,6 +6412,7 @@ def buscar_producto():
 
 @app.route('/abrir_caja', methods=['GET', 'POST'])
 @login_required
+@permisos_required('caja_abrir')
 def abrir_caja():
     caja_activa = obtener_caja_activa()
     if caja_activa:
@@ -5358,6 +6432,7 @@ def abrir_caja():
 
 @app.route('/movimiento_caja', methods=['GET', 'POST'])
 @login_required
+@permisos_required('caja_movimientos')
 def movimiento_caja():
     if request.method == 'POST':
         q_redirect = {}
@@ -5432,6 +6507,7 @@ def movimiento_caja():
 # mostrar movimientos de caja...............................................................
 @app.route('/cerrar_caja', methods=['GET', 'POST'])
 @login_required
+@permisos_required('caja_cerrar')
 def cerrar_caja():
     # 1. Buscamos la caja activa
     caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
@@ -5471,14 +6547,74 @@ def cerrar_caja():
     # 6. GRAN TOTAL DE MOVIMIENTOS (Productividad total)
     gran_total_dia = total_efectivo + total_debito + total_transferencia + total_fiado + total_abonos_efectivo + total_abonos_otros
 
+    umbral_diferencia = float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000')
+
     if request.method == 'POST':
+        monto_contado_raw = (request.form.get('monto_contado') or '').strip()
+        if not monto_contado_raw:
+            flash("Debe ingresar el efectivo contado para realizar la cuadratura.", "warning")
+            return redirect(url_for('cerrar_caja'))
+        try:
+            monto_contado = float(monto_contado_raw.replace(',', '.'))
+        except ValueError:
+            flash("El efectivo contado ingresado no es válido.", "danger")
+            return redirect(url_for('cerrar_caja'))
+        diferencia_cuadratura = monto_contado - monto_teorico
+        observacion_cierre = (request.form.get('observacion_cierre') or '').strip()
+        supervisor_nombre = None
+
+        if abs(diferencia_cuadratura) >= umbral_diferencia:
+            ident_raw = (request.form.get('supervisor_identificador') or '').strip()
+            pwd = request.form.get('supervisor_clave') or ''
+            if not ident_raw or not pwd:
+                flash(
+                    f"La diferencia supera el umbral (${umbral_diferencia:,.0f}). "
+                    "Debe autorizar un supervisor con credenciales.",
+                    "warning",
+                )
+                return redirect(url_for('cerrar_caja'))
+            sup, err_lookup = resolver_usuario_por_identificador_pos(ident_raw)
+            if err_lookup == 'ambiguous_email_local':
+                flash("Varios correos coinciden; use el correo completo del supervisor.", "warning")
+                return redirect(url_for('cerrar_caja'))
+            if err_lookup == 'ambiguous_nombre':
+                flash("Hay más de un usuario con ese nombre; use usuario/correo único.", "warning")
+                return redirect(url_for('cerrar_caja'))
+            if (
+                not sup
+                or err_lookup == 'not_found'
+                or not sup.check_password(pwd)
+                or not usuario_esta_activo(sup)
+                or not usuario_obj_tiene_permiso(sup, 'gestionar_usuarios')
+            ):
+                flash("Autorización de supervisor inválida.", "danger")
+                return redirect(url_for('cerrar_caja'))
+            supervisor_nombre = (sup.nombre or sup.correo or '').strip()[:80]
+
         # Procesamos el cierre oficial
         caja.fecha_cierre = datetime.now()
-        caja.monto_final = monto_teorico 
+        caja.monto_final = monto_contado
+        caja.monto_teorico_cierre = monto_teorico
+        caja.monto_contado_cierre = monto_contado
+        caja.diferencia_cierre = diferencia_cuadratura
+        caja.observacion_cierre = observacion_cierre[:255] if observacion_cierre else None
+        caja.supervisor_cierre = supervisor_nombre
         caja.estado = "Cerrada"
         caja.usuario_cierre = current_user.nombre
         
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as ex:
+            db.session.rollback()
+            err = str(ex).lower()
+            if 'unknown column' in err or 'monto_teorico_cierre' in err:
+                flash(
+                    'Faltan columnas de cuadratura en la tabla caja. Ejecutá la migración sql/2026_05_06_caja_cuadratura_historial.sql.',
+                    'danger',
+                )
+            else:
+                flash(f'No se pudo cerrar caja: {ex}', 'danger')
+            return redirect(url_for('cerrar_caja'))
         
         # Redirigimos al ticket con toda la info
         return render_template('ticket_cierre.html', 
@@ -5490,6 +6626,10 @@ def cerrar_caja():
                                total_fiado=total_fiado,
                                ingresos=ingresos_manuales, 
                                egresos=egresos,
+                               monto_teorico=monto_teorico,
+                               monto_contado=monto_contado,
+                               diferencia_cuadratura=diferencia_cuadratura,
+                               umbral_diferencia=umbral_diferencia,
                                gran_total_ventas=gran_total_dia,
                                ventas_turno=ventas_turno)
 
@@ -5503,9 +6643,59 @@ def cerrar_caja():
                            ingresos=ingresos_manuales,
                            egresos=egresos,
                            monto_teorico=monto_teorico,
+                           umbral_diferencia=umbral_diferencia,
                            gran_total_ventas=gran_total_dia,
                            ventas_count=len(ventas),
                            ventas_turno=ventas_turno)
+
+
+@app.route('/caja/historial_cierres')
+@login_required
+@permisos_required('gestionar_usuarios')
+def caja_historial_cierres():
+    q_usuario = (request.args.get('usuario') or '').strip()
+    q_desde = (request.args.get('desde') or '').strip()
+    q_hasta = (request.args.get('hasta') or '').strip()
+
+    q = Caja.query.filter(Caja.estado == "Cerrada").order_by(Caja.fecha_cierre.desc(), Caja.id.desc())
+
+    if q_usuario:
+        like_u = f"%{q_usuario}%"
+        q = q.filter(or_(Caja.usuario_cierre.like(like_u), Caja.usuario_apertura.like(like_u)))
+
+    desde_dt = None
+    hasta_dt = None
+    try:
+        if q_desde:
+            desde_dt = datetime.strptime(q_desde, '%Y-%m-%d')
+            q = q.filter(Caja.fecha_cierre >= desde_dt)
+    except ValueError:
+        flash("La fecha 'desde' no es válida.", "warning")
+
+    try:
+        if q_hasta:
+            hasta_dt = datetime.strptime(q_hasta, '%Y-%m-%d') + timedelta(days=1)
+            q = q.filter(Caja.fecha_cierre < hasta_dt)
+    except ValueError:
+        flash("La fecha 'hasta' no es válida.", "warning")
+
+    cierres = q.limit(300).all()
+    total_cierres = len(cierres)
+    total_diferencia = sum(float(c.diferencia_cierre or 0) for c in cierres)
+    cierres_exactos = sum(1 for c in cierres if abs(float(c.diferencia_cierre or 0)) < 0.0001)
+    pct_exactitud = (cierres_exactos * 100.0 / total_cierres) if total_cierres else 0.0
+
+    return render_template(
+        'caja_historial_cierres.html',
+        cierres=cierres,
+        total_cierres=total_cierres,
+        total_diferencia=total_diferencia,
+        cierres_exactos=cierres_exactos,
+        pct_exactitud=pct_exactitud,
+        q_usuario=q_usuario,
+        q_desde=q_desde,
+        q_hasta=q_hasta,
+    )
 
 # editar usuario....................................................................................
 
@@ -5649,6 +6839,7 @@ def login():
             return redirect(url_for('index'))
 
         if request.method == 'POST':
+            _seed_permisos_catalogo_si_vacio()
             correo = request.form.get('correo')
             password = request.form.get('password')
             try:
@@ -7588,6 +8779,137 @@ def descargar_pdf(id):
         return f"Error crítico al generar PDF: {str(e)}"
 
 
+def _parse_fecha_cartola_txt(txt):
+    if not txt or not str(txt).strip():
+        return None
+    try:
+        return datetime.strptime(str(txt).strip()[:10], '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _cartola_credito_context(cliente_id, fecha_desde_txt, fecha_hasta_txt, orden):
+    """Movimientos de crédito (ventas Credito + abonos) para cartola / PDF / boucher."""
+    cliente = Cliente.query.get(cliente_id)
+    if not cliente:
+        return None
+    desde_d = _parse_fecha_cartola_txt(fecha_desde_txt)
+    hasta_d = _parse_fecha_cartola_txt(fecha_hasta_txt)
+    orden = (orden or 'desc').strip().lower()
+    if orden not in ('asc', 'desc'):
+        orden = 'desc'
+
+    ventas_credito = (
+        Venta.query.filter(
+            Venta.cliente_id == cliente_id,
+            Venta.metodo_pago == 'Credito',
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .order_by(Venta.fecha.asc(), Venta.id.asc())
+        .all()
+    )
+    abonos_all = (
+        AbonoCredito.query.filter_by(cliente_id=cliente_id)
+        .order_by(AbonoCredito.fecha.asc(), AbonoCredito.id.asc())
+        .all()
+    )
+
+    events = []
+    for v in ventas_credito:
+        dt = v.fecha or datetime.min
+        doc = (v.tipo_documento or 'Vale').strip()
+        folio = v.nro_documento
+        detalle = f'Venta al crédito ({doc})'
+        if folio:
+            detalle = f'{detalle} — Folio {folio}'
+        events.append(
+            (
+                dt,
+                0,
+                v.id,
+                'cargo',
+                float(v.monto_total or 0),
+                f'{doc} #{v.id}',
+                detalle,
+            )
+        )
+    for a in abonos_all:
+        dt = a.fecha or datetime.min
+        mp = (a.metodo_pago or '').strip()
+        detalle = (a.comentario or 'Abono a cuenta').strip() or 'Abono a cuenta'
+        if mp:
+            detalle = f'{detalle} [{mp}]'
+        events.append(
+            (
+                dt,
+                1,
+                a.id,
+                'abono',
+                float(a.monto_abono or 0),
+                f'Abono #{a.id}',
+                detalle,
+            )
+        )
+
+    events.sort(key=lambda t: (t[0], t[1], t[2]))
+
+    def _fecha_dia(dt):
+        return dt.date() if hasattr(dt, 'date') else dt
+
+    opening = 0.0
+    for (dt, _tie, _eid, tipo, monto, _ref, _det) in events:
+        fd = _fecha_dia(dt)
+        if desde_d and fd < desde_d:
+            opening += monto if tipo == 'cargo' else -monto
+
+    bal = opening
+    mov_chrono = []
+    total_cargos = 0.0
+    total_abonos = 0.0
+    for (dt, _tie, _eid, tipo, monto, ref, detalle) in events:
+        fd = _fecha_dia(dt)
+        if desde_d and fd < desde_d:
+            continue
+        if hasta_d and fd > hasta_d:
+            continue
+        if tipo == 'cargo':
+            bal += monto
+            total_cargos += monto
+        else:
+            bal -= monto
+            total_abonos += monto
+        mov_chrono.append(
+            {
+                'fecha': dt,
+                'tipo': tipo,
+                'ref': ref,
+                'detalle': detalle,
+                'monto': monto,
+                'saldo_corriente': bal,
+                'saldo_visual': bal,
+            }
+        )
+
+    movimientos = list(reversed(mov_chrono)) if orden == 'desc' else mov_chrono
+    saldo_reconstruido = bal
+    saldo_actual = float(cliente.saldo_deudor or 0)
+    diferencia_saldo = saldo_reconstruido - saldo_actual
+
+    return {
+        'cliente': cliente,
+        'movimientos': movimientos,
+        'fecha_desde_txt': (fecha_desde_txt or '').strip() or '',
+        'fecha_hasta_txt': (fecha_hasta_txt or '').strip() or '',
+        'orden': orden,
+        'total_cargos': total_cargos,
+        'total_abonos': total_abonos,
+        'saldo_reconstruido': saldo_reconstruido,
+        'saldo_actual': saldo_actual,
+        'diferencia_saldo': diferencia_saldo,
+        'generado_en': datetime.now(),
+    }
+
+
 @app.route('/creditos')
 @login_required
 @caja_requerida
@@ -7595,6 +8917,77 @@ def modulo_creditos():
     clientes = Cliente.query.filter(Cliente.saldo_deudor > 0).order_by(Cliente.nombre.asc()).all()
     ultimos_abonos = AbonoCredito.query.order_by(AbonoCredito.fecha.desc()).limit(20).all()
     return render_template('modulo_creditos.html', clientes=clientes, ultimos_abonos=ultimos_abonos)
+
+
+@app.route('/creditos/estado_cuenta/<int:cliente_id>')
+@login_required
+@caja_requerida
+def estado_cuenta_credito(cliente_id):
+    ctx = _cartola_credito_context(
+        cliente_id,
+        request.args.get('desde'),
+        request.args.get('hasta'),
+        request.args.get('orden', 'desc'),
+    )
+    if ctx is None:
+        flash('Cliente no encontrado.', 'danger')
+        return redirect(url_for('modulo_creditos'))
+    return render_template('estado_cuenta_credito.html', **ctx)
+
+
+@app.route('/creditos/estado_cuenta/<int:cliente_id>/pdf')
+@login_required
+@caja_requerida
+def estado_cuenta_credito_pdf(cliente_id):
+    ctx = _cartola_credito_context(
+        cliente_id,
+        request.args.get('desde'),
+        request.args.get('hasta'),
+        request.args.get('orden', 'desc'),
+    )
+    if ctx is None:
+        flash('Cliente no encontrado.', 'danger')
+        return redirect(url_for('modulo_creditos'))
+    html = render_template('estado_cuenta_credito_pdf.html', **ctx)
+    path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
+    config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+    options = {
+        'page-size': 'Letter',
+        'encoding': 'UTF-8',
+        'margin-top': '0.5in',
+        'margin-right': '0.5in',
+        'margin-bottom': '0.5in',
+        'margin-left': '0.5in',
+        'quiet': '',
+        'enable-local-file-access': None,
+    }
+    try:
+        pdf = pdfkit.from_string(html, False, options=options, configuration=config)
+        response = make_response(pdf)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'inline; filename=Cartola_credito_cliente_{cliente_id}.pdf'
+        return response
+    except Exception as e:
+        flash(f'No se pudo generar el PDF: {e}', 'danger')
+        return redirect(url_for('estado_cuenta_credito', cliente_id=cliente_id))
+
+
+@app.route('/creditos/estado_cuenta/<int:cliente_id>/boucher')
+@login_required
+@caja_requerida
+def estado_cuenta_credito_boucher(cliente_id):
+    ctx = _cartola_credito_context(
+        cliente_id,
+        request.args.get('desde'),
+        request.args.get('hasta'),
+        request.args.get('orden', 'desc'),
+    )
+    if ctx is None:
+        flash('Cliente no encontrado.', 'danger')
+        return redirect(url_for('modulo_creditos'))
+    ctx['mostrar_control_interno'] = True
+    ctx['saldo_maestro'] = ctx['saldo_actual']
+    return render_template('estado_cuenta_credito_boucher.html', **ctx)
 
 
 @app.route('/registrar_abono', methods=['POST'])

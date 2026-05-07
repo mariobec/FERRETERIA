@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Comprobante cambio #{{ cambio.id }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f8; margin: 0; padding: 14px; color: #202124; }
+    .sheet { max-width: 980px; margin: 0 auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 16px; }
+    .head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .title { font-size: 22px; font-weight: 700; margin: 0; }
+    .muted { color: #60656b; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+    .box { border: 1px solid #ddd; border-radius: 8px; padding: 8px; }
+    .box .k { font-size: 11px; color: #666; }
+    .box .v { font-size: 17px; font-weight: 700; margin-top: 2px; }
+    .tables { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+    th { background: #f5f5f5; text-align: left; }
+    .right { text-align: right; }
+    .toolbar { max-width: 980px; margin: 0 auto 12px; display: flex; justify-content: flex-end; gap: 8px; }
+    .btn { border: none; border-radius: 8px; padding: 10px 12px; font-weight: 700; cursor: pointer; }
+    .btn.print { background: #1f2937; color: #fff; }
+    .btn.back { background: #e5e7eb; color: #111827; text-decoration: none; display: inline-flex; align-items: center; }
+    @media print {
+      .toolbar { display: none; }
+      body { background: #fff; padding: 0; }
+      .sheet { box-shadow: none; border-radius: 0; max-width: none; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn print" onclick="window.print()">Imprimir</button>
+    <a class="btn back" href="{{ url_for('caja_cambios') }}">Volver</a>
+  </div>
+
+  <div class="sheet">
+    <div class="head">
+      <div>
+        <h1 class="title">Comprobante de cambio / compensación</h1>
+        <div class="muted">Operación interna sin nota de crédito tributaria.</div>
+      </div>
+      <div class="muted">
+        N° cambio: <strong>#{{ cambio.id }}</strong><br>
+        Fecha: {{ cambio.fecha.strftime('%d/%m/%Y %H:%M') if cambio.fecha else '—' }}<br>
+        Caja: #{{ cambio.caja_id or '—' }}
+      </div>
+    </div>
+
+    <div class="muted">
+      Cliente: <strong>{{ cambio.cliente.nombre if cambio.cliente else 'Mostrador' }}</strong>
+      {% if cambio.cliente and cambio.cliente.rut %} | RUT: {{ cambio.cliente.rut }}{% endif %}
+      {% if cambio.venta_origen_id %} | Vale origen: <strong>#{{ cambio.venta_origen_id }}</strong>{% endif %}
+    </div>
+
+    <div class="grid">
+      <div class="box"><div class="k">Total devuelto</div><div class="v">$ {{ "{:,.0f}".format(cambio.total_devuelto or 0).replace(",", ".") }}</div></div>
+      <div class="box"><div class="k">Total entregado</div><div class="v">$ {{ "{:,.0f}".format(cambio.total_entregado or 0).replace(",", ".") }}</div></div>
+      <div class="box"><div class="k">Saldo usado</div><div class="v">$ {{ "{:,.0f}".format(cambio.saldo_usado or 0).replace(",", ".") }}</div></div>
+      <div class="box"><div class="k">Neto</div><div class="v">$ {{ "{:,.0f}".format(neto).replace(",", ".") }}</div></div>
+    </div>
+
+    <div class="tables">
+      <div>
+        <h3 style="margin:0 0 6px;font-size:15px;">Productos devueltos</h3>
+        <table>
+          <thead><tr><th>Producto</th><th class="right">Cant</th><th class="right">P.Unit</th><th class="right">Subtotal</th></tr></thead>
+          <tbody>
+            {% for d in devueltos %}
+            <tr>
+              <td>{{ d.producto.nombre if d.producto else ('ID '+(d.producto_id|string)) }}</td>
+              <td class="right">{{ d.cantidad }}</td>
+              <td class="right">$ {{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+              <td class="right">$ {{ "{:,.0f}".format(d.subtotal or 0).replace(",", ".") }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">Sin líneas.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3 style="margin:0 0 6px;font-size:15px;">Productos entregados</h3>
+        <table>
+          <thead><tr><th>Producto</th><th class="right">Cant</th><th class="right">P.Unit</th><th class="right">Subtotal</th></tr></thead>
+          <tbody>
+            {% for d in entregados %}
+            <tr>
+              <td>{{ d.producto.nombre if d.producto else ('ID '+(d.producto_id|string)) }}</td>
+              <td class="right">{{ d.cantidad }}</td>
+              <td class="right">$ {{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+              <td class="right">$ {{ "{:,.0f}".format(d.subtotal or 0).replace(",", ".") }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">Sin líneas.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;" class="muted">
+      Pago cliente: <strong>$ {{ "{:,.0f}".format(cambio.monto_pagado or 0).replace(",", ".") }}</strong> |
+      Devuelto efectivo: <strong>$ {{ "{:,.0f}".format(cambio.monto_devuelto_efectivo or 0).replace(",", ".") }}</strong> |
+      Saldo a favor generado: <strong>$ {{ "{:,.0f}".format(cambio.saldo_generado or 0).replace(",", ".") }}</strong>
+      {% if cambio.observacion %}<br>Observación: {{ cambio.observacion }}{% endif %}
+    </div>
+  </div>
+
+  {% if auto_print %}
+  <script>window.addEventListener('load', function () { window.print(); });</script>
+  {% endif %}
+</body>
+</html>

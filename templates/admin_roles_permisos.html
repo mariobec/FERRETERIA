@@ -1,5 +1,14 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  .perm-chip { font-size: .78rem; border-radius: 999px; padding: .2rem .55rem; }
+  .perm-on { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+  .perm-off { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+  .matrix-sticky th { position: sticky; top: 0; background: #f8fafc; z-index: 2; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -17,9 +26,63 @@
   {% if not permisos %}
   <div class="alert alert-warning">No hay permisos en la base de datos; recargue la página para crear los permisos mínimos del sistema.</div>
   {% else %}
-  <div class="card card-ds">
+  {% set clave_permisos = [
+    ('pos_emitir_vale', 'Emitir vale POS'),
+    ('caja_cobrar_vale', 'Cobrar vale'),
+    ('caja_abrir', 'Abrir caja'),
+    ('caja_movimientos', 'Mov. caja'),
+    ('caja_cerrar', 'Cerrar caja'),
+    ('autorizar_descuento_pos', 'Autoriza descuento'),
+    ('anular_vale_caja', 'Anular vale'),
+    ('gestionar_usuarios', 'Gestionar usuarios')
+  ] %}
+  <div class="card card-ds mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Matriz visual por rol (permisos clave)</strong>
+      <span class="small text-muted">Referencia rápida</span>
+    </div>
     <div class="card-body p-0 table-responsive">
-      <table class="table table-sm align-middle mb-0">
+      <table class="table table-sm align-middle mb-0 matrix-sticky">
+        <thead class="table-light">
+          <tr>
+            <th>Rol</th>
+            {% for pnombre, plabel in clave_permisos %}
+            <th class="text-center small text-nowrap">{{ plabel }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for rol in roles %}
+          <tr>
+            <td class="fw-semibold text-nowrap">{{ rol.nombre }}</td>
+            {% for pnombre, plabel in clave_permisos %}
+              {% set ns = namespace(pid=None) %}
+              {% for p in permisos %}
+                {% if p.nombre == pnombre %}
+                  {% set ns.pid = p.id %}
+                {% endif %}
+              {% endfor %}
+              {% set enabled = ns.pid and (ns.pid in rol_permiso_ids.get(rol.id, [])) %}
+            <td class="text-center">
+              <span class="perm-chip {{ 'perm-on' if enabled else 'perm-off' }}">
+                {{ 'SI' if enabled else 'NO' }}
+              </span>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Matriz completa editable</strong>
+      <span class="small text-muted">Cambios avanzados por permiso</span>
+    </div>
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm align-middle mb-0 matrix-sticky">
         <thead class="table-light">
           <tr>
             <th class="text-nowrap">Rol</th>
@@ -57,8 +120,8 @@
   {% endif %}
 
   <p class="small text-muted mt-3 mb-0">
-    Permisos reconocidos por el código: <code>gestionar_usuarios</code> (mantenedores y administración),
-    <code>admin_inventario</code> (cierre de auditoría con ajuste de stock / kardex).
+    Tip sugerido: para operación con 4 vendedores + 1 cajera, usar <strong>Vendedor</strong> con <code>pos_emitir_vale</code> y
+    <strong>Cajera</strong> con permisos de caja (<code>caja_abrir</code>, <code>caja_cobrar_vale</code>, <code>caja_movimientos</code>, <code>caja_cerrar</code>).
   </p>
 </div>
 {% endblock %}

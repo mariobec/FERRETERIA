@@ -62,8 +62,20 @@
     });
     const alertaGlobal = document.getElementById("stockValidationAlert");
     if (alertaGlobal) alertaGlobal.classList.toggle("d-none", !hayExceso);
+    return hayExceso;
+  }
+
+  function puntoRetiroValido() {
+    const select = document.getElementById("punto_retiro");
+    if (!select) return false;
+    const valor = (select.value || "").trim();
+    return valor !== "" && valor !== "__PENDIENTE__";
+  }
+
+  function actualizarEstadoEmisionVale() {
+    const hayExcesoStock = actualizarEstadoValidacionStock();
     const btnEmitir = document.getElementById("emitirValeBtn");
-    if (btnEmitir) btnEmitir.disabled = hayExceso;
+    if (btnEmitir) btnEmitir.disabled = hayExcesoStock;
   }
 
   function ajustarCantidad(detalleId, delta, precioUnitario) {
@@ -481,16 +493,94 @@
     }
 
     const formEmitir = document.getElementById("formEmitirVale");
-    if (formEmitir) {
-      formEmitir.addEventListener("submit", function (e) {
-        actualizarEstadoValidacionStock();
-        if (document.getElementById("emitirValeBtn")?.disabled) {
-          e.preventDefault();
-          mostrarPosToast("Corrija items con stock insuficiente antes de emitir.");
+    const puntoRetiroFormEl = document.getElementById("punto_retiro");
+    const modalPuntoRetiroEl = document.getElementById("modalConfirmarPuntoRetiro");
+    const modalPuntoRetiroSelect = document.getElementById("puntoRetiroModalSelect");
+    const modalPuntoRetiroError = document.getElementById("puntoRetiroModalError");
+    const btnConfirmarPuntoRetiro = document.getElementById("confirmarPuntoRetiroBtn");
+    let submitConfirmadoDesdeModal = false;
+    let modalPuntoRetiroInst = null;
+    if (modalPuntoRetiroEl && typeof bootstrap !== "undefined") {
+      modalPuntoRetiroInst = bootstrap.Modal.getOrCreateInstance(modalPuntoRetiroEl);
+    }
+
+    function sincronizarSelectPuntoRetiroEnModal() {
+      if (!modalPuntoRetiroSelect || !puntoRetiroFormEl) return;
+      modalPuntoRetiroSelect.value = (puntoRetiroFormEl.value || "__PENDIENTE__").trim() || "__PENDIENTE__";
+      if (modalPuntoRetiroError) modalPuntoRetiroError.classList.add("d-none");
+    }
+
+    if (modalPuntoRetiroEl) {
+      modalPuntoRetiroEl.addEventListener("shown.bs.modal", function () {
+        if (modalPuntoRetiroSelect) modalPuntoRetiroSelect.focus();
+      });
+    }
+
+    if (btnConfirmarPuntoRetiro) {
+      btnConfirmarPuntoRetiro.addEventListener("click", function () {
+        if (!modalPuntoRetiroSelect || !puntoRetiroFormEl || !formEmitir) return;
+        const valor = (modalPuntoRetiroSelect.value || "").trim();
+        if (!valor || valor === "__PENDIENTE__") {
+          if (modalPuntoRetiroError) modalPuntoRetiroError.classList.remove("d-none");
           return;
         }
-        if (!validarRutCliente()) e.preventDefault();
+        puntoRetiroFormEl.value = valor;
+        submitConfirmadoDesdeModal = true;
+        if (modalPuntoRetiroInst) modalPuntoRetiroInst.hide();
+        formEmitir.requestSubmit();
       });
+    }
+
+    if (formEmitir) {
+      formEmitir.addEventListener("submit", function (e) {
+        actualizarEstadoEmisionVale();
+        if (document.getElementById("emitirValeBtn")?.disabled) {
+          e.preventDefault();
+          if (!puntoRetiroValido()) {
+            mostrarPosToast("Seleccione punto de retiro antes de emitir.");
+          } else {
+            mostrarPosToast("Corrija items con stock insuficiente antes de emitir.");
+          }
+          return;
+        }
+        if (!validarRutCliente()) {
+          e.preventDefault();
+          return;
+        }
+        if (!submitConfirmadoDesdeModal && !puntoRetiroValido()) {
+          e.preventDefault();
+          sincronizarSelectPuntoRetiroEnModal();
+          if (modalPuntoRetiroInst) {
+            modalPuntoRetiroInst.show();
+          } else {
+            mostrarPosToast("Seleccione punto de retiro antes de emitir.");
+          }
+          return;
+        }
+        submitConfirmadoDesdeModal = false;
+      });
+    }
+
+    const wedge = document.getElementById("posBarcodeWedge");
+    if (wedge && u.agregar_producto) {
+      wedge.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const codigo = (wedge.value || "").replace(/\r/g, "").replace(/\n/g, "").trim();
+        wedge.value = "";
+        if (!codigo) return;
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = u.agregar_producto;
+        const inp = document.createElement("input");
+        inp.type = "hidden";
+        inp.name = "codigo";
+        inp.value = codigo;
+        form.appendChild(inp);
+        document.body.appendChild(form);
+        form.submit();
+      });
+      wedge.focus();
     }
 
     if ($("#buscarProducto").length) {
@@ -512,7 +602,7 @@
         ajax: {
           url: u.buscar_producto,
           dataType: "json",
-          delay: 300,
+          delay: 50,
           data: function (params) {
             return {
               q: params.term,
@@ -583,7 +673,7 @@
       const detalleId = $(this).data("detalle-id");
       const precio = parseFloat($(this).data("precio")) || 0;
       actualizarSubtotal(detalleId, precio);
-      actualizarEstadoValidacionStock();
+      actualizarEstadoEmisionVale();
       schedulePersistDetalle(detalleId, u.actualizar_item, true);
     });
 
@@ -591,7 +681,7 @@
       const detalleId = $(this).data("detalle-id");
       const precio = parseFloat($(this).data("precio")) || 0;
       actualizarSubtotal(detalleId, precio);
-      actualizarEstadoValidacionStock();
+      actualizarEstadoEmisionVale();
       // El descuento solo se guarda en servidor al pulsar "Actualizar" (así puede pedirse supervisor).
     });
 
@@ -600,7 +690,7 @@
       const delta = parseInt($(this).data("delta"), 10);
       const precio = parseFloat($(this).data("precio")) || 0;
       ajustarCantidad(detalleId, delta, precio);
-      actualizarEstadoValidacionStock();
+      actualizarEstadoEmisionVale();
       schedulePersistDetalle(detalleId, u.actualizar_item, true);
     });
 
@@ -620,7 +710,7 @@
       actualizarItem(detalleId, u.actualizar_item, {});
     });
 
-    actualizarEstadoValidacionStock();
+    actualizarEstadoEmisionVale();
 
     const tbodyPos = document.querySelector(".table-ds tbody");
     if (tbodyPos) {

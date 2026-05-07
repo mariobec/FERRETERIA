@@ -1,0 +1,488 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style>
+  .cambio-panel { border: 1px solid var(--ds-border); border-radius: 10px; }
+  .cambio-title { font-weight: 700; font-size: .95rem; letter-spacing: .2px; }
+  .cambio-grid td, .cambio-grid th { font-size: .88rem; vertical-align: middle; }
+  .cambio-total-pill { border-radius: 999px; font-weight: 700; }
+  .venta-origen-card { border: 2px dashed #c8d1da; background: #f8fafc; }
+  .venta-origen-card.has-ref { border-color: #198754; background: #f3fbf6; }
+  .venta-busqueda-results { max-height: 240px; overflow-y: auto; }
+  .venta-busqueda-results .list-group-item { cursor: pointer; }
+  .venta-busqueda-results .list-group-item:hover { background: #eef6ff; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="fw-bold mb-1"><i class="fas fa-rotate me-2 text-primary"></i>Cambios premium</h4>
+      <p class="text-muted mb-0">Devolución + nueva entrega + compensación automática con saldo a favor.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-primary" href="{{ url_for('caja_cambios_historial') }}"><i class="fas fa-clock-rotate-left me-1"></i>Historial</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('caja_pendientes') }}"><i class="fas fa-arrow-left me-1"></i>Volver caja</a>
+      {% if cambio_reciente %}
+      <a class="btn btn-dark" href="{{ url_for('ticket_cambio', id=cambio_reciente.id, auto_print='1') }}" target="_blank"><i class="fas fa-print me-1"></i>Ticket #{{ cambio_reciente.id }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if cambio_reciente %}
+  <div class="alert alert-success d-flex justify-content-between align-items-center">
+    <div>
+      <strong>Cambio #{{ cambio_reciente.id }} registrado.</strong>
+      Cliente: {{ cambio_reciente.cliente.nombre if cambio_reciente.cliente else "Mostrador" }}.
+    </div>
+    <a class="btn btn-sm btn-outline-success" href="{{ url_for('ticket_cambio', id=cambio_reciente.id) }}" target="_blank">Ver comprobante</a>
+  </div>
+  {% endif %}
+
+  <form method="POST" id="formCambioPremium">
+    <input type="hidden" name="lineas_devueltas" id="lineas_devueltas">
+    <input type="hidden" name="lineas_entregadas" id="lineas_entregadas">
+    <input type="hidden" name="venta_origen_id" id="venta_origen_id" value="">
+
+    <div class="row g-3">
+      <div class="col-xl-8">
+        <div class="card venta-origen-card mb-3" id="ventaOrigenCard">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div>
+                <strong><i class="fas fa-receipt text-primary me-1"></i>Venta original (opcional)</strong>
+                <div class="small text-muted">Pistolea la boleta, ingresa el folio (ej. <code>VL000123</code>) o el RUT del cliente para precargar las líneas a devolver.</div>
+              </div>
+              <span class="badge text-bg-secondary" id="ventaOrigenBadge">Sin referencia</span>
+            </div>
+            <div class="input-group">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="text" class="form-control" id="busquedaVentaInput" placeholder="Folio (ej. 1234 o VL001234) o RUT del cliente" autocomplete="off">
+              <button type="button" class="btn btn-outline-primary" id="btnBuscarVenta">Buscar</button>
+              <button type="button" class="btn btn-outline-secondary d-none" id="btnLimpiarVentaOrigen" title="Quitar referencia">
+                <i class="fas fa-eraser me-1"></i>Sin referencia
+              </button>
+            </div>
+            <div id="ventaOrigenError" class="text-danger small mt-2 d-none"></div>
+            <div id="ventaOrigenInfo" class="alert alert-success py-2 px-3 mt-2 mb-0 d-none"></div>
+            <div id="ventaListaResultados" class="card mt-2 d-none">
+              <div class="card-body p-2">
+                <div class="small fw-semibold mb-2" id="ventaListaTitulo">Últimas ventas del cliente</div>
+                <div class="list-group venta-busqueda-results" id="ventaListaItems"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-ds mb-3">
+          <div class="card-body">
+            <label class="form-label fw-semibold">Cliente (recomendado para saldo a favor)</label>
+            <select class="form-select" name="cliente_id" id="cliente_id">
+              <option value="">Sin cliente identificado</option>
+              {% for c in clientes %}
+              <option value="{{ c.id }}" {% if cliente_sel and c.id == cliente_sel.id %}selected{% endif %}>
+                {{ c.nombre }}{% if c.rut %} ({{ c.rut }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="small text-muted mt-1">Saldo disponible actual: <strong id="saldoDisponibleTxt">$ {{ "{:,.0f}".format(saldo_actual).replace(",", ".") }}</strong></div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="card cambio-panel h-100">
+              <div class="card-header bg-success-subtle d-flex justify-content-between align-items-center">
+                <span class="cambio-title text-success"><i class="fas fa-arrow-down me-1"></i>Devueltos (entran stock)</span>
+                <span class="badge text-bg-success cambio-total-pill" id="totalDevueltos">$ 0</span>
+              </div>
+              <div class="card-body">
+                <div class="input-group input-group-sm mb-2">
+                  <input class="form-control" id="dev_codigo" placeholder="Código barra/interno">
+                  <input class="form-control" id="dev_cantidad" type="number" min="1" value="1" style="max-width:80px">
+                  <input class="form-control" id="dev_precio" type="number" min="0" step="any" placeholder="Precio" style="max-width:120px">
+                  <button class="btn btn-success" type="button" id="btnAddDev">Agregar</button>
+                </div>
+                <div class="small text-muted mb-2">Pistolea código y Enter. Si no indica precio, se usa el precio actual del producto.</div>
+                <div class="table-responsive">
+                  <table class="table table-sm cambio-grid mb-0" id="tablaDevueltos">
+                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th></tr></thead>
+                    <tbody><tr><td colspan="5" class="text-center text-muted">Sin líneas</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card cambio-panel h-100">
+              <div class="card-header bg-danger-subtle d-flex justify-content-between align-items-center">
+                <span class="cambio-title text-danger"><i class="fas fa-arrow-up me-1"></i>Entregados (sale stock)</span>
+                <span class="badge text-bg-danger cambio-total-pill" id="totalEntregados">$ 0</span>
+              </div>
+              <div class="card-body">
+                <div class="input-group input-group-sm mb-2">
+                  <input class="form-control" id="ent_codigo" placeholder="Código barra/interno">
+                  <input class="form-control" id="ent_cantidad" type="number" min="1" value="1" style="max-width:80px">
+                  <input class="form-control" id="ent_precio" type="number" min="0" step="any" placeholder="Precio" style="max-width:120px">
+                  <button class="btn btn-danger" type="button" id="btnAddEnt">Agregar</button>
+                </div>
+                <div class="small text-muted mb-2">Valida stock de tienda al agregar para evitar sorpresas al cerrar.</div>
+                <div class="table-responsive">
+                  <table class="table table-sm cambio-grid mb-0" id="tablaEntregados">
+                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th></tr></thead>
+                    <tbody><tr><td colspan="5" class="text-center text-muted">Sin líneas</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-xl-4">
+        <div class="card card-ds mb-3">
+          <div class="card-header fw-bold">Compensación</div>
+          <div class="card-body">
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Usar saldo a favor</label>
+                <input type="number" step="any" min="0" class="form-control" name="usar_saldo_favor" id="usar_saldo_favor" value="0">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Monto pagado por cliente</label>
+                <input type="number" step="any" min="0" class="form-control" name="monto_pagado" id="monto_pagado" value="0">
+              </div>
+              <div class="col-12">
+                <label class="form-label small fw-semibold">Devuelto en efectivo</label>
+                <input type="number" step="any" min="0" class="form-control" name="monto_devuelto_efectivo" id="monto_devuelto_efectivo" value="0">
+              </div>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between"><span>Devuelto</span><strong id="sumDev">$ 0</strong></div>
+            <div class="d-flex justify-content-between"><span>Entregado</span><strong id="sumEnt">$ 0</strong></div>
+            <div class="d-flex justify-content-between"><span>Saldo usado</span><strong id="sumSaldo">$ 0</strong></div>
+            <hr class="my-2">
+            <div class="d-flex justify-content-between"><span>Neto</span><strong id="netoCambio">$ 0</strong></div>
+            <div id="resumenNeto" class="small mt-2 text-muted"></div>
+            <div id="warnCambio" class="alert alert-warning py-2 px-2 mt-2 mb-0 d-none small"></div>
+          </div>
+        </div>
+
+        <div class="card card-ds mb-3">
+          <div class="card-body">
+            <label class="form-label fw-semibold">Observación</label>
+            <textarea class="form-control" name="observacion" maxlength="500" rows="3" placeholder="Ej: Cambio por falla de fabricación"></textarea>
+            <button class="btn btn-primary fw-bold w-100 mt-3" type="submit" id="btnGuardarCambio">
+              <i class="fas fa-save me-1"></i>Registrar cambio definitivo
+            </button>
+          </div>
+        </div>
+
+        <div class="card card-ds">
+          <div class="card-header fw-bold">Últimos cambios</div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead><tr><th class="ps-3">#</th><th>Cliente</th><th>Acción</th></tr></thead>
+                <tbody>
+                  {% for x in recientes %}
+                  <tr>
+                    <td class="ps-3">#{{ x.id }}</td>
+                    <td class="small">{{ x.cliente.nombre if x.cliente else "Mostrador" }}</td>
+                    <td><a class="btn btn-sm btn-outline-dark" href="{{ url_for('ticket_cambio', id=x.id) }}" target="_blank">Ticket</a></td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="3" class="text-center text-muted py-3">Sin cambios.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const cfg = {
+    saldoActual: {{ (saldo_actual or 0)|tojson }},
+    urlApiProducto: "{{ url_for('api_cambios_producto', codigo='__CODE__') }}",
+    urlBuscarVenta: "{{ url_for('api_cambios_buscar_venta') }}",
+    urlVentaDetalle: "{{ url_for('api_cambios_venta_detalle', id=0) }}",
+  };
+  const devoluciones = [];
+  const entregas = [];
+  let ventaOrigenIdActual = null;
+
+  function clp(v) { return "$ " + new Intl.NumberFormat("es-CL").format(Math.round(v || 0)); }
+  function byId(id) { return document.getElementById(id); }
+  function toNum(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+  async function fetchProducto(code) {
+    const url = cfg.urlApiProducto.replace("__CODE__", encodeURIComponent((code || "").trim()));
+    const r = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error((j && j.mensaje) || "Producto no encontrado.");
+    return j.producto;
+  }
+
+  function showVentaError(msg) {
+    const el = byId("ventaOrigenError");
+    el.textContent = msg || "";
+    el.classList.toggle("d-none", !msg);
+  }
+
+  function showVentaInfo(html) {
+    const el = byId("ventaOrigenInfo");
+    el.innerHTML = html || "";
+    el.classList.toggle("d-none", !html);
+  }
+
+  function setSinReferencia() {
+    ventaOrigenIdActual = null;
+    byId("venta_origen_id").value = "";
+    byId("ventaOrigenBadge").className = "badge text-bg-secondary";
+    byId("ventaOrigenBadge").textContent = "Sin referencia";
+    byId("ventaOrigenCard").classList.remove("has-ref");
+    byId("btnLimpiarVentaOrigen").classList.add("d-none");
+    byId("ventaListaResultados").classList.add("d-none");
+    byId("ventaListaItems").innerHTML = "";
+    showVentaInfo("");
+  }
+
+  function aplicarVentaOrigen(venta) {
+    ventaOrigenIdActual = venta.id;
+    byId("venta_origen_id").value = String(venta.id);
+    byId("ventaOrigenBadge").className = "badge text-bg-success";
+    byId("ventaOrigenBadge").textContent = "Vale #" + venta.id;
+    byId("ventaOrigenCard").classList.add("has-ref");
+    byId("btnLimpiarVentaOrigen").classList.remove("d-none");
+    byId("ventaListaResultados").classList.add("d-none");
+
+    if (venta.cliente_id) {
+      const sel = byId("cliente_id");
+      const opt = Array.from(sel.options).find(o => Number(o.value) === Number(venta.cliente_id));
+      if (opt) sel.value = String(venta.cliente_id);
+    }
+
+    devoluciones.length = 0;
+    (venta.detalles || []).forEach(d => {
+      const code = (d.codigo_barra || d.codigo_interno || "").trim() || ("ID" + d.producto_id);
+      const desc = parseFloat(d.descuento || 0);
+      const factor = 1 - (isNaN(desc) ? 0 : desc) / 100.0;
+      const precioEf = parseFloat(d.precio_unitario || 0) * factor;
+      devoluciones.push({
+        codigo: code,
+        nombre: d.nombre || ("Producto #" + d.producto_id),
+        cantidad: parseInt(d.cantidad || 0, 10) || 0,
+        precio: precioEf,
+        subtotal: precioEf * (parseInt(d.cantidad || 0, 10) || 0),
+      });
+    });
+
+    showVentaInfo(
+      "<i class='fas fa-circle-check me-1'></i>Vale #" + venta.id +
+      " del " + (venta.fecha || "—") +
+      (venta.cliente_nombre ? " · Cliente: <strong>" + escapeHtml(venta.cliente_nombre) + "</strong>" : "") +
+      " · Total: <strong>" + clp(venta.monto_total) + "</strong>." +
+      "<br><span class='small'>Líneas precargadas en <em>Devueltos</em>. Ajuste cantidades o quite las que el cliente no devolverá.</span>"
+    );
+    refresh();
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
+  }
+
+  async function buscarVenta() {
+    const q = (byId("busquedaVentaInput").value || "").trim();
+    showVentaError("");
+    if (!q) {
+      showVentaError("Indique folio o RUT a buscar.");
+      return;
+    }
+    try {
+      const url = cfg.urlBuscarVenta + "?q=" + encodeURIComponent(q);
+      const r = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } });
+      const j = await r.json();
+      if (!r.ok || !j.ok) {
+        throw new Error((j && j.mensaje) || "Sin resultados.");
+      }
+      if (j.modo === "venta") {
+        aplicarVentaOrigen(j.venta);
+      } else if (j.modo === "lista") {
+        const cont = byId("ventaListaItems");
+        const titulo = byId("ventaListaTitulo");
+        titulo.textContent = "Últimas ventas de " + (j.cliente && j.cliente.nombre ? j.cliente.nombre : "cliente");
+        if (!(j.ventas || []).length) {
+          cont.innerHTML = "<div class='text-muted small p-2'>El cliente no tiene ventas registradas.</div>";
+        } else {
+          cont.innerHTML = (j.ventas || []).map(v => (
+            "<button type='button' class='list-group-item list-group-item-action d-flex justify-content-between align-items-center' data-vid='" + v.id + "'>" +
+            "<span><strong>#" + v.id + "</strong> · " + escapeHtml(v.fecha || "") + "<span class='small text-muted ms-2'>" + escapeHtml(v.estado || "") + "</span></span>" +
+            "<span class='fw-bold'>" + clp(v.monto_total) + "</span>" +
+            "</button>"
+          )).join("");
+          cont.querySelectorAll("[data-vid]").forEach(btn => {
+            btn.onclick = async () => {
+              const vid = btn.dataset.vid;
+              try {
+                const det = await fetch(cfg.urlVentaDetalle.replace(/\/0$/, "/" + vid), { credentials: "same-origin", headers: { Accept: "application/json" } });
+                const dj = await det.json();
+                if (!det.ok || !dj.ok) throw new Error((dj && dj.mensaje) || "No se pudo cargar la venta.");
+                aplicarVentaOrigen(dj.venta);
+              } catch (e) {
+                showVentaError(e.message || "No se pudo cargar la venta.");
+              }
+            };
+          });
+        }
+        byId("ventaListaResultados").classList.remove("d-none");
+      }
+    } catch (e) {
+      showVentaError(e.message || "Sin resultados.");
+    }
+  }
+
+  byId("btnBuscarVenta").onclick = buscarVenta;
+  byId("btnLimpiarVentaOrigen").onclick = setSinReferencia;
+  byId("busquedaVentaInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      buscarVenta();
+    }
+  });
+
+  function rowToLine(row) {
+    return row.codigo + "," + row.cantidad + "," + row.precio;
+  }
+
+  function renderTabla(rows, tableId, emptyText) {
+    const tb = byId(tableId).querySelector("tbody");
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + emptyText + "</td></tr>";
+      return;
+    }
+    tb.innerHTML = rows.map((r, i) => (
+      "<tr>" +
+      "<td><div class='fw-semibold'>" + r.nombre + "</div><div class='small text-muted'>" + r.codigo + "</div></td>" +
+      "<td>" + r.cantidad + "</td>" +
+      "<td>" + clp(r.precio) + "</td>" +
+      "<td>" + clp(r.subtotal) + "</td>" +
+      "<td><button type='button' class='btn btn-sm btn-outline-danger' data-del='" + i + "'>x</button></td>" +
+      "</tr>"
+    )).join("");
+  }
+
+  function refresh() {
+    renderTabla(devoluciones, "tablaDevueltos", "Sin líneas");
+    renderTabla(entregas, "tablaEntregados", "Sin líneas");
+    byId("tablaDevueltos").querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { devoluciones.splice(parseInt(b.dataset.del, 10), 1); refresh(); });
+    byId("tablaEntregados").querySelectorAll("[data-del]").forEach((b) => b.onclick = () => { entregas.splice(parseInt(b.dataset.del, 10), 1); refresh(); });
+
+    const sDev = devoluciones.reduce((a, r) => a + r.subtotal, 0);
+    const sEnt = entregas.reduce((a, r) => a + r.subtotal, 0);
+    const sSaldo = Math.max(0, toNum(byId("usar_saldo_favor").value));
+    const neto = sEnt - sDev - sSaldo;
+    byId("totalDevueltos").textContent = clp(sDev);
+    byId("totalEntregados").textContent = clp(sEnt);
+    byId("sumDev").textContent = clp(sDev);
+    byId("sumEnt").textContent = clp(sEnt);
+    byId("sumSaldo").textContent = clp(sSaldo);
+    byId("netoCambio").textContent = clp(neto);
+
+    const mPag = Math.max(0, toNum(byId("monto_pagado").value));
+    const mDev = Math.max(0, toNum(byId("monto_devuelto_efectivo").value));
+    const warn = byId("warnCambio");
+    warn.classList.add("d-none");
+    if (neto > 0) {
+      byId("resumenNeto").textContent = "Cliente debe pagar diferencia.";
+      if (mPag + 1e-6 < neto) {
+        warn.textContent = "Falta pago para cerrar: " + clp(neto - mPag);
+        warn.classList.remove("d-none");
+      }
+      if (mDev > 0) {
+        warn.textContent = "No corresponde devolver efectivo cuando neto es por pagar.";
+        warn.classList.remove("d-none");
+      }
+    } else {
+      byId("resumenNeto").textContent = "Cliente tiene diferencia a favor.";
+      if (mPag > 0) {
+        warn.textContent = "No corresponde monto pagado cuando hay saldo a favor.";
+        warn.classList.remove("d-none");
+      }
+      if (Math.abs(neto) + 1e-6 < mDev) {
+        warn.textContent = "Devuelto en efectivo supera la diferencia a favor.";
+        warn.classList.remove("d-none");
+      }
+    }
+
+    byId("lineas_devueltas").value = devoluciones.map(rowToLine).join("\n");
+    byId("lineas_entregadas").value = entregas.map(rowToLine).join("\n");
+  }
+
+  async function agregar(tipo) {
+    const pref = tipo === "DEV" ? "dev" : "ent";
+    const inpCode = byId(pref + "_codigo");
+    const inpQty = byId(pref + "_cantidad");
+    const inpPre = byId(pref + "_precio");
+    const code = (inpCode.value || "").trim();
+    const qty = parseInt(inpQty.value || "0", 10);
+    if (!code || !qty || qty <= 0) return;
+    try {
+      const p = await fetchProducto(code);
+      const precio = Math.max(0, toNum(inpPre.value) || toNum(p.precio));
+      if (precio <= 0) throw new Error("Producto sin precio válido.");
+      if (tipo === "ENT" && (p.stock_tienda || 0) < qty) {
+        throw new Error("Stock insuficiente en tienda (" + p.stock_tienda + ").");
+      }
+      const row = {
+        codigo: p.codigo_barra || p.codigo_interno || code,
+        nombre: p.nombre,
+        cantidad: qty,
+        precio: precio,
+        subtotal: qty * precio
+      };
+      if (tipo === "DEV") devoluciones.push(row); else entregas.push(row);
+      inpCode.value = "";
+      inpQty.value = "1";
+      inpPre.value = "";
+      inpCode.focus();
+      refresh();
+    } catch (e) {
+      alert(e.message || "No se pudo agregar línea.");
+    }
+  }
+
+  byId("btnAddDev").onclick = () => agregar("DEV");
+  byId("btnAddEnt").onclick = () => agregar("ENT");
+  ["dev_codigo", "ent_codigo"].forEach((id) => {
+    byId(id).addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        agregar(id.startsWith("dev") ? "DEV" : "ENT");
+      }
+    });
+  });
+  ["usar_saldo_favor", "monto_pagado", "monto_devuelto_efectivo"].forEach((id) => byId(id).addEventListener("input", refresh));
+
+  byId("formCambioPremium").addEventListener("submit", function (e) {
+    refresh();
+    if (!devoluciones.length || !entregas.length) {
+      e.preventDefault();
+      alert("Debes ingresar al menos un producto devuelto y uno entregado.");
+      return;
+    }
+    if (byId("warnCambio").classList.contains("d-none") === false) {
+      e.preventDefault();
+      alert("Corrige las alertas de compensación antes de registrar.");
+    }
+  });
+
+  refresh();
+})();
+</script>
+{% endblock %}

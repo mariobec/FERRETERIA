@@ -34,6 +34,10 @@
                         <span>CIERRE:</span>
                         <span>{{ caja.fecha_cierre.strftime('%d/%m/%Y %H:%M') }}</span>
                     </div>
+                    <div class="d-flex justify-content-between">
+                        <span>SUPERVISOR:</span>
+                        <span>{{ caja.supervisor_cierre or 'No aplica' }}</span>
+                    </div>
                 </div>
 
                 <!-- DESGLOSE CONTABLE ACTUALIZADO -->
@@ -77,12 +81,35 @@
 
                 <!-- RESULTADO FINAL EN GAVETA -->
                 <div class="border-top border-dark border-2 mt-3 pt-3">
-                    <div class="text-center mb-2 small fw-bold text-muted">EFECTIVO TOTAL EN GAVETA</div>
+                    <div class="text-center mb-2 small fw-bold text-muted">CUADRATURA DE CAJA</div>
+                    <div class="d-flex justify-content-between">
+                        <span>EFECTIVO TEÓRICO:</span>
+                        <span>$ {{ "{:,.0f}".format(monto_teorico).replace(",", ".") }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>EFECTIVO CONTADO:</span>
+                        <span>$ {{ "{:,.0f}".format(monto_contado).replace(",", ".") }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between {% if diferencia_cuadratura < 0 %}text-danger{% elif diferencia_cuadratura > 0 %}text-success{% else %}text-muted{% endif %}">
+                        <span>DIFERENCIA:</span>
+                        <span>$ {{ "{:,.0f}".format(diferencia_cuadratura).replace(",", ".") }}</span>
+                    </div>
+                    {% if umbral_diferencia is defined %}
+                    <p class="text-center small text-muted mt-1 mb-0">Umbral control supervisor: $ {{ "{:,.0f}".format(umbral_diferencia).replace(",", ".") }}</p>
+                    {% endif %}
+                    <div class="text-center mb-2 mt-3 small fw-bold text-muted">EFECTIVO CIERRE REGISTRADO</div>
                     <div class="text-center h2 fw-bold text-dark">
                         $ {{ "{:,.0f}".format(caja.monto_final).replace(",", ".") }}
                     </div>
-                    <p class="text-center small text-muted">(Monto Inicial + Ventas Efec + Abonos Efec + Ingresos - Egresos)</p>
+                    <p class="text-center small text-muted">(El cierre guarda el monto contado en gaveta)</p>
                 </div>
+
+                {% if caja.observacion_cierre %}
+                <div class="border-top border-dark mt-3 pt-2 small">
+                    <div class="fw-bold mb-1">OBSERVACIÓN CIERRE</div>
+                    <div>{{ caja.observacion_cierre }}</div>
+                </div>
+                {% endif %}
 
                 <!-- RESUMEN DE CRÉDITO (Informativo) -->
                 <div class="border-top border-dark border-dashed mt-3 pt-2 small">

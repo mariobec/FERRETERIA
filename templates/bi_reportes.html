@@ -15,6 +15,9 @@
       <a href="{{ url_for('export_bi_csv', fecha_inicio=fecha_inicio, fecha_fin=fecha_fin) }}" class="btn btn-outline-success btn-sm">
         <i class="fas fa-file-csv me-1"></i> Exportar CSV
       </a>
+      <a href="{{ url_for('export_bi_vendedores_csv', fecha_inicio=fecha_inicio, fecha_fin=fecha_fin) }}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-users me-1"></i> CSV por vendedor
+      </a>
       <a href="{{ url_for('mostrar_ventas') }}" class="btn btn-outline-primary btn-sm">
         <i class="fas fa-list me-1"></i> Ver ventas
       </a>
@@ -308,6 +311,34 @@
       </div>
     </div>
     <div class="col-lg-6">
+      <div class="card card-ds mb-3">
+        <div class="card-header bg-white fw-bold">Ventas por vendedor (Pagado)</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 table-ds align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Vendedor</th>
+                <th class="text-end">Ventas</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Ticket prom.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in ventas_vendedor %}
+              <tr>
+                <td class="fw-semibold">{{ r.vendedor }}</td>
+                <td class="text-end">{{ "{:,.0f}".format(r.n_ventas).replace(",", ".") }}</td>
+                <td class="text-end fw-bold">${{ "{:,.0f}".format(r.monto_total).replace(",", ".") }}</td>
+                <td class="text-end">${{ "{:,.0f}".format(r.ticket_promedio).replace(",", ".") }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-center text-muted py-3">Sin ventas pagadas en el rango seleccionado.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card card-ds">
         <div class="card-header bg-white fw-bold">Últimas ventas del período</div>
         <div class="table-responsive">

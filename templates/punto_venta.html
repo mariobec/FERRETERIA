@@ -57,6 +57,11 @@
           </p>
           <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
         </div>
+        <div class="col-12">
+          <label class="form-label fw-bold" for="posBarcodeWedge"><i class="fas fa-barcode text-secondary me-1"></i>Lector código de barras</label>
+          <input type="text" id="posBarcodeWedge" class="form-control font-monospace" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Haga clic aquí y escanee — se agrega al vale al terminar (Enter)">
+          <div class="form-text">Si la pistola hace bip pero no agrega ítems, mantenga el foco en este campo (no en cantidad ni en el buscador). Use también el buscador abajo para nombre o código.</div>
+        </div>
         <div class="col-md-10">
           <label class="form-label fw-bold">Buscar producto</label>
           <select id="buscarProducto" name="codigo" class="form-select" style="width:100%">
@@ -256,7 +261,8 @@
               <input type="text" id="cliente_ciudad" name="cliente_ciudad" class="form-control" maxlength="80" placeholder="Ej: Copiapó">
             </div>
 
-            <div class="col-12 d-flex justify-content-end gap-2 pt-2">
+            <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">
+            <div class="col-12 d-flex justify-content-end gap-2 pt-1">
               <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary">
                 <i class="fas fa-cash-register me-1"></i> Ir a Caja
               </a>
@@ -298,6 +304,35 @@
   </div>
 </div>
 
+<div class="modal fade" id="modalConfirmarPuntoRetiro" tabindex="-1" aria-labelledby="modalConfirmarPuntoRetiroLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalConfirmarPuntoRetiroLabel">Confirmar punto de retiro</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">Antes de emitir el vale pendiente, indique dónde retira el cliente:</p>
+        <select id="puntoRetiroModalSelect" class="form-select form-select-lg">
+          <option value="__PENDIENTE__" selected>Seleccione punto de retiro...</option>
+          <option value="Bodega">Bodega</option>
+          <option value="Tienda">Tienda / Mostrador</option>
+          <option value="Despacho">Despacho</option>
+        </select>
+        <div id="puntoRetiroModalError" class="text-danger small mt-2 d-none">
+          Debe seleccionar un punto de retiro para continuar.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="confirmarPuntoRetiroBtn">
+          Confirmar y emitir vale
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
   <div id="posToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
@@ -314,6 +349,7 @@
   'descuento_libre': usuario_tiene_permiso('autorizar_descuento_pos'),
   'urls': {
     'buscar_producto': url_for('buscar_producto'),
+    'agregar_producto': url_for('agregar_producto_venta'),
     'actualizar_item': url_for('actualizar_item'),
     'consultar_cliente': url_for('consultar_cliente'),
     'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento')

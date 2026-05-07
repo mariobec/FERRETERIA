@@ -101,7 +101,46 @@
         <form action="{{ url_for('cerrar_caja') }}" method="POST" class="mt-4">
             <div class="alert alert-warning small border-0">
                 <i class="fas fa-exclamation-triangle me-2"></i> 
-                Confirme que el efectivo en físico coincide con el monto esperado.
+                Ingrese el efectivo contado para realizar la cuadratura de caja.
+            </div>
+            <div class="mb-3">
+                <label for="monto_contado" class="form-label fw-bold">Efectivo contado en gaveta</label>
+                <input
+                    type="number"
+                    class="form-control form-control-lg"
+                    id="monto_contado"
+                    name="monto_contado"
+                    min="0"
+                    step="0.01"
+                    required
+                    placeholder="Ej: 150000"
+                >
+                <div class="form-text">El sistema comparará este valor con el efectivo esperado.</div>
+            </div>
+            <div class="mb-3">
+                <label for="observacion_cierre" class="form-label fw-bold">Observación de cierre (opcional)</label>
+                <textarea
+                    class="form-control"
+                    id="observacion_cierre"
+                    name="observacion_cierre"
+                    rows="2"
+                    maxlength="255"
+                    placeholder="Ej: faltante por vuelto mal entregado en hora punta"
+                ></textarea>
+            </div>
+            <div id="alerta-diferencia" class="alert alert-danger small d-none" role="alert">
+                Diferencia sobre umbral: se requiere autorización de supervisor.
+            </div>
+            <div id="bloque-supervisor" class="border rounded p-3 bg-light d-none">
+                <p class="fw-bold mb-2">Autorización supervisor</p>
+                <div class="mb-2">
+                    <label for="supervisor_identificador" class="form-label">Usuario o correo supervisor</label>
+                    <input type="text" class="form-control" id="supervisor_identificador" name="supervisor_identificador">
+                </div>
+                <div>
+                    <label for="supervisor_clave" class="form-label">Contraseña supervisor</label>
+                    <input type="password" class="form-control" id="supervisor_clave" name="supervisor_clave">
+                </div>
             </div>
 
             <div class="row g-2">
@@ -111,4 +150,30 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const inputContado = document.getElementById('monto_contado');
+    const inputSup = document.getElementById('supervisor_identificador');
+    const inputClave = document.getElementById('supervisor_clave');
+    const alerta = document.getElementById('alerta-diferencia');
+    const bloque = document.getElementById('bloque-supervisor');
+    const teorico = Number({{ monto_teorico|default(0)|tojson }});
+    const umbral = Number({{ umbral_diferencia|default(2000)|tojson }});
+
+    const evaluar = () => {
+        const contado = Number(inputContado.value || 0);
+        const dif = contado - teorico;
+        const requiere = Math.abs(dif) >= umbral;
+        bloque.classList.toggle('d-none', !requiere);
+        alerta.classList.toggle('d-none', !requiere);
+        inputSup.required = requiere;
+        inputClave.required = requiere;
+    };
+    inputContado.addEventListener('input', evaluar);
+    evaluar();
+})();
+</script>
 {% endblock %}

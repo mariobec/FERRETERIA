@@ -382,6 +382,7 @@
             <p class="small text-muted flex-grow-1">Un clic para recalcular precios desde la <strong>última factura de compra</strong> (no del costo promedio viejo). Mensaje a <strong>gerencia</strong>: «El ERP cierra la fuga».</p>
             {% if usuario_tiene_permiso('panel_gerencia') %}
             <a href="{{ url_for('simulador_margen', fecha_inicio=hace_30_str, fecha_fin=hoy_str) }}" class="btn btn-warning btn-sm fw-semibold text-dark mt-auto">Simular impacto en margen</a>
+            <a href="{{ url_for('bi_alertas_precio_premium_demo') }}" class="btn btn-outline-dark btn-sm mt-1">Abrir centro alertas premium (demo)</a>
             {% else %}
             <span class="badge bg-secondary align-self-start">Requiere panel gerencia</span>
             {% endif %}

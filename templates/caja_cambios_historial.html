@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+  .hist-cambios-card { border-radius: 12px; }
+  .hist-cambios-table th, .hist-cambios-table td { font-size: .86rem; vertical-align: middle; }
+  .hist-cambios-table th { white-space: nowrap; }
+  .hist-cambios-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .hist-cambios-pill { font-weight: 700; border-radius: 999px; padding: 2px 10px; font-size: .78rem; }
+  .obs-row td { background: #fbfbfb; color: #5b6770; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="fw-bold mb-0"><i class="fas fa-clock-rotate-left me-2 text-primary"></i>Historial de Cambios y Devoluciones</h4>
+      <small class="text-muted">Auditoría operativa de cambios (sin nota de crédito) y movimientos de saldo a favor.</small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('caja_cambios') }}" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-rotate me-1"></i> Nuevo cambio
+      </a>
+      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Volver a Caja
+      </a>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm hist-cambios-card mb-3">
+    <div class="card-body">
+      <form method="GET" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label mb-1">Cliente</label>
+          <select class="form-select" name="cliente_id">
+            <option value="">Todos</option>
+            {% for c in clientes %}
+            <option value="{{ c.id }}" {% if q_cliente_id == c.id %}selected{% endif %}>
+              {{ c.nombre }}{% if c.rut %} ({{ c.rut }}){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-1">Vendedor / cajero</label>
+          <input type="text" class="form-control" name="vendedor" value="{{ q_vendedor }}" placeholder="Nombre o correo">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1">Desde</label>
+          <input type="date" class="form-control" name="desde" value="{{ q_desde }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1">Hasta</label>
+          <input type="date" class="form-control" name="hasta" value="{{ q_hasta }}">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-search me-1"></i> Filtrar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Cambios listados</small>
+        <h5 class="fw-bold mb-0">{{ total_cambios }}</h5>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Total devuelto (entra stock)</small>
+        <h5 class="fw-bold mb-0 text-success">$ {{ "{:,.0f}".format(sum_devuelto).replace(",", ".") }}</h5>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Total entregado (sale stock)</small>
+        <h5 class="fw-bold mb-0 text-danger">$ {{ "{:,.0f}".format(sum_entregado).replace(",", ".") }}</h5>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Saldo a favor generado</small>
+        <h5 class="fw-bold mb-0 text-primary">$ {{ "{:,.0f}".format(sum_saldo_generado).replace(",", ".") }}</h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Saldo usado en cambios</small>
+        <h5 class="fw-bold mb-0">$ {{ "{:,.0f}".format(sum_saldo_usado).replace(",", ".") }}</h5>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Pagado por clientes</small>
+        <h5 class="fw-bold mb-0">$ {{ "{:,.0f}".format(sum_pagado).replace(",", ".") }}</h5>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Devuelto en efectivo</small>
+        <h5 class="fw-bold mb-0">$ {{ "{:,.0f}".format(sum_devuelto_efectivo).replace(",", ".") }}</h5>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <small class="text-muted">Neto neto del rango</small>
+        <h5 class="fw-bold mb-0 {% if neto_rango < 0 %}text-success{% elif neto_rango > 0 %}text-danger{% endif %}">
+          $ {{ "{:,.0f}".format(neto_rango).replace(",", ".") }}
+        </h5>
+        <small class="text-muted">Entregado − devuelto − saldo usado</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm hist-cambios-card">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle hist-cambios-table">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Vendedor</th>
+            <th>Caja</th>
+            <th>Vale origen</th>
+            <th class="text-end">Devuelto</th>
+            <th class="text-end">Entregado</th>
+            <th class="text-end">Saldo usado</th>
+            <th class="text-end">Pagado</th>
+            <th class="text-end">Dev. efectivo</th>
+            <th class="text-end">Saldo gen.</th>
+            <th class="text-end">Neto</th>
+            <th class="text-center">Ticket</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in cambios %}
+          {% set neto = (c.total_entregado or 0) - (c.total_devuelto or 0) - (c.saldo_usado or 0) %}
+          <tr>
+            <td class="fw-bold">#{{ c.id }}</td>
+            <td>{{ c.fecha.strftime('%d/%m/%Y %H:%M') if c.fecha else '-' }}</td>
+            <td>{{ c.cliente.nombre if c.cliente else 'Mostrador' }}{% if c.cliente and c.cliente.rut %} <span class="text-muted small">({{ c.cliente.rut }})</span>{% endif %}</td>
+            <td>{{ (c.usuario.nombre if c.usuario else '-') }}</td>
+            <td>#{{ c.caja_id or '-' }}</td>
+            <td>{% if c.venta_origen_id %}<span class="badge text-bg-light border">#{{ c.venta_origen_id }}</span>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
+            <td class="num text-success">$ {{ "{:,.0f}".format(c.total_devuelto or 0).replace(",", ".") }}</td>
+            <td class="num text-danger">$ {{ "{:,.0f}".format(c.total_entregado or 0).replace(",", ".") }}</td>
+            <td class="num">$ {{ "{:,.0f}".format(c.saldo_usado or 0).replace(",", ".") }}</td>
+            <td class="num">$ {{ "{:,.0f}".format(c.monto_pagado or 0).replace(",", ".") }}</td>
+            <td class="num">$ {{ "{:,.0f}".format(c.monto_devuelto_efectivo or 0).replace(",", ".") }}</td>
+            <td class="num text-primary">$ {{ "{:,.0f}".format(c.saldo_generado or 0).replace(",", ".") }}</td>
+            <td class="num {% if neto > 0 %}text-danger{% elif neto < 0 %}text-success{% endif %}">$ {{ "{:,.0f}".format(neto).replace(",", ".") }}</td>
+            <td class="text-center">
+              <a class="btn btn-sm btn-outline-dark" href="{{ url_for('ticket_cambio', id=c.id) }}" target="_blank" title="Ver comprobante">
+                <i class="fas fa-receipt"></i>
+              </a>
+            </td>
+          </tr>
+          {% if c.observacion %}
+          <tr class="obs-row">
+            <td></td>
+            <td colspan="13" class="small">
+              <strong>Obs.:</strong> {{ c.observacion }}
+            </td>
+          </tr>
+          {% endif %}
+          {% else %}
+          <tr>
+            <td colspan="14" class="text-center text-muted py-4">No se encontraron cambios para los filtros seleccionados.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if cambios %}
+  <p class="small text-muted mt-2 mb-0">
+    Mostrando hasta {{ limite }} resultados ordenados por fecha descendente. Para auditorías más antiguas, use el filtro de fecha "Desde / Hasta".
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

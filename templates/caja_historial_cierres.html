@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h4 class="fw-bold mb-0"><i class="fas fa-history me-2 text-primary"></i>Historial de Cierres de Caja</h4>
+            <small class="text-muted">Control de cuadratura y desempeño por cajero/a.</small>
+        </div>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> Volver a Caja
+        </a>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <form method="GET" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label mb-1">Usuario (apertura/cierre)</label>
+                    <input type="text" class="form-control" name="usuario" value="{{ q_usuario }}" placeholder="Ej: Ana">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">Desde</label>
+                    <input type="date" class="form-control" name="desde" value="{{ q_desde }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label mb-1">Hasta</label>
+                    <input type="date" class="form-control" name="hasta" value="{{ q_hasta }}">
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Cierres listados</small>
+                <h5 class="fw-bold mb-0">{{ total_cierres }}</h5>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Cierres exactos</small>
+                <h5 class="fw-bold mb-0">{{ cierres_exactos }}</h5>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">% exactitud</small>
+                <h5 class="fw-bold mb-0">{{ "{:.1f}".format(pct_exactitud) }}%</h5>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm p-3">
+                <small class="text-muted">Suma diferencia</small>
+                <h5 class="fw-bold mb-0 {% if total_diferencia < 0 %}text-danger{% elif total_diferencia > 0 %}text-success{% endif %}">
+                    $ {{ "{:,.0f}".format(total_diferencia).replace(",", ".") }}
+                </h5>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>#Caja</th>
+                        <th>Apertura</th>
+                        <th>Cierre</th>
+                        <th>Cajero/a</th>
+                        <th class="text-end">Teórico</th>
+                        <th class="text-end">Contado</th>
+                        <th class="text-end">Diferencia</th>
+                        <th>Supervisor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in cierres %}
+                    <tr>
+                        <td class="fw-bold">#{{ c.id }}</td>
+                        <td>{{ c.fecha_apertura.strftime('%d/%m/%Y %H:%M') if c.fecha_apertura else '-' }}</td>
+                        <td>{{ c.fecha_cierre.strftime('%d/%m/%Y %H:%M') if c.fecha_cierre else '-' }}</td>
+                        <td>{{ c.usuario_cierre or c.usuario_apertura or '-' }}</td>
+                        <td class="text-end">$ {{ "{:,.0f}".format(c.monto_teorico_cierre or 0).replace(",", ".") }}</td>
+                        <td class="text-end">$ {{ "{:,.0f}".format(c.monto_contado_cierre or c.monto_final or 0).replace(",", ".") }}</td>
+                        <td class="text-end {% if (c.diferencia_cierre or 0) < 0 %}text-danger{% elif (c.diferencia_cierre or 0) > 0 %}text-success{% endif %}">
+                            $ {{ "{:,.0f}".format(c.diferencia_cierre or 0).replace(",", ".") }}
+                        </td>
+                        <td>{{ c.supervisor_cierre or '-' }}</td>
+                    </tr>
+                    {% if c.observacion_cierre %}
+                    <tr>
+                        <td></td>
+                        <td colspan="7" class="small text-muted">
+                            <strong>Observación:</strong> {{ c.observacion_cierre }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">No hay cierres para los filtros seleccionados.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

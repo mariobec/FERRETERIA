@@ -6,11 +6,18 @@
     .card-indicador { border-radius: 12px; border: 1px solid var(--ds-border); box-shadow: var(--ds-shadow-sm); }
     .modal-premium .modal-content { border-radius: 25px; border: none; }
     .modal-premium .modal-header { background: #f8f9fa; border-bottom: 2px solid #166534; }
+    .vuelto-banner {
+        border: 2px solid #f59e0b;
+        background: linear-gradient(90deg, #fff7ed, #fffbeb);
+        border-radius: 14px;
+        box-shadow: 0 6px 18px rgba(245, 158, 11, .25);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
+    {% set vuelto_ultima = (request.args.get('vuelto') or '0')|replace(',', '.')|float %}
     
     <!-- 1. ENCABEZADO -->
     <div class="header-cajera d-flex justify-content-between align-items-center mb-4">
@@ -25,8 +32,16 @@
                 <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-light">
                     <i class="fas fa-cash-register me-1"></i> POS
                 </a>
+                {% if usuario_tiene_permiso('gestionar_usuarios') %}
+                <a href="{{ url_for('caja_historial_cierres') }}" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-history me-1"></i> Historial Cierres
+                </a>
+                {% endif %}
                 <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-warning fw-bold">
                     <i class="fas fa-hand-holding-usd me-1"></i> Abonos Crédito
+                </a>
+                <a href="{{ url_for('caja_cambios') }}" class="btn btn-sm btn-info fw-bold text-white">
+                    <i class="fas fa-rotate me-1"></i> Cambios
                 </a>
                 <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-light">
                     <i class="fas fa-exchange-alt me-1"></i> Movimientos
@@ -46,6 +61,38 @@
         <a href="{{ url_for('ver_documento', id=request.args.get('ultima_venta')) }}" target="_blank" class="btn btn-info fw-bold text-white px-4 rounded-pill shadow-sm">
            <i class="fas fa-file-pdf me-2"></i> VER DOCUMENTO
         </a>
+    </div>
+    {% endif %}
+    {% if request.args.get('ultima_venta') and vuelto_ultima > 0 %}
+    <div class="vuelto-banner d-flex justify-content-between align-items-center px-4 py-3 mb-4">
+        <div>
+            <div class="small text-muted fw-semibold">ATENCIÓN CAJA</div>
+            <div class="h5 fw-bold mb-0 text-dark"><i class="fas fa-coins me-2 text-warning"></i>Entregar vuelto: $ {{ "{:,.0f}".format(vuelto_ultima).replace(",", ".") }}</div>
+        </div>
+        <button type="button" class="btn btn-warning fw-bold px-4" data-bs-toggle="modal" data-bs-target="#modalVueltoAlto">
+            VER VUELTO
+        </button>
+    </div>
+    {% endif %}
+
+    {% if request.args.get('ultima_venta') %}
+    <div class="modal fade" id="modalVueltoAlto" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-warning-subtle">
+                    <h5 class="modal-title fw-bold text-dark"><i class="fas fa-hand-holding-usd me-2"></i>Confirmación de vuelto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="text-muted mb-2">Vale #{{ request.args.get('ultima_venta') }}</p>
+                    <div class="display-5 fw-bold text-warning">$ {{ "{:,.0f}".format(vuelto_ultima).replace(",", ".") }}</div>
+                    <p class="small text-muted mt-2 mb-0">Verifique y entregue este monto al cliente.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-dark w-100 fw-bold" data-bs-dismiss="modal">ENTENDIDO</button>
+                </div>
+            </div>
+        </div>
     </div>
     {% endif %}
 
@@ -112,19 +159,31 @@
                         <tr>
                             <td class="ps-4"><span class="badge bg-light text-dark border">#{{ v.id }}</span></td>
                             <td>{{ v.fecha.strftime('%H:%M') }}</td>
-                            <td>{{ v.usuario }}</td>
+                            <td>
+                                <div>{{ v.usuario }}</div>
+                                <small class="text-muted">Retiro: {{ v.punto_retiro or 'Bodega' }}</small>
+                            </td>
                             <td><h5 class="fw-bold text-success mb-0">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h5></td>
                             <td class="text-center">
                                 <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                    {% if v.stock_cobrable %}
                                     <button type="button" class="btn btn-success fw-bold px-3 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
                                         COBRAR
                                     </button>
+                                    {% else %}
+                                    <button type="button" class="btn btn-secondary fw-bold px-3 rounded-pill" disabled title="{{ v.stock_alerta }}">
+                                        SIN STOCK
+                                    </button>
+                                    {% endif %}
                                     {% if usuario_tiene_permiso('anular_vale_caja') %}
                                     <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalAnular{{ v.id }}" title="Cliente no retorna">
                                         Anular
                                     </button>
                                     {% endif %}
                                 </div>
+                                {% if not v.stock_cobrable %}
+                                <div class="small text-danger mt-1">{{ v.stock_alerta }}</div>
+                                {% endif %}
                             </td>
                         </tr>
 
@@ -225,6 +284,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% set vuelto_ultima_js = (request.args.get('vuelto') or '0')|replace(',', '.')|float %}
 <script>
     function actualizarReloj() {
         const ahora = new Date();
@@ -273,4 +333,13 @@
 }
 
 </script>
+{% if request.args.get('ultima_venta') and vuelto_ultima_js > 0 %}
+<script>
+  window.addEventListener('load', () => {
+    const el = document.getElementById('modalVueltoAlto');
+    if (!el || typeof bootstrap === 'undefined') return;
+    new bootstrap.Modal(el).show();
+  });
+</script>
+{% endif %}
 {% endblock %}

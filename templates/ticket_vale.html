@@ -24,7 +24,7 @@
         @media print { .no-print { display: none !important; } }
     </style>
 </head>
-<body onload="window.print()">
+<body>
     <div class="toolbar no-print">
         <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">POS</a>
         <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">CAJA</a>
@@ -39,7 +39,11 @@
             <p>Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
             <p>Vendedor: {{ venta.usuario }}</p>
             <p>Turno: {{ venta.prioridad }}</p>
+            <p><strong>Retiro:</strong> {{ venta.punto_retiro or 'Bodega' }}</p>
             <p>Cliente: {{ cliente.nombre if cliente else '---' }}</p>
+            <div style="text-align:center;margin:6px 0;">
+                <svg id="barcodeFolio" jsbarcode-format="CODE128" jsbarcode-value="VL{{ '%06d' % venta.id }}" jsbarcode-width="1.6" jsbarcode-height="36" jsbarcode-displayvalue="true" jsbarcode-fontsize="11" jsbarcode-margin="0"></svg>
+            </div>
         </div>
 
         <table>
@@ -102,6 +106,13 @@
             </a>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script>
+      window.addEventListener('load', function () {
+        try { if (window.JsBarcode) { JsBarcode("#barcodeFolio").init(); } } catch (e) {}
+        setTimeout(function () { window.print(); }, 250);
+      });
+    </script>
 </body>
 </html>
 

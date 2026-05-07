@@ -120,7 +120,7 @@ $(document).ready(function() {
             $('#area-pago').removeClass('d-none');
             $('#display-saldo').text('$ ' + new Intl.NumberFormat('es-CL').format(saldo));
             $('#input-cliente-id').val(id);
-            btnCartola.attr('href', '/creditos/estado_cuenta/' + id).removeClass('d-none');
+            btnCartola.attr('href', '/creditos/estado_cuenta/' + encodeURIComponent(id)).removeClass('d-none');
         } else {
             $('#area-pago').addClass('d-none');
             btnCartola.addClass('d-none').attr('href', '#');
