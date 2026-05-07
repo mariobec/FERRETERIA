@@ -3,6 +3,8 @@ Flask-SQLAlchemy
 Flask-Login
 SQLAlchemy
 PyMySQL
+gunicorn
+psycopg2-binary
 pandas
 openpyxl
 qrcode

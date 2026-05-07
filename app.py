@@ -1206,10 +1206,13 @@ class Venta(db.Model):
 
     # Método para recalcular el total automáticamente
     def recalcular_total(self):
-        self.monto_total = sum(
+        bruto = sum(
             (d.cantidad * d.precio_unitario) * (1 - ((d.descuento or 0) / 100))
             for d in self.detalles
         )
+        # En CLP no se cobran centavos: redondeamos al peso entero más cercano
+        # para evitar inputs HTML con step inválidos (ej. 538893.48 vs 550000).
+        self.monto_total = float(round(bruto or 0))
         # Aprovechamos de actualizar impuestos si ya tenemos el total
         self.desglosar_iva()
 
@@ -5070,17 +5073,22 @@ def _venta_validar_stock_tienda(venta):
 
 
 def _asegurar_columna_ventas_punto_retiro():
-    """Compatibilidad para bases locales que aun no aplicaron la migracion de retiro."""
+    """Asegura ventas.punto_retiro en bases ya creadas. Sintaxis ANSI portable (MySQL/Postgres)."""
     if app.config.get('_VENTAS_PUNTO_RETIRO_OK'):
         return True
     try:
-        cols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas')}
+        insp = sa_inspect(db.engine)
+        if 'ventas' not in set(insp.get_table_names()):
+            app.config['_VENTAS_PUNTO_RETIRO_OK'] = True
+            return True
+        cols = {c['name'] for c in insp.get_columns('ventas')}
         if 'punto_retiro' not in cols:
             db.session.execute(text(
-                "ALTER TABLE ventas ADD COLUMN punto_retiro VARCHAR(30) NULL DEFAULT 'Bodega'"
+                "ALTER TABLE ventas ADD COLUMN punto_retiro VARCHAR(30) DEFAULT 'Bodega'"
             ))
             db.session.execute(text(
-                "UPDATE ventas SET punto_retiro = 'Bodega' WHERE punto_retiro IS NULL OR punto_retiro = ''"
+                "UPDATE ventas SET punto_retiro = 'Bodega' "
+                "WHERE punto_retiro IS NULL OR punto_retiro = ''"
             ))
             db.session.commit()
         app.config['_VENTAS_PUNTO_RETIRO_OK'] = True
@@ -5088,6 +5096,33 @@ def _asegurar_columna_ventas_punto_retiro():
     except Exception as ex:
         db.session.rollback()
         app.logger.exception("No se pudo asegurar ventas.punto_retiro: %s", ex)
+        return False
+
+
+def _redondear_montos_ventas_pendientes():
+    """Limpia montos_total con decimales en vales pendientes (legado).
+
+    El cálculo nuevo redondea siempre, pero ventas creadas antes de este fix
+    pueden tener .48 u otros decimales que rompen el input HTML del cobro
+    en caja. Esta tarea idempotente redondea solo los pendientes.
+    """
+    if app.config.get('_REDONDEO_VENTAS_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'ventas' not in set(insp.get_table_names()):
+            app.config['_REDONDEO_VENTAS_OK'] = True
+            return True
+        db.session.execute(text(
+            "UPDATE ventas SET monto_total = ROUND(monto_total) "
+            "WHERE estado = 'Pendiente' AND monto_total IS NOT NULL"
+        ))
+        db.session.commit()
+        app.config['_REDONDEO_VENTAS_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo redondear montos pendientes: %s", ex)
         return False
 
 
@@ -5518,69 +5553,32 @@ def actualizar_item():
 
 
 def _asegurar_tablas_cambios():
+    """Asegura que las tablas y columnas del módulo de cambios existan.
+
+    - Las tablas se crean a través de los modelos SQLAlchemy (db.create_all() en init_db).
+      Aquí solo respaldamos el caso de bases que se actualizan sin re-ejecutar init_db.
+    - Las columnas nuevas (ALTER TABLE) se agregan en sintaxis ANSI portable
+      (sirve tanto para MySQL como para Postgres/Neon).
+    """
     if app.config.get('_CAMBIOS_TABLAS_OK'):
         return True
     try:
-        db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS cambios_operacion (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
-                cliente_id INT NULL,
-                caja_id INT NULL,
-                usuario_id INT NULL,
-                total_devuelto DOUBLE NOT NULL DEFAULT 0,
-                total_entregado DOUBLE NOT NULL DEFAULT 0,
-                saldo_usado DOUBLE NOT NULL DEFAULT 0,
-                monto_pagado DOUBLE NOT NULL DEFAULT 0,
-                monto_devuelto_efectivo DOUBLE NOT NULL DEFAULT 0,
-                saldo_generado DOUBLE NOT NULL DEFAULT 0,
-                observacion VARCHAR(500) NULL,
-                KEY idx_cambio_cliente (cliente_id),
-                KEY idx_cambio_caja (caja_id),
-                KEY idx_cambio_usuario (usuario_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """))
-        db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS cambios_detalle (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                cambio_id INT NOT NULL,
-                producto_id INT NOT NULL,
-                tipo VARCHAR(20) NOT NULL,
-                cantidad INT NOT NULL DEFAULT 1,
-                precio_unitario DOUBLE NOT NULL DEFAULT 0,
-                subtotal DOUBLE NOT NULL DEFAULT 0,
-                KEY idx_cdet_cambio (cambio_id),
-                KEY idx_cdet_producto (producto_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """))
-        db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS clientes_saldos_favor (
-                cliente_id INT PRIMARY KEY,
-                saldo DOUBLE NOT NULL DEFAULT 0,
-                actualizado_en DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """))
-        db.session.execute(text("""
-            CREATE TABLE IF NOT EXISTS movimientos_saldo_favor (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                fecha DATETIME DEFAULT CURRENT_TIMESTAMP,
-                cliente_id INT NOT NULL,
-                cambio_id INT NULL,
-                tipo VARCHAR(20) NOT NULL,
-                monto DOUBLE NOT NULL DEFAULT 0,
-                saldo_resultante DOUBLE NOT NULL DEFAULT 0,
-                observacion VARCHAR(255) NULL,
-                KEY idx_ms_cliente (cliente_id),
-                KEY idx_ms_cambio (cambio_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """))
-        cols_cambio = {c['name'] for c in sa_inspect(db.engine).get_columns('cambios_operacion')}
-        if 'venta_origen_id' not in cols_cambio:
-            db.session.execute(text(
-                "ALTER TABLE cambios_operacion ADD COLUMN venta_origen_id INT NULL, "
-                "ADD KEY idx_cambio_venta_origen (venta_origen_id)"
-            ))
-        db.session.commit()
+        insp = sa_inspect(db.engine)
+        tablas = set(insp.get_table_names())
+        tablas_modelos = ['cambios_operacion', 'cambios_detalle',
+                          'clientes_saldos_favor', 'movimientos_saldo_favor']
+        if any(t not in tablas for t in tablas_modelos):
+            db.create_all()
+            insp = sa_inspect(db.engine)
+            tablas = set(insp.get_table_names())
+
+        if 'cambios_operacion' in tablas:
+            cols_cambio = {c['name'] for c in insp.get_columns('cambios_operacion')}
+            if 'venta_origen_id' not in cols_cambio:
+                db.session.execute(text(
+                    "ALTER TABLE cambios_operacion ADD COLUMN venta_origen_id INTEGER NULL"
+                ))
+                db.session.commit()
         app.config['_CAMBIOS_TABLAS_OK'] = True
         return True
     except Exception:
@@ -5671,6 +5669,7 @@ def _aplicar_mov_saldo_favor(cliente_id, cambio_id, tipo, monto, observacion):
 @caja_requerida
 @permisos_required('caja_cobrar_vale')
 def caja_pendientes():
+    _redondear_montos_ventas_pendientes()
     hoy = datetime.now().date()
     dt_ini_hoy = datetime.combine(hoy, datetime.min.time())
     dt_fin_hoy = datetime.combine(hoy + timedelta(days=1), datetime.min.time())
