@@ -808,6 +808,7 @@ def forzar_cambio_clave_si_corresponde():
     _asegurar_columnas_caja_cuadratura()
     _asegurar_columnas_ventas_legacy()
     _asegurar_columnas_productos_legacy()
+    _asegurar_columnas_detalle_ventas_legacy()
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
@@ -5192,6 +5193,36 @@ def _asegurar_columnas_productos_legacy():
     except Exception as ex:
         db.session.rollback()
         app.logger.exception("No se pudo asegurar columnas legacy de productos: %s", ex)
+        return False
+
+
+def _asegurar_columnas_detalle_ventas_legacy():
+    """Asegura columnas agregadas en `detalle_ventas` para bases legacy."""
+    if app.config.get('_DETALLE_VENTAS_LEGACY_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'detalle_ventas' not in set(insp.get_table_names()):
+            app.config['_DETALLE_VENTAS_LEGACY_OK'] = True
+            return True
+        cols = {c['name'] for c in insp.get_columns('detalle_ventas')}
+        cambios = False
+        if 'precio_unitario' not in cols:
+            db.session.execute(text("ALTER TABLE detalle_ventas ADD COLUMN precio_unitario NUMERIC(14,2) NOT NULL DEFAULT 0"))
+            cambios = True
+        if 'descuento' not in cols:
+            db.session.execute(text("ALTER TABLE detalle_ventas ADD COLUMN descuento NUMERIC(8,2) NULL"))
+            cambios = True
+        if 'subtotal' not in cols:
+            db.session.execute(text("ALTER TABLE detalle_ventas ADD COLUMN subtotal NUMERIC(14,2) NULL"))
+            cambios = True
+        if cambios:
+            db.session.commit()
+        app.config['_DETALLE_VENTAS_LEGACY_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo asegurar columnas legacy de detalle_ventas: %s", ex)
         return False
 
 
