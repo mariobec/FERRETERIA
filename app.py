@@ -62,9 +62,29 @@ except Exception:
     pass
 # --- CONFIGURACIÓN DE LA APP ---
 app = Flask(__name__)
-db_uri = (os.getenv('SQLALCHEMY_DATABASE_URI') or '').strip()
-if not db_uri:
-    db_uri = 'mysql+pymysql://mbecerra:clave_segura@localhost/ferreteria'
+
+
+def _resolver_database_uri():
+    """Resuelve la URI de BD priorizando variables estándar de hosting (Render/Neon/Heroku).
+
+    Orden:
+      1. SQLALCHEMY_DATABASE_URI (override explícito)
+      2. DATABASE_URL (estándar Render/Neon/Heroku)
+      3. Default local MySQL para desarrollo.
+    """
+    uri = (os.getenv('SQLALCHEMY_DATABASE_URI') or '').strip()
+    if not uri:
+        uri = (os.getenv('DATABASE_URL') or '').strip()
+    if not uri:
+        return 'mysql+pymysql://mbecerra:clave_segura@localhost/ferreteria'
+    if uri.startswith('postgres://'):
+        uri = 'postgresql+psycopg2://' + uri[len('postgres://'):]
+    elif uri.startswith('postgresql://') and '+psycopg2' not in uri.split('://', 1)[0]:
+        uri = 'postgresql+psycopg2://' + uri[len('postgresql://'):]
+    return uri
+
+
+db_uri = _resolver_database_uri()
 app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
