@@ -49,7 +49,8 @@ ALTER TABLE IF EXISTS productos
   ADD COLUMN IF NOT EXISTS subcategoria_catalogo_id INTEGER NULL,
   ADD COLUMN IF NOT EXISTS ubicacion_pasillo VARCHAR(12) NULL,
   ADD COLUMN IF NOT EXISTS ubicacion_estante VARCHAR(12) NULL,
-  ADD COLUMN IF NOT EXISTS ubicacion_nivel VARCHAR(12) NULL;
+  ADD COLUMN IF NOT EXISTS ubicacion_nivel VARCHAR(12) NULL,
+  ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
 
 -- =========================
 -- detalle_ventas
