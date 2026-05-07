@@ -1,4 +1,5 @@
 from app import app, db, Rol, Usuario
+from schema_sync import sincronizar_esquema_modelos
 
 
 def ensure_roles():
@@ -37,7 +38,17 @@ with app.app_context():
     app.config["BOOTSTRAP_ADMIN_EMAIL"] = __import__("os").getenv("BOOTSTRAP_ADMIN_EMAIL")
     app.config["BOOTSTRAP_ADMIN_NAME"] = __import__("os").getenv("BOOTSTRAP_ADMIN_NAME")
     app.config["BOOTSTRAP_ADMIN_PASSWORD"] = __import__("os").getenv("BOOTSTRAP_ADMIN_PASSWORD")
-    db.create_all()
+    resultado_sync = sincronizar_esquema_modelos(app, db)
+    if resultado_sync["errores"]:
+        print("Schema sync warnings:")
+        for err in resultado_sync["errores"]:
+            print(f" - {err}")
+    else:
+        print(
+            "Schema sync OK "
+            f"(tablas nuevas: {resultado_sync['tablas_creadas']}, "
+            f"columnas nuevas: {resultado_sync['columnas_agregadas']})"
+        )
     ensure_roles()
     ensure_admin_from_env()
     db.session.commit()
