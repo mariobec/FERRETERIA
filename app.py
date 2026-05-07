@@ -6498,6 +6498,7 @@ def buscar_producto():
     q = (request.args.get('q') or '').strip()
     if len(q) < 2:
         return jsonify({"results": []})
+    _asegurar_columnas_productos_legacy()
 
     raw_sv = request.args.get('solo_vendibles')
     if raw_sv is not None and str(raw_sv).strip() != '':
@@ -6508,36 +6509,88 @@ def buscar_producto():
 
     like = f"%{q}%"
     fetch_limit = 100 if solo_vendibles else 20
-    productos = (
-        Producto.query.filter(Producto.activo.isnot(False))
-        .filter(
-            (Producto.nombre.ilike(like)) |
-            (Producto.codigo_barra.ilike(like)) |
-            (Producto.codigo_interno.ilike(like))
+    productos = []
+    usar_fallback_legacy = False
+    try:
+        productos = (
+            Producto.query.filter(Producto.activo.isnot(False))
+            .filter(
+                (Producto.nombre.ilike(like)) |
+                (Producto.codigo_barra.ilike(like)) |
+                (Producto.codigo_interno.ilike(like))
+            )
+            .limit(fetch_limit)
+            .all()
         )
-        .limit(fetch_limit)
-        .all()
-    )
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("Fallo query ORM buscar_producto; intentando fallback legacy: %s", ex)
+        usar_fallback_legacy = True
+        try:
+            insp = sa_inspect(db.engine)
+            cols = {c['name'] for c in insp.get_columns('productos')}
+            if not {'id', 'nombre'}.issubset(cols):
+                return jsonify({"results": []})
+
+            campos = ['id', 'nombre']
+            for c in ('codigo_barra', 'codigo_interno', 'precio_venta', 'precio_mayoreo', 'stock'):
+                if c in cols:
+                    campos.append(c)
+
+            filtros = ["LOWER(nombre) LIKE LOWER(:like)"]
+            if 'codigo_barra' in cols:
+                filtros.append("LOWER(codigo_barra) LIKE LOWER(:like)")
+            if 'codigo_interno' in cols:
+                filtros.append("LOWER(codigo_interno) LIKE LOWER(:like)")
+
+            where = f"({' OR '.join(filtros)})"
+            if 'activo' in cols:
+                where = f"(activo IS NULL OR activo = TRUE) AND {where}"
+
+            sql = (
+                f"SELECT {', '.join(campos)} "
+                f"FROM productos "
+                f"WHERE {where} "
+                f"ORDER BY nombre ASC "
+                f"LIMIT :lim"
+            )
+            productos = db.session.execute(text(sql), {"like": like, "lim": fetch_limit}).mappings().all()
+        except Exception as ex2:
+            db.session.rollback()
+            app.logger.exception("Fallback legacy buscar_producto también falló: %s", ex2)
+            return jsonify({"results": []})
 
     stock_map = {}
-    if solo_vendibles and productos:
+    if solo_vendibles and productos and not usar_fallback_legacy:
         stock_map = stock_tienda_por_producto_ids([p.id for p in productos])
 
     results = []
     for p in productos:
-        codigo = (p.codigo_barra or "").strip() or (p.codigo_interno or "").strip()
+        if usar_fallback_legacy:
+            codigo = ((p.get('codigo_barra') or '').strip() or (p.get('codigo_interno') or '').strip())
+            pid = int(p.get('id'))
+            nombre = (p.get('nombre') or '').strip()
+            precio_venta = float(p.get('precio_venta') or 0)
+            precio_mayoreo = float(p.get('precio_mayoreo') or 0)
+            stock_row = int(p.get('stock') or 0)
+        else:
+            codigo = (p.codigo_barra or "").strip() or (p.codigo_interno or "").strip()
+            pid = p.id
+            nombre = p.nombre
+            precio_venta = float(p.precio_venta or 0)
+            precio_mayoreo = float(p.precio_mayoreo or 0)
+            stock_row = int(stock_map.get(p.id, 0))
         if not codigo:
             continue
         if solo_vendibles:
-            if precio_efectivo_pos_producto(p) <= 0:
+            if max(precio_venta, precio_mayoreo) <= 0:
                 continue
-            st = int(stock_map.get(p.id, 0))
-            if st <= 0:
+            if stock_row <= 0:
                 continue
         results.append({
             "id": codigo,
-            "producto_id": p.id,
-            "text": f"{p.nombre} ({codigo})",
+            "producto_id": pid,
+            "text": f"{nombre} ({codigo})",
         })
         if len(results) >= 20:
             break
