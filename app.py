@@ -804,6 +804,9 @@ def _seed_permisos_catalogo_si_vacio():
 def forzar_cambio_clave_si_corresponde():
     if not current_user.is_authenticated:
         return None
+    # Auto-migraciones idempotentes para instancias con esquema legacy (Render/Neon).
+    _asegurar_columnas_caja_cuadratura()
+    _asegurar_columnas_ventas_legacy()
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
