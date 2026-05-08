@@ -11,58 +11,167 @@
     <!-- Estilos Personalizados -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
 </head>
-<body class="index-body">
-    <div class="overlay"></div>
-
-    <div class="hero-content">
-       <div class="main-text-group">
-    <!-- Título Principal -->
-    <h1>Centro de Gestión Integral</h1>
-    
-    <!-- Subtítulo con el nombre (Ahora debajo) -->
-    <h2>{{ empresa_cfg.nombre_comercial }}{% if empresa_cfg.eslogan %} • {{ empresa_cfg.eslogan }}{% endif %}</h2>
-</div>
-
-        <div class="index-buttons d-flex justify-content-center gap-3 mt-4">
-            <button type="button" class="btn btn-primary btn-lg btn-access" data-bs-toggle="modal" data-bs-target="#loginModal">
-                <span class="access-chip access-chip-private">Requiere acceso</span>
-                <i class="bi bi-cart"></i> PUNTO DE VENTA
+<body class="index-body erp-landing">
+    <header class="landing-nav">
+        <a class="landing-brand" href="{{ url_for('index') }}">
+            <span class="brand-mark">ERP</span>
+            <span>
+                <strong>{{ empresa_cfg.nombre_comercial }}</strong>
+                <small>{{ empresa_cfg.eslogan or 'Sistema de gestión ferretera' }}</small>
+            </span>
+        </a>
+        <nav class="landing-nav-links">
+            <a href="#modulos">Módulos</a>
+            <a href="#beneficios">Beneficios</a>
+            <a href="{{ url_for('catalogo_publico') }}">Catálogo</a>
+            <button type="button" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#loginModal">
+                Ingresar
             </button>
-            <a href="{{ url_for('catalogo_publico') }}" class="btn btn-warning btn-lg btn-access">
-                <span class="access-chip access-chip-public">Público</span>
-                <i class="bi bi-grid"></i> CATÁLOGO PÚBLICO
-            </a>
-            <a href="{{ url_for('consulta_stock_publica') }}" class="btn btn-warning btn-lg btn-access">
-                <span class="access-chip access-chip-public">Público</span>
-                <i class="bi bi-search"></i> CONSULTA RÁPIDA STOCK
-            </a>
-            <button type="button" class="btn btn-light btn-lg btn-access" data-bs-toggle="modal" data-bs-target="#loginModal">
-                <span class="access-chip access-chip-private">Requiere acceso</span>
-                <i class="bi bi-key"></i> INICIO SESIÓN ERP
-            </button>
-        </div>
-        <div class="index-access-legend">
-            <span><span class="dot dot-public"></span> Público: disponible sin iniciar sesión</span>
-            <span><span class="dot dot-private"></span> Requiere acceso: solo usuarios ERP</span>
-        </div>
+        </nav>
+    </header>
 
-        <div class="features container">
-            <div class="row text-center">
-                <div class="col-md-4 feature-box">
-                    <i class="bi bi-tools icon-circle"></i>
-                    <h5>CATALOGO DE PRODUCTOS </h5>
+    <main>
+        <section class="landing-hero">
+            <div class="landing-hero-copy">
+                <span class="landing-eyebrow">ERP ferretero en la nube</span>
+                <h1>Ventas, caja, inventario y devoluciones en un solo sistema.</h1>
+                <p>
+                    Una plataforma pensada para ferreterías que necesitan controlar el punto de venta,
+                    el stock por almacén, los clientes, los créditos y los cierres de caja sin perder trazabilidad.
+                </p>
+                <div class="landing-actions">
+                    <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
+                        <i class="bi bi-box-arrow-in-right"></i> Entrar al ERP
+                    </button>
+                    <a href="{{ url_for('consulta_stock_publica') }}" class="btn btn-light btn-lg">
+                        <i class="bi bi-search"></i> Ver consulta pública
+                    </a>
                 </div>
-                <div class="col-md-4 feature-box">
-                    <i class="bi bi-headset icon-circle"></i>
-                    <h5>CONSULTA DE PRECIOS</h5>
-                </div>
-                <div class="col-md-4 feature-box">
-                    <i class="bi bi-truck icon-circle"></i>
-                    <h5>DESPACHOS <span class="feature-soon">PRÓXIMAMENTE</span></h5>
+                <div class="landing-trust">
+                    <span><i class="bi bi-check-circle-fill"></i> POS y caja</span>
+                    <span><i class="bi bi-check-circle-fill"></i> Stock tienda/bodega</span>
+                    <span><i class="bi bi-check-circle-fill"></i> Saldos a favor</span>
                 </div>
             </div>
-        </div>
-    </div>
+
+            <div class="landing-dashboard-card">
+                <div class="dashboard-card-top">
+                    <span>Demo operativa</span>
+                    <strong>Ferretería</strong>
+                </div>
+                <div class="dashboard-total">
+                    <small>Ventas monitoreadas</small>
+                    <strong>500+</strong>
+                </div>
+                <div class="dashboard-grid">
+                    <div>
+                        <small>Productos</small>
+                        <strong>1.500+</strong>
+                    </div>
+                    <div>
+                        <small>Clientes</small>
+                        <strong>200</strong>
+                    </div>
+                    <div>
+                        <small>Stock</small>
+                        <strong>Multi-almacén</strong>
+                    </div>
+                    <div>
+                        <small>Caja</small>
+                        <strong>Arqueo</strong>
+                    </div>
+                </div>
+                <div class="dashboard-flow">
+                    <span>Venta</span>
+                    <i class="bi bi-arrow-right"></i>
+                    <span>Cobro</span>
+                    <i class="bi bi-arrow-right"></i>
+                    <span>Stock</span>
+                    <i class="bi bi-arrow-right"></i>
+                    <span>Cierre</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="landing-section" id="modulos">
+            <div class="section-heading">
+                <span>Módulos principales</span>
+                <h2>Diseñado para operar la ferretería completa.</h2>
+            </div>
+            <div class="module-grid">
+                <article class="module-card">
+                    <i class="bi bi-cart-check"></i>
+                    <h3>Punto de venta</h3>
+                    <p>Emisión de vales, búsqueda por código de barras, clientes identificados y flujo de cobro en caja.</p>
+                </article>
+                <article class="module-card">
+                    <i class="bi bi-cash-coin"></i>
+                    <h3>Caja y arqueo</h3>
+                    <p>Apertura, movimientos, cobros, cierres, historial mensual y tickets reimprimibles.</p>
+                </article>
+                <article class="module-card">
+                    <i class="bi bi-box-seam"></i>
+                    <h3>Inventario</h3>
+                    <p>Stock por tienda y bodega, kardex, stock crítico, productos activos y consulta pública.</p>
+                </article>
+                <article class="module-card">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <h3>Cambios y devoluciones</h3>
+                    <p>Devoluciones parciales, reingreso a stock, compensaciones y saldo a favor del cliente.</p>
+                </article>
+                <article class="module-card">
+                    <i class="bi bi-people"></i>
+                    <h3>Clientes y créditos</h3>
+                    <p>Control de deuda, cupos, saldos a favor y cartolas para seguimiento comercial.</p>
+                </article>
+                <article class="module-card">
+                    <i class="bi bi-graph-up-arrow"></i>
+                    <h3>Reportes</h3>
+                    <p>Paneles para revisar ventas, márgenes, movimientos y salud operativa del negocio.</p>
+                </article>
+            </div>
+        </section>
+
+        <section class="landing-section landing-split" id="beneficios">
+            <div>
+                <span class="landing-eyebrow">Para vender con control</span>
+                <h2>Menos planillas, más trazabilidad.</h2>
+                <p>
+                    El objetivo del ERP es que cada venta, devolución, ingreso de stock y cierre de caja
+                    quede conectado. Así el dueño puede revisar la operación sin depender de registros sueltos.
+                </p>
+                <div class="benefit-list">
+                    <span><i class="bi bi-shield-check"></i> Control de caja diario</span>
+                    <span><i class="bi bi-upc-scan"></i> Operación con código de barras</span>
+                    <span><i class="bi bi-wallet2"></i> Saldos a favor visibles en POS</span>
+                    <span><i class="bi bi-building"></i> Stock separado por almacén</span>
+                </div>
+            </div>
+            <div class="landing-note-card">
+                <h3>Ideal para demostraciones comerciales</h3>
+                <p>
+                    Esta instalación ya cuenta con datos demo para recorrer ventas, productos,
+                    clientes, caja y devoluciones con una experiencia más realista.
+                </p>
+                <a href="{{ url_for('catalogo_publico') }}" class="btn btn-warning">
+                    Explorar catálogo público
+                </a>
+            </div>
+        </section>
+
+        <section class="landing-cta">
+            <h2>Conoce el ERP desde adentro.</h2>
+            <p>Ingresa a la demo privada o revisa las vistas públicas de catálogo y consulta de stock.</p>
+            <div class="landing-actions justify-content-center">
+                <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
+                    Iniciar sesión ERP
+                </button>
+                <a href="{{ url_for('catalogo_publico') }}" class="btn btn-outline-light btn-lg">
+                    Catálogo público
+                </a>
+            </div>
+        </section>
+    </main>
 
     <!-- MODAL DE LOGIN SOBRIO -->
     <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
@@ -94,8 +203,8 @@
         </div>
     </div>
 
-    <div class="index-footer">
-        © 2026 {{ empresa_cfg.nombre_comercial }}{% if empresa_cfg.eslogan %} {{ empresa_cfg.eslogan }}{% endif %}
+    <div class="index-footer landing-footer">
+        © 2026 {{ empresa_cfg.nombre_comercial }}{% if empresa_cfg.eslogan %} {{ empresa_cfg.eslogan }}{% endif %} · ERP demo comercial
     </div>
 
     <!-- Bootstrap JS Local -->
