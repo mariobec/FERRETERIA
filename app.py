@@ -87,6 +87,18 @@ def _resolver_database_uri():
 db_uri = _resolver_database_uri()
 app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
+if db_uri.startswith('postgresql'):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args'] = {
+        'connect_timeout': int(os.getenv('DB_CONNECT_TIMEOUT', '8')),
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 3,
+    }
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
 # En desarrollo, recargar plantillas al guardar (sin depender de debug=True).
 # Desactivar explícitamente con FLASK_TEMPLATE_RELOAD=0 si no lo deseas.

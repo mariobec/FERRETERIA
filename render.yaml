@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 90 --graceful-timeout 20 --access-logfile -
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 90 --graceful-timeout 20 --access-logfile -
     autoDeploy: true
     envVars:
       - key: SECRET_KEY
