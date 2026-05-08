@@ -490,6 +490,12 @@ def _config_empresa_default():
         "telefono": (os.getenv("EMPRESA_TELEFONO") or "").strip(),
         "correo": (os.getenv("EMPRESA_CORREO") or "").strip(),
         "direccion": (os.getenv("EMPRESA_DIRECCION") or "").strip(),
+        # ERP componible: módulos activables por cliente
+        "mod_ventas": "1",
+        "mod_caja": "1",
+        "mod_inventario": "1",
+        "mod_bi": "1",
+        "mod_ia": "1",
     }
 
 
@@ -509,11 +515,19 @@ def obtener_config_empresa():
 
 
 def guardar_config_empresa(data):
-    cfg = _config_empresa_default()
+    # Parte desde config actual para no perder llaves adicionales al guardar.
+    cfg = obtener_config_empresa()
     cfg.update({k: (str(v).strip() if v is not None else "") for k, v in data.items() if k in cfg})
     with open(_ruta_config_empresa(), 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
     return cfg
+
+
+def modulo_activo(nombre_modulo):
+    cfg = obtener_config_empresa()
+    key = f"mod_{(nombre_modulo or '').strip().lower()}"
+    raw = str(cfg.get(key, "1")).strip().lower()
+    return raw in ("1", "true", "si", "yes", "on")
 
 
 def usuario_tiene_permiso(nombre_permiso):
@@ -597,6 +611,7 @@ def inject_company_context():
             'empresa_cfg': obtener_config_empresa(),
             'puede_administrar': usuario_tiene_permiso('gestionar_usuarios'),
             'usuario_tiene_permiso': usuario_tiene_permiso,
+            'modulo_activo': modulo_activo,
             **nav_flags,
         }
     except Exception:
@@ -604,6 +619,7 @@ def inject_company_context():
             'empresa_cfg': _config_empresa_default(),
             'puede_administrar': False,
             'usuario_tiene_permiso': lambda _nombre: False,
+            'modulo_activo': lambda _nombre: True,
             **nav_flags,
         }
 
@@ -2004,7 +2020,7 @@ def aplicar_ajuste_automatico(auditoria_id):
 @app.route('/index')
 def index():
     if current_user.is_authenticated:
-        return redirect(url_for('punto_venta'))  # si ya está logueado, va al POS
+        return redirect(url_for('owner_mobile'))  # primera vista de impacto para demo
     return render_template('index.html')
 
 
@@ -2151,7 +2167,10 @@ def inicio():
     hoy = datetime.now().date()
     fecha_hoy_str = hoy.strftime("%Y-%m-%d")
     ventas_hoy_detalle = (
-        Venta.query.filter(db.func.date(Venta.fecha) == hoy)
+        Venta.query.filter(
+            db.func.date(Venta.fecha) == hoy,
+            or_(Venta.estado.is_(None), Venta.estado != 'Abierta')
+        )
         .order_by(Venta.id.desc())
         .limit(15)
         .all()
@@ -2167,6 +2186,151 @@ def inicio():
         ).scalar() or 0
         datos_grafico.append(float(monto_dia))
         labels_grafico.append(fecha_consulta.strftime('%d/%m'))
+
+    # Predicción simple de quiebre (7/14 días) + compra sugerida asistida
+    d30_inicio = datetime.combine(hoy - timedelta(days=30), datetime.min.time())
+    d7_inicio = datetime.combine(hoy - timedelta(days=7), datetime.min.time())
+    ahora = datetime.combine(hoy + timedelta(days=1), datetime.min.time())
+    mes_actual = hoy.month
+
+    consumo_30 = dict(
+        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.fecha >= d30_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+        .group_by(DetalleVenta.id_producto)
+        .all()
+    )
+    consumo_7 = dict(
+        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.fecha >= d7_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+        .group_by(DetalleVenta.id_producto)
+        .all()
+    )
+    d90_inicio = datetime.combine(hoy - timedelta(days=90), datetime.min.time())
+    consumo_90 = dict(
+        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.fecha >= d90_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+        .group_by(DetalleVenta.id_producto)
+        .all()
+    )
+
+    riesgo_quiebre = []
+    quiebre_7 = 0
+    quiebre_14 = 0
+    riesgo_mixto = 0
+    compra_sugerida_total = 0
+    compra_sugerida_skus = 0
+    for p in Producto.query.filter(Producto.activo == True).all():
+        c30 = float(consumo_30.get(p.id, 0) or 0)
+        c7 = float(consumo_7.get(p.id, 0) or 0)
+        c90 = float(consumo_90.get(p.id, 0) or 0)
+        base_dia = c30 / 30.0
+        t30 = c30 / 30.0
+        t7 = c7 / 7.0
+        ratio_tend = max(0.70, min(1.35, (t7 / t30))) if t30 > 0 else 1.0
+        factor_est = _factor_estacional_categoria(p.categoria, mes_actual)
+        demanda_dia = base_dia * ratio_tend * factor_est
+        stock_actual = float(p.stock or 0)
+        cobertura = (stock_actual / demanda_dia) if demanda_dia > 0 else 9999
+        sugerido = max(0, int(round((demanda_dia * 30.0) - stock_actual)))
+
+        if sugerido > 0:
+            compra_sugerida_skus += 1
+            compra_sugerida_total += sugerido
+        if demanda_dia <= 0:
+            continue
+        if cobertura <= 7:
+            quiebre_7 += 1
+            riesgo_quiebre.append({
+                "producto": p.nombre,
+                "stock": int(round(stock_actual)),
+                "cobertura": round(cobertura, 1),
+                "sugerido": sugerido,
+                "nivel": "CRITICO",
+                "motivo": "Quiebre proyectado <= 7 días",
+                "query_hint": p.codigo_barra or p.nombre,
+            })
+        elif cobertura <= 14:
+            quiebre_14 += 1
+            riesgo_quiebre.append({
+                "producto": p.nombre,
+                "stock": int(round(stock_actual)),
+                "cobertura": round(cobertura, 1),
+                "sugerido": sugerido,
+                "nivel": "MEDIO",
+                "motivo": "Quiebre proyectado entre 8 y 14 días",
+                "query_hint": p.codigo_barra or p.nombre,
+            })
+        elif stock_actual < 5 and c90 > 0:
+            # Riesgo mixto: regla operativa + rotación reciente, aunque la proyección corta no dispare quiebre.
+            riesgo_mixto += 1
+            riesgo_quiebre.append({
+                "producto": p.nombre,
+                "stock": int(round(stock_actual)),
+                "cobertura": round(cobertura, 1) if cobertura < 9999 else 9999,
+                "sugerido": sugerido,
+                "nivel": "MIXTO",
+                "motivo": "Stock crítico + movimiento reciente (90d)",
+                "query_hint": p.codigo_barra or p.nombre,
+            })
+
+    riesgo_quiebre.sort(key=lambda x: x["cobertura"])
+    top_quiebre = riesgo_quiebre[:5]
+
+    # Gestión por excepción (acciones sugeridas del día)
+    alertas_accionables = []
+    if bajo_stock > 0:
+        alertas_accionables.append({
+            "titulo": f"Hay {bajo_stock} productos con stock crítico",
+            "detalle": "Prioriza reposición para no perder ventas hoy.",
+            "accion": "Revisar stock crítico",
+            "url": url_for('stock_critico', **{'from': 'inicio'}),
+            "nivel": "danger",
+        })
+    if oc_pendientes > 0:
+        alertas_accionables.append({
+            "titulo": f"{oc_pendientes} órdenes de compra siguen pendientes",
+            "detalle": "Valida estado con proveedores para evitar quiebres.",
+            "accion": "Ver órdenes pendientes",
+            "url": url_for('lista_ordenes_compra', **{'from': 'inicio'}),
+            "nivel": "warning",
+        })
+    if quiebre_7 > 0:
+        alertas_accionables.append({
+            "titulo": f"{quiebre_7} SKUs con riesgo de quiebre en <= 7 días",
+            "detalle": "Prioriza compra sugerida para proteger continuidad de ventas.",
+            "accion": "Abrir IA abastecimiento",
+            "url": url_for('ia_abastecimiento', dias=30, solo_alerta=1, **{'from': 'inicio'}),
+            "nivel": "danger",
+        })
+    if riesgo_mixto > 0:
+        alertas_accionables.append({
+            "titulo": f"{riesgo_mixto} SKUs en riesgo mixto",
+            "detalle": "Stock crítico con rotación reciente; revisa reposición aunque el quiebre corto no sea crítico.",
+            "accion": "Revisar riesgo mixto",
+            "url": url_for('ia_abastecimiento', dias=30, solo_alerta=1, **{'from': 'inicio'}),
+            "nivel": "warning",
+        })
+    if transacciones_hoy > 0 and ventas_hoy > 0:
+        ticket_hoy = float(ventas_hoy) / float(transacciones_hoy)
+        if ticket_hoy < 25000:
+            alertas_accionables.append({
+                "titulo": "Ticket promedio bajo el umbral objetivo",
+                "detalle": "Revisa mix de productos y venta complementaria en caja.",
+                "accion": "Ir a ventas de hoy",
+                "url": url_for('mostrar_ventas', fecha_inicio=fecha_hoy_str, fecha_fin=fecha_hoy_str, **{'from': 'inicio'}),
+                "nivel": "info",
+            })
+    if not alertas_accionables:
+        alertas_accionables.append({
+            "titulo": "Operación estable",
+            "detalle": "No hay alertas críticas; enfócate en oportunidades de margen.",
+            "accion": "Abrir BI",
+            "url": url_for('business_intelligence', **{'from': 'inicio'}),
+            "nivel": "success",
+        })
 
     return render_template(
         'inicio.html',
@@ -2188,7 +2352,117 @@ def inicio():
         ventas_hoy_detalle=ventas_hoy_detalle,
         fecha_hoy_str=fecha_hoy_str,
         labels_grafico=labels_grafico,
-        datos_grafico=datos_grafico
+        datos_grafico=datos_grafico,
+        alertas_accionables=alertas_accionables[:3],
+        quiebre_7=quiebre_7,
+        quiebre_14=quiebre_14,
+        riesgo_mixto=riesgo_mixto,
+        compra_sugerida_total=compra_sugerida_total,
+        compra_sugerida_skus=compra_sugerida_skus,
+        top_quiebre=top_quiebre,
+    )
+
+
+@app.route('/owner-mobile')
+@login_required
+def owner_mobile():
+    """Vista mobile-first para propietario (resumen ejecutivo de 1 minuto)."""
+    hoy = datetime.now().date()
+    ayer = hoy - timedelta(days=1)
+
+    ventas_hoy = db.session.query(db.func.sum(Venta.monto_total)).filter(
+        db.func.date(Venta.fecha) == hoy
+    ).scalar() or 0
+    ventas_ayer = db.session.query(db.func.sum(Venta.monto_total)).filter(
+        db.func.date(Venta.fecha) == ayer
+    ).scalar() or 0
+    transacciones_hoy = Venta.query.filter(db.func.date(Venta.fecha) == hoy).count()
+    bajo_stock = Producto.query.filter(Producto.stock < 5, Producto.activo == True).count()
+    dinero_credito = db.session.query(db.func.sum(Cliente.saldo_deudor)).scalar() or 0
+    oc_pendientes = 0
+    if _tablas_orden_compra_existen():
+        oc_estados_pend = ('Borrador', 'Enviada', 'Parcial')
+        oc_pendientes = OrdenCompra.query.filter(OrdenCompra.estado.in_(oc_estados_pend)).count()
+
+    var_ventas_hoy = None
+    if ventas_ayer:
+        var_ventas_hoy = ((float(ventas_hoy) - float(ventas_ayer)) / float(ventas_ayer)) * 100.0
+
+    # Predicción simple de quiebre (igual lógica del inicio)
+    d30_inicio = datetime.combine(hoy - timedelta(days=30), datetime.min.time())
+    d7_inicio = datetime.combine(hoy - timedelta(days=7), datetime.min.time())
+    ahora = datetime.combine(hoy + timedelta(days=1), datetime.min.time())
+    mes_actual = hoy.month
+
+    consumo_30 = dict(
+        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.fecha >= d30_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+        .group_by(DetalleVenta.id_producto)
+        .all()
+    )
+    consumo_7 = dict(
+        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.fecha >= d7_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+        .group_by(DetalleVenta.id_producto)
+        .all()
+    )
+    d90_inicio = datetime.combine(hoy - timedelta(days=90), datetime.min.time())
+    consumo_90 = dict(
+        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(Venta.fecha >= d90_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+        .group_by(DetalleVenta.id_producto)
+        .all()
+    )
+
+    quiebre_7 = 0
+    quiebre_14 = 0
+    riesgo_mixto = 0
+    compra_sugerida_total = 0
+    top_quiebre = []
+    for p in Producto.query.filter(Producto.activo == True).all():
+        c30 = float(consumo_30.get(p.id, 0) or 0)
+        c7 = float(consumo_7.get(p.id, 0) or 0)
+        c90 = float(consumo_90.get(p.id, 0) or 0)
+        base_dia = c30 / 30.0
+        t30 = c30 / 30.0
+        t7 = c7 / 7.0
+        ratio_tend = max(0.70, min(1.35, (t7 / t30))) if t30 > 0 else 1.0
+        factor_est = _factor_estacional_categoria(p.categoria, mes_actual)
+        demanda_dia = base_dia * ratio_tend * factor_est
+        stock_actual = float(p.stock or 0)
+        cobertura = (stock_actual / demanda_dia) if demanda_dia > 0 else 9999
+        sugerido = max(0, int(round((demanda_dia * 30.0) - stock_actual)))
+        compra_sugerida_total += sugerido
+        if demanda_dia <= 0:
+            continue
+        if cobertura <= 7:
+            quiebre_7 += 1
+            top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1), "sugerido": sugerido, "nivel": "CRITICO", "motivo": "Quiebre <= 7 días"})
+        elif cobertura <= 14:
+            quiebre_14 += 1
+            top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1), "sugerido": sugerido, "nivel": "MEDIO", "motivo": "Quiebre 8-14 días"})
+        elif stock_actual < 5 and c90 > 0:
+            riesgo_mixto += 1
+            top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1) if cobertura < 9999 else 9999, "sugerido": sugerido, "nivel": "MIXTO", "motivo": "Stock crítico + rotación reciente"})
+    top_quiebre.sort(key=lambda x: x["cobertura"])
+
+    return render_template(
+        'owner_mobile.html',
+        fecha_hoy_str=hoy.strftime("%Y-%m-%d"),
+        ventas_hoy=ventas_hoy,
+        var_ventas_hoy=var_ventas_hoy,
+        transacciones_hoy=transacciones_hoy,
+        dinero_credito=dinero_credito,
+        bajo_stock=bajo_stock,
+        oc_pendientes=oc_pendientes,
+        quiebre_7=quiebre_7,
+        quiebre_14=quiebre_14,
+        riesgo_mixto=riesgo_mixto,
+        compra_sugerida_total=compra_sugerida_total,
+        top_quiebre=top_quiebre[:3],
     )
 
 
@@ -2435,36 +2709,46 @@ def business_intelligence():
     mix_row_totals = {c: sum(mix_mat_plain[c][m] for m in meths_sorted) for c in cats_sorted}
     mix_grand_total = sum(meth_totals.values())
 
-    hora_rows = db.session.execute(
-        text(
-            """
-            SELECT HOUR(fecha) AS hr, COUNT(id), COALESCE(SUM(monto_total), 0)
-            FROM ventas
-            WHERE estado = 'Pagado' AND fecha >= :dt_i AND fecha < :dt_f
-            GROUP BY HOUR(fecha)
-            ORDER BY hr
-            """
-        ),
-        {'dt_i': dt_inicio, 'dt_f': dt_fin_excl},
-    ).fetchall()
+    hora_rows = (
+        db.session.query(
+            db.func.extract('hour', Venta.fecha).label('hr'),
+            db.func.count(Venta.id),
+            db.func.coalesce(db.func.sum(Venta.monto_total), 0),
+        )
+        .filter(
+            Venta.estado == 'Pagado',
+            Venta.fecha >= dt_inicio,
+            Venta.fecha < dt_fin_excl,
+        )
+        .group_by(db.func.extract('hour', Venta.fecha))
+        .order_by(db.func.extract('hour', Venta.fecha))
+        .all()
+    )
     hora_map = {int(r[0]): (int(r[1] or 0), float(r[2] or 0)) for r in hora_rows if r[0] is not None}
     bi_horas_labels = [f'{h:02d}:00' for h in range(24)]
     bi_horas_docs = [hora_map.get(h, (0, 0))[0] for h in range(24)]
     bi_horas_montos = [hora_map.get(h, (0, 0))[1] for h in range(24)]
 
-    dia_rows = db.session.execute(
-        text(
-            """
-            SELECT WEEKDAY(fecha) AS wd, COUNT(id), COALESCE(SUM(monto_total), 0)
-            FROM ventas
-            WHERE estado = 'Pagado' AND fecha >= :dt_i AND fecha < :dt_f
-            GROUP BY WEEKDAY(fecha)
-            ORDER BY wd
-            """
-        ),
-        {'dt_i': dt_inicio, 'dt_f': dt_fin_excl},
-    ).fetchall()
-    dia_map = {int(r[0]): (int(r[1] or 0), float(r[2] or 0)) for r in dia_rows if r[0] is not None}
+    dia_rows = (
+        db.session.query(
+            db.func.extract('dow', Venta.fecha).label('wd'),
+            db.func.count(Venta.id),
+            db.func.coalesce(db.func.sum(Venta.monto_total), 0),
+        )
+        .filter(
+            Venta.estado == 'Pagado',
+            Venta.fecha >= dt_inicio,
+            Venta.fecha < dt_fin_excl,
+        )
+        .group_by(db.func.extract('dow', Venta.fecha))
+        .order_by(db.func.extract('dow', Venta.fecha))
+        .all()
+    )
+    dia_map = {
+        ((int(r[0]) + 6) % 7): (int(r[1] or 0), float(r[2] or 0))
+        for r in dia_rows
+        if r[0] is not None
+    }
     bi_dia_labels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
     bi_dia_docs = [dia_map.get(d, (0, 0))[0] for d in range(7)]
     bi_dia_montos = [dia_map.get(d, (0, 0))[1] for d in range(7)]
@@ -6963,6 +7247,24 @@ def cerrar_caja():
         flash("No hay ninguna caja abierta para cerrar.", "info")
         return redirect(url_for('index'))
 
+    vales_pendientes_cierre = (
+        Venta.query.filter(
+            Venta.caja_id == caja.id,
+            Venta.estado == "Pendiente",
+            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ""),
+        )
+        .order_by(Venta.fecha.asc(), Venta.id.asc())
+        .all()
+    )
+    tickets_abiertos_cierre = (
+        Venta.query.filter(
+            Venta.caja_id == caja.id,
+            Venta.estado == "Abierta",
+        )
+        .order_by(Venta.fecha.asc(), Venta.id.asc())
+        .all()
+    )
+
     # 2. Cálculos de VENTAS del turno
     ventas = Venta.query.filter_by(caja_id=caja.id).all()
 
@@ -7013,6 +7315,15 @@ def cerrar_caja():
     umbral_diferencia = float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000')
 
     if request.method == 'POST':
+        if vales_pendientes_cierre or tickets_abiertos_cierre:
+            total_bloqueo = len(vales_pendientes_cierre) + len(tickets_abiertos_cierre)
+            flash(
+                f"No se puede cerrar caja: hay {total_bloqueo} documento(s) en vuelo "
+                f"({len(vales_pendientes_cierre)} pendiente(s) sin método y {len(tickets_abiertos_cierre)} abierto(s)). "
+                "Debes resolverlos antes de cerrar.",
+                "warning",
+            )
+            return redirect(url_for('caja_pendientes'))
         monto_contado_raw = (request.form.get('monto_contado') or '').strip()
         if not monto_contado_raw:
             flash("Debe ingresar el efectivo contado para realizar la cuadratura.", "warning")
@@ -7104,6 +7415,8 @@ def cerrar_caja():
     # Si es GET, mostramos la pantalla de confirmación
     return render_template('confirmar_cierre.html', 
                            caja=caja, 
+                           vales_pendientes_cierre=vales_pendientes_cierre,
+                           tickets_abiertos_cierre=tickets_abiertos_cierre,
                            total_efectivo=total_efectivo,
                            total_debito=total_debito,
                            total_transferencia=total_transferencia,
@@ -7405,7 +7718,7 @@ def login():
             session.clear()
             autenticado = False
         if autenticado:
-            return redirect(url_for('index'))
+            return redirect(url_for('owner_mobile'))
 
         if request.method == 'POST':
             _seed_permisos_catalogo_si_vacio()
@@ -7432,7 +7745,10 @@ def login():
                     flash("Por seguridad, cambia tu contraseña temporal.", "warning")
                     return redirect(url_for('cambiar_password'))
                 flash(f"Bienvenido al sistema, {usuario.nombre}", "success")
-                return redirect(url_for('index'))
+                next_url = (request.args.get('next') or '').strip()
+                if next_url.startswith('/') and not next_url.startswith('//'):
+                    return redirect(next_url)
+                return redirect(url_for('owner_mobile'))
             else:
                 flash("Correo o contraseña incorrectos. Intente de nuevo.", "danger")
 
@@ -7550,6 +7866,11 @@ def admin_empresa():
             "telefono": request.form.get('telefono', ''),
             "correo": request.form.get('correo', ''),
             "direccion": request.form.get('direccion', ''),
+            "mod_ventas": "1" if request.form.get('mod_ventas') == '1' else "0",
+            "mod_caja": "1" if request.form.get('mod_caja') == '1' else "0",
+            "mod_inventario": "1" if request.form.get('mod_inventario') == '1' else "0",
+            "mod_bi": "1" if request.form.get('mod_bi') == '1' else "0",
+            "mod_ia": "1" if request.form.get('mod_ia') == '1' else "0",
         }
         if not (data["nombre_comercial"] or '').strip():
             flash("El nombre comercial es obligatorio.", "warning")
@@ -8709,6 +9030,34 @@ def orden_compra_nueva():
     proveedores = Proveedor.query.order_by(Proveedor.nombre).all()
     producto_sugerido_id = request.values.get('producto_id_sugerido', type=int) or request.values.get('producto_id', type=int)
     producto_sugerido = Producto.query.get(producto_sugerido_id) if producto_sugerido_id else None
+
+    sugerencias_payload_raw = (request.values.get('sugerencias_payload') or '').strip()
+    sugerencias_multi = []
+    if sugerencias_payload_raw:
+        try:
+            raw_items = json.loads(sugerencias_payload_raw)
+            if isinstance(raw_items, list):
+                ids = [int(it.get('id')) for it in raw_items if isinstance(it, dict) and str(it.get('id', '')).isdigit()]
+                productos_map = {p.id: p for p in Producto.query.filter(Producto.id.in_(ids)).all()} if ids else {}
+                for it in raw_items:
+                    if not isinstance(it, dict):
+                        continue
+                    pid = int(it.get('id')) if str(it.get('id', '')).isdigit() else None
+                    if not pid or pid not in productos_map:
+                        continue
+                    try:
+                        qty = float(it.get('qty') or 0)
+                    except (TypeError, ValueError):
+                        qty = 0
+                    qty = max(0.0, qty)
+                    if qty <= 0:
+                        continue
+                    sugerencias_multi.append({
+                        "producto": productos_map[pid],
+                        "cantidad": qty,
+                    })
+        except Exception:
+            sugerencias_multi = []
     if request.method == 'POST':
         prov_id = request.form.get('proveedor_id', type=int)
         numero = (request.form.get('numero') or '').strip()[:50]
@@ -8721,6 +9070,8 @@ def orden_compra_nueva():
                 estados=_OC_ESTADOS_VALIDOS,
                 hoy=datetime.now().strftime('%Y-%m-%d'),
                 producto_sugerido=producto_sugerido,
+                sugerencias_multi=sugerencias_multi,
+                sugerencias_payload=sugerencias_payload_raw,
             )
         if OrdenCompra.query.filter_by(proveedor_id=prov_id, numero=numero).first():
             flash('Ya existe una orden con ese número para el proveedor.', 'warning')
@@ -8731,6 +9082,8 @@ def orden_compra_nueva():
                 estados=_OC_ESTADOS_VALIDOS,
                 hoy=datetime.now().strftime('%Y-%m-%d'),
                 producto_sugerido=producto_sugerido,
+                sugerencias_multi=sugerencias_multi,
+                sugerencias_payload=sugerencias_payload_raw,
             )
         try:
             fecha_e = datetime.strptime((request.form.get('fecha_emision') or '').strip(), '%Y-%m-%d').date()
@@ -8758,8 +9111,21 @@ def orden_compra_nueva():
                     precio_unitario=float(producto_sugerido.precio_compra or 0),
                 )
             )
+        for s in sugerencias_multi:
+            p = s["producto"]
+            db.session.add(
+                DetalleOrdenCompra(
+                    orden_compra_id=oc.id,
+                    producto_id=p.id,
+                    cantidad=max(1.0, float(s["cantidad"])),
+                    precio_unitario=float(p.precio_compra or 0),
+                )
+            )
         db.session.commit()
-        flash('Orden de compra creada. Agregue líneas de productos.', 'success')
+        if sugerencias_multi:
+            flash(f'Orden de compra creada con {len(sugerencias_multi)} línea(s) sugerida(s) por IA.', 'success')
+        else:
+            flash('Orden de compra creada. Agregue líneas de productos.', 'success')
         return redirect(url_for('orden_compra_editar', oid=oc.id))
     return render_template(
         'orden_compra_form.html',
@@ -8768,6 +9134,8 @@ def orden_compra_nueva():
         estados=_OC_ESTADOS_VALIDOS,
         hoy=datetime.now().strftime('%Y-%m-%d'),
         producto_sugerido=producto_sugerido,
+        sugerencias_multi=sugerencias_multi,
+        sugerencias_payload=sugerencias_payload_raw,
     )
 
 

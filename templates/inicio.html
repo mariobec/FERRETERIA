@@ -19,6 +19,56 @@
   .kpi-warn { border-left: 5px solid #fd7e14; }
   .kpi-risk { border-left: 5px solid #dc3545; }
   .quick-actions .btn { min-height: 52px; font-weight: 700; }
+  .qa-btn {
+    min-height: 50px;
+    border-radius: 12px !important;
+    font-weight: 800 !important;
+    letter-spacing: .01em;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .06);
+    transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+  }
+  .qa-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .14);
+    filter: saturate(1.05);
+  }
+  .qa-btn:active { transform: translateY(0); }
+  .qa-primary {
+    border: 0 !important;
+    color: #fff !important;
+    background: linear-gradient(135deg, #f37021, #ff8c3a) !important;
+  }
+  .qa-outline {
+    border: 1px solid #cfd7e3 !important;
+    color: #1f2937 !important;
+    background: #fff !important;
+  }
+  .qa-outline:hover {
+    border-color: #9fb1c7 !important;
+    background: #f8fafc !important;
+  }
+  .qa-warning {
+    border: 1px solid #f2d088 !important;
+    color: #9a6a00 !important;
+    background: #fffdf6 !important;
+  }
+  .qa-warning:hover {
+    border-color: #ebc35e !important;
+    background: #fff8e8 !important;
+  }
+  .qa-admin {
+    border: 1px solid #f2c0cb !important;
+    color: #b83f5d !important;
+    background: #fff8fa !important;
+  }
+  .qa-admin:hover {
+    border-color: #e89eb0 !important;
+    background: #fff1f5 !important;
+  }
+  @media (max-width: 992px) {
+    .quick-actions .row > div { display: grid; }
+    .qa-btn { width: 100%; }
+  }
   .panel-card { border: 0; border-radius: .9rem; box-shadow: 0 4px 14px rgba(9, 30, 66, .08); }
   .panel-card .card-header { background: #fff; border-bottom: 1px solid #eef1f4; font-weight: 700; }
   .delta-up { color: #198754; font-weight: 700; }
@@ -27,6 +77,28 @@
   .kpi-link { text-decoration: none; color: inherit; display: block; }
   .kpi-link .kpi-card { transition: transform .15s ease, box-shadow .15s ease; }
   .kpi-link:hover .kpi-card { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(9, 30, 66, .14); }
+  .exception-item { border-left: 4px solid transparent; border-radius: .7rem; padding: .75rem .85rem; background: #f8fafc; }
+  .exception-danger { border-left-color: #dc3545; }
+  .exception-warning { border-left-color: #fd7e14; }
+  .exception-info { border-left-color: #0d6efd; }
+  .exception-success { border-left-color: #198754; }
+  .predict-kpi { border: 1px solid #eef1f4; border-radius: .75rem; padding: .8rem; background: #fff; }
+  .predict-kpi .label { font-size: .78rem; color: #6b7280; font-weight: 700; text-transform: uppercase; }
+  .predict-kpi .value { font-size: 1.3rem; font-weight: 800; margin-top: .1rem; }
+  .kpi-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #495057;
+    font-size: .68rem;
+    font-weight: 800;
+    cursor: help;
+  }
 </style>
 {% endblock %}
 
@@ -51,6 +123,7 @@
       <div class="card kpi-card kpi-ok">
         <div class="card-body">
           <div class="kpi-label"><i class="fas fa-money-bill-wave me-1"></i>Ventas hoy</div>
+          <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Suma de ventas del día actual (fecha de hoy en servidor).">?</span>
           <div class="kpi-value">${{ "{:,.0f}".format(ventas_hoy).replace(",", ".") }}</div>
           <div class="kpi-foot">
             {% if var_ventas_hoy is not none %}
@@ -71,6 +144,7 @@
       <div class="card kpi-card kpi-info">
         <div class="card-body">
           <div class="kpi-label"><i class="fas fa-warehouse me-1"></i>Stock activo</div>
+          <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Total de unidades en productos activos con stock mayor a cero.">?</span>
           <div class="kpi-value">{{ "{:,.0f}".format(stock_activo).replace(",", ".") }}</div>
           <div class="kpi-foot">Unidades disponibles</div>
         </div>
@@ -82,6 +156,7 @@
       <div class="card kpi-card kpi-warn">
         <div class="card-body">
           <div class="kpi-label"><i class="fas fa-file-invoice-dollar me-1"></i>Vales y crédito</div>
+          <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Suma de saldo_deudor vigente de todos los clientes con crédito.">?</span>
           <div class="kpi-value">${{ "{:,.0f}".format(dinero_credito).replace(",", ".") }}</div>
           <div class="kpi-foot">Cartera por cobrar</div>
         </div>
@@ -93,6 +168,7 @@
       <div class="card kpi-card kpi-risk">
         <div class="card-body">
           <div class="kpi-label"><i class="fas fa-triangle-exclamation me-1"></i>Alerta stock</div>
+          <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Cantidad de productos activos con stock menor a 5 unidades.">?</span>
           <div class="kpi-value">{{ bajo_stock }}</div>
           <div class="kpi-foot">Productos con stock bajo</div>
         </div>
@@ -105,18 +181,141 @@
     <div class="card-header">Acciones rápidas</div>
     <div class="card-body">
       <div class="row g-2">
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('punto_venta') }}" class="btn btn-success w-100"><i class="fas fa-cash-register me-1"></i>Nueva venta</a></div>
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('orden_compra_nueva') }}" class="btn btn-outline-primary w-100"><i class="fas fa-file-contract me-1"></i>Nueva OC</a></div>
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('nueva_recepcion') }}" class="btn btn-outline-primary w-100"><i class="fas fa-dolly me-1"></i>Recepción</a></div>
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning w-100"><i class="fas fa-file-invoice-dollar me-1"></i>Cobrar vales</a></div>
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('mostrar_productos') }}" class="btn btn-outline-secondary w-100"><i class="fas fa-boxes me-1"></i>Productos</a></div>
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('ia_abastecimiento') }}" class="btn btn-outline-secondary w-100"><i class="fas fa-robot me-1"></i>IA compras</a></div>
+        {% if modulo_activo('ventas') %}
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('punto_venta') }}" class="btn qa-btn qa-primary w-100"><i class="fas fa-cash-register me-1"></i>Nueva venta</a></div>
+        {% endif %}
+        {% if modulo_activo('inventario') %}
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('orden_compra_nueva') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-file-contract me-1"></i>Nueva OC</a></div>
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('nueva_recepcion') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-dolly me-1"></i>Recepción</a></div>
+        {% endif %}
+        {% if modulo_activo('caja') %}
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('caja_pendientes') }}" class="btn qa-btn qa-warning w-100"><i class="fas fa-file-invoice-dollar me-1"></i>Cobrar vales</a></div>
+        {% endif %}
+        {% if modulo_activo('inventario') %}
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('mostrar_productos') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-boxes me-1"></i>Productos</a></div>
+        {% endif %}
+        {% if modulo_activo('ia') %}
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('ia_abastecimiento') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-robot me-1"></i>IA compras</a></div>
+        {% endif %}
         {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('panel_dueno') }}" class="btn btn-outline-dark w-100"><i class="fas fa-briefcase me-1"></i>Informes gerencia</a></div>
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('panel_dueno') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-briefcase me-1"></i>Informes gerencia</a></div>
         {% endif %}
         {% if puede_administrar %}
-        <div class="col-lg-4 col-md-6 col-12"><a href="{{ url_for('mostrar_productos') }}" class="btn btn-outline-danger w-100"><i class="fas fa-layer-group me-1"></i>Ajuste inicial de stock (admin)</a></div>
+        <div class="col-lg-4 col-md-6 col-12"><a href="{{ url_for('mostrar_productos') }}" class="btn qa-btn qa-admin w-100"><i class="fas fa-layer-group me-1"></i>Ajuste inicial de stock (admin)</a></div>
         {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card panel-card mb-3">
+    <div class="card-header"><i class="fas fa-bolt me-1 text-warning"></i>Decisiones por excepción (hoy)</div>
+    <div class="card-body d-grid gap-2">
+      {% for a in alertas_accionables %}
+      <div class="exception-item exception-{{ a.nivel }}">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <div>
+            <div class="fw-bold">{{ a.titulo }}</div>
+            <div class="small text-muted">{{ a.detalle }}</div>
+          </div>
+          <a href="{{ a.url }}" class="btn btn-sm btn-outline-dark">{{ a.accion }}</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card panel-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-robot me-1 text-primary"></i>Semáforo predictivo de abastecimiento</span>
+      <a href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}" class="btn btn-sm btn-outline-primary">
+        Ver compra sugerida
+      </a>
+    </div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-md-3 col-6">
+          <div class="predict-kpi">
+            <div class="label">
+              Quiebre <= 7 días
+              <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Cuenta productos cuya cobertura proyectada alcanza para 7 días o menos.">?</span>
+            </div>
+            <div class="value text-danger">{{ quiebre_7 }}</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="predict-kpi">
+            <div class="label">
+              Quiebre 8-14 días
+              <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Cuenta productos cuya cobertura proyectada cae entre 8 y 14 días.">?</span>
+            </div>
+            <div class="value text-warning">{{ quiebre_14 }}</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="predict-kpi">
+            <div class="label">
+              SKUs con compra sugerida
+              <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Cantidad de productos donde la demanda proyectada supera al stock actual para el horizonte analizado.">?</span>
+            </div>
+            <div class="value text-primary">{{ compra_sugerida_skus }}</div>
+          </div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="predict-kpi">
+            <div class="label">
+              Unidades sugeridas
+              <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="top" title="Suma total de unidades recomendadas para comprar considerando tendencia y estacionalidad.">?</span>
+            </div>
+            <div class="value text-success">{{ "{:,.0f}".format(compra_sugerida_total).replace(",", ".") }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="small text-muted mb-2">
+        Riesgo mixto (stock crítico + rotación reciente): <strong>{{ riesgo_mixto }}</strong>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>SKU en riesgo</th>
+              <th class="text-end">Stock</th>
+              <th class="text-end">Cobertura (días)</th>
+              <th class="text-end">Pedido sugerido</th>
+              <th>Motivo</th>
+              <th>Nivel</th>
+              <th class="text-end">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in top_quiebre %}
+            <tr>
+              <td class="fw-semibold">{{ r.producto }}</td>
+              <td class="text-end">{{ r.stock }}</td>
+              <td class="text-end">{{ r.cobertura }}</td>
+              <td class="text-end fw-bold">{{ r.sugerido }}</td>
+              <td class="small text-muted">{{ r.motivo }}</td>
+              <td>
+                {% if r.nivel == 'CRITICO' %}
+                <span class="badge bg-danger">CRITICO</span>
+                {% elif r.nivel == 'MIXTO' %}
+                <span class="badge bg-secondary">MIXTO</span>
+                {% else %}
+                <span class="badge bg-warning text-dark">MEDIO</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a href="{{ url_for('ia_abastecimiento', q=r.query_hint, dias=30, solo_alerta=1, from='inicio') }}" class="btn btn-sm btn-outline-primary">
+                  Revisar
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-3">Sin riesgo de quiebre relevante en este momento.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -208,7 +407,15 @@
             <tr>
               <td class="fw-bold">#{{ v.id }}</td>
               <td>{{ v.fecha.strftime('%H:%M') if v.fecha else '—' }}</td>
-              <td>{{ v.metodo_pago or '—' }}</td>
+              <td>
+                {% if v.metodo_pago %}
+                  {{ v.metodo_pago }}
+                {% elif v.estado == 'Pendiente' %}
+                  Por definir
+                {% else %}
+                  Sin método registrado
+                {% endif %}
+              </td>
               <td>
                 <span class="badge {% if v.estado == 'Pagado' %}bg-success{% elif v.estado == 'Pendiente' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
                   {{ v.estado }}
@@ -259,6 +466,11 @@
     const hour = new Date().getHours();
     const greeting = document.getElementById('greeting');
     if (greeting) greeting.textContent = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches';
+    if (window.bootstrap && bootstrap.Tooltip) {
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+        new bootstrap.Tooltip(el);
+      });
+    }
   });
 </script>
 {% endblock %}

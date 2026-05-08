@@ -20,6 +20,25 @@
     </div>
 
     <div class="p-4 p-md-5">
+        {% if vales_pendientes_cierre or tickets_abiertos_cierre %}
+        <div class="alert alert-danger border-0 mb-4">
+            <div class="fw-bold mb-1">
+                <i class="fas fa-ban me-2"></i>Cierre bloqueado por vales pendientes
+            </div>
+            <div class="small">
+                Hay {{ (vales_pendientes_cierre|length) + (tickets_abiertos_cierre|length) }} documento(s) en vuelo:
+                <strong>{{ vales_pendientes_cierre|length }}</strong> pendiente(s) sin método y
+                <strong>{{ tickets_abiertos_cierre|length }}</strong> abierto(s).
+                Debes cobrarlos o resolverlos antes de cerrar.
+            </div>
+            <div class="mt-2">
+                <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-danger fw-bold">
+                    Ir a cobrar/resolver vales
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Fondos e Ingresos -->
         <div class="summary-item">
             <span><i class="fas fa-wallet me-2 text-secondary"></i>Monto Inicial</span>
@@ -159,7 +178,11 @@
 
             <div class="row g-2">
                 <div class="col-6"><a href="{{ url_for('caja_pendientes') }}" class="btn btn-light w-100 py-3 fw-bold border">CANCELAR</a></div>
-                <div class="col-6"><button type="submit" class="btn btn-confirm">CONFIRMAR CIERRE</button></div>
+                <div class="col-6">
+                    <button type="submit" class="btn btn-confirm" {% if vales_pendientes_cierre or tickets_abiertos_cierre %}disabled{% endif %}>
+                        CONFIRMAR CIERRE
+                    </button>
+                </div>
             </div>
         </form>
     </div>

@@ -56,6 +56,9 @@
         {% if producto_sugerido %}
         <input type="hidden" name="producto_id_sugerido" value="{{ producto_sugerido.id }}">
         {% endif %}
+        {% if sugerencias_payload %}
+        <input type="hidden" name="sugerencias_payload" value="{{ sugerencias_payload }}">
+        {% endif %}
         <div class="col-md-4">
           <label class="form-label fw-semibold">Proveedor</label>
           <select name="proveedor_id" class="form-select" required>
@@ -91,6 +94,19 @@
             Al crear esta OC se agregará automáticamente el producto crítico:
             <strong>{{ producto_sugerido.nombre }}</strong>
             {% if producto_sugerido.codigo_barra %}<span class="text-muted">({{ producto_sugerido.codigo_barra }})</span>{% endif %}.
+          </div>
+        </div>
+        {% endif %}
+        {% if sugerencias_multi %}
+        <div class="col-12">
+          <div class="alert alert-info mb-0 py-2">
+            Se agregará una carga asistida de <strong>{{ sugerencias_multi|length }}</strong> producto(s) sugeridos por IA:
+            {% for s in sugerencias_multi[:6] %}
+              <span class="badge text-bg-light border">{{ s.producto.nombre }} · {{ "{:,.0f}".format(s.cantidad).replace(",", ".") }}</span>
+            {% endfor %}
+            {% if sugerencias_multi|length > 6 %}
+              <span class="text-muted">y {{ sugerencias_multi|length - 6 }} más…</span>
+            {% endif %}
           </div>
         </div>
         {% endif %}

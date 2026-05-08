@@ -1,5 +1,24 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  .kpi-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #495057;
+    font-size: .68rem;
+    font-weight: 800;
+    cursor: help;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header">
@@ -47,7 +66,10 @@
     <div class="col-md-6">
       <div class="card card-ds">
         <div class="card-body">
-          <small class="text-muted d-block">Productos analizados</small>
+          <small class="text-muted d-block">
+            Productos analizados
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de productos evaluados por el modelo con los filtros actuales.">?</span>
+          </small>
           <h4 class="mb-0 fw-bold">{{ total_productos }}</h4>
         </div>
       </div>
@@ -55,10 +77,25 @@
     <div class="col-md-6">
       <div class="card card-ds">
         <div class="card-body">
-          <small class="text-muted d-block">Total unidades sugeridas para comprar</small>
+          <small class="text-muted d-block">
+            Total unidades sugeridas para comprar
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de unidades recomendadas para cubrir la demanda proyectada del horizonte seleccionado.">?</span>
+          </small>
           <h4 class="mb-0 fw-bold">{{ total_sugerido }}</h4>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body py-3">
+      <form id="form-oc-asistida" method="GET" action="{{ url_for('orden_compra_nueva') }}" class="d-flex flex-wrap align-items-center gap-2">
+        <input type="hidden" name="sugerencias_payload" id="sugerencias_payload">
+        <button type="submit" class="btn btn-ds-primary btn-sm fw-bold">
+          <i class="fas fa-wand-magic-sparkles me-1"></i> Crear OC asistida con selección
+        </button>
+        <small class="text-muted">Selecciona productos en la tabla y se cargarán como líneas iniciales en la nueva OC.</small>
+      </form>
     </div>
   </div>
 
@@ -68,6 +105,7 @@
       <table class="table table-sm table-hover mb-0 table-ds align-middle">
         <thead class="table-light">
           <tr>
+            <th class="text-center"><input type="checkbox" id="ia-select-all"></th>
             <th>Producto</th>
             <th class="text-end">Stock</th>
             <th class="text-end">Cons. 30d</th>
@@ -83,6 +121,11 @@
         <tbody>
           {% for s in sugerencias %}
           <tr>
+            <td class="text-center">
+              {% if s.sugerido > 0 %}
+              <input type="checkbox" class="ia-select-item" data-id="{{ s.producto.id }}" data-qty="{{ "{:.2f}".format(s.sugerido) }}">
+              {% endif %}
+            </td>
             <td>
               <strong>{{ s.producto.nombre }}</strong><br>
               <span class="small text-muted">{{ s.producto.codigo_barra }} {% if s.producto.ubicacion_codigo %}| {{ s.producto.ubicacion_codigo }}{% endif %}</span>
@@ -108,7 +151,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="10" class="text-center text-muted py-4">No hay productos para los filtros seleccionados.</td></tr>
+          <tr><td colspan="11" class="text-center text-muted py-4">No hay productos para los filtros seleccionados.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -119,4 +162,43 @@
     Modelo MVP: promedio 30 días + tendencia 7/30 + estacionalidad por categoría. Próximo paso: integrar clima externo.
   </p>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const all = document.getElementById('ia-select-all');
+  const items = () => Array.from(document.querySelectorAll('.ia-select-item'));
+  const form = document.getElementById('form-oc-asistida');
+  const payloadInput = document.getElementById('sugerencias_payload');
+
+  if (all) {
+    all.addEventListener('change', () => {
+      items().forEach((it) => { it.checked = all.checked; });
+    });
+  }
+
+  form?.addEventListener('submit', (ev) => {
+    const selected = items()
+      .filter((it) => it.checked)
+      .map((it) => ({
+        id: Number(it.dataset.id || 0),
+        qty: Number(it.dataset.qty || 0),
+      }))
+      .filter((it) => it.id > 0 && it.qty > 0);
+    if (!selected.length) {
+      ev.preventDefault();
+      alert('Selecciona al menos un producto sugerido para crear la OC asistida.');
+      return;
+    }
+    payloadInput.value = JSON.stringify(selected);
+  });
+
+  if (window.bootstrap && bootstrap.Tooltip) {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+      new bootstrap.Tooltip(el);
+    });
+  }
+})();
+</script>
 {% endblock %}

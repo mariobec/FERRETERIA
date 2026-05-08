@@ -65,6 +65,42 @@
             <label class="form-label fw-semibold">Tipo de venta (giro)</label>
             <input type="text" name="tipo_venta_giro" class="form-control" value="{{ empresa.tipo_venta_giro or 'DEL GIRO' }}" placeholder="DEL GIRO">
           </div>
+          <div class="col-12">
+            <hr>
+            <label class="form-label fw-semibold mb-2">Módulos activos (ERP componible)</label>
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-check border rounded p-2 w-100">
+                  <input class="form-check-input me-2" type="checkbox" name="mod_ventas" value="1" {% if (empresa.mod_ventas or '1') == '1' %}checked{% endif %}>
+                  <span class="form-check-label">Ventas</span>
+                </label>
+              </div>
+              <div class="col-md-4">
+                <label class="form-check border rounded p-2 w-100">
+                  <input class="form-check-input me-2" type="checkbox" name="mod_caja" value="1" {% if (empresa.mod_caja or '1') == '1' %}checked{% endif %}>
+                  <span class="form-check-label">Caja</span>
+                </label>
+              </div>
+              <div class="col-md-4">
+                <label class="form-check border rounded p-2 w-100">
+                  <input class="form-check-input me-2" type="checkbox" name="mod_inventario" value="1" {% if (empresa.mod_inventario or '1') == '1' %}checked{% endif %}>
+                  <span class="form-check-label">Inventario</span>
+                </label>
+              </div>
+              <div class="col-md-4">
+                <label class="form-check border rounded p-2 w-100">
+                  <input class="form-check-input me-2" type="checkbox" name="mod_bi" value="1" {% if (empresa.mod_bi or '1') == '1' %}checked{% endif %}>
+                  <span class="form-check-label">BI y análisis</span>
+                </label>
+              </div>
+              <div class="col-md-4">
+                <label class="form-check border rounded p-2 w-100">
+                  <input class="form-check-input me-2" type="checkbox" name="mod_ia" value="1" {% if (empresa.mod_ia or '1') == '1' %}checked{% endif %}>
+                  <span class="form-check-label">IA abastecimiento</span>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="mt-4 text-end">
           <button type="submit" class="btn btn-ds-primary fw-bold px-4">

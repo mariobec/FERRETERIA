@@ -45,6 +45,7 @@
                     {% set puede_mov_caja = usuario_tiene_permiso('caja_movimientos') %}
                     {% set puede_cerrar_caja = usuario_tiene_permiso('caja_cerrar') %}
                     {% set ep_ventas = request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta', 'mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta', 'modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'registrar_abono', 'ver_ticket_abono'] %}
+                    {% if modulo_activo('ventas') %}
                     <details class="app-nav-group" {% if ep_ventas %}open{% endif %}>
                         <summary><i class="fas fa-cart-shopping"></i> Ventas</summary>
                         <div class="app-nav-group-body">
@@ -55,9 +56,10 @@
                             <a href="{{ url_for('modulo_creditos') }}" class="app-nav-link {% if request.endpoint in ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'registrar_abono', 'ver_ticket_abono'] %}active{% endif %}"><i class="fas fa-hand-holding-usd"></i> Créditos y cartolas</a>
                         </div>
                     </details>
+                    {% endif %}
                     {% set ep_caja = request.endpoint in ['abrir_caja', 'movimiento_caja', 'cerrar_caja', 'caja_pendientes', 'procesar_cobro_caja', 'caja_historial_cierres', 'caja_cambios', 'caja_cambios_historial', 'caja_saldos_favor'] %}
                     {% set mostrar_grupo_caja = puede_cobrar_caja or puede_abrir_caja or puede_mov_caja or puede_cerrar_caja or usuario_tiene_permiso('gestionar_usuarios') %}
-                    {% if mostrar_grupo_caja %}
+                    {% if mostrar_grupo_caja and modulo_activo('caja') %}
                     <details class="app-nav-group" {% if ep_caja %}open{% endif %}>
                         <summary><i class="fas fa-cash-register"></i> Caja</summary>
                         <div class="app-nav-group-body">
@@ -86,6 +88,7 @@
                       or (nav_inventario_enrolamiento and request.endpoint == 'inventario_enrolamiento')
                       or (nav_inventario_salud and request.endpoint == 'inventario_salud')
                       or request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion', 'lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar', 'mostrar_proveedores', 'guardar_proveedor'] %}
+                    {% if modulo_activo('inventario') %}
                     <details class="app-nav-group" {% if ep_inv %}open{% endif %}>
                         <summary><i class="fas fa-boxes-stacked"></i> Inventario y Abastecimiento</summary>
                         <div class="app-nav-group-body">
@@ -102,10 +105,14 @@
                             <a href="{{ url_for('lista_recepciones') }}" class="app-nav-link {% if request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion'] %}active{% endif %}"><i class="fas fa-dolly"></i> Recepciones</a>
                             <a href="{{ url_for('lista_ordenes_compra') }}" class="app-nav-link {% if request.endpoint in ['lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar'] %}active{% endif %}"><i class="fas fa-file-contract"></i> Órdenes compra</a>
                             <a href="{{ url_for('mostrar_proveedores') }}" class="app-nav-link {% if request.endpoint in ['mostrar_proveedores', 'guardar_proveedor'] %}active{% endif %}"><i class="fas fa-truck"></i> Proveedores</a>
+                            {% if modulo_activo('ia') %}
                             <a href="{{ url_for('ia_abastecimiento') }}" class="app-nav-link {% if request.endpoint == 'ia_abastecimiento' %}active{% endif %}"><i class="fas fa-robot"></i> IA Abastecimiento</a>
+                            {% endif %}
                         </div>
                     </details>
+                    {% endif %}
                     {% set ep_rep = request.endpoint in ['business_intelligence', 'panel_dueno', 'simulador_margen', 'revision_precios'] %}
+                    {% if modulo_activo('bi') %}
                     <details class="app-nav-group" {% if ep_rep %}open{% endif %}>
                         <summary><i class="fas fa-chart-line"></i> Reportes y Análisis</summary>
                         <div class="app-nav-group-body">
@@ -121,6 +128,7 @@
                             {% endif %}
                         </div>
                     </details>
+                    {% endif %}
                     {% if puede_administrar %}
                     {% set ep_mant = request.endpoint in ['usuarios', 'editar_usuario', 'admin_empresa', 'admin_unidades', 'admin_catalogo', 'admin_almacenes', 'admin_clientes', 'admin_roles_permisos'] %}
                     <details class="app-nav-group" {% if ep_mant %}open{% endif %}>
@@ -157,6 +165,11 @@
                         <span class="app-topbar-client">{{ empresa_cfg.nombre_comercial }}</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        {% if request.endpoint != 'owner_mobile' %}
+                        <a href="{{ url_for('owner_mobile') }}" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-mobile-screen-button me-1"></i>Vista propietario
+                        </a>
+                        {% endif %}
                         {% if request.endpoint != 'inicio' and request.args.get('from') == 'inicio' %}
                         <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-primary">
                             <i class="fas fa-arrow-left me-1"></i>Volver a indicadores
