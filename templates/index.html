@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ empresa_cfg.nombre_comercial }} {{ empresa_cfg.eslogan }}</title>
+    <title>Cimentia ERP | Decisiones inteligentes para ferreterías con IA</title>
     
     <!-- Bootstrap e iconos (local, sin CDN) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
@@ -14,20 +14,21 @@
 <body class="index-body erp-landing">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <span class="brand-mark">ERP</span>
-            <span>
-                <strong>{{ empresa_cfg.nombre_comercial }}</strong>
-                <small>{{ empresa_cfg.eslogan or 'Sistema de gestión ferretera' }}</small>
+            <img src="{{ url_for('static', filename='img/cimentia-logo-definitivo-alpha.png') }}" alt="Cimentia ERP" class="landing-brand-logo">
+            <span class="landing-brand-text">
+                <strong>Cimentia ERP</strong>
+                <small>Decisiones inteligentes para ferreterías con IA</small>
             </span>
         </a>
         <nav class="landing-nav-links">
             <a href="#modulos">Módulos</a>
             <a href="#decision">Decisiones</a>
             <a href="#bi">BI y alertas</a>
+            <a href="#predictivo">Predicción IA</a>
+            <a href="#diagnostico">Diagnóstico</a>
             <a href="#beneficios">Beneficios</a>
-            <a href="{{ url_for('catalogo_publico') }}">Catálogo</a>
             <button type="button" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#loginModal">
-                Ingresar
+                Acceso demo
             </button>
         </nav>
     </header>
@@ -35,158 +36,183 @@
     <main>
         <section class="landing-hero">
             <div class="landing-hero-copy">
-                <span class="landing-eyebrow">ERP ferretero en la nube</span>
-                <h1>Controla tu ferretería y decide con datos reales.</h1>
+                <span class="landing-eyebrow">ERP + Inteligencia Artificial para ferreterías</span>
+                <h1>Convierte tu ferretería en una operación controlada, medible e inteligente.</h1>
                 <p>
-                    Un ERP diseñado para ferreterías que necesitan vender rápido, cuadrar caja,
-                    controlar stock por almacén y convertir la operación diaria en indicadores para el dueño,
-                    la gerencia y la administración.
+                    Cimentia ERP centraliza ventas, caja, inventario, clientes, devoluciones, compras y reportes BI
+                    para que cada decisión se tome con datos reales. La nueva generación incorpora inteligencia
+                    artificial para anticipar quiebres de stock, revisar precios y sugerir abastecimiento con foco en rentabilidad.
                 </p>
                 <div class="landing-actions">
-                    <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
-                        <i class="bi bi-box-arrow-in-right"></i> Entrar al ERP
+                    <button type="button" class="btn btn-warning btn-lg" data-open-ai-demo>
+                        <i class="bi bi-stars"></i> Diagnóstico IA
                     </button>
-                    <a href="{{ url_for('consulta_stock_publica') }}" class="btn btn-light btn-lg">
-                        <i class="bi bi-search"></i> Ver consulta pública
+                    <a href="#predictivo" class="btn btn-light btn-lg">
+                        <i class="bi bi-graph-up-arrow"></i> Ver escenarios predictivos
                     </a>
                 </div>
                 <div class="landing-trust">
-                    <span><i class="bi bi-check-circle-fill"></i> POS y caja</span>
-                    <span><i class="bi bi-check-circle-fill"></i> Stock tienda/bodega</span>
-                    <span><i class="bi bi-check-circle-fill"></i> BI, alertas y reportes</span>
+                    <span><i class="bi bi-shield-check"></i> Control operacional</span>
+                    <span><i class="bi bi-graph-up-arrow"></i> Reportes gerenciales</span>
+                    <span><i class="bi bi-cpu"></i> IA para abastecimiento</span>
                 </div>
             </div>
 
-            <div class="landing-dashboard-card">
-                <div class="dashboard-card-top">
-                    <span>Panel ejecutivo</span>
-                    <strong>Hoy</strong>
+            <div class="intelligence-panel">
+                <div class="ai-orb">
+                    <i class="bi bi-cpu"></i>
                 </div>
-                <div class="dashboard-total">
-                    <small>Ventas demo monitoreadas</small>
-                    <strong>500+</strong>
+                <div class="intelligence-header">
+                    <span>Centro inteligente</span>
+                    <strong>Informe inteligente para propietarios</strong>
                 </div>
-                <div class="dashboard-grid">
-                    <div>
-                        <small>Productos</small>
-                        <strong>1.500+</strong>
-                    </div>
-                    <div>
-                        <small>Clientes</small>
-                        <strong>200</strong>
-                    </div>
-                    <div>
-                        <small>Stock</small>
-                        <strong>Multi-almacén</strong>
-                    </div>
-                    <div>
-                        <small>Caja</small>
-                        <strong>Arqueo</strong>
-                    </div>
+                <div class="signal-card signal-primary">
+                    <small>Lectura automática del negocio</small>
+                    <strong>Capital detenido, margen en riesgo y quiebres próximos</strong>
+                    <p>La IA cruza ventas, inventario, caja, precios y rotación para mostrar dónde actuar primero.</p>
                 </div>
-                <div class="dashboard-alerts">
-                    <span><i class="bi bi-exclamation-triangle"></i> Stock crítico</span>
-                    <span><i class="bi bi-cash-stack"></i> Diferencias de caja</span>
-                    <span><i class="bi bi-tags"></i> Revisión de precios</span>
+                <div class="signal-grid">
+                    <div><i class="bi bi-cash-coin"></i><span>Fuga de margen</span><strong>8 SKUs</strong></div>
+                    <div><i class="bi bi-box-seam"></i><span>Reposición prioritaria</span><strong>$ 1,8M</strong></div>
+                    <div><i class="bi bi-receipt"></i><span>Arqueos con diferencia</span><strong>2 cierres</strong></div>
+                    <div><i class="bi bi-moon-stars"></i><span>Stock dormido</span><strong>Capital</strong></div>
                 </div>
-                <div class="dashboard-flow">
-                    <span>Venta</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span>Cobro</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span>Stock</span>
-                    <i class="bi bi-arrow-right"></i>
-                    <span>Cierre</span>
+                <div class="ai-recommendation">
+                    <i class="bi bi-lightning-charge"></i>
+                    <span>Recomendación IA: corregir precios rezagados, reponer productos de alta rotación y liquidar inventario detenido.</span>
                 </div>
+            </div>
+        </section>
+
+        <section class="landing-section contrast-section">
+            <div class="section-heading">
+                <span>La diferencia clave</span>
+                <h2>Un ERP tradicional registra. Un ERP inteligente interpreta y recomienda.</h2>
+                <p>
+                    La ferretería no necesita solo guardar datos: necesita saber qué significan esos datos.
+                    Cimentia ERP está pensado para pasar del registro operativo al análisis accionable.
+                </p>
+            </div>
+            <div class="contrast-grid">
+                <article class="contrast-card muted">
+                    <div class="contrast-label">ERP tradicional</div>
+                    <h3>Guarda la operación</h3>
+                    <ul>
+                        <li>Registra ventas, productos y caja.</li>
+                        <li>Muestra listados para revisar manualmente.</li>
+                        <li>Depende de que alguien detecte el problema.</li>
+                        <li>Entrega datos, pero no siempre una decisión clara.</li>
+                    </ul>
+                </article>
+                <article class="contrast-card featured">
+                    <div class="contrast-label">ERP con IA</div>
+                    <h3>Lee el negocio y propone acciones</h3>
+                    <ul>
+                        <li>Detecta quiebres antes de perder ventas.</li>
+                        <li>Advierte precios con margen bajo o rezagado.</li>
+                        <li>Identifica capital detenido en stock sin rotación.</li>
+                        <li>Prioriza compras, traslados y correcciones operativas.</li>
+                    </ul>
+                </article>
             </div>
         </section>
 
         <section class="landing-section" id="modulos">
             <div class="section-heading">
                 <span>Módulos principales</span>
-                <h2>Diseñado para operar la ferretería completa y dejar evidencia.</h2>
+                <h2>Una plataforma sólida para controlar la operación completa.</h2>
             </div>
             <div class="module-grid">
                 <article class="module-card">
-                    <i class="bi bi-cart-check"></i>
+                    <i class="bi bi-upc-scan"></i>
                     <h3>Punto de venta</h3>
-                    <p>Emisión de vales, búsqueda por código de barras, clientes identificados y flujo de cobro en caja.</p>
+                    <p>Ventas rápidas con lector de código de barras, vales pendientes, clientes identificados, pago en caja y trazabilidad del documento.</p>
                 </article>
                 <article class="module-card">
                     <i class="bi bi-cash-coin"></i>
-                    <h3>Caja y arqueo</h3>
-                    <p>Apertura, movimientos, cobros, cierres, historial mensual y tickets reimprimibles.</p>
+                    <h3>Caja inteligente</h3>
+                    <p>Apertura, cobros, egresos, cierres, diferencias, arqueo mensual y tickets reimprimibles para control financiero diario.</p>
                 </article>
                 <article class="module-card">
-                    <i class="bi bi-box-seam"></i>
-                    <h3>Inventario</h3>
-                    <p>Stock por tienda y bodega, kardex, stock crítico, productos activos y consulta pública.</p>
+                    <i class="bi bi-diagram-3"></i>
+                    <h3>Inventario multi-almacén</h3>
+                    <p>Control de tienda, bodega, stock crítico, kardex, ubicación física y diferencias entre stock maestro y almacenes.</p>
                 </article>
                 <article class="module-card">
-                    <i class="bi bi-arrow-repeat"></i>
+                    <i class="bi bi-arrow-left-right"></i>
                     <h3>Cambios y devoluciones</h3>
-                    <p>Devoluciones parciales, reingreso a stock, compensaciones y saldo a favor del cliente.</p>
+                    <p>Devoluciones parciales, reingreso visual a stock, compensación de diferencias, efectivo devuelto y saldo a favor del cliente.</p>
                 </article>
                 <article class="module-card">
-                    <i class="bi bi-people"></i>
-                    <h3>Clientes y créditos</h3>
-                    <p>Control de deuda, cupos, saldos a favor y cartolas para seguimiento comercial.</p>
+                    <i class="bi bi-person-vcard"></i>
+                    <h3>Clientes, créditos y saldos</h3>
+                    <p>Deuda vigente, cupos, cartolas, abonos, historial comercial y saldos a favor disponibles directamente en el POS.</p>
                 </article>
                 <article class="module-card">
-                    <i class="bi bi-graph-up-arrow"></i>
-                    <h3>BI y gerencia</h3>
-                    <p>Reportes por rango, panel dueño, revisión de precios, salud de inventario y alertas operativas.</p>
+                    <i class="bi bi-stars"></i>
+                    <h3>BI e inteligencia artificial</h3>
+                    <p>Paneles de venta, margen, precios, stock crítico, salud de inventario y sugerencias inteligentes de abastecimiento.</p>
                 </article>
             </div>
         </section>
 
         <section class="landing-section decision-section" id="decision">
             <div class="section-heading">
-                <span>Qué decisiones permite tomar</span>
-                <h2>Del mostrador al informe de gerencia.</h2>
+                <span>Decisiones en tiempo real</span>
+                <h2>El informe que realmente le interesa a quien dirige la ferretería.</h2>
                 <p>
-                    El sistema no solo registra ventas. Ordena la información para responder preguntas que
-                    normalmente quedan repartidas entre cuadernos, planillas, memoria del vendedor y arqueos manuales.
+                    La capa inteligente convierte la operación diaria en preguntas concretas: dónde está el dinero,
+                    qué productos sostienen la venta, qué inventario está dormido y qué errores pueden estar afectando la rentabilidad.
                 </p>
             </div>
             <div class="decision-grid">
                 <article class="decision-card">
-                    <div class="decision-icon"><i class="bi bi-person-badge"></i></div>
-                    <h3>Dueño</h3>
-                    <p>Puede ver ventas del período, ticket promedio, deuda de clientes, caja acumulada, diferencias de arqueo y productos que inmovilizan capital.</p>
+                    <div class="decision-icon"><i class="bi bi-piggy-bank"></i></div>
+                    <h3>Capital atrapado en inventario</h3>
+                    <p>Detecta productos con stock, bajo movimiento y dinero detenido. Ayuda a decidir liquidaciones, promociones o redistribución entre tienda y bodega.</p>
                     <ul>
-                        <li>¿Cuánto vendí realmente este mes?</li>
-                        <li>¿Dónde se está yendo el efectivo?</li>
-                        <li>¿Qué familias conviene potenciar?</li>
+                        <li>Qué productos ocupan capital sin rotar.</li>
+                        <li>Qué familias tienen exceso de stock.</li>
+                        <li>Qué mercadería conviene transformar en caja.</li>
                     </ul>
                 </article>
                 <article class="decision-card">
-                    <div class="decision-icon"><i class="bi bi-briefcase"></i></div>
-                    <h3>Gerente</h3>
-                    <p>Puede cruzar ventas, márgenes, stock crítico, precios y abastecimiento para priorizar compras y corregir categorías.</p>
+                    <div class="decision-icon"><i class="bi bi-graph-down-arrow"></i></div>
+                    <h3>Fuga de margen y precios rezagados</h3>
+                    <p>Compara costos, precios de venta, mayoreo y margen objetivo para descubrir productos que se venden, pero no están dejando la utilidad esperada.</p>
                     <ul>
-                        <li>¿Qué productos están por quebrar stock?</li>
-                        <li>¿Qué precios requieren revisión?</li>
-                        <li>¿Qué comprar primero para no frenar ventas?</li>
+                        <li>Qué precios requieren revisión.</li>
+                        <li>Qué productos venden mucho y rentan poco.</li>
+                        <li>Qué ajustes pueden mejorar utilidad sin frenar venta.</li>
                     </ul>
                 </article>
                 <article class="decision-card">
-                    <div class="decision-icon"><i class="bi bi-clipboard-check"></i></div>
-                    <h3>Administrador</h3>
-                    <p>Puede controlar la operación diaria: vales pendientes, cierres, devoluciones, saldos a favor, créditos y movimientos de caja.</p>
+                    <div class="decision-icon"><i class="bi bi-activity"></i></div>
+                    <h3>Riesgo operacional diario</h3>
+                    <p>Relaciona caja, devoluciones, créditos, saldos a favor y stock para mostrar inconsistencias antes de que se conviertan en pérdida o desorden administrativo.</p>
                     <ul>
-                        <li>¿Qué vale falta cobrar?</li>
-                        <li>¿Qué devolución afectó stock o caja?</li>
-                        <li>¿Qué cliente tiene deuda o saldo a favor?</li>
+                        <li>Qué cierres tienen diferencia.</li>
+                        <li>Qué devoluciones impactaron efectivo o stock.</li>
+                        <li>Qué créditos y saldos requieren seguimiento.</li>
                     </ul>
                 </article>
+            </div>
+            <div class="owner-insight">
+                <div>
+                    <span>Lectura ejecutiva</span>
+                    <strong>“Estos son los 5 problemas que más afectan tu caja esta semana.”</strong>
+                </div>
+                <p>
+                    Esa es la diferencia frente a un ERP tradicional: no obliga al propietario a buscar entre reportes;
+                    le entrega un diagnóstico priorizado para decidir compras, precios, caja e inventario.
+                </p>
             </div>
         </section>
 
         <section class="landing-section bi-section" id="bi">
             <div class="section-heading">
-                <span>BI, informes y alertas</span>
-                <h2>Indicadores para gestionar antes de que el problema llegue a caja.</h2>
+                <span>ERP inteligente</span>
+                <h2>BI, alertas e inteligencia artificial para anticiparse.</h2>
             </div>
             <div class="bi-layout">
                 <div class="bi-board">
@@ -218,23 +244,137 @@
                         <i class="bi bi-exclamation-octagon"></i>
                         <div>
                             <strong>Alertas de inventario</strong>
-                            <p>Stock crítico, diferencias entre maestro y almacenes, productos en bodega que deben moverse a tienda.</p>
+                            <p>Quiebres próximos, diferencias entre maestro y almacenes, productos en bodega que deberían moverse a tienda.</p>
                         </div>
                     </article>
                     <article>
                         <i class="bi bi-currency-dollar"></i>
                         <div>
                             <strong>Alertas comerciales</strong>
-                            <p>Créditos pendientes, saldos a favor, precios bajo margen y productos con alto movimiento.</p>
+                            <p>Créditos pendientes, saldos a favor, precios bajo margen y productos con alta rotación que requieren protección de margen.</p>
                         </div>
                     </article>
                     <article>
-                        <i class="bi bi-receipt-cutoff"></i>
+                        <i class="bi bi-robot"></i>
                         <div>
-                            <strong>Informes operacionales</strong>
-                            <p>Cierres de caja mensuales, tickets reimprimibles, cambios/devoluciones y movimientos de efectivo.</p>
+                            <strong>IA para la nueva versión</strong>
+                            <p>Sugerencias de compra, predicción de demanda, revisión de precios y priorización de productos críticos.</p>
                         </div>
                     </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="landing-section predictive-section" id="predictivo">
+            <div class="section-heading">
+                <span>Escenarios predictivos con IA</span>
+                <h2>No esperes al cierre de mes para descubrir el problema.</h2>
+                <p>
+                    Cimentia proyecta escenarios antes de que afecten tu caja, stock o margen. La IA no solo muestra
+                    lo que pasó: anticipa riesgos, estima impacto y recomienda la siguiente acción comercial.
+                </p>
+            </div>
+            <div class="predictive-layout">
+                <div class="scenario-console">
+                    <div class="scenario-console-top">
+                        <div>
+                            <small>Simulador IA</small>
+                            <strong>Próximos 30 días</strong>
+                        </div>
+                        <span>Predicción activa</span>
+                    </div>
+                    <div class="scenario-main">
+                        <div>
+                            <small>Riesgo principal</small>
+                            <strong>Quiebre de stock probable</strong>
+                            <p>Si la venta de alta rotación continúa al ritmo actual, 23 productos podrían agotarse antes del próximo ciclo de compra.</p>
+                        </div>
+                        <div class="scenario-score">
+                            <span>82%</span>
+                            <small>confianza IA</small>
+                        </div>
+                    </div>
+                    <div class="scenario-kpis">
+                        <div><small>Ventas proyectadas</small><strong>+18%</strong></div>
+                        <div><small>Compra sugerida</small><strong>$ 1,8M</strong></div>
+                        <div><small>Capital dormido</small><strong>$ 2,4M</strong></div>
+                        <div><small>Margen en riesgo</small><strong>14 SKUs</strong></div>
+                    </div>
+                    <div class="scenario-action">
+                        <i class="bi bi-magic"></i>
+                        <span>Acción recomendada: reponer productos de alta rotación, ajustar precios rezagados y liquidar inventario detenido.</span>
+                    </div>
+                </div>
+
+                <div class="scenario-list">
+                    <article>
+                        <i class="bi bi-box-seam"></i>
+                        <div>
+                            <strong>Quiebre de stock probable</strong>
+                            <p>“Si la demanda sigue igual, quedarás sin stock en 9 días.”</p>
+                        </div>
+                    </article>
+                    <article>
+                        <i class="bi bi-cart-check"></i>
+                        <div>
+                            <strong>Compra sugerida inteligente</strong>
+                            <p>“Compra lo necesario para cubrir demanda sin sobrecargar bodega.”</p>
+                        </div>
+                    </article>
+                    <article>
+                        <i class="bi bi-graph-down-arrow"></i>
+                        <div>
+                            <strong>Margen en riesgo</strong>
+                            <p>“Estos productos venden, pero están perdiendo utilidad por costos desactualizados.”</p>
+                        </div>
+                    </article>
+                    <article>
+                        <i class="bi bi-shield-exclamation"></i>
+                        <div>
+                            <strong>Patrones irregulares de caja</strong>
+                            <p>“Los cierres de viernes muestran diferencias superiores al promedio.”</p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="landing-section demo-ai-section" id="diagnostico">
+            <div class="demo-ai-card">
+                <div class="demo-ai-copy">
+                    <span class="landing-eyebrow">Solicitar demo con IA</span>
+                    <h2>Antes de contactarte, Cimentia prepara un diagnóstico de tu ferretería.</h2>
+                    <p>
+                        En 60 segundos el asistente identifica tu principal dolor operacional y arma un mensaje de WhatsApp
+                        con contexto real: tipo de negocio, prioridad, usuarios estimados y escenario predictivo de interés.
+                    </p>
+                    <div class="demo-ai-points">
+                        <span><i class="bi bi-check2-circle"></i> Sin formulario largo</span>
+                        <span><i class="bi bi-check2-circle"></i> Mensaje automático a WhatsApp</span>
+                        <span><i class="bi bi-check2-circle"></i> Demo preparada según tu operación</span>
+                    </div>
+                </div>
+                <div class="ai-demo-widget" data-ai-demo-widget>
+                    <div class="ai-demo-header">
+                        <div>
+                            <small>Asistente Cimentia AI</small>
+                            <strong>Diagnóstico express</strong>
+                        </div>
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div class="ai-demo-progress"><span data-ai-progress></span></div>
+                    <div class="ai-demo-chat" data-ai-chat></div>
+                    <div class="ai-demo-options" data-ai-options></div>
+                    <div class="ai-demo-fields d-none" data-ai-fields>
+                        <input type="text" class="form-control" data-ai-name placeholder="Tu nombre">
+                        <input type="text" class="form-control" data-ai-company placeholder="Nombre de la ferretería">
+                        <input type="tel" class="form-control" data-ai-phone placeholder="WhatsApp de contacto">
+                        <div class="ai-demo-feedback d-none" data-ai-feedback></div>
+                        <button type="button" class="btn btn-warning w-100" data-ai-whatsapp>
+                            <i class="bi bi-whatsapp"></i> Enviar diagnóstico por WhatsApp
+                        </button>
+                        <small>Se abrirá WhatsApp con el mensaje preparado. Puedes editarlo antes de enviarlo.</small>
+                    </div>
                 </div>
             </div>
         </section>
@@ -242,10 +382,10 @@
         <section class="landing-section landing-split" id="beneficios">
             <div>
                 <span class="landing-eyebrow">Para vender con control</span>
-                <h2>Menos planillas, más control y mejores decisiones.</h2>
+                <h2>Un sistema que transmite orden, trazabilidad y experiencia operativa.</h2>
                 <p>
-                    El objetivo del ERP es que cada venta, devolución, ingreso de stock y cierre de caja
-                    quede conectado. Así el dueño puede revisar la operación sin depender de registros sueltos.
+                    Cada venta, devolución, ingreso de stock y cierre de caja queda conectado. La ferretería deja de depender
+                    de registros aislados y comienza a operar con información confiable para ventas, administración y gerencia.
                 </p>
                 <div class="benefit-list">
                     <span><i class="bi bi-shield-check"></i> Control de caja diario</span>
@@ -255,37 +395,42 @@
                 </div>
             </div>
             <div class="landing-note-card">
-                <h3>Ideal para demostraciones comerciales</h3>
+                <h3>Implementación orientada a ferreterías reales</h3>
                 <p>
-                    Esta instalación ya cuenta con datos demo para recorrer ventas, productos,
-                    clientes, caja, devoluciones, BI, alertas y reportes con una experiencia más realista.
+                    El flujo está pensado para operación de mostrador, administración de caja,
+                    inventario de tienda/bodega y lectura ejecutiva del negocio.
                 </p>
-                <a href="{{ url_for('catalogo_publico') }}" class="btn btn-warning">
-                    Explorar catálogo público
-                </a>
+                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#loginModal">
+                    Entrar a la demo privada
+                </button>
             </div>
         </section>
 
         <section class="landing-cta">
-            <h2>Conoce el ERP como lo usaría una ferretería real.</h2>
-            <p>Recorre POS, inventario, caja, devoluciones, BI, alertas y reportes desde una demo con datos cargados.</p>
+            <h2>Cimentia ERP transforma datos operativos en escenarios predictivos.</h2>
+            <p>Solicita una demo con diagnóstico IA y recibe una lectura inicial de los riesgos que podrían afectar caja, stock y margen.</p>
             <div class="landing-actions justify-content-center">
-                <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
-                    Iniciar sesión ERP
+                <button type="button" class="btn btn-warning btn-lg" data-open-ai-demo>
+                    Solicitar diagnóstico IA
                 </button>
-                <a href="{{ url_for('catalogo_publico') }}" class="btn btn-outline-light btn-lg">
-                    Catálogo público
-                </a>
+                <button type="button" class="btn btn-outline-light btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
+                    Acceso demo privado
+                </button>
             </div>
         </section>
     </main>
+
+    <button type="button" class="ai-floating-demo" data-open-ai-demo aria-label="Solicitar demo con IA">
+        <i class="bi bi-stars"></i>
+        <span>Demo IA</span>
+    </button>
 
     <!-- MODAL DE LOGIN SOBRIO -->
     <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg">
                 <div class="modal-header border-0">
-                    <h5 class="modal-title w-100 text-center text-white">ACCESO AL SISTEMA</h5>
+                    <h5 class="modal-title w-100 text-center text-white">ACCESO A CIMENTIA ERP</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4 text-start">
@@ -304,17 +449,174 @@
                     </form>
                 </div>
                 <div class="modal-footer border-0 justify-content-center">
-                    <small class="text-muted opacity-75">Sistema ERP v2.0 - {{ empresa_cfg.nombre_comercial }}</small>
+                    <small class="text-muted opacity-75">Cimentia ERP · Demo {{ empresa_cfg.nombre_comercial }}</small>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="index-footer landing-footer">
-        © 2026 {{ empresa_cfg.nombre_comercial }}{% if empresa_cfg.eslogan %} {{ empresa_cfg.eslogan }}{% endif %} · ERP demo comercial
+        © 2026 Cimentia ERP · Decisiones inteligentes para ferreterías con IA
     </div>
 
     <!-- Bootstrap JS Local -->
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    <script>
+        (() => {
+            const whatsappNumber = ("{{ (empresa_cfg.telefono or '') | e }}").replace(/\D/g, "");
+            const steps = [
+                {
+                    key: "tipo",
+                    question: "¿Qué tipo de ferretería quieres controlar con IA?",
+                    options: ["Ferretería tradicional", "Materiales de construcción", "Eléctrica / industrial", "Mixta con bodega"]
+                },
+                {
+                    key: "prioridad",
+                    question: "¿Qué área te gustaría mejorar primero?",
+                    options: ["Inventario y quiebres", "Caja y arqueos", "Margen y precios", "Compras y abastecimiento"]
+                },
+                {
+                    key: "usuarios",
+                    question: "¿Cuántos usuarios o cajas operarían el ERP?",
+                    options: ["1 a 3", "4 a 8", "9 a 15", "Más de 15"]
+                },
+                {
+                    key: "prediccion",
+                    question: "¿Qué escenario predictivo te interesa ver en la demo?",
+                    options: ["Quiebre de stock", "Compra sugerida", "Margen en riesgo", "Caja con patrones irregulares"]
+                }
+            ];
+
+            const state = {};
+            let currentStep = 0;
+            const chat = document.querySelector("[data-ai-chat]");
+            const options = document.querySelector("[data-ai-options]");
+            const progress = document.querySelector("[data-ai-progress]");
+            const fields = document.querySelector("[data-ai-fields]");
+            const nameInput = document.querySelector("[data-ai-name]");
+            const companyInput = document.querySelector("[data-ai-company]");
+            const phoneInput = document.querySelector("[data-ai-phone]");
+            const whatsappButton = document.querySelector("[data-ai-whatsapp]");
+            const feedback = document.querySelector("[data-ai-feedback]");
+
+            function addMessage(text, type = "bot") {
+                if (!chat) return;
+                const bubble = document.createElement("div");
+                bubble.className = `ai-message ${type}`;
+                bubble.textContent = text;
+                chat.appendChild(bubble);
+                chat.scrollTop = chat.scrollHeight;
+            }
+
+            function updateProgress() {
+                if (!progress) return;
+                const pct = Math.min(100, Math.round((currentStep / steps.length) * 100));
+                progress.style.width = `${pct}%`;
+            }
+
+            function renderStep() {
+                if (!options || !fields) return;
+                options.innerHTML = "";
+                updateProgress();
+                const step = steps[currentStep];
+                if (!step) {
+                    progress.style.width = "100%";
+                    addMessage("Perfecto. Con esto puedo preparar una demo enfocada en tu operación y sus escenarios predictivos.", "bot");
+                    fields.classList.remove("d-none");
+                    return;
+                }
+                addMessage(step.question, "bot");
+                step.options.forEach((option) => {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.textContent = option;
+                    btn.addEventListener("click", () => {
+                        state[step.key] = option;
+                        addMessage(option, "user");
+                        currentStep += 1;
+                        setTimeout(renderStep, 260);
+                    });
+                    options.appendChild(btn);
+                });
+            }
+
+            function buildMessage() {
+                const nombre = nameInput?.value?.trim() || "No informado";
+                const empresa = companyInput?.value?.trim() || "No informada";
+                const telefono = phoneInput?.value?.trim() || "No informado";
+                return [
+                    "Hola, quiero solicitar una demo de Cimentia ERP con enfoque en IA.",
+                    "",
+                    `Nombre: ${nombre}`,
+                    `Ferretería/empresa: ${empresa}`,
+                    `WhatsApp de contacto: ${telefono}`,
+                    `Tipo de negocio: ${state.tipo || "No definido"}`,
+                    `Prioridad: ${state.prioridad || "No definida"}`,
+                    `Usuarios o cajas: ${state.usuarios || "No definido"}`,
+                    `Escenario predictivo de interés: ${state.prediccion || "No definido"}`,
+                    "",
+                    "Me interesa ver cómo Cimentia puede anticipar riesgos de stock, caja, margen y compras."
+                ].join("\n");
+            }
+
+            function setFeedback(message) {
+                if (!feedback) return;
+                if (!message) {
+                    feedback.classList.add("d-none");
+                    feedback.textContent = "";
+                    return;
+                }
+                feedback.textContent = message;
+                feedback.classList.remove("d-none");
+            }
+
+            function fieldsReady() {
+                const nombre = nameInput?.value?.trim() || "";
+                const empresa = companyInput?.value?.trim() || "";
+                const telefono = (phoneInput?.value || "").replace(/\D/g, "");
+                return nombre.length >= 2 && empresa.length >= 2 && telefono.length >= 8;
+            }
+
+            function hasCompletedAssistant() {
+                return steps.every((step) => Boolean(state[step.key]));
+            }
+
+            function openAssistant() {
+                document.querySelector("#diagnostico")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+
+            document.querySelectorAll("[data-open-ai-demo]").forEach((btn) => {
+                btn.addEventListener("click", openAssistant);
+            });
+
+            whatsappButton?.addEventListener("click", () => {
+                if (!hasCompletedAssistant()) {
+                    setFeedback("Primero completa las 4 preguntas del asistente.");
+                    return;
+                }
+                if (!fieldsReady()) {
+                    setFeedback("Completa nombre, ferretería y un WhatsApp válido (mínimo 8 dígitos).");
+                    return;
+                }
+                setFeedback("");
+                const text = encodeURIComponent(buildMessage());
+                const target = whatsappNumber ? `https://wa.me/${whatsappNumber}?text=${text}` : `https://wa.me/?text=${text}`;
+                window.open(target, "_blank", "noopener");
+            });
+
+            [nameInput, companyInput, phoneInput].forEach((input) => {
+                input?.addEventListener("input", () => {
+                    if (fieldsReady()) {
+                        setFeedback("");
+                    }
+                });
+            });
+
+            if (chat && options) {
+                addMessage("Soy Cimentia AI. Haré 4 preguntas para preparar una demo más útil que un formulario tradicional.", "bot");
+                renderStep();
+            }
+        })();
+    </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERP {{ empresa_cfg.nombre_comercial }}</title>
+    <title>Cimentia ERP | {{ empresa_cfg.nombre_comercial }}</title>
        
     <!-- 1. Bootstrap (local, sin CDN) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
@@ -27,7 +27,13 @@
             <!-- Menú Lateral -->
             <nav class="col-md-2 app-sidebar d-none d-md-block">
                 <div class="app-sidebar-header">
-                    <h5 class="fw-bold m-0 text-white">SISTEMA <span style="color: var(--ds-primary);">ERP</span></h5>
+                    <div class="app-brand-lockup">
+                        <img src="{{ url_for('static', filename='img/cimentia-logo-definitivo-alpha.png') }}" alt="Cimentia ERP">
+                        <div class="app-brand-client">
+                            <span>Demo cliente</span>
+                            <strong>{{ empresa_cfg.nombre_comercial }}</strong>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Links del Menú -->
@@ -145,7 +151,11 @@
             <!-- Contenido Dinámico -->
             <main class="col-md-10 app-main">
                 <div class="app-topbar d-flex justify-content-between align-items-center">
-                    <div class="app-topbar-title">ERP {{ empresa_cfg.nombre_comercial }}</div>
+                    <div class="app-topbar-title">
+                        <span class="app-topbar-product">Cimentia ERP</span>
+                        <span class="app-topbar-separator">·</span>
+                        <span class="app-topbar-client">{{ empresa_cfg.nombre_comercial }}</span>
+                    </div>
                     <div class="d-flex align-items-center gap-2">
                         {% if request.endpoint != 'inicio' and request.args.get('from') == 'inicio' %}
                         <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-primary">

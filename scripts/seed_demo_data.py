@@ -1,0 +1,233 @@
+import random
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app import (
+    Almacen,
+    Caja,
+    Cliente,
+    ClienteSaldoFavor,
+    DetalleVenta,
+    MovimientoInventario,
+    MovimientoSaldoFavor,
+    Producto,
+    StockPorAlmacen,
+    Venta,
+    app,
+    db,
+)
+
+
+random.seed(20260507)
+
+CATEGORIAS = {
+    "Herramientas Manuales": ["Martillos", "Alicates", "Destornilladores", "Llaves", "Serruchos"],
+    "Herramientas Electricas": ["Taladros", "Esmeriles", "Sierras", "Lijadoras", "Rotomartillos"],
+    "Fijaciones": ["Tornillos", "Clavos", "Tarugos", "Pernos", "Abrazaderas"],
+    "Pinturas": ["Latex", "Esmaltes", "Barnices", "Brochas", "Rodillos"],
+    "Gasfiteria": ["PVC", "Llaves de paso", "Flexibles", "Sifones", "Sellos"],
+    "Electricidad": ["Cables", "Interruptores", "Enchufes", "Canaletas", "Ampolletas"],
+    "Construccion": ["Cemento", "Yeso", "Adhesivos", "Niveladores", "Aislantes"],
+    "Seguridad": ["Guantes", "Lentes", "Cascos", "Mascarillas", "Calzado"],
+    "Jardin": ["Mangueras", "Palas", "Rastrillos", "Regadores", "Tijeras"],
+    "Quincalleria": ["Bisagras", "Candados", "Cerraduras", "Rieles", "Soportes"],
+}
+ADJETIVOS = ["Profesional", "Reforzado", "Industrial", "Premium", "Estandar", "Heavy Duty", "Compacto", "Galvanizado", "Alta Resistencia", "Multiuso"]
+MARCAS = ["Santo Domingo", "Forte", "Maestro", "Kraft", "Andes", "Bauker Pro", "MetalTec", "HogarFix", "Nordic", "TotalPro"]
+COMUNAS = ["Santiago", "Providencia", "La Florida", "Maipu", "Puente Alto", "San Miguel", "Recoleta", "Quilicura", "Pudahuel", "Nunoa"]
+NOMBRES = ["Comercial Los Aromos", "Constructora El Roble", "Ferreteria San Jose", "Maestranza Central", "Servicios Integrales Norte", "Inversiones Santa Clara", "Muebles y Obras SPA", "Instalaciones del Sur", "Mantenciones Express", "Hogar y Obra Ltda"]
+
+
+def rut_demo(n):
+    cuerpo = 77000000 + n
+    suma = 0
+    multiplicador = 2
+    for digito in reversed(str(cuerpo)):
+        suma += int(digito) * multiplicador
+        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
+    resto = 11 - (suma % 11)
+    dv = "0" if resto == 11 else "K" if resto == 10 else str(resto)
+    return f"{cuerpo}-{dv}"
+
+
+def money(valor):
+    return float(int(round(valor / 10.0) * 10))
+
+
+def get_or_create_almacen(codigo, nombre):
+    almacen = Almacen.query.filter_by(codigo=codigo).first()
+    if almacen:
+        return almacen
+    almacen = Almacen(codigo=codigo, nombre=nombre, activo=True)
+    db.session.add(almacen)
+    db.session.flush()
+    return almacen
+
+
+def cargar_productos(tienda, bodega):
+    productos_creados = 0
+    existentes = {
+        p.codigo_interno
+        for p in Producto.query.filter(Producto.codigo_interno.like("DEMO-%")).all()
+        if p.codigo_interno
+    }
+    for i in range(1, 1501):
+        codigo = f"DEMO-{i:05d}"
+        if codigo in existentes:
+            continue
+        categoria = random.choice(list(CATEGORIAS.keys()))
+        subcategoria = random.choice(CATEGORIAS[categoria])
+        compra = money(random.randint(350, 85000))
+        venta = money(compra * random.uniform(1.28, 1.85))
+        stock_tienda = random.randint(4, 80)
+        stock_bodega = random.randint(10, 220)
+        producto = Producto(
+            nombre=f"{subcategoria} {random.choice(ADJETIVOS)} {random.choice(MARCAS)} {i}",
+            codigo_barra=f"7809{200000000 + i}",
+            codigo_interno=codigo,
+            codigo_chilemat=f"CHM-{i:06d}",
+            precio_compra=compra,
+            precio_venta=venta,
+            precio_mayoreo=money(venta * 0.9),
+            unidad="Unidad",
+            unidad_compra="Unidad",
+            unidad_venta="Unidad",
+            factor_conversion=1.0,
+            stock=stock_tienda + stock_bodega,
+            categoria=categoria,
+            subcategoria=subcategoria,
+            ubicacion_pasillo=f"P{random.randint(1, 18):02d}",
+            ubicacion_estante=f"E{random.randint(1, 12):02d}",
+            ubicacion_nivel=f"N{random.randint(1, 5):02d}",
+            activo=True,
+        )
+        db.session.add(producto)
+        db.session.flush()
+        db.session.merge(StockPorAlmacen(id_producto=producto.id, id_almacen=tienda.id, cantidad=stock_tienda))
+        db.session.merge(StockPorAlmacen(id_producto=producto.id, id_almacen=bodega.id, cantidad=stock_bodega))
+        db.session.add(MovimientoInventario(id_producto=producto.id, id_almacen=tienda.id, tipo_movimiento="ENTRADA", cantidad=stock_tienda, motivo="Carga inicial demo tienda", usuario="Demo ERP", referencia_tipo="demo", stock_saldo=stock_tienda))
+        db.session.add(MovimientoInventario(id_producto=producto.id, id_almacen=bodega.id, tipo_movimiento="ENTRADA", cantidad=stock_bodega, motivo="Carga inicial demo bodega", usuario="Demo ERP", referencia_tipo="demo", stock_saldo=stock_bodega))
+        productos_creados += 1
+        if productos_creados % 250 == 0:
+            db.session.commit()
+    db.session.commit()
+    return productos_creados
+
+
+def cargar_clientes():
+    clientes_creados = 0
+    ruts = {c.rut for c in Cliente.query.filter(Cliente.rut.like("77%")).all()}
+    for i in range(1, 201):
+        rut = rut_demo(i)
+        if rut in ruts:
+            continue
+        comuna = random.choice(COMUNAS)
+        cliente = Cliente(
+            rut=rut,
+            nombre=f"{random.choice(NOMBRES)} Demo {i:03d}",
+            giro=random.choice(["Ferreteria", "Construccion", "Mantencion", "Retail", "Servicios tecnicos"]),
+            direccion=f"Av. Demo {random.randint(100, 9900)}",
+            telefono=f"+569{random.randint(40000000, 99999999)}",
+            correo=f"cliente.demo{i:03d}@example.com",
+            comuna=comuna,
+            ciudad="Santiago",
+            saldo_deudor=money(random.choice([0, 0, 0, random.randint(25000, 450000)])),
+            limite_credito=money(random.randint(300000, 2500000)),
+            estado_credito="Activo",
+        )
+        db.session.add(cliente)
+        clientes_creados += 1
+    db.session.commit()
+    return clientes_creados
+
+
+def cargar_ventas(caja):
+    productos = Producto.query.filter(Producto.codigo_interno.like("DEMO-%")).all()
+    clientes = Cliente.query.filter(Cliente.rut.like("77%")).all()
+    ventas_existentes = Venta.query.filter_by(usuario="Demo ERP").count()
+    ventas_creadas = 0
+    for i in range(ventas_existentes + 1, 501):
+        fecha = datetime.now() - timedelta(days=random.randint(0, 89), hours=random.randint(0, 10), minutes=random.randint(0, 59))
+        cliente = random.choice(clientes) if random.random() < 0.72 else None
+        metodo = random.choices(["Efectivo", "Debito", "Credito"], weights=[55, 32, 13])[0]
+        estado = "Pendiente" if metodo == "Credito" and random.random() < 0.35 else "Pagado"
+        venta = Venta(
+            fecha=fecha,
+            usuario="Demo ERP",
+            estado=estado,
+            tipo_documento=random.choice(["Boleta", "Boleta", "Factura"]),
+            metodo_pago=metodo,
+            caja_id=caja.id,
+            cliente_id=cliente.id if cliente else None,
+            punto_retiro=random.choice(["Tienda", "Bodega"]),
+        )
+        db.session.add(venta)
+        db.session.flush()
+        total = 0
+        for producto in random.sample(productos, random.randint(1, 5)):
+            cantidad = random.randint(1, 6)
+            descuento = random.choice([0, 0, 0, 5, 10, 15])
+            subtotal = money(cantidad * float(producto.precio_venta or 0) * (1 - descuento / 100))
+            db.session.add(DetalleVenta(id_venta=venta.id, id_producto=producto.id, cantidad=cantidad, precio_unitario=float(producto.precio_venta or 0), descuento=descuento, subtotal=subtotal))
+            total += subtotal
+        venta.monto_total = float(round(total))
+        venta.desglosar_iva()
+        if estado == "Pagado":
+            venta.monto_recibido = venta.monto_total + random.choice([0, 0, 0, 1000, 5000, 10000])
+            venta.vuelto = max(0, venta.monto_recibido - venta.monto_total)
+        else:
+            venta.monto_recibido = 0
+            venta.vuelto = 0
+        ventas_creadas += 1
+        if ventas_creadas % 100 == 0:
+            db.session.commit()
+    db.session.commit()
+    return ventas_creadas
+
+
+def cargar_saldos_favor():
+    clientes = Cliente.query.filter(Cliente.rut.like("77%")).all()
+    saldos_creados = 0
+    for cliente in random.sample(clientes, min(35, len(clientes))):
+        existente = ClienteSaldoFavor.query.get(cliente.id)
+        if existente and existente.saldo > 0:
+            continue
+        saldo = money(random.randint(3000, 85000))
+        if existente:
+            existente.saldo = saldo
+        else:
+            db.session.add(ClienteSaldoFavor(cliente_id=cliente.id, saldo=saldo))
+        db.session.add(MovimientoSaldoFavor(cliente_id=cliente.id, cambio_id=None, tipo="CREDITO", monto=saldo, saldo_resultante=saldo, observacion="Saldo demo por devolucion comercial"))
+        saldos_creados += 1
+    db.session.commit()
+    return saldos_creados
+
+
+def main():
+    with app.app_context():
+        tienda = get_or_create_almacen("TIENDA", "Tienda")
+        bodega = get_or_create_almacen("BODEGA", "Bodega")
+        caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
+        if not caja:
+            caja = Caja(fecha_apertura=datetime.now() - timedelta(days=1), monto_inicial=100000, estado="Abierta", usuario_apertura="Demo ERP")
+            db.session.add(caja)
+            db.session.flush()
+
+        resumen = {
+            "productos_creados": cargar_productos(tienda, bodega),
+            "clientes_creados": cargar_clientes(),
+            "ventas_creadas": cargar_ventas(caja),
+            "saldos_creados": cargar_saldos_favor(),
+            "productos_demo_total": Producto.query.filter(Producto.codigo_interno.like("DEMO-%")).count(),
+            "clientes_demo_total": Cliente.query.filter(Cliente.rut.like("77%")).count(),
+            "ventas_demo_total": Venta.query.filter_by(usuario="Demo ERP").count(),
+            "clientes_saldo_favor_total": ClienteSaldoFavor.query.filter(ClienteSaldoFavor.saldo > 0).count(),
+        }
+        print(resumen)
+
+
+if __name__ == "__main__":
+    main()
