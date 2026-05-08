@@ -1156,6 +1156,44 @@ def stock_tienda_por_producto_ids(ids):
     return {p.id: int(p.stock or 0) for p in prods}
 
 
+def _stock_ui_producto(producto):
+    """Resumen consistente para vistas de inventario: maestro vs almacenes."""
+    total_maestro = int(producto.stock or 0)
+    if not producto or not _tablas_inventario_almacen_existen():
+        return {
+            'tienda': total_maestro,
+            'bodega': 0,
+            'total_almacenes': total_maestro,
+            'total_maestro': total_maestro,
+            'desajustado': False,
+        }
+    tid = id_almacen_tienda()
+    bid = id_almacen_bodega()
+    tienda = int(stock_producto_en_almacen(producto.id, tid) or 0) if tid else 0
+    bodega = int(stock_producto_en_almacen(producto.id, bid) or 0) if bid else 0
+    try:
+        total_almacenes = int(db.session.execute(
+            text("SELECT COALESCE(SUM(cantidad), 0) FROM stock_por_almacen WHERE id_producto = :p"),
+            {"p": int(producto.id)},
+        ).scalar() or 0)
+    except Exception:
+        db.session.rollback()
+        total_almacenes = total_maestro
+    return {
+        'tienda': tienda,
+        'bodega': bodega,
+        'total_almacenes': total_almacenes,
+        'total_maestro': total_maestro,
+        'desajustado': total_almacenes != total_maestro,
+    }
+
+
+def _adjuntar_stock_ui(productos):
+    for producto in productos or []:
+        producto.stock_ui = _stock_ui_producto(producto)
+    return productos
+
+
 def precio_efectivo_pos_producto(producto):
     """Precio unitario para POS y filtros: mayor entre precio_venta y precio_mayoreo."""
     if not producto:
@@ -3381,6 +3419,7 @@ def mostrar_productos():
         per_page=per_page,
         error_out=False
     )
+    _adjuntar_stock_ui(productos_pagination.items)
     return render_template(
         'productos.html',
         productos=productos_pagination.items,
@@ -3650,17 +3689,21 @@ def editar_precio_manual_revision(producto_id):
 @login_required
 def filtrar_productos(tipo):
     if tipo == "sin_stock":
-        productos = Producto.query.filter_by(stock=0).all()
+        productos = Producto.query.all()
     elif tipo == "activos":
         productos = Producto.query.filter_by(activo=True).all()
     elif tipo == "venta":
         productos = Producto.query.filter(
-            Producto.stock > 0,
             Producto.precio_venta > 0,
             Producto.activo == True
         ).all()
     else:
         productos = Producto.query.all()
+    _adjuntar_stock_ui(productos)
+    if tipo == "sin_stock":
+        productos = [p for p in productos if int((p.stock_ui or {}).get('tienda', p.stock or 0) or 0) <= 0]
+    elif tipo == "venta":
+        productos = [p for p in productos if int((p.stock_ui or {}).get('tienda', p.stock or 0) or 0) > 0]
     categorias = _categorias_filtro_lista()
     subcategorias = _subcategorias_filtro_legacy('')
     return render_template(
