@@ -60,6 +60,15 @@
                     <label class="form-label fw-bold">Email</label>
                     <input type="email" name="email" class="form-control">
                 </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Canal de compra</label>
+                    <select name="canal_compra" class="form-select">
+                        <option value="chilemat_portal">Chilemat Portal</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">Email</option>
+                        <option value="manual" selected>Manual</option>
+                    </select>
+                </div>
                 <div class="col-md-12 d-flex justify-content-end">
                     <button type="submit" class="btn btn-ds-primary btn-lg px-5 fw-bold shadow">
                         <i class="fas fa-save me-2"></i>GUARDAR PROVEEDOR
@@ -92,6 +101,7 @@
                         <th>Contacto</th>
                         <th>Teléfono</th>
                         <th>Email</th>
+                        <th>Canal compra</th>
                         <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -102,6 +112,18 @@
                         <td>{{ prov.contacto }}</td>
                         <td>{{ prov.telefono }}</td>
                         <td>{{ prov.email }}</td>
+                        <td>
+                            {% set canal = canales_compra_map.get(prov.id|string, 'manual') %}
+                            {% if canal == 'chilemat_portal' %}
+                              <span class="badge text-bg-primary">Chilemat Portal</span>
+                            {% elif canal == 'whatsapp' %}
+                              <span class="badge text-bg-success">WhatsApp</span>
+                            {% elif canal == 'email' %}
+                              <span class="badge text-bg-info">Email</span>
+                            {% else %}
+                              <span class="badge text-bg-secondary">Manual</span>
+                            {% endif %}
+                        </td>
                         <td class="text-center">
                             <button
                                 type="button"
@@ -111,6 +133,7 @@
                                 data-contacto="{{ prov.contacto or '' }}"
                                 data-telefono="{{ prov.telefono or '' }}"
                                 data-email="{{ prov.email or '' }}"
+                                data-canal-compra="{{ canales_compra_map.get(prov.id|string, 'manual') }}"
                                 data-bs-toggle="modal"
                                 data-bs-target="#editarProveedorModal">
                                 <i class="fas fa-edit"></i>
@@ -124,7 +147,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">No hay resultados con el filtro actual.</td>
+                        <td colspan="6" class="text-center text-muted py-4">No hay resultados con el filtro actual.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -171,6 +194,15 @@
             <label class="form-label fw-bold">Email</label>
             <input type="email" id="edit_email" name="email" class="form-control">
           </div>
+          <div class="mt-3">
+            <label class="form-label fw-bold">Canal de compra</label>
+            <select id="edit_canal_compra" name="canal_compra" class="form-select">
+              <option value="chilemat_portal">Chilemat Portal</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="email">Email</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -192,6 +224,7 @@ document.querySelectorAll('.btn-editar-proveedor').forEach(function (btn) {
     document.getElementById('edit_contacto').value = this.dataset.contacto || '';
     document.getElementById('edit_telefono').value = this.dataset.telefono || '';
     document.getElementById('edit_email').value = this.dataset.email || '';
+    document.getElementById('edit_canal_compra').value = this.dataset.canalCompra || 'manual';
   });
 });
 </script>

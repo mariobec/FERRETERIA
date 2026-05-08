@@ -21,11 +21,24 @@
         <input type="hidden" name="action" value="guardar_cabecera">
         <div class="col-md-4">
           <label class="form-label fw-semibold">Proveedor</label>
-          <select name="proveedor_id" class="form-select" required>
+          <select id="oc_proveedor_id_edit" name="proveedor_id" class="form-select" required>
             {% for p in proveedores %}
-            <option value="{{ p.id }}" {% if p.id == oc.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
+            {% set canal_p = (canales_compra_map.get(p.id|string, 'manual') if canales_compra_map is defined else 'manual') %}
+            <option value="{{ p.id }}" data-canal-compra="{{ canal_p }}" {% if p.id == oc.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
             {% endfor %}
           </select>
+          <div id="oc_canal_wrap_edit" class="mt-2 d-flex flex-wrap align-items-center gap-2">
+            <span class="badge text-bg-light border">
+              Canal de compra:
+              <strong id="oc_canal_badge_edit">Manual</strong>
+            </span>
+            <a id="oc_canal_cta_edit" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary d-none">
+              <i class="fas fa-external-link-alt me-1"></i><span id="oc_canal_cta_text_edit">Abrir canal</span>
+            </a>
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Este canal guía cómo registrar o enviar la OC al proveedor según su flujo habitual.">
+              <i class="fas fa-question-circle"></i>
+            </span>
+          </div>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-semibold">Número OC</label>
@@ -61,12 +74,14 @@
         {% endif %}
         <div class="col-md-4">
           <label class="form-label fw-semibold">Proveedor</label>
-          <select name="proveedor_id" class="form-select" required>
+          <select id="oc_proveedor_id" name="proveedor_id" class="form-select" required>
             <option value="">—</option>
             {% for p in proveedores %}
-            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% set canal_p = (canales_compra_map.get(p.id|string, 'manual') if canales_compra_map is defined else 'manual') %}
+            <option value="{{ p.id }}" data-canal-compra="{{ canal_p }}" {% if proveedor_sugerido_id and p.id == proveedor_sugerido_id %}selected{% endif %}>{{ p.nombre }}</option>
             {% endfor %}
           </select>
+          <small id="oc_canal_hint" class="text-muted d-block mt-1"></small>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-semibold">Número OC</label>
@@ -106,6 +121,9 @@
             {% endfor %}
             {% if sugerencias_multi|length > 6 %}
               <span class="text-muted">y {{ sugerencias_multi|length - 6 }} más…</span>
+            {% endif %}
+            {% if proveedor_sugerido_id %}
+              <br><small class="text-muted">Proveedor sugerido automáticamente según historial de compras de esos productos.</small>
             {% endif %}
           </div>
         </div>
@@ -193,6 +211,46 @@
 {% block extra_js %}
 {% if oc %}
 <script>
+  (() => {
+    const sel = document.getElementById('oc_proveedor_id_edit');
+    const badge = document.getElementById('oc_canal_badge_edit');
+    const cta = document.getElementById('oc_canal_cta_edit');
+    const ctaText = document.getElementById('oc_canal_cta_text_edit');
+    if (!sel || !badge || !cta || !ctaText) return;
+
+    const labels = {
+      chilemat_portal: 'Chilemat Portal',
+      whatsapp: 'WhatsApp',
+      email: 'Email',
+      manual: 'Manual',
+    };
+    const ctas = {
+      chilemat_portal: { text: 'Registrar en Chilemat', href: 'https://app.chilemat.cl/' },
+      whatsapp: { text: 'Enviar por WhatsApp', href: 'https://web.whatsapp.com/' },
+      email: { text: 'Enviar por Email', href: 'mailto:' },
+      manual: { text: '', href: '#' },
+    };
+
+    const paint = () => {
+      const opt = sel.options[sel.selectedIndex];
+      const canal = (opt?.dataset?.canalCompra || 'manual').toLowerCase();
+      const lbl = labels[canal] || labels.manual;
+      badge.textContent = lbl;
+
+      const cfg = ctas[canal] || ctas.manual;
+      if (cfg.text) {
+        ctaText.textContent = cfg.text;
+        cta.href = cfg.href;
+        cta.classList.remove('d-none');
+      } else {
+        cta.classList.add('d-none');
+      }
+    };
+
+    sel.addEventListener('change', paint);
+    paint();
+  })();
+
   $(function () {
     $("#ocProductoSelect").select2({
       theme: "bootstrap-5",
@@ -217,6 +275,28 @@
       }
     });
   });
+</script>
+{% endif %}
+{% if not oc %}
+<script>
+(() => {
+  const sel = document.getElementById('oc_proveedor_id');
+  const hint = document.getElementById('oc_canal_hint');
+  if (!sel || !hint) return;
+  const map = {
+    chilemat_portal: 'Canal sugerido: Chilemat Portal',
+    whatsapp: 'Canal sugerido: WhatsApp',
+    email: 'Canal sugerido: Email',
+    manual: 'Canal sugerido: Manual',
+  };
+  const paint = () => {
+    const opt = sel.options[sel.selectedIndex];
+    const canal = (opt?.dataset?.canalCompra || 'manual').toLowerCase();
+    hint.textContent = map[canal] || map.manual;
+  };
+  sel.addEventListener('change', paint);
+  paint();
+})();
 </script>
 {% endif %}
 {% endblock %}

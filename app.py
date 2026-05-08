@@ -523,6 +523,75 @@ def guardar_config_empresa(data):
     return cfg
 
 
+CANALES_COMPRA_VALIDOS = (
+    "chilemat_portal",
+    "whatsapp",
+    "email",
+    "manual",
+)
+
+
+def _ruta_config_proveedores():
+    carpeta_cfg = os.path.join(app.root_path, 'data')
+    os.makedirs(carpeta_cfg, exist_ok=True)
+    return os.path.join(carpeta_cfg, 'proveedores_config.json')
+
+
+def _cargar_config_proveedores():
+    ruta = _ruta_config_proveedores()
+    base = {"canales_compra": {}}
+    if not os.path.exists(ruta):
+        return base
+    try:
+        with open(ruta, 'r', encoding='utf-8') as f:
+            raw = json.load(f) or {}
+        if isinstance(raw, dict):
+            cc = raw.get("canales_compra", {})
+            if isinstance(cc, dict):
+                base["canales_compra"] = {str(k): str(v) for k, v in cc.items()}
+    except Exception:
+        return base
+    return base
+
+
+def _guardar_config_proveedores(cfg):
+    data = {"canales_compra": dict(cfg.get("canales_compra", {}))}
+    with open(_ruta_config_proveedores(), 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def obtener_canales_proveedor():
+    cfg = _cargar_config_proveedores()
+    return cfg.get("canales_compra", {})
+
+
+def canal_compra_proveedor(proveedor_id):
+    canales = obtener_canales_proveedor()
+    canal = str(canales.get(str(int(proveedor_id)), "manual")).strip().lower() if proveedor_id else "manual"
+    return canal if canal in CANALES_COMPRA_VALIDOS else "manual"
+
+
+def guardar_canal_compra_proveedor(proveedor_id, canal):
+    if not proveedor_id:
+        return
+    canal_norm = (str(canal or "manual").strip().lower() or "manual")
+    if canal_norm not in CANALES_COMPRA_VALIDOS:
+        canal_norm = "manual"
+    cfg = _cargar_config_proveedores()
+    cc = cfg.setdefault("canales_compra", {})
+    cc[str(int(proveedor_id))] = canal_norm
+    _guardar_config_proveedores(cfg)
+
+
+def eliminar_canal_compra_proveedor(proveedor_id):
+    if not proveedor_id:
+        return
+    cfg = _cargar_config_proveedores()
+    cc = cfg.setdefault("canales_compra", {})
+    cc.pop(str(int(proveedor_id)), None)
+    _guardar_config_proveedores(cfg)
+
+
 def modulo_activo(nombre_modulo):
     cfg = obtener_config_empresa()
     key = f"mod_{(nombre_modulo or '').strip().lower()}"
@@ -680,15 +749,49 @@ def validar_rut(rut: str) -> bool:
     except ValueError:
         return False
     # NUEVO: Decorador para obligar apertura de caja
+_ENDPOINTS_CAJA_ESTRICTA = {
+    # POS venta directa
+    'punto_venta',
+    'guardar_venta',
+    'agregar_producto_venta',
+    'eliminar_detalle',
+    'finalizar_venta',
+    'actualizar_item',
+    'pos_usuarios_autorizar_descuento',
+    # Caja operativa / cobranzas
+    'caja_pendientes',
+    'procesar_cobro_caja',
+    'anular_vale_caja',
+    'ver_ticket_cobro',
+    # Cambios
+    'caja_cambios',
+    'api_cambios_producto',
+    'api_cambios_buscar_venta',
+    'api_cambios_venta_detalle',
+    'ticket_cambio',
+    'caja_cambios_historial',
+    # Crédito (movimiento de dinero)
+    'registrar_abono',
+}
+
+
+def _endpoint_requiere_caja_activa():
+    ep = (request.endpoint or '').strip()
+    return ep in _ENDPOINTS_CAJA_ESTRICTA
+
+
 def caja_requerida(f):
     @wraps(f)
     @login_required
     def decorated_function(*args, **kwargs):
+        # Permite navegación general/reportes sin exigir apertura de caja.
+        if not _endpoint_requiere_caja_activa():
+            return f(*args, **kwargs)
         _asegurar_columnas_caja_cuadratura()
         # Buscamos si existe una caja que esté en estado 'Abierta'
         caja_activa = Caja.query.filter_by(estado='Abierta').order_by(Caja.id.desc()).first()
         if not caja_activa:
-            flash("⚠️ ACCESO RESTRINGIDO: Debe realizar la Apertura de Caja.", "warning")
+            flash("⚠️ Debe abrir caja para operar ventas/cobranza.", "warning")
             return redirect(url_for('abrir_caja'))
         # Si la caja abierta es de un día anterior, obligamos su cierre.
         fecha_apertura = caja_activa.fecha_apertura.date() if caja_activa.fecha_apertura else None
@@ -5117,6 +5220,7 @@ def mostrar_proveedores():
         error_out=False
     )
     proveedores = proveedores_pagination.items
+    canales_map = obtener_canales_proveedor()
 
     total_proveedores = Proveedor.query.count()
     proveedores_con_telefono = Proveedor.query.filter(Proveedor.telefono.isnot(None), Proveedor.telefono != '').count()
@@ -5125,6 +5229,8 @@ def mostrar_proveedores():
     return render_template(
         'provedores.html',
         proveedores=proveedores,
+        canales_compra_map=canales_map,
+        canales_compra_validos=CANALES_COMPRA_VALIDOS,
         proveedores_pagination=proveedores_pagination,
         q=q,
         per_page=per_page,
@@ -5140,6 +5246,7 @@ def guardar_proveedor():
     contacto = (request.form.get('contacto') or '').strip()
     telefono = (request.form.get('telefono') or '').strip()
     email = (request.form.get('email') or '').strip()
+    canal_compra = (request.form.get('canal_compra') or 'manual').strip().lower()
 
     if not nombre:
         flash("El nombre del proveedor es obligatorio.", "warning")
@@ -5153,6 +5260,7 @@ def guardar_proveedor():
     )
     db.session.add(nuevo_prov)
     db.session.commit()
+    guardar_canal_compra_proveedor(nuevo_prov.id, canal_compra)
     flash("Proveedor registrado correctamente.", "success")
     return redirect(url_for('mostrar_proveedores'))
 
@@ -5165,6 +5273,7 @@ def editar_proveedor(id):
     contacto = (request.form.get('contacto') or '').strip()
     telefono = (request.form.get('telefono') or '').strip()
     email = (request.form.get('email') or '').strip()
+    canal_compra = (request.form.get('canal_compra') or 'manual').strip().lower()
 
     if not nombre:
         flash("El nombre del proveedor es obligatorio.", "warning")
@@ -5175,6 +5284,7 @@ def editar_proveedor(id):
     prov.telefono = telefono or None
     prov.email = email or None
     db.session.commit()
+    guardar_canal_compra_proveedor(prov.id, canal_compra)
     flash("Proveedor actualizado correctamente.", "success")
     return redirect(url_for('mostrar_proveedores'))
 
@@ -5186,6 +5296,7 @@ def eliminar_proveedor(id):
     try:
         db.session.delete(prov)
         db.session.commit()
+        eliminar_canal_compra_proveedor(id)
         flash("Proveedor eliminado correctamente.", "success")
     except Exception as e:
         db.session.rollback()
@@ -7266,7 +7377,16 @@ def cerrar_caja():
     )
 
     # 2. Cálculos de VENTAS del turno
-    ventas = Venta.query.filter_by(caja_id=caja.id).all()
+    # Defensa ante datos demo/importados: consideramos solo movimientos desde la apertura.
+    apertura_turno = caja.fecha_apertura or datetime.min
+    ahora_turno = datetime.now()
+    ventas = (
+        Venta.query.filter(
+            Venta.caja_id == caja.id,
+            or_(Venta.fecha.is_(None), and_(Venta.fecha >= apertura_turno, Venta.fecha <= ahora_turno)),
+        )
+        .all()
+    )
 
     def _metodo_pago(v):
         return (v.metodo_pago or "").strip()
@@ -7284,12 +7404,25 @@ def cerrar_caja():
     
     # 3. Cálculos de ABONOS (Dinero de deudas cobrado hoy)
     # Importante: Esto suma dinero real a la caja
-    abonos_hoy = AbonoCredito.query.filter_by(caja_id=caja.id).all()
+    abonos_hoy = (
+        AbonoCredito.query.filter(
+            AbonoCredito.caja_id == caja.id,
+            or_(AbonoCredito.fecha.is_(None), and_(AbonoCredito.fecha >= apertura_turno, AbonoCredito.fecha <= ahora_turno)),
+        )
+        .all()
+    )
     total_abonos_efectivo = sum(a.monto_abono for a in abonos_hoy if a.metodo_pago == "Efectivo") or 0
     total_abonos_otros = sum(a.monto_abono for a in abonos_hoy if a.metodo_pago != "Efectivo") or 0
 
     # Cambios/devoluciones del turno: solo el efectivo pagado/devuelto afecta gaveta.
-    cambios_turno = CambioOperacion.query.filter_by(caja_id=caja.id).order_by(CambioOperacion.fecha.desc()).all()
+    cambios_turno = (
+        CambioOperacion.query.filter(
+            CambioOperacion.caja_id == caja.id,
+            or_(CambioOperacion.fecha.is_(None), and_(CambioOperacion.fecha >= apertura_turno, CambioOperacion.fecha <= ahora_turno)),
+        )
+        .order_by(CambioOperacion.fecha.desc())
+        .all()
+    )
     cambios_efectivo_recibido = sum(float(c.monto_pagado or 0) for c in cambios_turno) or 0
     cambios_efectivo_devuelto = sum(float(c.monto_devuelto_efectivo or 0) for c in cambios_turno) or 0
     cambios_saldo_generado = sum(float(c.saldo_generado or 0) for c in cambios_turno) or 0
@@ -9028,6 +9161,7 @@ def orden_compra_nueva():
         flash('Ejecute la migración sql/2026_05_03_ordenes_compra.sql', 'warning')
         return redirect(url_for('inicio'))
     proveedores = Proveedor.query.order_by(Proveedor.nombre).all()
+    canales_compra_map = obtener_canales_proveedor()
     producto_sugerido_id = request.values.get('producto_id_sugerido', type=int) or request.values.get('producto_id', type=int)
     producto_sugerido = Producto.query.get(producto_sugerido_id) if producto_sugerido_id else None
 
@@ -9058,6 +9192,28 @@ def orden_compra_nueva():
                     })
         except Exception:
             sugerencias_multi = []
+    proveedor_sugerido_id = None
+    if sugerencias_multi and _tablas_orden_compra_existen():
+        try:
+            ids_productos_ia = [s["producto"].id for s in sugerencias_multi if s.get("producto")]
+            if ids_productos_ia:
+                filas_prov = (
+                    db.session.query(OrdenCompra.proveedor_id, db.func.count(DetalleOrdenCompra.id))
+                    .join(DetalleOrdenCompra, DetalleOrdenCompra.orden_compra_id == OrdenCompra.id)
+                    .filter(
+                        OrdenCompra.proveedor_id.isnot(None),
+                        OrdenCompra.estado != 'Anulada',
+                        DetalleOrdenCompra.producto_id.in_(ids_productos_ia),
+                    )
+                    .group_by(OrdenCompra.proveedor_id)
+                    .order_by(db.func.count(DetalleOrdenCompra.id).desc(), OrdenCompra.proveedor_id.asc())
+                    .all()
+                )
+                if filas_prov:
+                    proveedor_sugerido_id = int(filas_prov[0][0])
+        except Exception:
+            proveedor_sugerido_id = None
+
     if request.method == 'POST':
         prov_id = request.form.get('proveedor_id', type=int)
         numero = (request.form.get('numero') or '').strip()[:50]
@@ -9066,24 +9222,28 @@ def orden_compra_nueva():
             return render_template(
                 'orden_compra_form.html',
                 proveedores=proveedores,
+                canales_compra_map=canales_compra_map,
                 oc=None,
                 estados=_OC_ESTADOS_VALIDOS,
                 hoy=datetime.now().strftime('%Y-%m-%d'),
                 producto_sugerido=producto_sugerido,
                 sugerencias_multi=sugerencias_multi,
                 sugerencias_payload=sugerencias_payload_raw,
+                proveedor_sugerido_id=proveedor_sugerido_id,
             )
         if OrdenCompra.query.filter_by(proveedor_id=prov_id, numero=numero).first():
             flash('Ya existe una orden con ese número para el proveedor.', 'warning')
             return render_template(
                 'orden_compra_form.html',
                 proveedores=proveedores,
+                canales_compra_map=canales_compra_map,
                 oc=None,
                 estados=_OC_ESTADOS_VALIDOS,
                 hoy=datetime.now().strftime('%Y-%m-%d'),
                 producto_sugerido=producto_sugerido,
                 sugerencias_multi=sugerencias_multi,
                 sugerencias_payload=sugerencias_payload_raw,
+                proveedor_sugerido_id=proveedor_sugerido_id,
             )
         try:
             fecha_e = datetime.strptime((request.form.get('fecha_emision') or '').strip(), '%Y-%m-%d').date()
@@ -9100,6 +9260,13 @@ def orden_compra_nueva():
             observacion=(request.form.get('observacion') or '').strip()[:500] or None,
             usuario_creador=(current_user.nombre if current_user.is_authenticated else None),
         )
+        if sugerencias_multi:
+            marca_ia = f"[IA] Selección asistida ({len(sugerencias_multi)} SKU) {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            obs_prev = (oc.observacion or '').strip()
+            if obs_prev:
+                oc.observacion = f"{obs_prev} | {marca_ia}"[:500]
+            else:
+                oc.observacion = marca_ia[:500]
         db.session.add(oc)
         db.session.flush()
         if producto_sugerido:
@@ -9130,12 +9297,14 @@ def orden_compra_nueva():
     return render_template(
         'orden_compra_form.html',
         proveedores=proveedores,
+        canales_compra_map=canales_compra_map,
         oc=None,
         estados=_OC_ESTADOS_VALIDOS,
         hoy=datetime.now().strftime('%Y-%m-%d'),
         producto_sugerido=producto_sugerido,
         sugerencias_multi=sugerencias_multi,
         sugerencias_payload=sugerencias_payload_raw,
+        proveedor_sugerido_id=proveedor_sugerido_id,
     )
 
 
@@ -9152,6 +9321,8 @@ def orden_compra_editar(oid):
         ).get_or_404(oid)
     )
     proveedores = Proveedor.query.order_by(Proveedor.nombre).all()
+    canales_compra_map = obtener_canales_proveedor()
+    canal_oc = canal_compra_proveedor(oc.proveedor_id) if oc.proveedor_id else "manual"
     if request.method == 'POST':
         act = (request.form.get('action') or '').strip()
         try:
@@ -9227,6 +9398,8 @@ def orden_compra_editar(oid):
     return render_template(
         'orden_compra_form.html',
         proveedores=proveedores,
+        canales_compra_map=canales_compra_map,
+        canal_oc=canal_oc,
         oc=oc,
         estados=_OC_ESTADOS_VALIDOS,
         total_estimado=total_estimado,

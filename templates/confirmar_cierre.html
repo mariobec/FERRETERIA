@@ -14,6 +14,8 @@
 
 {% block content %}
 <div class="closure-card bg-white">
+    {% set ventas_cobradas_dia = (total_efectivo or 0) + (total_debito or 0) + (total_transferencia or 0) %}
+    {% set ventas_comerciales_dia = (gran_total_ventas or 0) %}
     <div class="summary-header">
         <h3 class="fw-bold m-0">Resumen de Cierre</h3>
         <p class="small text-muted mb-0">Caja #{{ caja.id }} - {{ caja.usuario_apertura }}</p>
@@ -62,10 +64,10 @@
         </div>
 
         <div class="summary-item">
-            <span><i class="fas fa-file-invoice-dollar me-2 text-danger"></i>Ventas (Crédito / cartera)</span>
-            <span class="fw-bold text-danger">$ {{ "{:,.0f}".format(total_fiado).replace(",", ".") }}</span>
+            <span><i class="fas fa-file-invoice-dollar me-2 text-warning"></i>Ventas (Crédito / cartera) <span class="badge text-bg-light border ms-1">Informativo</span></span>
+            <span class="fw-bold text-warning">$ {{ "{:,.0f}".format(total_fiado).replace(",", ".") }}</span>
         </div>
-        <p class="small text-muted mb-0">El crédito no suma efectivo en gaveta; queda como cartera del cliente.</p>
+        <p class="small text-muted mb-0">Este monto no entra a gaveta: se registra como cartera por cobrar del cliente.</p>
 
         <div class="summary-item">
             <span><i class="fas fa-rotate me-2 text-success"></i>Cambios: diferencia pagada</span>
@@ -98,7 +100,9 @@
         </div>
         
         <div class="text-center mt-3">
-            <p class="text-muted small">Ventas Totales del Día: <strong>$ {{ "{:,.0f}".format(gran_total_ventas).replace(",", ".") }}</strong></p>
+            <p class="text-muted small mb-1">Ventas del día (comercial, incluye crédito/cartera): <strong>$ {{ "{:,.0f}".format(ventas_comerciales_dia).replace(",", ".") }}</strong></p>
+            <p class="text-muted small mb-1">Ingresos cobrados del día (realmente pagado): <strong>$ {{ "{:,.0f}".format(ventas_cobradas_dia).replace(",", ".") }}</strong></p>
+            <p class="text-muted small mb-0">Para cuadratura manda solo el bloque <strong>Efectivo esperado en gaveta</strong>.</p>
         </div>
 
         {% if ventas_turno %}
