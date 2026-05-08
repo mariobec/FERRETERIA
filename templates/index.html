@@ -22,6 +22,8 @@
         </a>
         <nav class="landing-nav-links">
             <a href="#modulos">Módulos</a>
+            <a href="#decision">Decisiones</a>
+            <a href="#bi">BI y alertas</a>
             <a href="#beneficios">Beneficios</a>
             <a href="{{ url_for('catalogo_publico') }}">Catálogo</a>
             <button type="button" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#loginModal">
@@ -34,10 +36,11 @@
         <section class="landing-hero">
             <div class="landing-hero-copy">
                 <span class="landing-eyebrow">ERP ferretero en la nube</span>
-                <h1>Ventas, caja, inventario y devoluciones en un solo sistema.</h1>
+                <h1>Controla tu ferretería y decide con datos reales.</h1>
                 <p>
-                    Una plataforma pensada para ferreterías que necesitan controlar el punto de venta,
-                    el stock por almacén, los clientes, los créditos y los cierres de caja sin perder trazabilidad.
+                    Un ERP diseñado para ferreterías que necesitan vender rápido, cuadrar caja,
+                    controlar stock por almacén y convertir la operación diaria en indicadores para el dueño,
+                    la gerencia y la administración.
                 </p>
                 <div class="landing-actions">
                     <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
@@ -50,17 +53,17 @@
                 <div class="landing-trust">
                     <span><i class="bi bi-check-circle-fill"></i> POS y caja</span>
                     <span><i class="bi bi-check-circle-fill"></i> Stock tienda/bodega</span>
-                    <span><i class="bi bi-check-circle-fill"></i> Saldos a favor</span>
+                    <span><i class="bi bi-check-circle-fill"></i> BI, alertas y reportes</span>
                 </div>
             </div>
 
             <div class="landing-dashboard-card">
                 <div class="dashboard-card-top">
-                    <span>Demo operativa</span>
-                    <strong>Ferretería</strong>
+                    <span>Panel ejecutivo</span>
+                    <strong>Hoy</strong>
                 </div>
                 <div class="dashboard-total">
-                    <small>Ventas monitoreadas</small>
+                    <small>Ventas demo monitoreadas</small>
                     <strong>500+</strong>
                 </div>
                 <div class="dashboard-grid">
@@ -81,6 +84,11 @@
                         <strong>Arqueo</strong>
                     </div>
                 </div>
+                <div class="dashboard-alerts">
+                    <span><i class="bi bi-exclamation-triangle"></i> Stock crítico</span>
+                    <span><i class="bi bi-cash-stack"></i> Diferencias de caja</span>
+                    <span><i class="bi bi-tags"></i> Revisión de precios</span>
+                </div>
                 <div class="dashboard-flow">
                     <span>Venta</span>
                     <i class="bi bi-arrow-right"></i>
@@ -96,7 +104,7 @@
         <section class="landing-section" id="modulos">
             <div class="section-heading">
                 <span>Módulos principales</span>
-                <h2>Diseñado para operar la ferretería completa.</h2>
+                <h2>Diseñado para operar la ferretería completa y dejar evidencia.</h2>
             </div>
             <div class="module-grid">
                 <article class="module-card">
@@ -126,16 +134,115 @@
                 </article>
                 <article class="module-card">
                     <i class="bi bi-graph-up-arrow"></i>
-                    <h3>Reportes</h3>
-                    <p>Paneles para revisar ventas, márgenes, movimientos y salud operativa del negocio.</p>
+                    <h3>BI y gerencia</h3>
+                    <p>Reportes por rango, panel dueño, revisión de precios, salud de inventario y alertas operativas.</p>
                 </article>
+            </div>
+        </section>
+
+        <section class="landing-section decision-section" id="decision">
+            <div class="section-heading">
+                <span>Qué decisiones permite tomar</span>
+                <h2>Del mostrador al informe de gerencia.</h2>
+                <p>
+                    El sistema no solo registra ventas. Ordena la información para responder preguntas que
+                    normalmente quedan repartidas entre cuadernos, planillas, memoria del vendedor y arqueos manuales.
+                </p>
+            </div>
+            <div class="decision-grid">
+                <article class="decision-card">
+                    <div class="decision-icon"><i class="bi bi-person-badge"></i></div>
+                    <h3>Dueño</h3>
+                    <p>Puede ver ventas del período, ticket promedio, deuda de clientes, caja acumulada, diferencias de arqueo y productos que inmovilizan capital.</p>
+                    <ul>
+                        <li>¿Cuánto vendí realmente este mes?</li>
+                        <li>¿Dónde se está yendo el efectivo?</li>
+                        <li>¿Qué familias conviene potenciar?</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="decision-icon"><i class="bi bi-briefcase"></i></div>
+                    <h3>Gerente</h3>
+                    <p>Puede cruzar ventas, márgenes, stock crítico, precios y abastecimiento para priorizar compras y corregir categorías.</p>
+                    <ul>
+                        <li>¿Qué productos están por quebrar stock?</li>
+                        <li>¿Qué precios requieren revisión?</li>
+                        <li>¿Qué comprar primero para no frenar ventas?</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="decision-icon"><i class="bi bi-clipboard-check"></i></div>
+                    <h3>Administrador</h3>
+                    <p>Puede controlar la operación diaria: vales pendientes, cierres, devoluciones, saldos a favor, créditos y movimientos de caja.</p>
+                    <ul>
+                        <li>¿Qué vale falta cobrar?</li>
+                        <li>¿Qué devolución afectó stock o caja?</li>
+                        <li>¿Qué cliente tiene deuda o saldo a favor?</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="landing-section bi-section" id="bi">
+            <div class="section-heading">
+                <span>BI, informes y alertas</span>
+                <h2>Indicadores para gestionar antes de que el problema llegue a caja.</h2>
+            </div>
+            <div class="bi-layout">
+                <div class="bi-board">
+                    <div class="bi-board-header">
+                        <div>
+                            <small>Dashboard gerencial</small>
+                            <strong>Resumen operativo</strong>
+                        </div>
+                        <span>En vivo</span>
+                    </div>
+                    <div class="bi-kpis">
+                        <div><small>Ventas período</small><strong>$ 18,4M</strong><em>Comparativo vs. anterior</em></div>
+                        <div><small>Ticket promedio</small><strong>$ 36.800</strong><em>Rentabilidad por atención</em></div>
+                        <div><small>Stock crítico</small><strong>42</strong><em>Productos bajo umbral</em></div>
+                        <div><small>Caja</small><strong>Arqueo</strong><em>Teórico vs contado</em></div>
+                    </div>
+                    <div class="bi-bars">
+                        <span style="height: 42%"></span>
+                        <span style="height: 68%"></span>
+                        <span style="height: 54%"></span>
+                        <span style="height: 82%"></span>
+                        <span style="height: 74%"></span>
+                        <span style="height: 93%"></span>
+                        <span style="height: 61%"></span>
+                    </div>
+                </div>
+                <div class="alert-stack">
+                    <article>
+                        <i class="bi bi-exclamation-octagon"></i>
+                        <div>
+                            <strong>Alertas de inventario</strong>
+                            <p>Stock crítico, diferencias entre maestro y almacenes, productos en bodega que deben moverse a tienda.</p>
+                        </div>
+                    </article>
+                    <article>
+                        <i class="bi bi-currency-dollar"></i>
+                        <div>
+                            <strong>Alertas comerciales</strong>
+                            <p>Créditos pendientes, saldos a favor, precios bajo margen y productos con alto movimiento.</p>
+                        </div>
+                    </article>
+                    <article>
+                        <i class="bi bi-receipt-cutoff"></i>
+                        <div>
+                            <strong>Informes operacionales</strong>
+                            <p>Cierres de caja mensuales, tickets reimprimibles, cambios/devoluciones y movimientos de efectivo.</p>
+                        </div>
+                    </article>
+                </div>
             </div>
         </section>
 
         <section class="landing-section landing-split" id="beneficios">
             <div>
                 <span class="landing-eyebrow">Para vender con control</span>
-                <h2>Menos planillas, más trazabilidad.</h2>
+                <h2>Menos planillas, más control y mejores decisiones.</h2>
                 <p>
                     El objetivo del ERP es que cada venta, devolución, ingreso de stock y cierre de caja
                     quede conectado. Así el dueño puede revisar la operación sin depender de registros sueltos.
@@ -151,7 +258,7 @@
                 <h3>Ideal para demostraciones comerciales</h3>
                 <p>
                     Esta instalación ya cuenta con datos demo para recorrer ventas, productos,
-                    clientes, caja y devoluciones con una experiencia más realista.
+                    clientes, caja, devoluciones, BI, alertas y reportes con una experiencia más realista.
                 </p>
                 <a href="{{ url_for('catalogo_publico') }}" class="btn btn-warning">
                     Explorar catálogo público
@@ -160,8 +267,8 @@
         </section>
 
         <section class="landing-cta">
-            <h2>Conoce el ERP desde adentro.</h2>
-            <p>Ingresa a la demo privada o revisa las vistas públicas de catálogo y consulta de stock.</p>
+            <h2>Conoce el ERP como lo usaría una ferretería real.</h2>
+            <p>Recorre POS, inventario, caja, devoluciones, BI, alertas y reportes desde una demo con datos cargados.</p>
             <div class="landing-actions justify-content-center">
                 <button type="button" class="btn btn-warning btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
                     Iniciar sesión ERP
