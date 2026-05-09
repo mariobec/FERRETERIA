@@ -1,3 +1,12 @@
+"""
+Datos de DEMOSTRACIÓN únicamente: precios y SKUs son referenciales (no cotización de mercado).
+
+Objetivo: poblar el ERP con volumen (1500 ítems DEMO-*) y cubrir familia/categoría/subcategoría,
+precios, stock por almacén, ubicación y variaciones típicas de unidad_compra / unidad_venta /
+factor_conversion para pruebas de POS, inventario y export Excel.
+
+Ejecutar desde la raíz del proyecto: python scripts/seed_demo_data.py
+"""
 import random
 import sys
 from datetime import datetime, timedelta
@@ -30,7 +39,7 @@ CATEGORIAS = {
     "Pinturas": ["Latex", "Esmaltes", "Barnices", "Brochas", "Rodillos"],
     "Gasfiteria": ["PVC", "Llaves de paso", "Flexibles", "Sifones", "Sellos"],
     "Electricidad": ["Cables", "Interruptores", "Enchufes", "Canaletas", "Ampolletas"],
-    "Construccion": ["Cemento", "Yeso", "Adhesivos", "Niveladores", "Aislantes"],
+    "Construccion": ["Cemento", "Yeso", "Adhesivos", "Niveladores", "Aislantes", "Maderas y tableros"],
     "Seguridad": ["Guantes", "Lentes", "Cascos", "Mascarillas", "Calzado"],
     "Jardin": ["Mangueras", "Palas", "Rastrillos", "Regadores", "Tijeras"],
     "Quincalleria": ["Bisagras", "Candados", "Cerraduras", "Rieles", "Soportes"],
@@ -44,7 +53,7 @@ CATEGORY_COST_BAND_CLP = {
     "Pinturas": (890, 17500),
     "Herramientas Manuales": (2100, 36900),
     "Herramientas Electricas": (27900, 148000),
-    "Construccion": (3600, 13200),
+    "Construccion": (2800, 52900),
     "Seguridad": (690, 28900),
     "Jardin": (2300, 36900),
     "Quincalleria": (520, 24800),
@@ -69,6 +78,27 @@ def rut_demo(n):
 
 def money(valor):
     return float(int(round(valor / 10.0) * 10))
+
+
+def pick_unit_profile(categoria, subcategoria):
+    """Perfiles demo para ejercitar conversiones (1 compra = N ventas)."""
+    r = random.random()
+    if categoria == "Electricidad" and subcategoria == "Cables" and r < 0.62:
+        factor = float(random.choice([25, 50, 100]))
+        return ("Metro", "Rollo", "Metro", factor)
+    if categoria == "Fijaciones" and r < 0.38:
+        factor = float(random.choice([50, 100, 200, 500, 1000]))
+        return ("Unidad", "Caja", "Unidad", factor)
+    if categoria == "Pinturas" and subcategoria in ("Latex", "Esmaltes", "Barnices") and r < 0.28:
+        factor = float(random.choice([4, 10, 20]))
+        return ("Litro", "Cubeta", "Litro", factor)
+    if categoria == "Gasfiteria" and subcategoria == "PVC" and r < 0.22:
+        factor = float(random.choice([5, 6]))
+        return ("Metro", "Barra", "Metro", factor)
+    if categoria == "Jardin" and subcategoria == "Mangueras" and r < 0.35:
+        factor = float(random.choice([15, 20, 25]))
+        return ("Metro", "Rollo", "Metro", factor)
+    return ("Unidad", "Unidad", "Unidad", 1.0)
 
 
 def get_or_create_almacen(codigo, nombre):
@@ -97,6 +127,7 @@ def cargar_productos(tienda, bodega):
         lo, hi = CATEGORY_COST_BAND_CLP.get(categoria, (400, 11000))
         compra = money(random.randint(lo, hi))
         venta = money(compra * random.uniform(1.22, 1.52))
+        unidad, u_compra, u_venta, factor = pick_unit_profile(categoria, subcategoria)
         stock_tienda = random.randint(3, 48)
         stock_bodega = random.randint(8, 140)
         producto = Producto(
@@ -107,10 +138,10 @@ def cargar_productos(tienda, bodega):
             precio_compra=compra,
             precio_venta=venta,
             precio_mayoreo=money(venta * 0.9),
-            unidad="Unidad",
-            unidad_compra="Unidad",
-            unidad_venta="Unidad",
-            factor_conversion=1.0,
+            unidad=unidad,
+            unidad_compra=u_compra,
+            unidad_venta=u_venta,
+            factor_conversion=factor,
             stock=stock_tienda + stock_bodega,
             categoria=categoria,
             subcategoria=subcategoria,

@@ -55,6 +55,7 @@
   <div class="card card-ds mb-4">
     <div class="card-body">
       <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="row g-2 align-items-center">
+        <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
         <div class="col-12">
           <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
             <span class="small fw-bold text-muted text-uppercase">Filtro búsqueda</span>
@@ -76,7 +77,7 @@
         </div>
         <div class="col-md-10">
           <label class="form-label fw-bold">Buscar producto</label>
-          <select id="buscarProducto" name="codigo" class="form-select" style="width:100%">
+          <select id="buscarProducto" class="form-select" style="width:100%">
             <option value=""></option>
           </select>
         </div>

@@ -266,6 +266,13 @@
     }
   }
 
+  function posClienteCampoStr(v) {
+    if (v == null || v === "") return "";
+    const s = String(v).trim();
+    if (!s || /^(none|null|undefined|nan)$/i.test(s)) return "";
+    return s;
+  }
+
   async function buscarClientePorRut(urlConsultarCliente) {
     const rutInput = document.getElementById("cliente_rut");
     const status = document.getElementById("clienteStatus");
@@ -310,13 +317,13 @@
         return;
       }
       if (data.existe) {
-        nombre.value = data.cliente.nombre || "";
-        direccion.value = data.cliente.direccion || "";
-        if (giro) giro.value = data.cliente.giro || "";
-        if (comuna) comuna.value = data.cliente.comuna || "";
-        if (ciudad) ciudad.value = data.cliente.ciudad || "";
-        telefono.value = data.cliente.telefono || "";
-        correo.value = data.cliente.correo || "";
+        nombre.value = posClienteCampoStr(data.cliente.nombre);
+        direccion.value = posClienteCampoStr(data.cliente.direccion);
+        if (giro) giro.value = posClienteCampoStr(data.cliente.giro);
+        if (comuna) comuna.value = posClienteCampoStr(data.cliente.comuna);
+        if (ciudad) ciudad.value = posClienteCampoStr(data.cliente.ciudad);
+        telefono.value = posClienteCampoStr(data.cliente.telefono);
+        correo.value = posClienteCampoStr(data.cliente.correo);
         const saldoFavor = Number(data.cliente.saldo_favor || 0);
         let html =
           '<span class="text-success"><i class="fas fa-check-circle me-1"></i>Cliente encontrado. Datos cargados.</span>';
@@ -612,17 +619,33 @@
         ajax: {
           url: u.buscar_producto,
           dataType: "json",
-          delay: 50,
+          delay: 280,
+          timeout: 25000,
           data: function (params) {
             return {
-              q: params.term,
+              q: params.term || "",
               solo_vendibles: posSoloVendiblesActivo() ? "1" : "0",
               origen: "pos",
             };
           },
-          processResults: (data) => ({ results: data.results }),
+          processResults: function (data) {
+            try {
+              return { results: data && Array.isArray(data.results) ? data.results : [] };
+            } catch (e) {
+              return { results: [] };
+            }
+          },
           cache: false,
         },
+      });
+
+      const hidPid = document.getElementById("posSeleccionProductoId");
+      $("#buscarProducto").on("select2:select", function (e) {
+        const d = e.params && e.params.data;
+        if (hidPid && d && d.producto_id != null) hidPid.value = String(d.producto_id);
+      });
+      $("#buscarProducto").on("select2:clear", function () {
+        if (hidPid) hidPid.value = "";
       });
 
       const chkVend = document.getElementById("posSoloVendibles");

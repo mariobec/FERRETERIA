@@ -5469,6 +5469,7 @@ def cargar_productos():
     duplicados_archivo = 0
     precios_sugeridos = 0
     cache_por_codigo = {}
+    cache_por_interno = {}
 
     keymap = {}
     filas = []
@@ -5571,25 +5572,57 @@ def cargar_productos():
 
     for row in filas:
         codigo = _clip(_csv_cell(row, 'codigo_barra') or _csv_cell(row, 'codigo') or '', 50)
+        interno = _clip(_csv_cell(row, 'codigo_interno') or '', 32)
         nombre = _clip(_csv_cell(row, 'nombre') or '', 100)
-        if not codigo or not nombre:
+        if not nombre:
+            omitidos += 1
+            continue
+        if not codigo and not interno:
             omitidos += 1
             continue
 
-        if codigo in cache_por_codigo:
+        prod = None
+        desde_cache = False
+        if codigo and codigo in cache_por_codigo:
             prod = cache_por_codigo[codigo]
-            es_nuevo = False
-            duplicados_archivo += 1
-        else:
+            desde_cache = True
+        elif interno and interno in cache_por_interno:
+            prod = cache_por_interno[interno]
+            desde_cache = True
+
+        if prod is None:
             with db.session.no_autoflush:
-                prod = Producto.query.filter_by(codigo_barra=codigo).first()
+                if codigo:
+                    prod = Producto.query.filter_by(codigo_barra=codigo).first()
+                if prod is None and interno:
+                    prod = Producto.query.filter_by(codigo_interno=interno).first()
             es_nuevo = prod is None
             if es_nuevo:
+                if not codigo:
+                    omitidos += 1
+                    continue
                 prod = Producto(codigo_barra=codigo, activo=True)
                 db.session.add(prod)
+        else:
+            es_nuevo = False
+            if desde_cache:
+                duplicados_archivo += 1
+
+        if codigo:
             cache_por_codigo[codigo] = prod
+        if interno:
+            cache_por_interno[interno] = prod
 
         prod.nombre = nombre
+
+        if _csv_has('codigo_interno'):
+            ci = _clip(_csv_cell(row, 'codigo_interno'), 32)
+            if ci:
+                prod.codigo_interno = ci
+        if _csv_has('codigo_chilemat'):
+            cm = _clip(_csv_cell(row, 'codigo_chilemat'), 80)
+            if cm:
+                prod.codigo_chilemat = cm
 
         if _csv_has('precio_compra'):
             prod.precio_compra = _to_float(_csv_cell(row, 'precio_compra'), 0)
@@ -5706,6 +5739,8 @@ def exportar_productos_excel():
         rows.append({
             'nombre': p.nombre or '',
             'codigo_barra': p.codigo_barra or '',
+            'codigo_interno': (p.codigo_interno or '').strip(),
+            'codigo_chilemat': (p.codigo_chilemat or '').strip(),
             'precio_compra': float(p.precio_compra or 0),
             'precio_venta': float(p.precio_venta or 0),
             'precio_mayoreo': float(p.precio_mayoreo or 0),
@@ -5739,12 +5774,12 @@ def descargar_plantilla_productos():
     # precio_venta vacío + precio_compra > 0 → precio venta sugerido (misma lógica que Revisión de precios).
     # terminacion: 0 redondeo entero, 90 termina en …90, 990 en …990.
     contenido = (
-        "nombre,codigo_barra,precio_compra,precio_venta,precio_mayoreo,margen_venta,terminacion,"
+        "nombre,codigo_barra,codigo_interno,codigo_chilemat,precio_compra,precio_venta,precio_mayoreo,margen_venta,terminacion,"
         "unidad_compra,unidad_venta,factor_conversion,stock,categoria,subcategoria,"
         "ubicacion_pasillo,ubicacion_estante,ubicacion_nivel\n"
     )
-    contenido += "Tornillo Zincado 1in,123456,12000,180,160,0.30,90,Caja,Unidad,100,3500,Herramientas,Tornillos,P02,E04,N1\n"
-    contenido += "Producto precio sugerido,999888,5000,,,0.35,90,Pieza,Unidad,1,100,Herramientas,Varios,P01,E01,N1\n"
+    contenido += "Tornillo Zincado 1in,123456,INT-TOR-001,CHM-000001,12000,180,160,0.30,90,Caja,Unidad,100,3500,Herramientas,Tornillos,P02,E04,N1\n"
+    contenido += "Producto precio sugerido,999888,INT-DEMO-02,,5000,,,0.35,90,Pieza,Unidad,1,100,Herramientas,Varios,P01,E01,N1\n"
     return Response(
         contenido,
         mimetype="text/csv",
@@ -6680,29 +6715,33 @@ def finalizar_venta():
         cliente = Cliente.query.filter_by(rut=rut).first()
 
         if cliente:
-            cliente.direccion = direccion or cliente.direccion
-            cliente.giro = giro or cliente.giro
-            cliente.telefono = telefono or cliente.telefono
-            cliente.correo = correo or cliente.correo
-            cliente.comuna = comuna or cliente.comuna
-            cliente.ciudad = ciudad or cliente.ciudad
-
-            if nombre and nombre != cliente.nombre:
+            nombre_in = (nombre or '').strip()
+            if nombre_in and nombre_in != (cliente.nombre or '').strip():
                 flash("El cliente ya existe, no puedes cambiar el nombre.", "warning")
                 return redirect(url_for('punto_venta'))
-        else:
-            if not nombre:
-                flash("Error: Nombre es obligatorio para nuevo cliente.", "danger")
-                return redirect(url_for('punto_venta'))
-            cliente = Cliente(
-                nombre=nombre,
-                rut=rut,
-                giro=giro,
+            _aplicar_campos_contacto_cliente(
+                cliente,
                 direccion=direccion,
+                giro=giro,
                 telefono=telefono,
                 correo=correo,
                 comuna=comuna,
                 ciudad=ciudad,
+            )
+        else:
+            if not nombre:
+                flash("Error: Nombre es obligatorio para nuevo cliente.", "danger")
+                return redirect(url_for('punto_venta'))
+            nombre_n = (nombre or '').strip()[:100]
+            cliente = Cliente(
+                nombre=nombre_n,
+                rut=rut,
+                giro=_limpiar_texto_cliente_ui(giro),
+                direccion=(_limpiar_texto_cliente_ui(direccion) or '')[:200] or None,
+                telefono=(_limpiar_texto_cliente_ui(telefono) or '')[:20] or None,
+                correo=(_limpiar_texto_cliente_ui(correo) or '')[:100] or None,
+                comuna=(_limpiar_texto_cliente_ui(comuna) or '')[:80] or None,
+                ciudad=(_limpiar_texto_cliente_ui(ciudad) or '')[:80] or None,
             )
             db.session.add(cliente)
 
@@ -7914,7 +7953,6 @@ def buscar_producto():
         # POS envía origen=pos; si falta el flag (JS viejo, proxy), filtrar por defecto
         solo_vendibles = request.args.get('origen', '').strip().lower() == 'pos'
 
-    like = f"%{q}%"
     fetch_limit = 100 if solo_vendibles else 20
     try:
         insp = sa_inspect(db.engine)
@@ -7927,10 +7965,30 @@ def buscar_producto():
             if c in cols:
                 campos.append(c)
 
-        filtros = ["LOWER(nombre) LIKE LOWER(:like)"]
-        for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat'):
-            if c in cols:
-                filtros.append(f"LOWER({c}) LIKE LOWER(:like)")
+        dn = (db.engine.dialect.name or '').lower()
+        # Subcadena sin LIKE wildcards (%/_ en la búsqueda no rompen el filtro; evita ESCAPE dialect-dependent).
+        params = {"lim": fetch_limit, "qplain": q}
+        if dn == 'postgresql':
+            def _substr_match(col: str) -> str:
+                return f"strpos(lower(COALESCE({col},'')), lower(:qplain)) > 0"
+        elif dn in ('mysql', 'mysqldb', 'mariadb'):
+            def _substr_match(col: str) -> str:
+                return f"LOCATE(lower(:qplain), lower(COALESCE({col},''))) > 0"
+        else:
+            _substr_match = None
+
+        if _substr_match:
+            filtros = [_substr_match('nombre')]
+            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat'):
+                if c in cols:
+                    filtros.append(_substr_match(c))
+        else:
+            like = f"%{q}%"
+            params['like'] = like
+            filtros = ["LOWER(nombre) LIKE LOWER(:like)"]
+            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat'):
+                if c in cols:
+                    filtros.append(f"LOWER({c}) LIKE LOWER(:like)")
 
         where_parts = [f"({' OR '.join(filtros)})"]
         if 'activo' in cols:
@@ -7946,34 +8004,46 @@ def buscar_producto():
             if 'stock' in cols:
                 where_parts.append("COALESCE(stock, 0) > 0")
 
+        if dn == 'postgresql':
+            ord_expr = "strpos(lower(COALESCE(nombre,'')), lower(:qplain))"
+            ord_suffix = " ASC NULLS LAST, nombre ASC "
+        elif dn in ('mysql', 'mysqldb', 'mariadb'):
+            ord_expr = "LOCATE(lower(:qplain), lower(COALESCE(nombre,'')))"
+            ord_suffix = " ASC, nombre ASC "
+        else:
+            ord_expr = "1"
+            ord_suffix = " ASC, nombre ASC "
+
         sql = (
             f"SELECT {', '.join(campos)} "
             f"FROM productos "
             f"WHERE {' AND '.join(where_parts)} "
-            f"ORDER BY nombre ASC "
+            f"ORDER BY ({ord_expr}){ord_suffix}"
             f"LIMIT :lim"
         )
-        productos = db.session.execute(text(sql), {"like": like, "lim": fetch_limit}).mappings().all()
+        productos = db.session.execute(text(sql), params).mappings().all()
     except Exception as ex:
         db.session.rollback()
         app.logger.exception("buscar_producto falló; devolviendo lista vacía para no romper Select2: %s", ex)
         return jsonify({"results": []})
 
     results = []
+    out_lim = 28
     for p in productos:
+        pid = int(p.get('id'))
         codigo = (
             (p.get('codigo_barra') or '').strip()
             or (p.get('codigo_interno') or '').strip()
             or (p.get('codigo_chilemat') or '').strip()
         )
-        if not codigo:
-            continue
+        nombre = (p.get('nombre') or '').strip()
+        sufijo = codigo if codigo else f"id {pid}"
         results.append({
-            "id": codigo,
-            "producto_id": int(p.get('id')),
-            "text": f"{(p.get('nombre') or '').strip()} ({codigo})",
+            "id": str(pid),
+            "producto_id": pid,
+            "text": f"{nombre} ({sufijo})",
         })
-        if len(results) >= 20:
+        if len(results) >= out_lim:
             break
 
     return jsonify({"results": results})
@@ -8517,6 +8587,32 @@ def _rut_variantes_busqueda(rut_raw: str):
     return [x for x in out if x]
 
 
+def _limpiar_texto_cliente_ui(val):
+    """None, vacío o el texto literal 'None'/'null' → None (evita mostrar 'None' en POS y APIs)."""
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s or s.lower() in ('none', 'null', 'undefined', 'nan'):
+        return None
+    return s
+
+
+def _aplicar_campos_contacto_cliente(cliente, *, direccion, giro, telefono, correo, comuna, ciudad):
+    """Persiste datos de facturación en el maestro cliente (el formulario manda; vacío limpia columna)."""
+    d = _limpiar_texto_cliente_ui(direccion)
+    cliente.direccion = (d[:200] if d else None)
+    g = _limpiar_texto_cliente_ui(giro)
+    cliente.giro = (g[:100] if g else None)
+    t = _limpiar_texto_cliente_ui(telefono)
+    cliente.telefono = (t[:20] if t else None)
+    m = _limpiar_texto_cliente_ui(correo)
+    cliente.correo = (m[:100] if m else None)
+    co = _limpiar_texto_cliente_ui(comuna)
+    cliente.comuna = (co[:80] if co else None)
+    ci = _limpiar_texto_cliente_ui(ciudad)
+    cliente.ciudad = (ci[:80] if ci else None)
+
+
 @app.route('/consultar_cliente')
 @login_required
 def consultar_cliente():
@@ -8538,12 +8634,12 @@ def consultar_cliente():
                 'existe': True,
                 'cliente': {
                     'nombre': cliente.nombre,
-                    'direccion': cliente.direccion,
-                    'giro': cliente.giro,
-                    'telefono': cliente.telefono,
-                    'correo': cliente.correo,
-                    'comuna': cliente.comuna,
-                    'ciudad': cliente.ciudad,
+                    'direccion': _limpiar_texto_cliente_ui(cliente.direccion) or '',
+                    'giro': _limpiar_texto_cliente_ui(cliente.giro) or '',
+                    'telefono': _limpiar_texto_cliente_ui(cliente.telefono) or '',
+                    'correo': _limpiar_texto_cliente_ui(cliente.correo) or '',
+                    'comuna': _limpiar_texto_cliente_ui(cliente.comuna) or '',
+                    'ciudad': _limpiar_texto_cliente_ui(cliente.ciudad) or '',
                     'saldo_favor': saldo_favor,
                 },
             })
@@ -11309,45 +11405,41 @@ def cotizacion_nueva():
             return redirect(url_for('cotizacion_nueva'))
 
         # ---- Resolver cliente: enlazar a existente o crear uno nuevo si trae RUT ----
-        cliente_id_final = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
+        cliente_id_inicial = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
+        cliente_id_final = cliente_id_inicial
         cliente_creado = False
         cliente_actualizado = False
 
         rut_normalizado = (cliente_rut or '').strip().upper().replace('.', '').replace(' ', '')
-        if rut_normalizado and not cliente_id_final:
+        if rut_normalizado and not cliente_id_inicial:
             existente = Cliente.query.filter(
                 db.func.upper(db.func.replace(Cliente.rut, '.', '')) == rut_normalizado
             ).first()
             if existente:
                 cliente_id_final = existente.id
-                # Completar datos faltantes en el cliente maestro (sin pisar lo que ya tiene)
-                cambios = False
-                if not (existente.giro or '').strip() and cliente_giro:
-                    existente.giro = cliente_giro[:100]; cambios = True
-                if not (existente.direccion or '').strip() and cliente_direccion:
-                    existente.direccion = cliente_direccion[:200]; cambios = True
-                if not (existente.comuna or '').strip() and cliente_comuna:
-                    existente.comuna = cliente_comuna[:80]; cambios = True
-                if not (existente.ciudad or '').strip() and cliente_ciudad:
-                    existente.ciudad = cliente_ciudad[:80]; cambios = True
-                if not (existente.correo or '').strip() and cliente_correo:
-                    existente.correo = cliente_correo[:100]; cambios = True
-                if not (existente.telefono or '').strip() and cliente_telefono:
-                    existente.telefono = cliente_telefono[:20]; cambios = True
-                if cambios:
-                    cliente_actualizado = True
+                # Sincronizar maestro con lo escrito en el formulario (mismo criterio que POS al emitir vale).
+                _aplicar_campos_contacto_cliente(
+                    existente,
+                    direccion=cliente_direccion,
+                    giro=cliente_giro,
+                    telefono=cliente_telefono,
+                    correo=cliente_correo,
+                    comuna=cliente_comuna,
+                    ciudad=cliente_ciudad,
+                )
+                cliente_actualizado = True
             else:
                 # Crear nuevo cliente con cupo $0 (sin credito automatico)
                 try:
                     nuevo = Cliente(
                         rut=rut_normalizado[:12],
                         nombre=(cliente_nombre or rut_normalizado)[:100],
-                        giro=(cliente_giro or None) and cliente_giro[:100],
-                        direccion=(cliente_direccion or None) and cliente_direccion[:200],
-                        telefono=(cliente_telefono or None) and cliente_telefono[:20],
-                        correo=(cliente_correo or None) and cliente_correo[:100],
-                        comuna=(cliente_comuna or None) and cliente_comuna[:80],
-                        ciudad=(cliente_ciudad or None) and cliente_ciudad[:80],
+                        giro=_limpiar_texto_cliente_ui(cliente_giro),
+                        direccion=(_limpiar_texto_cliente_ui(cliente_direccion) or '')[:200] or None,
+                        telefono=(_limpiar_texto_cliente_ui(cliente_telefono) or '')[:20] or None,
+                        correo=(_limpiar_texto_cliente_ui(cliente_correo) or '')[:100] or None,
+                        comuna=(_limpiar_texto_cliente_ui(cliente_comuna) or '')[:80] or None,
+                        ciudad=(_limpiar_texto_cliente_ui(cliente_ciudad) or '')[:80] or None,
                         saldo_deudor=0.0,
                         limite_credito=0.0,
                         estado_credito='Activo',
@@ -11359,6 +11451,19 @@ def cotizacion_nueva():
                 except Exception as e:
                     db.session.rollback()
                     flash(f"No se pudo crear el cliente nuevo en la BD: {e}. La cotizacion se guardara igual con los datos manualmente.", "warning")
+        elif cliente_id_inicial:
+            cli_link = Cliente.query.get(cliente_id_inicial)
+            if cli_link:
+                _aplicar_campos_contacto_cliente(
+                    cli_link,
+                    direccion=cliente_direccion,
+                    giro=cliente_giro,
+                    telefono=cliente_telefono,
+                    correo=cliente_correo,
+                    comuna=cliente_comuna,
+                    ciudad=cliente_ciudad,
+                )
+                cliente_actualizado = True
 
         # Crear cotizacion
         cot = Cotizacion(
@@ -11419,7 +11524,7 @@ def cotizacion_nueva():
         if cliente_creado:
             flash(f"Cotizacion {cot.numero} creada. Tambien se registro al cliente nuevo en la base de datos (RUT {rut_normalizado}, cupo $0).", "success")
         elif cliente_actualizado:
-            flash(f"Cotizacion {cot.numero} creada. Se completaron datos faltantes del cliente {cliente_nombre or rut_normalizado}.", "success")
+            flash(f"Cotizacion {cot.numero} creada. Datos de contacto del cliente maestro actualizados.", "success")
         else:
             flash(f"Cotizacion {cot.numero} creada correctamente.", "success")
         return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
@@ -11545,8 +11650,26 @@ def cotizacion_editar(cot_id):
         cot.iva = iva
         cot.monto_total = total
 
+        maestro_ok = False
+        if cot.cliente_id:
+            cli = Cliente.query.get(cot.cliente_id)
+            if cli:
+                _aplicar_campos_contacto_cliente(
+                    cli,
+                    direccion=cliente_direccion,
+                    giro=cliente_giro,
+                    telefono=cliente_telefono,
+                    correo=cliente_correo,
+                    comuna=cliente_comuna,
+                    ciudad=cliente_ciudad,
+                )
+                maestro_ok = True
+
         db.session.commit()
-        flash(f"Cotizacion {cot.numero} actualizada correctamente.", "success")
+        if maestro_ok:
+            flash(f"Cotizacion {cot.numero} actualizada; tambien se actualizo el cliente en el maestro.", "success")
+        else:
+            flash(f"Cotizacion {cot.numero} actualizada correctamente.", "success")
         return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
 
     # GET: mostrar form prepoblado
@@ -11845,12 +11968,12 @@ def cotizaciones_api_buscar_clientes():
             'id': c.id,
             'rut': c.rut or '',
             'nombre': c.nombre or '',
-            'giro': c.giro or '',
-            'direccion': c.direccion or '',
-            'comuna': c.comuna or '',
-            'ciudad': c.ciudad or '',
-            'telefono': c.telefono or '',
-            'correo': c.correo or '',
+            'giro': _limpiar_texto_cliente_ui(c.giro) or '',
+            'direccion': _limpiar_texto_cliente_ui(c.direccion) or '',
+            'comuna': _limpiar_texto_cliente_ui(c.comuna) or '',
+            'ciudad': _limpiar_texto_cliente_ui(c.ciudad) or '',
+            'telefono': _limpiar_texto_cliente_ui(c.telefono) or '',
+            'correo': _limpiar_texto_cliente_ui(c.correo) or '',
             'estado_credito': c.estado_credito or 'Activo',
             'saldo_deudor': float(c.saldo_deudor or 0),
             'limite_credito': float(c.limite_credito or 0),

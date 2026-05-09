@@ -311,16 +311,23 @@
   const camposCliente = ['cliente_id','cliente_nombre','cliente_rut','cliente_telefono','cliente_giro','cliente_direccion','cliente_comuna','cliente_ciudad','cliente_correo'];
   let timerCli = null;
 
+  function strClienteCot(v) {
+    if (v == null || v === '') return '';
+    const s = String(v).trim();
+    if (!s || /^(none|null|undefined|nan)$/i.test(s)) return '';
+    return s;
+  }
+
   function rellenarCliente(c) {
     document.getElementById('cliente_id').value = c.id || '';
-    document.getElementById('cliente_nombre').value = c.nombre || '';
-    document.getElementById('cliente_rut').value = c.rut || '';
-    document.getElementById('cliente_telefono').value = c.telefono || '';
-    document.getElementById('cliente_giro').value = c.giro || '';
-    document.getElementById('cliente_direccion').value = c.direccion || '';
-    document.getElementById('cliente_comuna').value = c.comuna || '';
-    document.getElementById('cliente_ciudad').value = c.ciudad || '';
-    document.getElementById('cliente_correo').value = c.correo || '';
+    document.getElementById('cliente_nombre').value = strClienteCot(c.nombre);
+    document.getElementById('cliente_rut').value = strClienteCot(c.rut);
+    document.getElementById('cliente_telefono').value = strClienteCot(c.telefono);
+    document.getElementById('cliente_giro').value = strClienteCot(c.giro);
+    document.getElementById('cliente_direccion').value = strClienteCot(c.direccion);
+    document.getElementById('cliente_comuna').value = strClienteCot(c.comuna);
+    document.getElementById('cliente_ciudad').value = strClienteCot(c.ciudad);
+    document.getElementById('cliente_correo').value = strClienteCot(c.correo);
 
     banNombre.textContent = c.nombre || '';
     banCupo.textContent = fmt(c.cupo_disponible || 0);

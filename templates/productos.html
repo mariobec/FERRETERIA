@@ -357,7 +357,9 @@
                 <div class="col-12">
                     <p class="small text-muted mb-0">
                         <strong>Excel:</strong> descarga el listado actual (respeta filtros de búsqueda arriba), edita y vuelve a subir el .xlsx.
-                        Solo se actualizan columnas presentes en el archivo. <strong>Stock</strong> en tienda: columna <code>stock</code>.
+                        Incluye <code>codigo_interno</code> y <code>codigo_chilemat</code> para cruzar con tu propia planilla de referencia de mercado.
+                        Si una fila trae solo <code>codigo_interno</code> (sin código de barra), se busca el producto existente por ese código para <strong>actualizar</strong> precios/categorías; productos nuevos siguen requiriendo <code>codigo_barra</code>.
+                        <strong>Stock</strong> en tienda: columna <code>stock</code>.
                         <strong>Precio venta sugerido:</strong> deje <code>precio_venta</code> vacío y defina <code>precio_compra</code>; opcional <code>margen_venta</code> y <code>terminacion</code> (0, 90 o 990).
                     </p>
                 </div>

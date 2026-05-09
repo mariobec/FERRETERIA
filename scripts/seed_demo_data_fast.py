@@ -1,3 +1,8 @@
+"""
+Versión rápida del seed demo (SQL directo). Misma política que seed_demo_data.py: solo datos de prueba.
+
+Ejecutar: python scripts/seed_demo_data_fast.py  (requiere DATABASE_URL / Postgres)
+"""
 import os
 import random
 from datetime import datetime, timedelta
@@ -15,7 +20,7 @@ CATEGORIAS = {
     "Pinturas": ["Latex", "Esmaltes", "Barnices", "Brochas", "Rodillos"],
     "Gasfiteria": ["PVC", "Llaves de paso", "Flexibles", "Sifones", "Sellos"],
     "Electricidad": ["Cables", "Interruptores", "Enchufes", "Canaletas", "Ampolletas"],
-    "Construccion": ["Cemento", "Yeso", "Adhesivos", "Niveladores", "Aislantes"],
+    "Construccion": ["Cemento", "Yeso", "Adhesivos", "Niveladores", "Aislantes", "Maderas y tableros"],
     "Seguridad": ["Guantes", "Lentes", "Cascos", "Mascarillas", "Calzado"],
     "Jardin": ["Mangueras", "Palas", "Rastrillos", "Regadores", "Tijeras"],
     "Quincalleria": ["Bisagras", "Candados", "Cerraduras", "Rieles", "Soportes"],
@@ -29,7 +34,7 @@ CATEGORY_COST_BAND_CLP = {
     "Pinturas": (890, 17500),
     "Herramientas Manuales": (2100, 36900),
     "Herramientas Electricas": (27900, 148000),
-    "Construccion": (3600, 13200),
+    "Construccion": (2800, 52900),
     "Seguridad": (690, 28900),
     "Jardin": (2300, 36900),
     "Quincalleria": (520, 24800),
@@ -42,6 +47,26 @@ NOMBRES = ["Comercial Los Aromos", "Constructora El Roble", "Ferreteria San Jose
 
 def money(valor):
     return float(int(round(valor / 10.0) * 10))
+
+
+def pick_unit_profile(categoria, subcategoria):
+    r = random.random()
+    if categoria == "Electricidad" and subcategoria == "Cables" and r < 0.62:
+        factor = float(random.choice([25, 50, 100]))
+        return ("Metro", "Rollo", "Metro", factor)
+    if categoria == "Fijaciones" and r < 0.38:
+        factor = float(random.choice([50, 100, 200, 500, 1000]))
+        return ("Unidad", "Caja", "Unidad", factor)
+    if categoria == "Pinturas" and subcategoria in ("Latex", "Esmaltes", "Barnices") and r < 0.28:
+        factor = float(random.choice([4, 10, 20]))
+        return ("Litro", "Cubeta", "Litro", factor)
+    if categoria == "Gasfiteria" and subcategoria == "PVC" and r < 0.22:
+        factor = float(random.choice([5, 6]))
+        return ("Metro", "Barra", "Metro", factor)
+    if categoria == "Jardin" and subcategoria == "Mangueras" and r < 0.35:
+        factor = float(random.choice([15, 20, 25]))
+        return ("Metro", "Rollo", "Metro", factor)
+    return ("Unidad", "Unidad", "Unidad", 1.0)
 
 
 def rut_demo(n):
@@ -87,6 +112,7 @@ def insert_productos(cur, tienda_id, bodega_id):
         lo, hi = CATEGORY_COST_BAND_CLP.get(categoria, (400, 11000))
         compra = money(random.randint(lo, hi))
         venta = money(compra * random.uniform(1.22, 1.52))
+        unidad, u_compra, u_venta, factor = pick_unit_profile(categoria, subcategoria)
         stock_tienda = random.randint(3, 48)
         stock_bodega = random.randint(8, 140)
         rows.append((
@@ -97,10 +123,10 @@ def insert_productos(cur, tienda_id, bodega_id):
             compra,
             venta,
             money(venta * 0.9),
-            "Unidad",
-            "Unidad",
-            "Unidad",
-            1.0,
+            unidad,
+            u_compra,
+            u_venta,
+            factor,
             stock_tienda + stock_bodega,
             categoria,
             subcategoria,
