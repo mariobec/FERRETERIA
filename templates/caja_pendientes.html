@@ -98,10 +98,10 @@
 
     <!-- 3. INDICADORES -->
     <div class="row g-3 mb-4">
-        <div class="col-md"><div class="card card-indicador bg-primary text-white p-3"><h4>{{ tickets_emitidos }}</h4><p class="mb-0">Docs cobrados hoy</p><small class="opacity-75">Esta caja</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-primary text-white p-3"><h4>{{ tickets_emitidos }}</h4><p class="mb-0">Docs cobrados hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de documentos cobrados en la caja actualmente abierta.">?</span></p><small class="opacity-75">Esta caja</small></div></div>
         <div class="col-md"><div class="card card-indicador bg-success text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_apertura).replace(",", ".") }}</h4><p class="mb-0">Apertura Caja</p><small class="opacity-75">Turno actual</small></div></div>
-        <div class="col-md"><div class="card card-indicador bg-warning text-dark p-3"><h4>$ {{ "{:,.0f}".format(monto_vendido).replace(",", ".") }}</h4><p class="mb-0">Monto cobrado hoy</p><small class="opacity-75">Pagado · esta caja</small></div></div>
-        <div class="col-md"><div class="card card-indicador bg-danger text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_pendiente).replace(",", ".") }}</h4><p class="mb-0">Por cobrar</p><small class="opacity-75">Cola de vales (sin método)</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-warning text-dark p-3"><h4>$ {{ "{:,.0f}".format(monto_vendido).replace(",", ".") }}</h4><p class="mb-0">Monto cobrado hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Suma cobrada en documentos pagados de esta caja.">?</span></p><small class="opacity-75">Pagado · esta caja</small></div></div>
+        <div class="col-md"><div class="card card-indicador bg-danger text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_pendiente).replace(",", ".") }}</h4><p class="mb-0">Por cobrar <span class="kpi-help" data-bs-toggle="tooltip" title="Vales pendientes sin método de pago final registrado.">?</span></p><small class="opacity-75">Cola de vales (sin método)</small></div></div>
         <div class="col-md"><div class="card card-indicador bg-info text-white p-3"><h4>$ {{ "{:,.0f}".format(vuelto_entregado).replace(",", ".") }}</h4><p class="mb-0">Vueltos hoy</p><small class="opacity-75">Pagado · esta caja</small></div></div>
     </div>
 
@@ -142,6 +142,10 @@
 
     <!-- 4. TABLA -->
     <div class="card card-ds">
+        <div class="card-header py-2">
+            <h6 class="mb-0 fw-bold"><i class="fas fa-list me-2 text-success"></i>Cola de cobro</h6>
+            <p class="small text-muted mb-0 mt-1">Vales pendientes y borradores POS (<span class="text-warning">Abierta</span>) de esta caja que bloquean el cierre.</p>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0 table-ds">
@@ -155,9 +159,20 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for v in vales %}
+                        {% for v in cola_combined %}
                         <tr>
-                            <td class="ps-4"><span class="badge bg-light text-dark border">#{{ v.id }}</span></td>
+                            <td class="ps-4">
+                                <span class="badge bg-light text-dark border">#{{ v.id }}</span>
+                                {% if v.cola_es_borrador %}
+                                <span class="badge bg-warning text-dark ms-1">Borrador POS</span>
+                                {% endif %}
+                                {% if v.cotizacion_origen_id %}
+                                {% set cot_ref = cotizaciones_map.get(v.cotizacion_origen_id) if cotizaciones_map else none %}
+                                <div class="small text-warning fw-semibold mt-1">
+                                    <i class="fas fa-file-invoice-dollar me-1"></i>{{ cot_ref.numero if cot_ref else ('Cot. #' ~ v.cotizacion_origen_id) }}
+                                </div>
+                                {% endif %}
+                            </td>
                             <td>{{ v.fecha.strftime('%H:%M') }}</td>
                             <td>
                                 <div>{{ v.usuario }}</div>
@@ -196,7 +211,7 @@
                                 <div class="modal-content shadow-lg">
                                     <form action="{{ url_for('procesar_cobro_caja', id=v.id) }}" method="POST" onsubmit="return manejarEnvioSeguro(this)">
                                         <div class="modal-header">
-                                            <h5 class="modal-title fw-bold">Cobrar Vale #{{ v.id }}</h5>
+                                            <h5 class="modal-title fw-bold">{% if v.cola_es_borrador %}Cobrar borrador #{% else %}Cobrar vale #{% endif %}{{ v.id }}</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body p-4">
@@ -249,10 +264,21 @@
                                                 <label class="form-label fw-bold">Pago</label>
                                                 <select name="metodo_pago" class="form-select" required id="metodo_pago_{{ v.id }}" onchange="verificarCredito({{ v.id }})">
                                                     <option value="Efectivo" selected>Efectivo</option>
-                                                    <option value="Debito">Débito</option>
-                                                    <option value="Credito">Crédito</option>
+                                                    <option value="Debito">Débito / prepago</option>
+                                                    <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
+                                                    <option value="Credito">Crédito tienda (cartera)</option>
                                                 </select>
                                             </div>
+                                            {% if v.cliente %}
+                                            <div class="mb-3 d-none border rounded p-3 bg-light" id="credito_cuotas_wrap_{{ v.id }}">
+                                                <label class="form-label fw-bold text-dark">Crédito en cuotas <span class="text-muted fw-normal small">(fechas de pago)</span></label>
+                                                <select name="credito_plan_cuotas" id="credito_plan_cuotas_{{ v.id }}" class="form-select">
+                                                    <option value="" selected>Crédito simple (sin plan de cuotas)</option>
+                                                    <option value="30_60_90">3 cuotas — 30, 60 y 90 días corridos desde el cobro</option>
+                                                </select>
+                                                <div class="form-text text-dark">Solo el plan <strong>30 / 60 / 90</strong> está disponible: cada cuota vence a esa cantidad de días después del cobro en caja. El total se reparte en tres partes iguales.</div>
+                                            </div>
+                                            {% endif %}
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">Monto Recibido</label>
                                                 <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
@@ -274,11 +300,11 @@
                                 <div class="modal-content shadow-lg border-danger border-opacity-25">
                                     <form action="{{ url_for('anular_vale_caja', id=v.id) }}" method="POST">
                                         <div class="modal-header">
-                                            <h5 class="modal-title fw-bold text-danger"><i class="fas fa-ban me-2"></i>Anular vale #{{ v.id }}</h5>
+                                            <h5 class="modal-title fw-bold text-danger"><i class="fas fa-ban me-2"></i>{% if v.cola_es_borrador %}Anular borrador #{% else %}Anular vale #{% endif %}{{ v.id }}</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body p-4">
-                                            <p class="small text-muted mb-2">Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock no se había descontado aún.</p>
+                                            <p class="small text-muted mb-2">{% if v.cola_es_borrador %}Descartar venta en curso en el POS. El stock no se había descontado aún.{% else %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock no se había descontado aún.{% endif %}</p>
                                             <label class="form-label fw-bold" for="motivo_anular_{{ v.id }}">Motivo</label>
                                             <select name="motivo" id="motivo_anular_{{ v.id }}" class="form-select" required>
                                                 <option value="" disabled selected>Seleccione una opción…</option>
@@ -301,7 +327,7 @@
                         </div>
                         {% endif %}
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-5 text-muted">No hay vales.</td></tr>
+                        <tr><td colspan="5" class="text-center py-5 text-muted">No hay documentos en cola de cobro.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -332,6 +358,7 @@
         const total = parseFloat(inp.dataset.total || inp.min || 0);
         const saldo = parseFloat(inp.dataset.saldo || 0) || 0;
         const cliente = inp.dataset.cliente || 'cliente';
+        const wrapCuotas = document.getElementById('credito_cuotas_wrap_' + id);
         if (sel.value === 'Credito') {
             if (saldoInp) {
                 saldoInp.value = 0;
@@ -341,12 +368,14 @@
             inp.min = 0;
             inp.step = 'any';
             inp.readOnly = true;
+            if (wrapCuotas) wrapCuotas.classList.remove('d-none');
             if (hint) {
                 hint.textContent = saldo > 0
                     ? ('Venta a crédito: no requiere monto recibido. Atención: ' + cliente + ' ya debe $' + Math.round(saldo).toLocaleString('es-CL') + '.')
                     : 'Venta a crédito: no requiere monto recibido en caja.';
             }
         } else {
+            if (wrapCuotas) wrapCuotas.classList.add('d-none');
             if (saldoInp) saldoInp.readOnly = false;
             inp.readOnly = false;
             const saldoFavor = calcularSaldoFavorCobro(id);
@@ -356,7 +385,7 @@
             if (!inp.value || parseFloat(inp.value) < totalPagar) {
                 inp.value = Math.round(totalPagar);
             }
-            if (hint) hint.textContent = 'Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.';
+            if (hint) hint.textContent = 'Para efectivo, débito o tarjeta de crédito debe ser mayor o igual al total pendiente después de saldo a favor.';
         }
         actualizarSaldoFavorCobro(id);
     }

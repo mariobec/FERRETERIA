@@ -1,17 +1,33 @@
 # --- IMPORTS ---
+import os as _os_early
+# Fix Windows + Postgres en castellano: libpq devuelve mensajes con tildes en cp1252
+# y psycopg2 falla con UnicodeDecodeError al conectar (byte 0xf3, etc.).
+# Forzamos UTF-8 y locale C en el servidor antes de cualquier intento de conexion.
+_os_early.environ.setdefault('PGCLIENTENCODING', 'UTF8')
+# Neon "pooler" rechaza lc_messages en PGOPTIONS (startup parameter unsupported).
+_url_early = (
+    (_os_early.environ.get('DATABASE_URL') or _os_early.environ.get('SQLALCHEMY_DATABASE_URI') or '')
+    .lower()
+)
+_neon_pooler = 'neon.tech' in _url_early and 'pooler' in _url_early
+_pgopt_actual = _os_early.environ.get('PGOPTIONS', '')
+if not _neon_pooler and 'lc_messages' not in _pgopt_actual:
+    _os_early.environ['PGOPTIONS'] = (_pgopt_actual + ' -c lc_messages=C').strip()
+
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import csv
 import os
 import json
 import html
+import uuid
 from collections import defaultdict
 from functools import wraps
 from flask_login import current_user, login_required, UserMixin, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import inspect as sa_inspect, and_, func, or_, text, UniqueConstraint
+from sqlalchemy import inspect as sa_inspect, and_, exists, func, or_, text, UniqueConstraint
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 import qrcode
@@ -54,6 +70,16 @@ def _load_env_archivos():
                 k, v = _parse_line(raw.strip())
                 if k:
                     os.environ[k] = v
+
+    # .env.local: credenciales locales (ej: DATABASE_URL apuntando a Postgres local).
+    # No sobrescribe variables del sistema operativo (p. ej. en Render/Neon).
+    path_local = os.path.join(root, '.env.local')
+    if os.path.isfile(path_local):
+        with open(path_local, encoding='utf-8-sig', errors='replace') as f:
+            for raw in f:
+                k, v = _parse_line(raw.strip())
+                if k:
+                    os.environ.setdefault(k, v)
 
 
 try:
@@ -98,7 +124,13 @@ if db_uri.startswith('postgresql'):
         'keepalives_idle': 30,
         'keepalives_interval': 10,
         'keepalives_count': 3,
+        # En Windows con Postgres en castellano libpq devuelve mensajes en cp1252
+        # y psycopg2 puede caer con UnicodeDecodeError ("byte 0xf3 in position ...").
+        # Forzar UTF-8 evita el problema tanto en local como en Neon.
+        'client_encoding': 'utf8',
     }
+    # Refuerzo a nivel libpq por si la conexion se establece antes de aplicar client_encoding.
+    os.environ.setdefault('PGCLIENTENCODING', 'UTF8')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
 # En desarrollo, recargar plantillas al guardar (sin depender de debug=True).
 # Desactivar explícitamente con FLASK_TEMPLATE_RELOAD=0 si no lo deseas.
@@ -537,6 +569,117 @@ def _ruta_config_proveedores():
     return os.path.join(carpeta_cfg, 'proveedores_config.json')
 
 
+def _ruta_landing_leads():
+    carpeta_cfg = os.path.join(app.root_path, 'data')
+    os.makedirs(carpeta_cfg, exist_ok=True)
+    return os.path.join(carpeta_cfg, 'landing_leads.jsonl')
+
+
+def _ruta_landing_lead_eventos():
+    carpeta_cfg = os.path.join(app.root_path, 'data')
+    os.makedirs(carpeta_cfg, exist_ok=True)
+    return os.path.join(carpeta_cfg, 'landing_lead_events.jsonl')
+
+
+def guardar_landing_lead(payload):
+    data = payload if isinstance(payload, dict) else {}
+    nombre = (str(data.get('nombre') or '').strip())[:120]
+    empresa = (str(data.get('empresa') or '').strip())[:160]
+    telefono = (str(data.get('telefono') or '').strip())[:40]
+    lead_id = f"L{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"
+    lead = {
+        "id": lead_id,
+        "ts": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "source": "landing_ai_assistant",
+        "prioridad": (str(data.get('prioridad') or 'NORMAL').strip().upper())[:20],
+        "nombre": nombre,
+        "empresa": empresa,
+        "telefono": telefono,
+        "tipo": (str(data.get('tipo') or '').strip())[:80],
+        "prioridad_area": (str(data.get('prioridad_area') or '').strip())[:80],
+        "usuarios": (str(data.get('usuarios') or '').strip())[:80],
+        "prediccion": (str(data.get('prediccion') or '').strip())[:80],
+        "facturacion": (str(data.get('facturacion') or '').strip())[:80],
+        "urgencia": (str(data.get('urgencia') or '').strip())[:80],
+        "recomendacion_demo": (str(data.get('recomendacion_demo') or '').strip())[:220],
+        "landing_url": (str(data.get('landing_url') or '').strip())[:220],
+        "user_agent": (request.headers.get('User-Agent') or '')[:220],
+        "ip": (request.headers.get('X-Forwarded-For') or request.remote_addr or '')[:120],
+    }
+    with open(_ruta_landing_leads(), 'a', encoding='utf-8') as f:
+        f.write(json.dumps(lead, ensure_ascii=False) + '\n')
+    return lead
+
+
+def _leer_jsonl(path, limit=1000):
+    out = []
+    if not os.path.exists(path):
+        return out
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = (line or '').strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    if isinstance(rec, dict):
+                        out.append(rec)
+                except Exception:
+                    continue
+    except Exception:
+        return []
+    if limit and len(out) > limit:
+        out = out[-limit:]
+    return out
+
+
+def _map_lead_eventos(limit=3000):
+    eventos = _leer_jsonl(_ruta_landing_lead_eventos(), limit=limit)
+    by_lead = {}
+    for ev in eventos:
+        lid = str(ev.get('lead_id') or '').strip()
+        if not lid:
+            continue
+        by_lead[lid] = ev
+    return by_lead
+
+
+def registrar_evento_lead(lead_id, estado, nota=''):
+    ev = {
+        "ts": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "lead_id": (str(lead_id or '').strip())[:80],
+        "estado": (str(estado or '').strip())[:40] or "Nuevo",
+        "nota": (str(nota or '').strip())[:240],
+        "usuario": (getattr(current_user, 'nombre', None) or getattr(current_user, 'correo', None) or 'sistema')[:80],
+    }
+    with open(_ruta_landing_lead_eventos(), 'a', encoding='utf-8') as f:
+        f.write(json.dumps(ev, ensure_ascii=False) + '\n')
+    return ev
+
+
+def cargar_landing_leads_gestion(limit=800):
+    leads = _leer_jsonl(_ruta_landing_leads(), limit=limit)
+    eventos = _map_lead_eventos()
+    out = []
+    for i, l in enumerate(leads):
+        lid = str(l.get('id') or f"legacy-{i+1}").strip()
+        ev = eventos.get(lid, {})
+        row = dict(l)
+        row['id'] = lid
+        row['estado'] = (ev.get('estado') or 'Nuevo')
+        row['nota_estado'] = (ev.get('nota') or '')
+        row['ts_estado'] = (ev.get('ts') or row.get('ts') or '')
+        out.append(row)
+    out.reverse()
+    return out
+
+
+def _usuario_autorizado_lexia_interno():
+    correo = (getattr(current_user, 'correo', None) or '').strip().lower()
+    return correo == 'mariobec@gmail.com'
+
+
 def _cargar_config_proveedores():
     ruta = _ruta_config_proveedores()
     base = {"canales_compra": {}}
@@ -693,6 +836,30 @@ def inject_company_context():
         }
 
 
+@app.context_processor
+def inject_session_uptime():
+    """Expone el inicio de sesion (epoch ms) para el contador de minutos en la topbar."""
+    iso = session.get('login_at') if session else None
+    if not iso:
+        return {'session_login_ms': None}
+    try:
+        dt = datetime.fromisoformat(iso)
+        return {'session_login_ms': int(dt.timestamp() * 1000)}
+    except Exception:
+        return {'session_login_ms': None}
+
+
+@app.before_request
+def _autocompletar_login_at():
+    """Si un usuario ya autenticado no tiene login_at en sesion (p. ej. tras reinicio del server),
+    lo seteamos a 'ahora' para que el contador de minutos no quede vacio."""
+    try:
+        if current_user.is_authenticated and not session.get('login_at'):
+            session['login_at'] = datetime.utcnow().isoformat()
+    except Exception:
+        pass
+
+
 # --- LOGIN MANAGER ---.........................................................................
 from flask_login import LoginManager
 
@@ -774,6 +941,16 @@ _ENDPOINTS_CAJA_ESTRICTA = {
     'registrar_abono',
 }
 
+# Con caja abierta de un día anterior, el POS sigue bloqueado hasta cerrar; pero
+# la cola de cobro/anulación debe ser accesible para desbloquear el cierre (evita
+# un callejón: cerrar_caja exige resolver vales y caja_requerida impedía llegar).
+_ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA = frozenset({
+    'caja_pendientes',
+    'procesar_cobro_caja',
+    'anular_vale_caja',
+    'ver_ticket_cobro',
+})
+
 
 def _endpoint_requiere_caja_activa():
     ep = (request.endpoint or '').strip()
@@ -795,7 +972,12 @@ def caja_requerida(f):
             return redirect(url_for('abrir_caja'))
         # Si la caja abierta es de un día anterior, obligamos su cierre.
         fecha_apertura = caja_activa.fecha_apertura.date() if caja_activa.fecha_apertura else None
-        if fecha_apertura and fecha_apertura < datetime.now().date():
+        ep = (request.endpoint or '').strip()
+        if (
+            fecha_apertura
+            and fecha_apertura < datetime.now().date()
+            and ep not in _ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA
+        ):
             flash(
                 f"La caja N°{caja_activa.id} quedó abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
                 "Debe cerrar esa caja antes de continuar en el POS.",
@@ -1340,6 +1522,144 @@ def descontar_stock_venta_tienda(producto, consumo_stock):
     return None
 
 
+def incrementar_stock_venta_tienda(producto, consumo_stock):
+    """Revierte un descuento de venta en TIENDA (opuesto a descontar_stock_venta_tienda)."""
+    if consumo_stock <= 0:
+        return "Cantidad de reversión inválida."
+    aid = id_almacen_tienda()
+    if aid and _tablas_inventario_almacen_existen():
+        _, err = ajustar_stock_almacen(producto.id, aid, int(consumo_stock))
+        if err:
+            return err
+        _refrescar_stock_total_producto(producto)
+    else:
+        producto.stock = (producto.stock or 0) + int(consumo_stock)
+    return None
+
+
+def _venta_metodo_pago_vacio(venta):
+    mp = getattr(venta, 'metodo_pago', None)
+    if mp is None:
+        return True
+    return str(mp).strip() == ''
+
+
+def _venta_stock_ya_descontado(venta):
+    """True si la mercadería ya salió de inventario tienda para esta venta."""
+    st = (venta.estado or '').strip()
+    if st in ('Abierta', 'Anulada'):
+        return False
+    if st == 'Pagado':
+        return True
+    if st == 'Pendiente':
+        return not _venta_metodo_pago_vacio(venta)
+    return False
+
+
+def _revertir_operaciones_venta_antes_borrar(venta, usuario_nombre):
+    """
+    Desvincula cotización, revierte inventario/kardex y ajustes de cliente antes de borrar la venta.
+    Retorna (True, None) o (False, mensaje_error).
+    """
+    usr = (usuario_nombre or '')[:100] or 'Sistema'
+    vid = venta.id
+
+    for cot in Cotizacion.query.filter_by(venta_id=vid).all():
+        cot.venta_id = None
+        if (cot.estado or '').strip() == 'Convertida':
+            cot.estado = 'Vigente'
+            cot.fecha_estado = datetime.utcnow()
+
+    if not _venta_stock_ya_descontado(venta):
+        return True, None
+
+    detalles = list(venta.detalles or [])
+    for d in detalles:
+        producto = Producto.query.get(d.id_producto)
+        if not producto:
+            return False, f"No se encontró el producto en línea de venta #{d.id}."
+        factor = _factor_venta_a_stock(producto)
+        consumo = int(round((d.cantidad or 0) * factor))
+        if consumo <= 0:
+            continue
+        err = incrementar_stock_venta_tienda(producto, consumo)
+        if err:
+            return False, err
+        registrar_movimiento_kardex(
+            producto.id,
+            'ENTRADA',
+            consumo,
+            f"Reversa eliminación venta #{vid}",
+            usuario=usr,
+            id_almacen=id_almacen_tienda() or 1,
+            referencia_tipo='venta_reversa',
+            referencia_id=vid,
+            stock_saldo=None,
+        )
+
+    if venta.metodo_pago == 'Credito' and venta.cliente_id:
+        cli = Cliente.query.get(venta.cliente_id)
+        if cli:
+            mt = float(venta.monto_total or 0)
+            cli.saldo_deudor = max(0.0, float(cli.saldo_deudor or 0) - mt)
+
+    if (venta.estado or '').strip() == 'Pagado':
+        sf = float(venta.saldo_favor_usado or 0)
+        if sf > 0 and venta.cliente_id:
+            _aplicar_mov_saldo_favor(
+                venta.cliente_id,
+                None,
+                'CREDITO',
+                sf,
+                f'Reversa eliminación venta #{vid}',
+            )
+
+    return True, None
+
+
+def _monto_medios_pago_reversa_venta_pagada(venta):
+    """Neto cobrado fuera de saldo a favor (para registrar egreso de caja al revertir la venta)."""
+    sf = float(venta.saldo_favor_usado or 0)
+    total_sin_favor = max(0.0, float(venta.monto_total or 0) - sf)
+    met_l = (venta.metodo_pago or '').strip().lower()
+    if met_l == 'efectivo':
+        por_ticket = float(venta.monto_recibido or 0) - float(venta.vuelto or 0)
+        return max(0.0, por_ticket if por_ticket > 0 else total_sin_favor)
+    return total_sin_favor
+
+
+def _registrar_movimiento_caja_devolucion_venta(venta, usuario_registro):
+    """
+    Registra un egreso en movimiento_caja al eliminar una venta Pagada (no crédito).
+    Retorna texto de advertencia o None si todo OK / no aplica.
+    """
+    if (venta.estado or '').strip() != 'Pagado':
+        return None
+    mp = (venta.metodo_pago or '').strip()
+    if not mp or mp == 'Credito':
+        return None
+    cid = venta.caja_id
+    if not cid:
+        return 'La venta no tiene caja asociada; no se registró egreso en movimiento de caja.'
+    monto = _monto_medios_pago_reversa_venta_pagada(venta)
+    if monto <= 0:
+        return 'sin_monto_medios'
+    usr = (usuario_registro or '')[:80] or 'Sistema'
+    resp = usr[:120]
+    concepto = f"Devolución / reversa venta #{venta.id} ({mp})"
+    db.session.add(
+        MovimientoCaja(
+            caja_id=int(cid),
+            tipo='Egreso',
+            concepto=concepto[:255],
+            monto=float(monto),
+            responsable_retiro=resp,
+            usuario_registro=usr,
+        )
+    )
+    return None
+
+
 def aplicar_stock_desde_catalogo_a_tienda(producto):
     """
     Tras importar/editar productos.stock masivamente: todo el saldo del catálogo se interpreta como TIENDA.
@@ -1388,6 +1708,9 @@ class Venta(db.Model):
     fecha_anulacion = db.Column(db.DateTime, nullable=True)
     usuario_anulacion = db.Column(db.String(80), nullable=True)
     punto_retiro = db.Column(db.String(30), nullable=True, default='Bodega')
+    cotizacion_origen_id = db.Column(db.Integer, nullable=True)
+    # Plan de cuotas: solo 30_60_90 (días corridos desde el cobro). NULL = crédito sin plan de cuotas.
+    credito_plan_codigo = db.Column(db.String(32), nullable=True)
 
     # Relaciones
     caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True)
@@ -1434,7 +1757,92 @@ class Venta(db.Model):
         self.monto_total = float(value) if value else 0.0
         self.desglosar_iva() # Sincroniza impuestos al cambiar el total
 
-        
+
+# --- CUOTAS CRÉDITO (venta al crédito con fechas de vencimiento) ---
+
+# Días corridos desde el cobro en caja → fecha de pago de cada cuota (único plan soportado).
+PLANES_CUOTA_CREDITO_DIAS = {
+    '30_60_90': (30, 60, 90),
+}
+
+
+class VentaCuotaCredito(db.Model):
+    __tablename__ = 'ventas_cuotas_credito'
+    id = db.Column(db.Integer, primary_key=True)
+    venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=False, index=True)
+    nro_cuota = db.Column(db.Integer, nullable=False)
+    dias_plazo = db.Column(db.Integer, nullable=False)
+    fecha_vencimiento = db.Column(db.Date, nullable=False)
+    monto = db.Column(db.Float, nullable=False)
+    estado = db.Column(db.String(20), nullable=False, default='Pendiente')
+
+    venta = db.relationship(
+        'Venta',
+        backref=db.backref(
+            'cuotas_credito',
+            lazy=True,
+            cascade='all, delete-orphan',
+            order_by='VentaCuotaCredito.nro_cuota',
+        ),
+    )
+
+
+def _fecha_base_cuotas_credito(dt):
+    if dt is None:
+        return date.today()
+    if hasattr(dt, 'date'):
+        return dt.date()
+    return dt
+
+
+def _distribuir_monto_cuotas_clp(total, n):
+    tot = int(round(float(total or 0)))
+    if n <= 0 or tot <= 0:
+        return [0] * max(0, n)
+    base = tot // n
+    rem = tot % n
+    out = [base] * n
+    out[-1] = base + rem
+    return out
+
+
+def _registrar_cuotas_credito_venta(venta, plan_codigo, fecha_base_dt):
+    """Genera cuotas 30/60/90 días desde el cobro; elimina cuotas previas de la misma venta."""
+    dias = PLANES_CUOTA_CREDITO_DIAS.get(plan_codigo)
+    if not dias or not venta or not venta.id:
+        return
+    VentaCuotaCredito.query.filter_by(venta_id=venta.id).delete(synchronize_session=False)
+    base_d = _fecha_base_cuotas_credito(fecha_base_dt)
+    montos = _distribuir_monto_cuotas_clp(venta.monto_total, len(dias))
+    for i, (dias_plazo, monto) in enumerate(zip(dias, montos), start=1):
+        if monto <= 0:
+            continue
+        fv = base_d + timedelta(days=int(dias_plazo))
+        db.session.add(
+            VentaCuotaCredito(
+                venta_id=venta.id,
+                nro_cuota=i,
+                dias_plazo=int(dias_plazo),
+                fecha_vencimiento=fv,
+                monto=float(monto),
+                estado='Pendiente',
+            )
+        )
+
+
+def _plan_cuotas_credito_valido(raw):
+    s = (raw or '').strip()
+    return s if s in PLANES_CUOTA_CREDITO_DIAS else ''
+
+
+def _mensaje_resumen_plan_cuotas(plan_codigo):
+    """Texto corto para flashes / UI."""
+    c = (plan_codigo or '').strip()
+    if c == '30_60_90':
+        return '3 cuotas a 30, 60 y 90 días corridos desde el cobro'
+    return c
+
+
 # --- DETALLE VENTA ---
 
 class DetalleVenta(db.Model):
@@ -1451,6 +1859,76 @@ class DetalleVenta(db.Model):
 
     # Relación con producto
     producto = db.relationship('Producto')
+
+
+# --- COTIZACIONES (LexIA IA ERP) ---
+
+class Cotizacion(db.Model):
+    __tablename__ = 'cotizaciones'
+
+    id = db.Column(db.Integer, primary_key=True)
+    numero = db.Column(db.String(20), unique=True, nullable=False)
+    fecha = db.Column(db.DateTime, default=db.func.current_timestamp())
+    validez_dias = db.Column(db.Integer, nullable=False, default=15)
+    fecha_vencimiento = db.Column(db.Date, nullable=True)
+
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
+    cliente_nombre = db.Column(db.String(150), nullable=True)
+    cliente_rut = db.Column(db.String(20), nullable=True)
+    cliente_telefono = db.Column(db.String(40), nullable=True)
+    # Datos de facturacion adicionales (snapshot en la cotizacion)
+    cliente_giro = db.Column(db.String(150), nullable=True)
+    cliente_direccion = db.Column(db.String(250), nullable=True)
+    cliente_comuna = db.Column(db.String(100), nullable=True)
+    cliente_ciudad = db.Column(db.String(100), nullable=True)
+    cliente_correo = db.Column(db.String(150), nullable=True)
+
+    monto_total = db.Column(db.Float, nullable=False, default=0.0)
+    neto = db.Column(db.Float, nullable=False, default=0.0)
+    iva = db.Column(db.Float, nullable=False, default=0.0)
+    descuento_global = db.Column(db.Float, nullable=False, default=0.0)
+
+    notas = db.Column(db.Text, nullable=True)
+
+    # Estados: Vigente, Vencida, Aceptada, Rechazada, Convertida
+    estado = db.Column(db.String(20), nullable=False, default='Vigente')
+    usuario_creador = db.Column(db.String(100), nullable=True)
+
+    venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=True)
+    fecha_estado = db.Column(db.DateTime, nullable=True)
+    motivo_estado = db.Column(db.String(300), nullable=True)
+
+    cliente = db.relationship('Cliente')
+    venta = db.relationship('Venta', foreign_keys=[venta_id])
+    detalles = db.relationship(
+        'CotizacionDetalle',
+        backref='cotizacion',
+        cascade='all, delete-orphan',
+        order_by='CotizacionDetalle.id',
+    )
+
+    @property
+    def esta_vencida(self):
+        from datetime import date
+        return bool(self.fecha_vencimiento and self.fecha_vencimiento < date.today())
+
+
+class CotizacionDetalle(db.Model):
+    __tablename__ = 'cotizacion_detalles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    cotizacion_id = db.Column(db.Integer, db.ForeignKey('cotizaciones.id'), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True)
+
+    codigo = db.Column(db.String(80), nullable=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    cantidad = db.Column(db.Float, nullable=False, default=1)
+    precio_unitario = db.Column(db.Float, nullable=False, default=0.0)
+    descuento = db.Column(db.Float, nullable=False, default=0.0)
+    subtotal = db.Column(db.Float, nullable=False, default=0.0)
+
+    producto = db.relationship('Producto')
+
 
 # 4. CAJA: se define después de Venta para que la relación funcione
 class Caja(db.Model):
@@ -2132,6 +2610,73 @@ def healthz():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route('/api/landing/lead', methods=['POST'])
+def api_landing_lead():
+    data = request.get_json(silent=True) or {}
+    try:
+        lead = guardar_landing_lead(data)
+    except Exception as ex:
+        app.logger.exception("No se pudo guardar lead landing: %s", ex)
+        return jsonify(ok=False, message="No se pudo registrar el lead"), 500
+    return jsonify(ok=True, lead_ts=lead.get("ts")), 201
+
+
+@app.route('/comercial/leads')
+@login_required
+@permisos_required('panel_gerencia', 'gestionar_usuarios')
+def comercial_leads():
+    if not _usuario_autorizado_lexia_interno():
+        flash('Acceso restringido al módulo interno LexIA IA ERP.', 'warning')
+        return redirect(url_for('inicio'))
+    q = (request.args.get('q') or '').strip().lower()
+    estado = (request.args.get('estado') or '').strip()
+    prioridad = (request.args.get('prioridad') or '').strip().upper()
+    leads = cargar_landing_leads_gestion(limit=1000)
+    if q:
+        def _hit(x):
+            blob = " ".join([
+                str(x.get('nombre') or ''),
+                str(x.get('empresa') or ''),
+                str(x.get('telefono') or ''),
+                str(x.get('prioridad_area') or ''),
+                str(x.get('prediccion') or ''),
+            ]).lower()
+            return q in blob
+        leads = [x for x in leads if _hit(x)]
+    if estado:
+        leads = [x for x in leads if str(x.get('estado') or '') == estado]
+    if prioridad:
+        leads = [x for x in leads if str(x.get('prioridad') or '').upper() == prioridad]
+    return render_template(
+        'comercial_leads.html',
+        leads=leads[:400],
+        q=q,
+        estado=estado,
+        prioridad=prioridad,
+    )
+
+
+@app.route('/comercial/leads/<lead_id>/estado', methods=['POST'])
+@login_required
+@permisos_required('panel_gerencia', 'gestionar_usuarios')
+def comercial_lead_estado(lead_id):
+    if not _usuario_autorizado_lexia_interno():
+        flash('Acceso restringido al módulo interno LexIA IA ERP.', 'warning')
+        return redirect(url_for('inicio'))
+    estado = (request.form.get('estado') or '').strip()
+    nota = (request.form.get('nota') or '').strip()
+    validos = {'Nuevo', 'Contactado', 'Cotizado', 'Negociacion', 'Ganado', 'Perdido'}
+    if estado not in validos:
+        flash('Estado de lead inválido.', 'warning')
+    else:
+        registrar_evento_lead(lead_id, estado, nota)
+        flash(f'Lead {lead_id} actualizado a {estado}.', 'success')
+    q = (request.form.get('q') or '').strip()
+    f_estado = (request.form.get('f_estado') or '').strip()
+    f_prioridad = (request.form.get('f_prioridad') or '').strip()
+    return redirect(url_for('comercial_leads', q=q or None, estado=f_estado or None, prioridad=f_prioridad or None))
+
+
 @app.route('/catalogo')
 def catalogo_publico():
     """Catálogo público de consulta (solo lectura)."""
@@ -2217,12 +2762,14 @@ def inicio():
     ).count()
 
     ventas_hoy = db.session.query(db.func.sum(Venta.monto_total)).filter(
-        db.func.date(Venta.fecha) == db.func.current_date()
+        db.func.date(Venta.fecha) == db.func.current_date(),
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
     ).scalar() or 0
 
     transacciones = Venta.query.count()
     transacciones_hoy = Venta.query.filter(
-        db.func.date(Venta.fecha) == db.func.current_date()
+        db.func.date(Venta.fecha) == db.func.current_date(),
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
     ).count()
 
     dinero_credito = db.session.query(db.func.sum(Cliente.saldo_deudor)).scalar() or 0
@@ -2234,10 +2781,12 @@ def inicio():
 
     ayer = datetime.now().date() - timedelta(days=1)
     ventas_ayer = db.session.query(db.func.sum(Venta.monto_total)).filter(
-        db.func.date(Venta.fecha) == ayer
+        db.func.date(Venta.fecha) == ayer,
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
     ).scalar() or 0
     transacciones_ayer = Venta.query.filter(
-        db.func.date(Venta.fecha) == ayer
+        db.func.date(Venta.fecha) == ayer,
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
     ).count()
     retiros_caja_ayer = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
         MovimientoCaja.tipo == "Egreso",
@@ -2285,7 +2834,8 @@ def inicio():
     for i in range(6, -1, -1):
         fecha_consulta = datetime.now().date() - timedelta(days=i)
         monto_dia = db.session.query(db.func.sum(Venta.monto_total)).filter(
-            db.func.date(Venta.fecha) == fecha_consulta
+            db.func.date(Venta.fecha) == fecha_consulta,
+            or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
         ).scalar() or 0
         datos_grafico.append(float(monto_dia))
         labels_grafico.append(fecha_consulta.strftime('%d/%m'))
@@ -2474,12 +3024,17 @@ def owner_mobile():
     ayer = hoy - timedelta(days=1)
 
     ventas_hoy = db.session.query(db.func.sum(Venta.monto_total)).filter(
-        db.func.date(Venta.fecha) == hoy
+        db.func.date(Venta.fecha) == hoy,
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
     ).scalar() or 0
     ventas_ayer = db.session.query(db.func.sum(Venta.monto_total)).filter(
-        db.func.date(Venta.fecha) == ayer
+        db.func.date(Venta.fecha) == ayer,
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
     ).scalar() or 0
-    transacciones_hoy = Venta.query.filter(db.func.date(Venta.fecha) == hoy).count()
+    transacciones_hoy = Venta.query.filter(
+        db.func.date(Venta.fecha) == hoy,
+        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
+    ).count()
     bajo_stock = Producto.query.filter(Producto.stock < 5, Producto.activo == True).count()
     dinero_credito = db.session.query(db.func.sum(Cliente.saldo_deudor)).scalar() or 0
     oc_pendientes = 0
@@ -5307,6 +5862,7 @@ def eliminar_proveedor(id):
 @app.route('/ventas')
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')
 def mostrar_ventas():
     fecha_inicio = request.args.get('fecha_inicio', '').strip()
     fecha_fin = request.args.get('fecha_fin', '').strip()
@@ -5335,12 +5891,17 @@ def mostrar_ventas():
             pass
 
     total_dia = ventas_query.filter(Venta.estado == "Pagado").with_entities(db.func.sum(Venta.monto_total)).scalar() or 0
-    monto_en_vuelo = ventas_query.filter(Venta.estado == "Pendiente").with_entities(db.func.sum(Venta.monto_total)).scalar() or 0
+    monto_en_vuelo = ventas_query.filter(
+        Venta.estado == "Pendiente",
+        or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ''),
+    ).with_entities(db.func.sum(Venta.monto_total)).scalar() or 0
     cant_tickets = ventas_query.count()
+    venta_ids_sq = ventas_query.with_entities(Venta.id).subquery()
     art_rotados = (
-        db.session.query(db.func.sum(DetalleVenta.cantidad))
-        .join(Venta, DetalleVenta.id_venta == Venta.id)
-        .scalar() or 0
+        db.session.query(db.func.coalesce(db.func.sum(DetalleVenta.cantidad), 0))
+        .filter(DetalleVenta.id_venta.in_(db.session.query(venta_ids_sq.c.id)))
+        .scalar()
+        or 0
     )
     promedio = (total_dia + monto_en_vuelo) / cant_tickets if cant_tickets > 0 else 0
 
@@ -5351,7 +5912,10 @@ def mostrar_ventas():
     )
     ventas = ventas_pagination.items
     productos = Producto.query.filter_by(activo=True).all()
-    pendientes = ventas_query.filter(Venta.estado == 'Pendiente').count()
+    pendientes = ventas_query.filter(
+        Venta.estado == 'Pendiente',
+        or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ''),
+    ).count()
 
     return render_template('gestion_ventas.html', 
                            total_dia=total_dia,
@@ -5367,6 +5931,7 @@ def mostrar_ventas():
 @app.route('/guardar_venta', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')
 def guardar_venta():
     # 1. Obtenemos la caja
     caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
@@ -5394,15 +5959,15 @@ def guardar_venta():
             precio = float(p)
         except (TypeError, ValueError):
             flash("Hay productos con cantidades o precios inválidos.", "danger")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         if cantidad <= 0 or precio < 0:
             flash("Las cantidades deben ser mayores a 0 y los precios no negativos.", "warning")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         lineas_validas.append((producto_id, cantidad, precio))
 
     if not lineas_validas:
         flash("Debe agregar al menos un producto válido a la venta.", "warning")
-        return redirect(url_for('punto_venta'))
+        return redirect(url_for('mostrar_ventas'))
 
     total_proyectado = sum(cantidad * precio for _, cantidad, precio in lineas_validas)
 
@@ -5411,18 +5976,18 @@ def guardar_venta():
     if metodo_seleccionado == "Credito":
         if not cliente_id:
             flash("Error: Seleccione un cliente para ventas a crédito.", "danger")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         
         cliente = Cliente.query.get(cliente_id)
         if not cliente:
             flash("Error: Cliente no encontrado.", "danger")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
 
         # Validamos si tiene cupo (Límite - Saldo actual)
         if (cliente.saldo_deudor + total_proyectado) > cliente.limite_credito:
             cupo = cliente.limite_credito - cliente.saldo_deudor
             flash(f"CRÉDITO DENEGADO: El cliente excede su límite. Cupo disponible: ${cupo:,.0f}", "warning")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         
         # Aumentamos la deuda del cliente inmediatamente
         cliente.saldo_deudor += total_proyectado
@@ -5440,6 +6005,13 @@ def guardar_venta():
     db.session.add(nueva_venta)
     db.session.flush()
 
+    plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
+    if metodo_seleccionado == 'Credito':
+        nueva_venta.credito_plan_codigo = plan_cuotas or None
+        VentaCuotaCredito.query.filter_by(venta_id=nueva_venta.id).delete(synchronize_session=False)
+        if plan_cuotas:
+            _registrar_cuotas_credito_venta(nueva_venta, plan_cuotas, datetime.now())
+
     # 3. Validamos stock y registramos detalles
     for producto_id, cant, prec in lineas_validas:
         subtotal = cant * prec
@@ -5447,13 +6019,13 @@ def guardar_venta():
         if not prod:
             db.session.rollback()
             flash("Uno de los productos seleccionados no existe.", "danger")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         factor_venta_stock = _factor_venta_a_stock(prod)
         consumo_stock = int(round(cant * factor_venta_stock))
         if consumo_stock <= 0:
             db.session.rollback()
             flash(f"Conversión inválida para {prod.nombre}.", "warning")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         disp = stock_disponible_venta_tienda(prod)
         if disp < consumo_stock:
             db.session.rollback()
@@ -5462,7 +6034,7 @@ def guardar_venta():
                 f"Requiere {consumo_stock} u. base en tienda y hay {disp}.",
                 "warning",
             )
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         
         detalle = DetalleVenta(
             id_venta=nueva_venta.id, 
@@ -5476,7 +6048,7 @@ def guardar_venta():
         if err_st:
             db.session.rollback()
             flash(f"No se pudo descontar stock para {prod.nombre}: {err_st}", "danger")
-            return redirect(url_for('punto_venta'))
+            return redirect(url_for('mostrar_ventas'))
         registrar_movimiento_kardex(
             prod.id,
             'SALIDA',
@@ -5495,6 +6067,8 @@ def guardar_venta():
         msg = f"Venta #{nueva_venta.id} registrada."
         if metodo_seleccionado == "Credito":
             msg += f" Cargado a cuenta de {cliente.nombre}."
+            if plan_cuotas:
+                msg += f" Plan: {_mensaje_resumen_plan_cuotas(plan_cuotas)}."
         flash(msg, "success")
     except Exception as e:
         db.session.rollback()
@@ -5625,8 +6199,19 @@ def _asegurar_columnas_ventas_legacy():
         if 'usuario_anulacion' not in cols:
             db.session.execute(text("ALTER TABLE ventas ADD COLUMN usuario_anulacion VARCHAR(80) NULL"))
             cambios = True
+        if 'credito_plan_codigo' not in cols:
+            db.session.execute(text("ALTER TABLE ventas ADD COLUMN credito_plan_codigo VARCHAR(32) NULL"))
+            cambios = True
         if cambios:
             db.session.commit()
+        insp = sa_inspect(db.engine)
+        if 'ventas_cuotas_credito' not in set(insp.get_table_names()):
+            db.create_all()
+            insp = sa_inspect(db.engine)
+            if 'ventas_cuotas_credito' not in set(insp.get_table_names()):
+                app.logger.warning(
+                    "No se pudo crear la tabla ventas_cuotas_credito; ejecute python init_db.py o sql/2026_05_08_ventas_cuotas_credito.sql"
+                )
         app.config['_VENTAS_LEGACY_OK'] = True
         return True
     except Exception as ex:
@@ -5822,6 +6407,35 @@ def punto_venta():
     # Vales pendientes
     vales_pendientes = Venta.query.filter_by(estado="Pendiente").all()
 
+    cotizacion_origen = None
+    if venta and venta.cotizacion_origen_id:
+        cotizacion_origen = Cotizacion.query.get(venta.cotizacion_origen_id)
+        # Reparar vales ya convertidos antes del fix: si vienen desde cotizacion
+        # pero quedaron sin cliente_id, enlazamos/creamos el cliente para que
+        # el POS cargue los datos y el vale quede trazable.
+        if cotizacion_origen and not venta.cliente_id and cotizacion_origen.cliente_rut:
+            variantes = _rut_variantes_busqueda(cotizacion_origen.cliente_rut)
+            cli_ref = Cliente.query.filter(Cliente.rut.in_(variantes)).first()
+            if not cli_ref and cotizacion_origen.cliente_nombre:
+                cli_ref = Cliente(
+                    rut=(cotizacion_origen.cliente_rut or _rut_sin_formato(cotizacion_origen.cliente_rut))[:12],
+                    nombre=(cotizacion_origen.cliente_nombre or 'Cliente cotizacion')[:100],
+                    giro=(cotizacion_origen.cliente_giro or None) and cotizacion_origen.cliente_giro[:100],
+                    direccion=(cotizacion_origen.cliente_direccion or None) and cotizacion_origen.cliente_direccion[:200],
+                    telefono=(cotizacion_origen.cliente_telefono or None) and cotizacion_origen.cliente_telefono[:20],
+                    correo=(cotizacion_origen.cliente_correo or None) and cotizacion_origen.cliente_correo[:100],
+                    comuna=(cotizacion_origen.cliente_comuna or None) and cotizacion_origen.cliente_comuna[:80],
+                    ciudad=(cotizacion_origen.cliente_ciudad or None) and cotizacion_origen.cliente_ciudad[:80],
+                    saldo_deudor=0.0,
+                    limite_credito=0.0,
+                    estado_credito='Activo',
+                )
+                db.session.add(cli_ref)
+                db.session.flush()
+            if cli_ref:
+                venta.cliente_id = cli_ref.id
+                db.session.commit()
+
     # Si la venta tiene cliente asociado
     cliente = venta.cliente if venta and venta.cliente_id else None
 
@@ -5843,6 +6457,7 @@ def punto_venta():
         detalles=detalles,
         vales_pendientes=vales_pendientes,
         cliente=cliente,
+        cotizacion_origen=cotizacion_origen,
         factores_stock=factores_stock,
         consumos_stock=consumos_stock,
         stock_tienda=stock_tienda,
@@ -5965,12 +6580,51 @@ def eliminar_detalle(id):
 @app.route('/eliminar_venta/<int:id>', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('gestionar_usuarios', 'anular_vale_caja')
 def eliminar_venta(id):
-    venta = Venta.query.get_or_404(id)
+    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
+    st = (venta.estado or '').strip()
+    if st == 'Anulada':
+        flash('Las ventas anuladas no se eliminan desde esta pantalla.', 'warning')
+        return redirect(url_for('mostrar_ventas'))
+
+    stock_movido = _venta_stock_ya_descontado(venta)
+    if stock_movido and not usuario_tiene_permiso('gestionar_usuarios'):
+        flash(
+            'Eliminar ventas ya cobradas o con inventario afectado requiere permiso de administración.',
+            'danger',
+        )
+        return redirect(url_for('mostrar_ventas'))
+
+    ok_rev, err_rev = _revertir_operaciones_venta_antes_borrar(
+        venta,
+        (current_user.nombre if current_user.is_authenticated else '') or 'Sistema',
+    )
+    if not ok_rev:
+        db.session.rollback()
+        flash(err_rev or 'No se pudo revertir efectos de la venta antes de eliminar.', 'danger')
+        return redirect(url_for('mostrar_ventas'))
+
+    vid = venta.id
+    estado_prev = (venta.estado or '').strip()
+    met_prev = (venta.metodo_pago or '').strip()
+    saldo_fav_prev = float(venta.saldo_favor_usado or 0)
+    usr_nom = (current_user.nombre if current_user.is_authenticated else '') or 'Sistema'
+    warn_mov_caja = _registrar_movimiento_caja_devolucion_venta(venta, usr_nom)
     try:
         db.session.delete(venta)
         db.session.commit()
-        flash(f"Venta N°{venta.id} eliminada correctamente.", "success")
+        msg = f"Venta N°{vid} eliminada."
+        if stock_movido:
+            msg += (
+                " Se revirtió inventario"
+                + (" y saldo a favor del cliente" if estado_prev == 'Pagado' and saldo_fav_prev > 0 else "")
+            )
+        if estado_prev == 'Pagado' and met_prev not in ('', 'Credito') and warn_mov_caja is None:
+            msg += " Se registró egreso en movimiento de caja por la devolución."
+        flash(msg, 'success')
+        if warn_mov_caja and warn_mov_caja not in ('sin_monto_medios',):
+            flash(warn_mov_caja, 'warning')
     except Exception as e:
         db.session.rollback()
         flash(f"Error al eliminar la venta: {str(e)}", "danger")
@@ -6071,23 +6725,36 @@ def finalizar_venta():
     flash(f"Vale N°{venta.id} emitido para {cliente.nombre}. Turno {venta.prioridad}.", "info")
 
     detalles_picking = sorted(list(venta.detalles), key=lambda d: clave_ubicacion_producto(d.producto))
+    cotizacion_origen = Cotizacion.query.get(venta.cotizacion_origen_id) if venta.cotizacion_origen_id else None
 
     # Renderizar ticket
     return render_template('ticket_vale.html',
                            venta=venta,
                            detalles=venta.detalles,
                            detalles_picking=detalles_picking,
-                           cliente=cliente)
+                           cliente=cliente,
+                           cotizacion_origen=cotizacion_origen)
 
 #edición de venta para vales pendientes desde pantalla de ventas........................................
 
 @app.route('/editar_venta/<int:id>', methods=['GET', 'POST'])
 @login_required
 @caja_requerida
+@permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')
 def editar_venta(id):
     venta = Venta.query.get_or_404(id)
-    if (venta.estado or '').strip() == 'Anulada':
-        flash('No se puede editar un vale anulado.', 'warning')
+    st = (venta.estado or '').strip()
+    if st == 'Anulada':
+        flash('No se puede editar una venta anulada.', 'warning')
+        return redirect(url_for('mostrar_ventas'))
+    if st in ('Pagado',):
+        flash('No se puede editar una venta ya cobrada desde esta pantalla.', 'warning')
+        return redirect(url_for('mostrar_ventas'))
+    if st == 'Pendiente' and not _venta_metodo_pago_vacio(venta):
+        flash(
+            'Ventas pendientes con método de pago registrado (p. ej. crédito) no se editan aquí.',
+            'warning',
+        )
         return redirect(url_for('mostrar_ventas'))
     productos = Producto.query.all()
     if request.method == 'POST':
@@ -6391,6 +7058,22 @@ def caja_pendientes():
         monto_vendido = monto_vendido.filter(Venta.caja_id == cid)
     monto_vendido = float(monto_vendido.scalar() or 0)
 
+    borradores_pos = []
+    if cid is not None:
+        borradores_pos = (
+            Venta.query.options(joinedload(Venta.cliente))
+            .filter(Venta.estado == "Abierta", Venta.caja_id == cid)
+            .order_by(Venta.fecha.desc())
+            .all()
+        )
+    db.session.rollback()
+    for v in borradores_pos:
+        falt = _venta_validar_stock_tienda(v)
+        v.stock_cobrable = len(falt) == 0
+        v.stock_alerta = "; ".join(falt[:2]) if falt else ""
+        v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
+        v.cola_es_borrador = True
+
     # Cola para cobrar en esta pantalla (mismo filtro que la tabla de vales)
     vales = (
         Venta.query.filter(
@@ -6406,6 +7089,18 @@ def caja_pendientes():
         v.stock_cobrable = len(falt) == 0
         v.stock_alerta = "; ".join(falt[:2]) if falt else ""
         v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
+        v.cola_es_borrador = False
+
+    cola_combined = list(borradores_pos) + list(vales)
+    cot_ids = [v.cotizacion_origen_id for v in vales if v.cotizacion_origen_id]
+    cot_ids.extend(v.cotizacion_origen_id for v in borradores_pos if v.cotizacion_origen_id)
+    cot_ids = list(dict.fromkeys(cot_ids))
+    cotizaciones_map = {}
+    if cot_ids:
+        cotizaciones_map = {
+            c.id: c
+            for c in Cotizacion.query.filter(Cotizacion.id.in_(cot_ids)).all()
+        }
     db.session.rollback()
     monto_pendiente = float(
         db.session.query(db.func.coalesce(db.func.sum(Venta.monto_total), 0))
@@ -6443,7 +7138,9 @@ def caja_pendientes():
         monto_pendiente=monto_pendiente,
         vuelto_entregado=vuelto_entregado,
         vales=vales,
-        creditos_hoy=creditos_hoy
+        cola_combined=cola_combined,
+        creditos_hoy=creditos_hoy,
+        cotizaciones_map=cotizaciones_map,
     )
 
 
@@ -6977,8 +7674,23 @@ def caja_saldos_favor():
 def anular_vale_caja(id):
     """Vale emitido y no cobrado: cliente no retorna. No descuenta stock (aún no pasó por cobro)."""
     venta = Venta.query.get_or_404(id)
-    if venta.estado != 'Pendiente' or venta.metodo_pago is not None:
-        flash('Solo se pueden anular vales pendientes de cobro (sin método de pago).', 'warning')
+    caja_act = obtener_caja_activa()
+    st = (venta.estado or '').strip()
+    mp = venta.metodo_pago
+    mp_vacio = mp is None or (isinstance(mp, str) and not mp.strip())
+    puede_pendiente = st == 'Pendiente' and mp_vacio
+    puede_borrador = (
+        st == 'Abierta'
+        and mp_vacio
+        and caja_act
+        and (venta.caja_id is None or venta.caja_id == caja_act.id)
+    )
+    if not puede_pendiente and not puede_borrador:
+        flash(
+            'Solo se pueden anular vales pendientes de cobro o borradores POS abiertos '
+            '(sin método de pago) de la caja actual.',
+            'warning',
+        )
         return redirect(url_for('caja_pendientes'))
     motivo = (request.form.get('motivo') or '').strip()[:500]
     venta.estado = 'Anulada'
@@ -6998,7 +7710,8 @@ def anular_vale_caja(id):
         else:
             flash(f'No se pudo anular el vale: {ex}', 'danger')
         return redirect(url_for('caja_pendientes'))
-    flash(f'Vale #{venta.id} anulado. No descontó stock (no estaba cobrado).', 'success')
+    tipo_doc = 'Borrador POS' if st == 'Abierta' else 'Vale'
+    flash(f'{tipo_doc} #{venta.id} anulado. No descontó stock (no estaba cobrado).', 'success')
     return redirect(url_for('caja_pendientes'))
 
 
@@ -7015,7 +7728,11 @@ def procesar_cobro_caja(id):
     if venta.estado == 'Anulada':
         flash(f"El vale #{venta.id} está anulado y no puede cobrarse.", "warning")
         return redirect(url_for('caja_pendientes'))
-    if venta.estado != 'Pendiente':
+    if venta.estado == 'Abierta':
+        if not caja_activa or (venta.caja_id and venta.caja_id != caja_activa.id):
+            flash("Este borrador no corresponde a la caja abierta; no se puede cobrar desde aquí.", "warning")
+            return redirect(url_for('caja_pendientes'))
+    elif venta.estado != 'Pendiente':
         flash(f"El documento #{venta.id} no está en cola de cobro.", "warning")
         return redirect(url_for('caja_pendientes'))
     if venta.metodo_pago is not None:
@@ -7081,6 +7798,11 @@ def procesar_cobro_caja(id):
             venta.monto_recibido = 0
             venta.vuelto = 0
             venta.saldo_favor_usado = 0
+            plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
+            venta.credito_plan_codigo = plan_cuotas or None
+            VentaCuotaCredito.query.filter_by(venta_id=venta.id).delete(synchronize_session=False)
+            if plan_cuotas:
+                _registrar_cuotas_credito_venta(venta, plan_cuotas, venta.fecha)
             if venta.cliente:
                 venta.cliente.saldo_deudor = (venta.cliente.saldo_deudor or 0) + venta.monto_total
         else:
@@ -7131,7 +7853,10 @@ def procesar_cobro_caja(id):
         db.session.commit()
         
         if metodo == "Credito":
-            flash(f"Vale #{venta.id} registrado a crédito para {venta.cliente.nombre if venta.cliente else 'cliente'}.", "success")
+            msg_cred = f"Vale #{venta.id} registrado a crédito para {venta.cliente.nombre if venta.cliente else 'cliente'}."
+            if (venta.credito_plan_codigo or '').strip():
+                msg_cred += f" Plan: {_mensaje_resumen_plan_cuotas(venta.credito_plan_codigo)}."
+            flash(msg_cred, "success")
             return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
         else:
             flash(f"¡Venta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}", "success")
@@ -7155,7 +7880,10 @@ def procesar_cobro_caja(id):
 @caja_requerida
 @permisos_required('caja_cobrar_vale')
 def ver_ticket_cobro(id):
-    venta = Venta.query.get_or_404(id)
+    venta = (
+        Venta.query.options(joinedload(Venta.detalles), joinedload(Venta.cuotas_credito))
+        .get_or_404(id)
+    )
     if venta.estado != 'Pagado':
         flash("El vale de retiro solo está disponible para ventas pagadas.", "warning")
         return redirect(url_for('caja_pendientes'))
@@ -7396,6 +8124,7 @@ def cerrar_caja():
 
     total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Efectivo") or 0
     total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Debito") or 0
+    total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "TarjetaCredito") or 0
     total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Transferencia") or 0
     total_fiado = sum(v.monto_total for v in ventas if _metodo_pago(v).lower() == "credito") or 0
 
@@ -7443,7 +8172,15 @@ def cerrar_caja():
     ) - cambios_efectivo_devuelto - egresos
     
     # 6. GRAN TOTAL DE MOVIMIENTOS (Productividad total)
-    gran_total_dia = total_efectivo + total_debito + total_transferencia + total_fiado + total_abonos_efectivo + total_abonos_otros
+    gran_total_dia = (
+        total_efectivo
+        + total_debito
+        + total_tarjeta_credito
+        + total_transferencia
+        + total_fiado
+        + total_abonos_efectivo
+        + total_abonos_otros
+    )
 
     umbral_diferencia = float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000')
 
@@ -7528,6 +8265,7 @@ def cerrar_caja():
                                caja=caja, 
                                total_efectivo=total_efectivo,
                                total_debito=total_debito,
+                               total_tarjeta_credito=total_tarjeta_credito,
                                total_transferencia=total_transferencia,
                                total_abonos=(total_abonos_efectivo + total_abonos_otros),
                                total_fiado=total_fiado,
@@ -7552,6 +8290,7 @@ def cerrar_caja():
                            tickets_abiertos_cierre=tickets_abiertos_cierre,
                            total_efectivo=total_efectivo,
                            total_debito=total_debito,
+                           total_tarjeta_credito=total_tarjeta_credito,
                            total_transferencia=total_transferencia,
                            total_fiado=total_fiado,
                            cambios_efectivo_recibido=cambios_efectivo_recibido,
@@ -7580,6 +8319,7 @@ def _resumen_caja_cerrada(caja):
 
     total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Efectivo") or 0
     total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Debito") or 0
+    total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "TarjetaCredito") or 0
     total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Transferencia") or 0
     total_fiado = sum(float(v.monto_total or 0) for v in ventas if _metodo_pago(v).lower() == "credito") or 0
     ventas_turno = [v for v in ventas if v.estado != "Abierta"]
@@ -7610,6 +8350,7 @@ def _resumen_caja_cerrada(caja):
     return dict(
         total_efectivo=total_efectivo,
         total_debito=total_debito,
+        total_tarjeta_credito=total_tarjeta_credito,
         total_transferencia=total_transferencia,
         total_abonos=total_abonos_efectivo + total_abonos_otros,
         total_fiado=total_fiado,
@@ -7623,7 +8364,15 @@ def _resumen_caja_cerrada(caja):
         monto_teorico=monto_teorico,
         monto_contado=float(caja.monto_contado_cierre or caja.monto_final or 0),
         diferencia_cuadratura=float(caja.diferencia_cierre or 0),
-        gran_total_ventas=total_efectivo + total_debito + total_transferencia + total_fiado + total_abonos_efectivo + total_abonos_otros,
+        gran_total_ventas=(
+            total_efectivo
+            + total_debito
+            + total_tarjeta_credito
+            + total_transferencia
+            + total_fiado
+            + total_abonos_efectivo
+            + total_abonos_otros
+        ),
         ventas_turno=ventas_turno,
     )
 
@@ -7874,6 +8623,7 @@ def login():
                     flash("Tu cuenta está desactivada. Contacta al administrador.", "warning")
                     return redirect(url_for('login'))
                 login_user(usuario)
+                session['login_at'] = datetime.utcnow().isoformat()
                 if usuario_requiere_cambio_clave(usuario):
                     flash("Por seguridad, cambia tu contraseña temporal.", "warning")
                     return redirect(url_for('cambiar_password'))
@@ -9136,6 +9886,72 @@ def kardex():
 _OC_ESTADOS_VALIDOS = ('Borrador', 'Enviada', 'Parcial', 'Cerrada', 'Anulada')
 
 
+def _extraer_seguimientos_oc(observacion, limit=3):
+    """Extrae hitos [SEGUIMIENTO ...] desde observación de la OC."""
+    raw = (observacion or '').strip()
+    if not raw:
+        return []
+    items = []
+    for part in raw.split('|'):
+        token = part.strip()
+        if not token.startswith('[SEGUIMIENTO '):
+            continue
+        cierre = token.find(']')
+        if cierre == -1:
+            continue
+        fecha_txt = token[len('[SEGUIMIENTO '):cierre].strip()
+        detalle = token[cierre + 1:].strip(' -')
+        if detalle:
+            items.append({'fecha': fecha_txt, 'detalle': detalle})
+    if not items:
+        return []
+    items.reverse()
+    return items[:max(1, int(limit or 1))]
+
+
+def _ultima_fecha_seguimiento_oc(observacion):
+    """Retorna datetime del último [SEGUIMIENTO ...] encontrado en observación."""
+    raw = (observacion or '').strip()
+    if not raw:
+        return None
+    ult = None
+    for part in raw.split('|'):
+        token = part.strip()
+        if not token.startswith('[SEGUIMIENTO '):
+            continue
+        cierre = token.find(']')
+        if cierre == -1:
+            continue
+        fecha_txt = token[len('[SEGUIMIENTO '):cierre].strip()
+        dt = None
+        for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try:
+                dt = datetime.strptime(fecha_txt, fmt)
+                break
+            except ValueError:
+                continue
+        if dt and (ult is None or dt > ult):
+            ult = dt
+    return ult
+
+
+def _registrar_seguimiento_oc(oc, estado_seg, nota_seg=''):
+    """Agrega un hito de seguimiento a la observación de una OC."""
+    estado_seg = (estado_seg or '').strip()[:60]
+    nota_seg = (nota_seg or '').strip()[:180]
+    if not estado_seg:
+        return False
+    marca = f"[SEGUIMIENTO {datetime.now().strftime('%Y-%m-%d %H:%M')}] {estado_seg}"
+    if nota_seg:
+        marca += f" - {nota_seg}"
+    obs_prev = (oc.observacion or '').strip()
+    if obs_prev:
+        oc.observacion = f"{obs_prev} | {marca}"[:500]
+    else:
+        oc.observacion = marca[:500]
+    return True
+
+
 @app.route('/compras/ordenes')
 @login_required
 def lista_ordenes_compra():
@@ -9151,7 +9967,55 @@ def lista_ordenes_compra():
         .limit(500)
         .all()
     )
-    return render_template('ordenes_compra_lista.html', ordenes=ordenes)
+    sin_seg_dias = max(0, int(request.args.get('sin_seg_dias', 0) or 0))
+    solo_pendientes = (request.args.get('solo_pendientes', '1') or '1').strip() == '1'
+    ahora = datetime.now()
+    estados_pendientes = {'Borrador', 'Enviada', 'Parcial'}
+
+    if sin_seg_dias > 0:
+        limite = ahora - timedelta(days=sin_seg_dias)
+        filtradas = []
+        for o in ordenes:
+            if solo_pendientes and (o.estado or '') not in estados_pendientes:
+                continue
+            ult_seg = _ultima_fecha_seguimiento_oc(o.observacion)
+            if (ult_seg is None) or (ult_seg < limite):
+                filtradas.append(o)
+        ordenes = filtradas
+
+    oc_alerta_ids = set()
+    for o in ordenes:
+        if (o.estado or '') in estados_pendientes:
+            ult_seg = _ultima_fecha_seguimiento_oc(o.observacion)
+            if not ult_seg or (ahora - ult_seg).days >= 3:
+                oc_alerta_ids.add(int(o.id))
+
+    return render_template(
+        'ordenes_compra_lista.html',
+        ordenes=ordenes,
+        sin_seg_dias=sin_seg_dias,
+        solo_pendientes=solo_pendientes,
+        oc_alerta_ids=oc_alerta_ids,
+    )
+
+
+@app.route('/compras/ordenes/<int:oid>/seguimiento_rapido', methods=['POST'])
+@login_required
+def orden_compra_seguimiento_rapido(oid):
+    if not _tablas_orden_compra_existen():
+        flash('Ejecute la migración sql/2026_05_03_ordenes_compra.sql', 'warning')
+        return redirect(url_for('inicio'))
+    oc = OrdenCompra.query.get_or_404(oid)
+    estado_seg = request.form.get('seguimiento_estado')
+    nota_seg = request.form.get('seguimiento_nota')
+    if not _registrar_seguimiento_oc(oc, estado_seg, nota_seg):
+        flash('Seleccione un estado de seguimiento.', 'warning')
+    else:
+        db.session.commit()
+        flash(f'Seguimiento rápido registrado en OC #{oc.id}.', 'success')
+    sin_seg_dias = request.form.get('sin_seg_dias', '0')
+    solo_pendientes = request.form.get('solo_pendientes', '1')
+    return redirect(url_for('lista_ordenes_compra', sin_seg_dias=sin_seg_dias, solo_pendientes=solo_pendientes))
 
 
 @app.route('/compras/ordenes/nueva', methods=['GET', 'POST'])
@@ -9356,6 +10220,14 @@ def orden_compra_editar(oid):
                         oc.observacion = (request.form.get('observacion') or '').strip()[:500] or None
                         db.session.commit()
                         flash('Cabecera actualizada.', 'success')
+            elif act == 'registrar_seguimiento':
+                estado_seg = (request.form.get('seguimiento_estado') or '').strip()[:60]
+                nota_seg = (request.form.get('seguimiento_nota') or '').strip()[:180]
+                if not _registrar_seguimiento_oc(oc, estado_seg, nota_seg):
+                    flash('Seleccione un estado de seguimiento.', 'warning')
+                else:
+                    db.session.commit()
+                    flash('Seguimiento registrado en la OC.', 'success')
             elif act == 'add_line':
                 pid = request.form.get('producto_id', type=int)
                 try:
@@ -9395,11 +10267,13 @@ def orden_compra_editar(oid):
     total_estimado = sum(
         (float(d.cantidad or 0) * float(d.precio_unitario or 0)) for d in (oc.detalles or [])
     )
+    seguimientos_oc = _extraer_seguimientos_oc(oc.observacion, limit=3)
     return render_template(
         'orden_compra_form.html',
         proveedores=proveedores,
         canales_compra_map=canales_compra_map,
         canal_oc=canal_oc,
+        seguimientos_oc=seguimientos_oc,
         oc=oc,
         estados=_OC_ESTADOS_VALIDOS,
         total_estimado=total_estimado,
@@ -10009,6 +10883,18 @@ def _cartola_credito_context(cliente_id, fecha_desde_txt, fecha_hasta_txt, orden
     saldo_actual = float(cliente.saldo_deudor or 0)
     diferencia_saldo = saldo_reconstruido - saldo_actual
 
+    cuotas_credito_cliente = (
+        VentaCuotaCredito.query.options(joinedload(VentaCuotaCredito.venta))
+        .join(Venta, Venta.id == VentaCuotaCredito.venta_id)
+        .filter(
+            Venta.cliente_id == cliente_id,
+            Venta.metodo_pago == 'Credito',
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .order_by(VentaCuotaCredito.fecha_vencimiento.asc(), VentaCuotaCredito.id.asc())
+        .all()
+    )
+
     return {
         'cliente': cliente,
         'movimientos': movimientos,
@@ -10021,6 +10907,8 @@ def _cartola_credito_context(cliente_id, fecha_desde_txt, fecha_hasta_txt, orden
         'saldo_actual': saldo_actual,
         'diferencia_saldo': diferencia_saldo,
         'generado_en': datetime.now(),
+        'cuotas_credito_cliente': cuotas_credito_cliente,
+        'hoy': date.today(),
     }
 
 
@@ -10028,9 +10916,67 @@ def _cartola_credito_context(cliente_id, fecha_desde_txt, fecha_hasta_txt, orden
 @login_required
 @caja_requerida
 def modulo_creditos():
+    vista = (request.args.get('vista') or 'ultimos').strip().lower()
+    if vista not in ('ultimos', 'todos'):
+        vista = 'ultimos'
+
     clientes = Cliente.query.filter(Cliente.saldo_deudor > 0).order_by(Cliente.nombre.asc()).all()
-    ultimos_abonos = AbonoCredito.query.order_by(AbonoCredito.fecha.desc()).limit(20).all()
-    return render_template('modulo_creditos.html', clientes=clientes, ultimos_abonos=ultimos_abonos)
+
+    q_abonos = (
+        AbonoCredito.query.options(joinedload(AbonoCredito.cliente))
+        .order_by(AbonoCredito.fecha.desc())
+    )
+    ultimos_abonos = q_abonos.limit(200).all() if vista == 'todos' else q_abonos.limit(25).all()
+
+    total_cartera_credito = float(
+        db.session.query(func.coalesce(func.sum(Cliente.saldo_deudor), 0.0))
+        .filter(Cliente.saldo_deudor > 0)
+        .scalar()
+        or 0.0
+    )
+
+    # Clientes con deuda y al menos una venta al crédito antigua (heurística "por cobrar / alerta").
+    dias_alerta_credito = 45
+    cutoff = datetime.now() - timedelta(days=dias_alerta_credito)
+    cargo_credito_antiguo = exists().where(
+        and_(
+            Venta.cliente_id == Cliente.id,
+            Venta.metodo_pago == 'Credito',
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+            Venta.fecha < cutoff,
+        )
+    )
+    n_credito_alert = int(
+        db.session.query(func.count(Cliente.id))
+        .filter(Cliente.saldo_deudor > 0)
+        .filter(cargo_credito_antiguo)
+        .scalar()
+        or 0
+    )
+
+    limite_cuotas = date.today() + timedelta(days=7)
+    n_cuotas_por_vencer = int(
+        db.session.query(func.count(VentaCuotaCredito.id))
+        .join(Venta, Venta.id == VentaCuotaCredito.venta_id)
+        .filter(
+            VentaCuotaCredito.estado == 'Pendiente',
+            VentaCuotaCredito.fecha_vencimiento <= limite_cuotas,
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .scalar()
+        or 0
+    )
+
+    return render_template(
+        'modulo_creditos.html',
+        clientes=clientes,
+        ultimos_abonos=ultimos_abonos,
+        filtro_vista=vista,
+        total_cartera_credito=total_cartera_credito,
+        n_credito_alert=n_credito_alert,
+        dias_alerta_credito=dias_alerta_credito,
+        n_cuotas_por_vencer=n_cuotas_por_vencer,
+    )
 
 
 @app.route('/creditos/estado_cuenta/<int:cliente_id>')
@@ -10209,6 +11155,709 @@ class AbonoCredito(db.Model):
     caja_id = db.Column(db.Integer, db.ForeignKey('caja.id')) # Para el cierre de caja
     usuario_id = db.Column(db.Integer) # Quién recibió el pago
     comentario = db.Column(db.Text)
+
+# =================================================================
+# MODULO COTIZACIONES (LexIA IA ERP)
+# =================================================================
+
+def _siguiente_numero_cotizacion():
+    """Genera el siguiente correlativo COT-000001."""
+    ultimo = db.session.query(Cotizacion.numero).order_by(Cotizacion.id.desc()).limit(1).first()
+    if ultimo and ultimo[0] and ultimo[0].startswith('COT-'):
+        try:
+            n = int(ultimo[0].replace('COT-', '').strip()) + 1
+        except Exception:
+            n = (Cotizacion.query.count() or 0) + 1
+    else:
+        n = 1
+    return f"COT-{n:06d}"
+
+
+def _actualizar_estado_vencidas():
+    """Marca como Vencida cualquier cotizacion Vigente cuyo vencimiento sea anterior a hoy."""
+    from datetime import date, datetime
+    hoy = date.today()
+    pendientes = Cotizacion.query.filter(
+        Cotizacion.estado == 'Vigente',
+        Cotizacion.fecha_vencimiento.isnot(None),
+        Cotizacion.fecha_vencimiento < hoy,
+    ).all()
+    if not pendientes:
+        return 0
+    ahora = datetime.utcnow()
+    for c in pendientes:
+        c.estado = 'Vencida'
+        c.fecha_estado = ahora
+    db.session.commit()
+    return len(pendientes)
+
+
+def _calcular_totales_cotizacion(detalles, descuento_global=0.0):
+    """Recalcula neto, iva (19%) y total de un set de detalles.
+    Los precios capturados ya son brutos (incluyen IVA), por lo que el neto se obtiene dividiendo por 1.19.
+    """
+    bruto = 0.0
+    for d in detalles:
+        cant = float(d.cantidad or 0)
+        pu = float(d.precio_unitario or 0)
+        desc = float(d.descuento or 0)
+        sub = max(0.0, cant * pu - desc)
+        d.subtotal = round(sub, 2)
+        bruto += sub
+    bruto = max(0.0, bruto - float(descuento_global or 0))
+    neto = round(bruto / 1.19, 2)
+    iva = round(bruto - neto, 2)
+    total = round(neto + iva, 2)
+    return neto, iva, total
+
+
+def _construir_mensaje_whatsapp_cotizacion(cot):
+    """Texto plano para enviar la cotizacion por WhatsApp."""
+    empresa = obtener_config_empresa()
+    lineas = [
+        f"*Cotizacion {cot.numero}* - {empresa.get('nombre_comercial','')}",
+        f"Fecha: {cot.fecha.strftime('%d-%m-%Y') if cot.fecha else ''}",
+    ]
+    if cot.fecha_vencimiento:
+        lineas.append(f"Validez: hasta {cot.fecha_vencimiento.strftime('%d-%m-%Y')}")
+    if cot.cliente_nombre:
+        lineas.append(f"Cliente: {cot.cliente_nombre}")
+    lineas.append("")
+    lineas.append("Detalle:")
+    for d in cot.detalles:
+        lineas.append(f"- {d.cantidad:g} x {d.nombre} -> ${(d.subtotal or 0):,.0f}".replace(",", "."))
+    lineas.append("")
+    lineas.append(f"Total: ${(cot.monto_total or 0):,.0f}".replace(",", "."))
+    if cot.notas:
+        lineas.append("")
+        lineas.append(f"Notas: {cot.notas}")
+    if empresa.get('telefono'):
+        lineas.append("")
+        lineas.append(f"Contacto: {empresa.get('telefono')}")
+    return "\n".join(lineas)
+
+
+@app.route('/cotizaciones')
+@login_required
+def cotizaciones_lista():
+    _actualizar_estado_vencidas()
+    estado = (request.args.get('estado') or '').strip()
+    q = (request.args.get('q') or '').strip()
+
+    query = Cotizacion.query
+    if estado:
+        query = query.filter(Cotizacion.estado == estado)
+    if q:
+        like = f"%{q.lower()}%"
+        query = query.filter(
+            db.or_(
+                db.func.lower(Cotizacion.numero).like(like),
+                db.func.lower(Cotizacion.cliente_nombre).like(like),
+                Cotizacion.cliente_rut.ilike(f"%{q}%"),
+                Cotizacion.cliente_telefono.ilike(f"%{q}%"),
+            )
+        )
+
+    cotizaciones = query.order_by(Cotizacion.fecha.desc()).limit(400).all()
+
+    # KPI por estado para badges en la UI
+    kpis = {
+        'Vigente': Cotizacion.query.filter_by(estado='Vigente').count(),
+        'Vencida': Cotizacion.query.filter_by(estado='Vencida').count(),
+        'Aceptada': Cotizacion.query.filter_by(estado='Aceptada').count(),
+        'Rechazada': Cotizacion.query.filter_by(estado='Rechazada').count(),
+        'Convertida': Cotizacion.query.filter_by(estado='Convertida').count(),
+    }
+    return render_template(
+        'cotizaciones_lista.html',
+        cotizaciones=cotizaciones,
+        estado=estado,
+        q=q,
+        kpis=kpis,
+    )
+
+
+@app.route('/cotizaciones/nueva', methods=['GET', 'POST'])
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_nueva():
+    from datetime import date, timedelta, datetime
+    if request.method == 'POST':
+        cliente_nombre = (request.form.get('cliente_nombre') or '').strip()[:150]
+        cliente_rut = (request.form.get('cliente_rut') or '').strip()[:20]
+        cliente_telefono = (request.form.get('cliente_telefono') or '').strip()[:40]
+        cliente_giro = (request.form.get('cliente_giro') or '').strip()[:150]
+        cliente_direccion = (request.form.get('cliente_direccion') or '').strip()[:250]
+        cliente_comuna = (request.form.get('cliente_comuna') or '').strip()[:100]
+        cliente_ciudad = (request.form.get('cliente_ciudad') or '').strip()[:100]
+        cliente_correo = (request.form.get('cliente_correo') or '').strip()[:150]
+        cliente_id_raw = (request.form.get('cliente_id') or '').strip()
+        validez = int((request.form.get('validez_dias') or '15').strip() or '15')
+        descuento_global = float((request.form.get('descuento_global') or '0').strip() or '0')
+        notas = (request.form.get('notas') or '').strip() or None
+
+        # Lineas: arrays paralelos
+        productos = request.form.getlist('det_producto_id')
+        codigos = request.form.getlist('det_codigo')
+        nombres = request.form.getlist('det_nombre')
+        cantidades = request.form.getlist('det_cantidad')
+        precios = request.form.getlist('det_precio')
+        descuentos = request.form.getlist('det_descuento')
+
+        if not nombres:
+            flash('Agrega al menos una linea a la cotizacion.', 'warning')
+            return redirect(url_for('cotizacion_nueva'))
+
+        # ---- Resolver cliente: enlazar a existente o crear uno nuevo si trae RUT ----
+        cliente_id_final = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
+        cliente_creado = False
+        cliente_actualizado = False
+
+        rut_normalizado = (cliente_rut or '').strip().upper().replace('.', '').replace(' ', '')
+        if rut_normalizado and not cliente_id_final:
+            existente = Cliente.query.filter(
+                db.func.upper(db.func.replace(Cliente.rut, '.', '')) == rut_normalizado
+            ).first()
+            if existente:
+                cliente_id_final = existente.id
+                # Completar datos faltantes en el cliente maestro (sin pisar lo que ya tiene)
+                cambios = False
+                if not (existente.giro or '').strip() and cliente_giro:
+                    existente.giro = cliente_giro[:100]; cambios = True
+                if not (existente.direccion or '').strip() and cliente_direccion:
+                    existente.direccion = cliente_direccion[:200]; cambios = True
+                if not (existente.comuna or '').strip() and cliente_comuna:
+                    existente.comuna = cliente_comuna[:80]; cambios = True
+                if not (existente.ciudad or '').strip() and cliente_ciudad:
+                    existente.ciudad = cliente_ciudad[:80]; cambios = True
+                if not (existente.correo or '').strip() and cliente_correo:
+                    existente.correo = cliente_correo[:100]; cambios = True
+                if not (existente.telefono or '').strip() and cliente_telefono:
+                    existente.telefono = cliente_telefono[:20]; cambios = True
+                if cambios:
+                    cliente_actualizado = True
+            else:
+                # Crear nuevo cliente con cupo $0 (sin credito automatico)
+                try:
+                    nuevo = Cliente(
+                        rut=rut_normalizado[:12],
+                        nombre=(cliente_nombre or rut_normalizado)[:100],
+                        giro=(cliente_giro or None) and cliente_giro[:100],
+                        direccion=(cliente_direccion or None) and cliente_direccion[:200],
+                        telefono=(cliente_telefono or None) and cliente_telefono[:20],
+                        correo=(cliente_correo or None) and cliente_correo[:100],
+                        comuna=(cliente_comuna or None) and cliente_comuna[:80],
+                        ciudad=(cliente_ciudad or None) and cliente_ciudad[:80],
+                        saldo_deudor=0.0,
+                        limite_credito=0.0,
+                        estado_credito='Activo',
+                    )
+                    db.session.add(nuevo)
+                    db.session.flush()
+                    cliente_id_final = nuevo.id
+                    cliente_creado = True
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f"No se pudo crear el cliente nuevo en la BD: {e}. La cotizacion se guardara igual con los datos manualmente.", "warning")
+
+        # Crear cotizacion
+        cot = Cotizacion(
+            numero=_siguiente_numero_cotizacion(),
+            fecha=datetime.utcnow(),
+            validez_dias=max(1, validez),
+            fecha_vencimiento=date.today() + timedelta(days=max(1, validez)),
+            cliente_id=cliente_id_final,
+            cliente_nombre=cliente_nombre or None,
+            cliente_rut=cliente_rut or None,
+            cliente_telefono=cliente_telefono or None,
+            cliente_giro=cliente_giro or None,
+            cliente_direccion=cliente_direccion or None,
+            cliente_comuna=cliente_comuna or None,
+            cliente_ciudad=cliente_ciudad or None,
+            cliente_correo=cliente_correo or None,
+            descuento_global=descuento_global,
+            notas=notas,
+            estado='Vigente',
+            usuario_creador=(getattr(current_user, 'nombre', '') or 'sistema')[:100],
+        )
+        db.session.add(cot)
+        db.session.flush()
+
+        # Detalles
+        for i, nombre_lin in enumerate(nombres):
+            nombre_lin = (nombre_lin or '').strip()[:200]
+            if not nombre_lin:
+                continue
+            try:
+                cant = float((cantidades[i] or '1').replace(',', '.'))
+                pu = float((precios[i] or '0').replace(',', '.'))
+                desc = float((descuentos[i] or '0').replace(',', '.'))
+            except Exception:
+                cant, pu, desc = 1.0, 0.0, 0.0
+            pid_raw = productos[i] if i < len(productos) else ''
+            cod = (codigos[i] if i < len(codigos) else '').strip()[:80] or None
+            det = CotizacionDetalle(
+                cotizacion_id=cot.id,
+                producto_id=int(pid_raw) if pid_raw and pid_raw.isdigit() else None,
+                codigo=cod,
+                nombre=nombre_lin,
+                cantidad=cant,
+                precio_unitario=pu,
+                descuento=desc,
+                subtotal=max(0.0, cant * pu - desc),
+            )
+            db.session.add(det)
+
+        # Recalcular totales
+        db.session.flush()
+        neto, iva, total = _calcular_totales_cotizacion(cot.detalles, cot.descuento_global)
+        cot.neto = neto
+        cot.iva = iva
+        cot.monto_total = total
+
+        db.session.commit()
+        if cliente_creado:
+            flash(f"Cotizacion {cot.numero} creada. Tambien se registro al cliente nuevo en la base de datos (RUT {rut_normalizado}, cupo $0).", "success")
+        elif cliente_actualizado:
+            flash(f"Cotizacion {cot.numero} creada. Se completaron datos faltantes del cliente {cliente_nombre or rut_normalizado}.", "success")
+        else:
+            flash(f"Cotizacion {cot.numero} creada correctamente.", "success")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+    # GET: formulario vacio
+    productos_demo = (
+        Producto.query
+        .filter(Producto.precio_venta.isnot(None))
+        .order_by(Producto.nombre.asc())
+        .limit(50)
+        .all()
+    )
+    return render_template(
+        'cotizacion_form.html',
+        cotizacion=None,
+        productos_demo=productos_demo,
+    )
+
+
+@app.route('/cotizaciones/<int:cot_id>')
+@login_required
+def cotizacion_detalle(cot_id):
+    cot = Cotizacion.query.get_or_404(cot_id)
+    _actualizar_estado_vencidas()
+    db.session.refresh(cot)
+    empresa = obtener_config_empresa()
+    return render_template(
+        'cotizacion_detalle.html',
+        cotizacion=cot,
+        empresa=empresa,
+    )
+
+
+@app.route('/cotizaciones/<int:cot_id>/editar', methods=['GET', 'POST'])
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_editar(cot_id):
+    """Edita una cotizacion existente. Solo permitido si esta Vigente o Vencida."""
+    from datetime import date, timedelta, datetime
+    cot = Cotizacion.query.get_or_404(cot_id)
+    if cot.estado not in ('Vigente', 'Vencida'):
+        flash(f"No se puede editar una cotizacion {cot.estado.lower()}. Crea una nueva si necesitas cambios.", "warning")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+    if request.method == 'POST':
+        cliente_nombre = (request.form.get('cliente_nombre') or '').strip()[:150]
+        cliente_rut = (request.form.get('cliente_rut') or '').strip()[:20]
+        cliente_telefono = (request.form.get('cliente_telefono') or '').strip()[:40]
+        cliente_giro = (request.form.get('cliente_giro') or '').strip()[:150]
+        cliente_direccion = (request.form.get('cliente_direccion') or '').strip()[:250]
+        cliente_comuna = (request.form.get('cliente_comuna') or '').strip()[:100]
+        cliente_ciudad = (request.form.get('cliente_ciudad') or '').strip()[:100]
+        cliente_correo = (request.form.get('cliente_correo') or '').strip()[:150]
+        cliente_id_raw = (request.form.get('cliente_id') or '').strip()
+        validez = int((request.form.get('validez_dias') or '15').strip() or '15')
+        descuento_global = float((request.form.get('descuento_global') or '0').strip() or '0')
+        notas = (request.form.get('notas') or '').strip() or None
+
+        nombres = request.form.getlist('det_nombre')
+        if not nombres:
+            flash('La cotizacion debe tener al menos una linea.', 'warning')
+            return redirect(url_for('cotizacion_editar', cot_id=cot.id))
+
+        productos = request.form.getlist('det_producto_id')
+        codigos = request.form.getlist('det_codigo')
+        cantidades = request.form.getlist('det_cantidad')
+        precios = request.form.getlist('det_precio')
+        descuentos = request.form.getlist('det_descuento')
+
+        # Actualizar cabecera
+        cot.cliente_id = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
+        cot.cliente_nombre = cliente_nombre or None
+        cot.cliente_rut = cliente_rut or None
+        cot.cliente_telefono = cliente_telefono or None
+        cot.cliente_giro = cliente_giro or None
+        cot.cliente_direccion = cliente_direccion or None
+        cot.cliente_comuna = cliente_comuna or None
+        cot.cliente_ciudad = cliente_ciudad or None
+        cot.cliente_correo = cliente_correo or None
+        cot.descuento_global = descuento_global
+        cot.notas = notas
+        cot.validez_dias = max(1, validez)
+        # Recalcular fecha_vencimiento desde la fecha original de la cotizacion
+        fecha_base = cot.fecha.date() if cot.fecha else date.today()
+        cot.fecha_vencimiento = fecha_base + timedelta(days=max(1, validez))
+        # Si estaba vencida y ahora con la nueva validez aun aplica, volverla a Vigente
+        if cot.estado == 'Vencida' and cot.fecha_vencimiento >= date.today():
+            cot.estado = 'Vigente'
+            cot.fecha_estado = datetime.utcnow()
+
+        # Reemplazar todas las lineas
+        for d in list(cot.detalles):
+            db.session.delete(d)
+        db.session.flush()
+
+        for i, nombre_lin in enumerate(nombres):
+            nombre_lin = (nombre_lin or '').strip()[:200]
+            if not nombre_lin:
+                continue
+            try:
+                cant = float((cantidades[i] or '1').replace(',', '.'))
+                pu = float((precios[i] or '0').replace(',', '.'))
+                desc = float((descuentos[i] or '0').replace(',', '.'))
+            except Exception:
+                cant, pu, desc = 1.0, 0.0, 0.0
+            pid_raw = productos[i] if i < len(productos) else ''
+            cod = (codigos[i] if i < len(codigos) else '').strip()[:80] or None
+            det = CotizacionDetalle(
+                cotizacion_id=cot.id,
+                producto_id=int(pid_raw) if pid_raw and pid_raw.isdigit() else None,
+                codigo=cod,
+                nombre=nombre_lin,
+                cantidad=cant,
+                precio_unitario=pu,
+                descuento=desc,
+                subtotal=max(0.0, cant * pu - desc),
+            )
+            db.session.add(det)
+
+        db.session.flush()
+        neto, iva, total = _calcular_totales_cotizacion(cot.detalles, cot.descuento_global)
+        cot.neto = neto
+        cot.iva = iva
+        cot.monto_total = total
+
+        db.session.commit()
+        flash(f"Cotizacion {cot.numero} actualizada correctamente.", "success")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+    # GET: mostrar form prepoblado
+    return render_template('cotizacion_form.html', cotizacion=cot)
+
+
+@app.route('/cotizaciones/<int:cot_id>/contacto', methods=['POST'])
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_actualizar_contacto(cot_id):
+    """Edicion rapida de telefono/correo del cliente en la cotizacion (sin tocar lineas)."""
+    cot = Cotizacion.query.get_or_404(cot_id)
+    if cot.estado not in ('Vigente', 'Vencida'):
+        flash(f"No se puede editar el contacto de una cotizacion {cot.estado.lower()}.", "warning")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+    telefono = (request.form.get('cliente_telefono') or '').strip()[:40] or None
+    correo = (request.form.get('cliente_correo') or '').strip()[:150] or None
+    actualizar_maestro = (request.form.get('actualizar_maestro') or '').strip() == '1'
+
+    cot.cliente_telefono = telefono
+    cot.cliente_correo = correo
+
+    cliente_actualizado = False
+    if actualizar_maestro and cot.cliente_id:
+        cli = Cliente.query.get(cot.cliente_id)
+        if cli:
+            if telefono:
+                cli.telefono = telefono[:20]
+            if correo:
+                cli.correo = correo[:100]
+            cliente_actualizado = True
+
+    db.session.commit()
+    if cliente_actualizado:
+        flash(f"Contacto actualizado en la cotizacion {cot.numero} y en el cliente maestro.", "success")
+    else:
+        flash(f"Contacto actualizado en la cotizacion {cot.numero}.", "success")
+    return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+
+@app.route('/cotizaciones/<int:cot_id>/estado', methods=['POST'])
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_cambiar_estado(cot_id):
+    from datetime import datetime
+    cot = Cotizacion.query.get_or_404(cot_id)
+    estado_nuevo = (request.form.get('estado') or '').strip()
+    motivo = (request.form.get('motivo') or '').strip()[:300] or None
+    permitidos = {'Vigente', 'Aceptada', 'Rechazada'}
+    if estado_nuevo not in permitidos:
+        flash('Estado no permitido.', 'warning')
+    else:
+        cot.estado = estado_nuevo
+        cot.fecha_estado = datetime.utcnow()
+        cot.motivo_estado = motivo
+        db.session.commit()
+        flash(f"Cotizacion {cot.numero} actualizada a {estado_nuevo}.", "success")
+    return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+
+@app.route('/cotizaciones/<int:cot_id>/pdf')
+@login_required
+def cotizacion_pdf(cot_id):
+    """Renderiza la cotizacion en HTML imprimible y dispara 'Guardar como PDF' del navegador.
+
+    Usamos el motor de impresion del navegador (no requiere wkhtmltopdf instalado).
+    El nombre del archivo descargado se basa en document.title.
+    """
+    cot = Cotizacion.query.get_or_404(cot_id)
+    # Asegurar que tenemos los datos mas frescos (importante despues de editar)
+    try:
+        db.session.expire(cot)
+        db.session.refresh(cot)
+    except Exception:
+        pass
+    empresa = obtener_config_empresa()
+
+    logo_b64 = None
+    try:
+        logo_path = os.path.join(app.root_path, 'static', 'img', 'cliente-logo-light.png')
+        if os.path.isfile(logo_path):
+            with open(logo_path, 'rb') as fimg:
+                logo_b64 = base64.b64encode(fimg.read()).decode()
+    except Exception:
+        logo_b64 = None
+
+    auto_print = (request.args.get('auto') or '1') == '1'
+    return render_template(
+        'cotizacion_pdf.html',
+        cotizacion=cot,
+        empresa=empresa,
+        logo_cliente_b64=logo_b64,
+        auto_print=auto_print,
+    )
+
+
+@app.route('/cotizaciones/<int:cot_id>/whatsapp')
+@login_required
+def cotizacion_whatsapp(cot_id):
+    cot = Cotizacion.query.get_or_404(cot_id)
+    texto = _construir_mensaje_whatsapp_cotizacion(cot)
+    from urllib.parse import quote
+    telefono = (cot.cliente_telefono or '').strip()
+    telefono_limpio = ''.join(ch for ch in telefono if ch.isdigit())
+    if telefono_limpio.startswith('0'):
+        telefono_limpio = '56' + telefono_limpio.lstrip('0')
+    if telefono_limpio and not telefono_limpio.startswith('56'):
+        telefono_limpio = '56' + telefono_limpio
+    base = f"https://wa.me/{telefono_limpio}" if telefono_limpio else "https://wa.me/"
+    url = f"{base}?text={quote(texto)}"
+    return redirect(url)
+
+
+@app.route('/cotizaciones/<int:cot_id>/convertir', methods=['POST'])
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_convertir_venta(cot_id):
+    """Convierte una cotizacion en una venta abierta (vale en POS)."""
+    from datetime import datetime
+    cot = Cotizacion.query.get_or_404(cot_id)
+    if cot.estado == 'Convertida' and cot.venta_id:
+        flash(f"Esta cotizacion ya fue convertida en la venta #{cot.venta_id}.", "info")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+    caja = obtener_caja_activa()
+    if not caja:
+        flash("No hay caja abierta. Abre la caja antes de convertir la cotizacion.", "warning")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
+
+    # Resolver cliente maestro desde la cotizacion. Si la cotizacion tiene snapshot
+    # de cliente pero no cliente_id, lo enlazamos/creamos para que el POS cargue
+    # automaticamente los datos del vale.
+    cliente_origen = Cliente.query.get(cot.cliente_id) if cot.cliente_id else None
+    if not cliente_origen and cot.cliente_rut:
+        variantes = _rut_variantes_busqueda(cot.cliente_rut)
+        cliente_origen = Cliente.query.filter(Cliente.rut.in_(variantes)).first()
+        if not cliente_origen and cot.cliente_nombre:
+            rut_norm = _rut_sin_formato(cot.cliente_rut)
+            cliente_origen = Cliente(
+                rut=(cot.cliente_rut or rut_norm)[:12],
+                nombre=(cot.cliente_nombre or rut_norm)[:100],
+                giro=(cot.cliente_giro or None) and cot.cliente_giro[:100],
+                direccion=(cot.cliente_direccion or None) and cot.cliente_direccion[:200],
+                telefono=(cot.cliente_telefono or None) and cot.cliente_telefono[:20],
+                correo=(cot.cliente_correo or None) and cot.cliente_correo[:100],
+                comuna=(cot.cliente_comuna or None) and cot.cliente_comuna[:80],
+                ciudad=(cot.cliente_ciudad or None) and cot.cliente_ciudad[:80],
+                saldo_deudor=0.0,
+                limite_credito=0.0,
+                estado_credito='Activo',
+            )
+            db.session.add(cliente_origen)
+            db.session.flush()
+        if cliente_origen:
+            cot.cliente_id = cliente_origen.id
+
+    if cliente_origen:
+        # Completar campos faltantes del maestro con el snapshot de la cotizacion.
+        if not cliente_origen.giro and cot.cliente_giro:
+            cliente_origen.giro = cot.cliente_giro[:100]
+        if not cliente_origen.direccion and cot.cliente_direccion:
+            cliente_origen.direccion = cot.cliente_direccion[:200]
+        if not cliente_origen.telefono and cot.cliente_telefono:
+            cliente_origen.telefono = cot.cliente_telefono[:20]
+        if not cliente_origen.correo and cot.cliente_correo:
+            cliente_origen.correo = cot.cliente_correo[:100]
+        if not cliente_origen.comuna and cot.cliente_comuna:
+            cliente_origen.comuna = cot.cliente_comuna[:80]
+        if not cliente_origen.ciudad and cot.cliente_ciudad:
+            cliente_origen.ciudad = cot.cliente_ciudad[:80]
+
+    vendedor_actual = _nombre_usuario_pos_actual()
+    venta = Venta(
+        usuario=vendedor_actual,
+        estado="Abierta",
+        monto_total=0,
+        caja_id=caja.id,
+        fecha=db.func.current_timestamp(),
+    )
+    if cliente_origen:
+        venta.cliente_id = cliente_origen.id
+    venta.cotizacion_origen_id = cot.id
+    db.session.add(venta)
+    db.session.flush()
+
+    productos_no_encontrados = []
+    faltantes_stock = []
+    for d in cot.detalles:
+        if not d.producto_id:
+            productos_no_encontrados.append(d.nombre)
+            continue
+        prod = Producto.query.get(d.producto_id)
+        if prod:
+            consumo = int(round((d.cantidad or 0) * _factor_venta_a_stock(prod))) or 1
+            disp = stock_disponible_venta_tienda(prod)
+            if disp < consumo:
+                faltantes_stock.append(f"{prod.nombre} (hay {disp}, requiere {consumo})")
+        det = DetalleVenta(
+            id_venta=venta.id,
+            id_producto=d.producto_id,
+            cantidad=int(round(d.cantidad or 0)) or 1,
+            precio_unitario=float(d.precio_unitario or 0),
+            descuento=float(d.descuento or 0),
+            subtotal=float(d.subtotal or 0),
+        )
+        db.session.add(det)
+
+    venta.recalcular_total() if hasattr(venta, 'recalcular_total') else None
+    cot.estado = 'Convertida'
+    cot.venta_id = venta.id
+    cot.fecha_estado = datetime.utcnow()
+    db.session.commit()
+
+    if productos_no_encontrados:
+        flash(
+            f"Cotizacion convertida en venta. Productos sin SKU vinculado (revisar manualmente): {', '.join(productos_no_encontrados[:5])}",
+            "warning",
+        )
+    elif faltantes_stock:
+        flash(
+            "Cotizacion convertida, pero no se puede emitir el vale hasta resolver stock: "
+            + "; ".join(faltantes_stock[:3]),
+            "warning",
+        )
+    else:
+        flash(f"Cotizacion {cot.numero} convertida en venta abierta. Continua en el POS.", "success")
+    return redirect(url_for('punto_venta'))
+
+
+@app.route('/api/cotizaciones/buscar_productos')
+@login_required
+def cotizaciones_api_buscar_productos():
+    """Busqueda rapida de productos para autocompletar lineas en cotizaciones."""
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify(items=[])
+    like = f"%{q.lower()}%"
+    productos = (
+        Producto.query
+        .filter(
+            db.or_(
+                db.func.lower(Producto.nombre).like(like),
+                Producto.codigo_barra.ilike(f"%{q}%"),
+                Producto.codigo_chilemat.ilike(f"%{q}%"),
+                Producto.codigo_interno.ilike(f"%{q}%"),
+            )
+        )
+        .order_by(Producto.nombre.asc())
+        .limit(15)
+        .all()
+    )
+    items = [
+        {
+            'id': p.id,
+            'codigo': p.codigo_barra or p.codigo_interno or p.codigo_chilemat or '',
+            'nombre': p.nombre,
+            'precio': float(p.precio_venta or 0),
+            'unidad': p.unidad_venta or p.unidad or '',
+            'stock': p.stock or 0,
+        }
+        for p in productos
+    ]
+    return jsonify(items=items)
+
+
+@app.route('/api/cotizaciones/buscar_clientes')
+@login_required
+def cotizaciones_api_buscar_clientes():
+    """Busqueda de clientes existentes para autocompletar la cabecera de la cotizacion."""
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify(items=[])
+    like = f"%{q.lower()}%"
+    clientes = (
+        Cliente.query
+        .filter(
+            db.or_(
+                db.func.lower(Cliente.nombre).like(like),
+                Cliente.rut.ilike(f"%{q}%"),
+                Cliente.telefono.ilike(f"%{q}%"),
+                db.func.lower(Cliente.correo).like(like),
+            )
+        )
+        .order_by(Cliente.nombre.asc())
+        .limit(15)
+        .all()
+    )
+    items = []
+    for c in clientes:
+        try:
+            cupo = float(c.cupo_disponible or 0)
+        except Exception:
+            cupo = 0.0
+        items.append({
+            'id': c.id,
+            'rut': c.rut or '',
+            'nombre': c.nombre or '',
+            'giro': c.giro or '',
+            'direccion': c.direccion or '',
+            'comuna': c.comuna or '',
+            'ciudad': c.ciudad or '',
+            'telefono': c.telefono or '',
+            'correo': c.correo or '',
+            'estado_credito': c.estado_credito or 'Activo',
+            'saldo_deudor': float(c.saldo_deudor or 0),
+            'limite_credito': float(c.limite_credito or 0),
+            'cupo_disponible': cupo,
+        })
+    return jsonify(items=items)
+
 
 # --- cierre del archivo ---
 if __name__ == '__main__':

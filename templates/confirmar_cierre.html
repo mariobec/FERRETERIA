@@ -14,7 +14,7 @@
 
 {% block content %}
 <div class="closure-card bg-white">
-    {% set ventas_cobradas_dia = (total_efectivo or 0) + (total_debito or 0) + (total_transferencia or 0) %}
+    {% set ventas_cobradas_dia = (total_efectivo or 0) + (total_debito or 0) + (total_tarjeta_credito or 0) + (total_transferencia or 0) %}
     {% set ventas_comerciales_dia = (gran_total_ventas or 0) %}
     <div class="summary-header">
         <h3 class="fw-bold m-0">Resumen de Cierre</h3>
@@ -54,8 +54,13 @@
         </div>
         
         <div class="summary-item">
-            <span><i class="fas fa-credit-card me-2 text-digital"></i>Ventas (Débito)</span>
+            <span><i class="fas fa-credit-card me-2 text-digital"></i>Ventas (Débito / prepago)</span>
             <span class="fw-bold text-digital">+ $ {{ "{:,.0f}".format(total_debito).replace(",", ".") }}</span>
+        </div>
+
+        <div class="summary-item">
+            <span><i class="fas fa-credit-card me-2" style="color:#6f42c1;"></i>Ventas (Tarjeta crédito)</span>
+            <span class="fw-bold" style="color:#6f42c1;">+ $ {{ "{:,.0f}".format(total_tarjeta_credito or 0).replace(",", ".") }}</span>
         </div>
 
         <div class="summary-item">
@@ -124,7 +129,7 @@
                         <tr>
                             <td class="fw-bold">#{{ v.id }}</td>
                             <td>{{ v.fecha.strftime('%d/%m %H:%M') if v.fecha else '-' }}</td>
-                            <td>{{ v.metodo_pago or '—' }}</td>
+                            <td>{% if v.metodo_pago == 'TarjetaCredito' %}Tarjeta crédito{% else %}{{ v.metodo_pago or '—' }}{% endif %}</td>
                             <td>{{ v.estado }}</td>
                             <td class="text-end">${{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</td>
                         </tr>

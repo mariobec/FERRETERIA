@@ -35,7 +35,7 @@
     <div class="center" style="margin-top:6px;">
       <span class="bold">Folio N° {{ venta.id }}</span><br>
       {{ venta.fecha.strftime('%d/%m/%Y %H:%M') if venta.fecha else '—' }}<br>
-      Pago: {{ venta.metodo_pago or '—' }}<br>
+      Pago: {% if venta.metodo_pago == 'TarjetaCredito' %}Tarjeta crédito{% else %}{{ venta.metodo_pago or '—' }}{% endif %}<br>
       Vendedor: {{ venta.usuario or '—' }}<br>
       Cajero: {{ cajero_nombre or '—' }}<br>
       Retiro: {{ venta.punto_retiro or 'Bodega' }}
@@ -73,6 +73,14 @@
 
     {% if venta.metodo_pago == 'Credito' %}
     <div class="estado cred">*** VENTA A CRÉDITO ***<br><span style="font-weight:normal;font-size:10px;">Cargado en cuenta corriente del cliente.</span></div>
+    {% if venta.cuotas_credito %}
+    <div style="margin-top:8px;font-size:10px;text-align:left;padding:6px;border:1px dashed #856404;border-radius:4px;">
+      <div class="bold" style="margin-bottom:4px;">Cuotas — fechas de pago</div>
+      {% for cq in venta.cuotas_credito %}
+      <div>{{ cq.nro_cuota }}. Pago {{ cq.fecha_vencimiento.strftime('%d/%m/%Y') if cq.fecha_vencimiento else '—' }} — ${{ "{:,.0f}".format(cq.monto).replace(",", ".") }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% else %}
     <div style="margin-top:8px;font-size:11px;">
       {% if (venta.saldo_favor_usado or 0) > 0 %}

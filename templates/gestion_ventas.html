@@ -35,7 +35,7 @@
                     <input type="date" name="fecha_fin" class="form-control" value="{{ request.args.get('fecha_fin', '') }}">
                 </div>
                 <div class="col-md-2">
-                    <label class="small fw-bold text-muted mb-2">ESTADO</label>
+                    <label class="small fw-bold text-muted mb-2">ESTADO <span class="kpi-help" data-bs-toggle="tooltip" title="Filtra por estado operativo del documento (Pagado, Pendiente o Anulada).">?</span></label>
                     <select name="estado" class="form-select">
                         <option value="">Todos los estados</option>
                         <option value="Pagado" {% if request.args.get('estado') == 'Pagado' %}selected{% endif %}>Pagado</option>
@@ -44,11 +44,12 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="small fw-bold text-muted mb-2">PAGO</label>
+                    <label class="small fw-bold text-muted mb-2">PAGO <span class="kpi-help" data-bs-toggle="tooltip" title="Filtra por medio de pago registrado al cobrar el documento.">?</span></label>
                     <select name="metodo_pago" class="form-select">
                         <option value="">Todos</option>
                         <option value="Efectivo" {% if request.args.get('metodo_pago') == 'Efectivo' %}selected{% endif %}>Efectivo</option>
                         <option value="Debito" {% if request.args.get('metodo_pago') == 'Debito' %}selected{% endif %}>Débito</option>
+                        <option value="TarjetaCredito" {% if request.args.get('metodo_pago') == 'TarjetaCredito' %}selected{% endif %}>Tarjeta crédito</option>
                         <option value="Transferencia" {% if request.args.get('metodo_pago') == 'Transferencia' %}selected{% endif %}>Transferencia</option>
                         <option value="Credito" {% if request.args.get('metodo_pago') == 'Credito' %}selected{% endif %}>Crédito</option>
                     </select>
@@ -66,7 +67,7 @@
         <div class="col-md-3">
             <div class="card card-ds h-100">
                 <div class="card-body">
-                    <h6 class="text-success small fw-bold text-uppercase">Recaudacion Real</h6>
+                    <h6 class="text-success small fw-bold text-uppercase">Recaudacion Real <span class="kpi-help" data-bs-toggle="tooltip" title="Total efectivamente cobrado en caja según filtros aplicados.">?</span></h6>
                     <h2 class="fw-bold">${{ "{:,.0f}".format(total_dia or 0).replace(",", ".") }}</h2>
                     <small class="text-muted">Dinero en Caja</small>
                 </div>
@@ -75,7 +76,7 @@
         <div class="col-md-3">
             <div class="card card-ds h-100">
                 <div class="card-body">
-                    <h6 class="text-warning small fw-bold text-uppercase">Dinero en Vuelo</h6>
+                    <h6 class="text-warning small fw-bold text-uppercase">Dinero en Vuelo <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de documentos pendientes de cobro (sin método de pago final).">?</span></h6>
                     <h2 class="fw-bold text-warning">${{ "{:,.0f}".format(monto_en_vuelo or 0).replace(",", ".") }}</h2>
                     <small class="text-muted">{{ ventas_pendientes_count or 0 }} Vales pendientes</small>
                 </div>
@@ -219,7 +220,7 @@ const ctxAnillo = document.getElementById('graficoAnillo').getContext('2d');
 new Chart(ctxAnillo, {
     type: 'doughnut',
     data: {
-        labels: ['Pagado', 'Pendiente'],
+        labels: ['Pagado', 'Pendiente cobro (vales)'],
         datasets: [{
             data: [pagado, vuelo],
             backgroundColor: ['#22c55e', '#f59e0b'],

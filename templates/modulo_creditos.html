@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+.creditos-historial-header .nav-pills .nav-link:not(.active) { color: rgba(255,255,255,.78); }
+.creditos-historial-header .nav-pills .nav-link:not(.active):hover { color: #fff; }
+.creditos-historial-header .nav-pills .nav-link.active { background: #f37021; color: #111; font-weight: 700; }
+</style>
 <div class="container-fluid py-4">
     <div class="row">
         <!-- BUSCADOR Y REGISTRO -->
@@ -48,7 +53,8 @@
                                 <label class="form-label fw-bold">Método de Pago</label>
                                 <select name="metodo_pago" class="form-select border-2">
                                     <option value="Efectivo">Efectivo</option>
-                                    <option value="Debito">Débito / Tarjeta</option>
+                                    <option value="Debito">Débito / prepago</option>
+                                    <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
                                     <option value="Transferencia">Transferencia</option>
                                 </select>
                             </div>
@@ -62,14 +68,49 @@
             </div>
         </div>
 
-        <!-- HISTORIAL DE MOVIMIENTOS RECIENTES -->
+        <!-- HISTORIAL DE ABONOS (filtros + resumen cartera) -->
         <div class="col-md-7">
             <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-header bg-white py-3">
-                    <h5 class="mb-0 fw-bold text-dark">
-                        <i class="fas fa-history me-2 text-primary"></i>Últimos Abonos Recibidos
-                        <span class="badge bg-light text-dark border ms-2">{{ ultimos_abonos|length }}</span>
-                    </h5>
+                <div class="card-header creditos-historial-header bg-dark text-white py-2 px-3 rounded-top-4 border-bottom border-secondary">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                        <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
+                            <span class="d-none d-sm-inline text-white-50 small text-uppercase fw-semibold me-1">
+                                <i class="fas fa-history me-1"></i>Historial
+                            </span>
+                            <ul class="nav nav-pills small mb-0 flex-nowrap" role="tablist">
+                                <li class="nav-item">
+                                    <a class="nav-link py-1 px-3 rounded-pill {% if filtro_vista == 'ultimos' %}active{% endif %}"
+                                       href="{{ url_for('modulo_creditos', vista='ultimos') }}">Últimos créditos</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link py-1 px-3 rounded-pill {% if filtro_vista == 'todos' %}active{% endif %}"
+                                       href="{{ url_for('modulo_creditos', vista='todos') }}">Todos</a>
+                                </li>
+                            </ul>
+                            <span class="badge bg-secondary text-white align-middle" title="Registros mostrados en esta vista">{{ ultimos_abonos|length }}</span>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-stretch gap-3 ms-md-auto small">
+                            <div class="text-md-end">
+                                <div class="text-white-50 text-uppercase" style="font-size:0.65rem;letter-spacing:.04em;">Total cartera por cobrar</div>
+                                <div class="fw-bold fs-6 text-white">$ {{ "{:,.0f}".format(total_cartera_credito).replace(",", ".") }}</div>
+                            </div>
+                            <div class="border-start border-secondary ps-3 text-md-end" title="Clientes con saldo y al menos una venta al crédito de hace más de {{ dias_alerta_credito }} días (revisar cobranza).">
+                                <div class="text-white-50 text-uppercase" style="font-size:0.65rem;letter-spacing:.04em;">Créditos en alerta</div>
+                                <div class="fw-bold">
+                                    <span class="badge bg-warning text-dark">{{ n_credito_alert }}</span>
+                                    <span class="text-white-50">clientes</span>
+                                </div>
+                                <div class="text-white-50" style="font-size:0.68rem;">&gt; {{ dias_alerta_credito }} días</div>
+                            </div>
+                            <div class="border-start border-secondary ps-3 text-md-end" title="Cuotas con vencimiento hoy o en los próximos 7 días (plan 30/60/90 días corridos desde el cobro).">
+                                <div class="text-white-50 text-uppercase" style="font-size:0.65rem;letter-spacing:.04em;">Pagos cuotas 7 días</div>
+                                <div class="fw-bold">
+                                    <span class="badge bg-info text-dark">{{ n_cuotas_por_vencer }}</span>
+                                    <span class="text-white-50">cuotas</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <table class="table table-hover align-middle mb-0">
@@ -100,6 +141,10 @@
                                         <i class="fas fa-list-alt"></i>
                                     </a>
                                 </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">No hay abonos registrados en esta vista.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
