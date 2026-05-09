@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block content %}
+{% set es_edicion = cotizacion is not none %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div>
+      {% if es_edicion %}
+      <h3 class="mb-0"><i class="fas fa-pen-to-square me-2 text-warning"></i>Editar cotización <span class="text-muted">{{ cotizacion.numero }}</span></h3>
+      <small class="text-muted">Modifica los datos del cliente o de las líneas y guarda los cambios.</small>
+      {% else %}
+      <h3 class="mb-0"><i class="fas fa-file-circle-plus me-2 text-warning"></i>Nueva cotización</h3>
+      <small class="text-muted">Genera la cotización en segundos. Después la conviertes en venta con un click.</small>
+      {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      {% if es_edicion %}
+      <a href="{{ url_for('cotizacion_detalle', cot_id=cotizacion.id) }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Volver al detalle</a>
+      {% else %}
+      <a href="{{ url_for('cotizaciones_lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Volver al listado</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="POST" action="{% if es_edicion %}{{ url_for('cotizacion_editar', cot_id=cotizacion.id) }}{% else %}{{ url_for('cotizacion_nueva') }}{% endif %}" id="formCotizacion" autocomplete="off">
+    <div class="row g-3">
+      <!-- Cliente y datos -->
+      <div class="col-lg-5">
+        <div class="card shadow-sm">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <span><strong><i class="fas fa-user me-1"></i>Cliente</strong> <span class="text-muted small">(buscalo o escribelo)</span></span>
+            <button type="button" id="btnLimpiarCliente" class="btn btn-sm btn-outline-secondary {% if not (es_edicion and cotizacion.cliente_id) %}d-none{% endif %}" title="Vaciar datos del cliente">
+              <i class="fas fa-eraser me-1"></i>Limpiar
+            </button>
+          </div>
+          <div class="card-body">
+            <input type="hidden" name="cliente_id" id="cliente_id" value="{{ cotizacion.cliente_id or '' if es_edicion else '' }}">
+
+            <!-- Buscador de clientes existentes -->
+            <div class="mb-2 position-relative">
+              <label class="form-label small mb-1">
+                <i class="fas fa-magnifying-glass me-1"></i>Buscar cliente existente
+                <span class="badge bg-info-subtle text-info ms-1" data-bs-toggle="tooltip" title="Busca clientes ya cargados por nombre, RUT, telefono o correo. Al hacer click se autorrellenan todos los datos de facturacion.">?</span>
+              </label>
+              <input type="text" id="buscadorCliente" class="form-control" placeholder="Nombre, RUT, telefono o correo (min 2 caracteres)..." autocomplete="off">
+              <div id="busqClientesResultados" class="list-group position-absolute w-100 shadow" style="z-index:11; max-height:280px; overflow-y:auto; display:none;"></div>
+            </div>
+
+            <!-- Banner cliente seleccionado (info de credito) -->
+            <div id="clienteSeleccionadoInfo" class="alert alert-info py-2 px-3 d-none mb-2" style="font-size:.85rem;">
+              <i class="fas fa-id-card me-1"></i>Cliente conocido:
+              <strong id="clienteInfoNombre"></strong>
+              <span class="ms-2 text-muted">|</span>
+              <span class="ms-2">Cupo disponible: <strong id="clienteInfoCupo">$0</strong></span>
+              <span id="clienteInfoEstado" class="badge bg-success ms-2">Activo</span>
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label small mb-1">Nombre o razon social</label>
+              <input type="text" class="form-control" name="cliente_nombre" id="cliente_nombre" placeholder="Ej: Constructora Andes Ltda." value="{{ cotizacion.cliente_nombre or '' if es_edicion else '' }}">
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small mb-1">RUT</label>
+                <input type="text" class="form-control" name="cliente_rut" id="cliente_rut" placeholder="76.123.456-7" value="{{ cotizacion.cliente_rut or '' if es_edicion else '' }}">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">WhatsApp / telefono</label>
+                <input type="text" class="form-control" name="cliente_telefono" id="cliente_telefono" placeholder="+56 9..." value="{{ cotizacion.cliente_telefono or '' if es_edicion else '' }}">
+              </div>
+            </div>
+            <hr class="my-3">
+            <div class="text-muted small mb-2"><i class="fas fa-file-invoice-dollar me-1"></i>Datos de facturacion</div>
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label small mb-1">Giro</label>
+                <input type="text" class="form-control" name="cliente_giro" id="cliente_giro" placeholder="Ej: Construccion / Ferreteria" value="{{ cotizacion.cliente_giro or '' if es_edicion else '' }}">
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1">Direccion</label>
+                <input type="text" class="form-control" name="cliente_direccion" id="cliente_direccion" placeholder="Ej: Av. Vicuna Mackenna 1234" value="{{ cotizacion.cliente_direccion or '' if es_edicion else '' }}">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Comuna</label>
+                <input type="text" class="form-control" name="cliente_comuna" id="cliente_comuna" placeholder="Ej: La Florida" value="{{ cotizacion.cliente_comuna or '' if es_edicion else '' }}">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Ciudad</label>
+                <input type="text" class="form-control" name="cliente_ciudad" id="cliente_ciudad" placeholder="Ej: Santiago" value="{{ cotizacion.cliente_ciudad or '' if es_edicion else '' }}">
+              </div>
+              <div class="col-12">
+                <label class="form-label small mb-1">Correo</label>
+                <input type="email" class="form-control" name="cliente_correo" id="cliente_correo" placeholder="contacto@empresa.cl" value="{{ cotizacion.cliente_correo or '' if es_edicion else '' }}">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+          <div class="card-header bg-light">
+            <strong><i class="fas fa-clock me-1"></i>Validez y notas</strong>
+          </div>
+          <div class="card-body">
+            <div class="row g-2 align-items-end">
+              <div class="col-6">
+                <label class="form-label small mb-1">Validez (días)</label>
+                <input type="number" min="1" max="180" value="{{ cotizacion.validez_dias if es_edicion else 15 }}" class="form-control" name="validez_dias">
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-1">Descuento global ($)</label>
+                <input type="number" min="0" step="1" value="{{ (cotizacion.descuento_global or 0) | int if es_edicion else 0 }}" class="form-control" name="descuento_global">
+              </div>
+            </div>
+            <div class="mt-2">
+              <label class="form-label small mb-1">Notas / condiciones</label>
+              <textarea class="form-control" name="notas" rows="3" placeholder="Ej: Despacho incluido en Stgo. Forma de pago: 50% anticipo, saldo contra entrega.">{{ cotizacion.notas or '' if es_edicion else '' }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalle -->
+      <div class="col-lg-7">
+        <div class="card shadow-sm">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <strong><i class="fas fa-list me-1"></i>Líneas de la cotización</strong>
+            <span class="text-muted small" id="lineasCount">0 líneas</span>
+          </div>
+          <div class="card-body">
+            <div class="mb-2 position-relative">
+              <input type="text" id="buscadorProducto" class="form-control" placeholder="Buscar producto por nombre o código (mín 2 caracteres)..." autocomplete="off">
+              <div id="busqResultados" class="list-group position-absolute w-100 shadow" style="z-index:9; max-height: 280px; overflow-y:auto; display:none;"></div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0" id="tablaLineas">
+                <thead class="table-light">
+                  <tr>
+                    <th style="min-width:240px;">Producto</th>
+                    <th style="width:90px;">Cant.</th>
+                    <th style="width:110px;">Precio</th>
+                    <th style="width:90px;">Desc.</th>
+                    <th class="text-end" style="width:120px;">Subtotal</th>
+                    <th style="width:50px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyLineas">
+                  {% if es_edicion and cotizacion.detalles %}
+                    {% for d in cotizacion.detalles %}
+                    <tr>
+                      <td>
+                        <input type="hidden" name="det_producto_id" value="{{ d.producto_id or '' }}">
+                        <input type="hidden" name="det_codigo" value="{{ d.codigo or '' }}">
+                        <div><strong>{{ d.nombre }}</strong></div>
+                        <small class="text-muted">{{ d.codigo or '' }}</small>
+                        <input type="hidden" name="det_nombre" value="{{ d.nombre|e }}">
+                      </td>
+                      <td><input type="number" min="0.01" step="0.01" value="{{ '%g' % (d.cantidad or 0) }}" class="form-control form-control-sm input-cant" name="det_cantidad"></td>
+                      <td><input type="number" min="0" step="1" value="{{ (d.precio_unitario or 0)|round|int }}" class="form-control form-control-sm input-precio" name="det_precio"></td>
+                      <td><input type="number" min="0" step="1" value="{{ (d.descuento or 0)|round|int }}" class="form-control form-control-sm input-desc" name="det_descuento"></td>
+                      <td class="text-end fw-bold cell-subtotal">$ {{ '{:,.0f}'.format(d.subtotal or 0).replace(',', '.') }}</td>
+                      <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger btn-remove" title="Quitar"><i class="fas fa-trash"></i></button></td>
+                    </tr>
+                    {% endfor %}
+                  {% else %}
+                  <tr id="filaVacia">
+                    <td colspan="6" class="text-center text-muted py-3">Aún no hay líneas. Busca un producto arriba para agregarlo.</td>
+                  </tr>
+                  {% endif %}
+                </tbody>
+                <tfoot class="table-light">
+                  <tr><td colspan="4" class="text-end">Bruto:</td><td class="text-end" id="totBruto">$ 0</td><td></td></tr>
+                  <tr><td colspan="4" class="text-end">Neto (IVA 19% incluido en precio):</td><td class="text-end" id="totNeto">$ 0</td><td></td></tr>
+                  <tr><td colspan="4" class="text-end">IVA:</td><td class="text-end" id="totIva">$ 0</td><td></td></tr>
+                  <tr class="fw-bold table-warning"><td colspan="4" class="text-end">TOTAL:</td><td class="text-end fs-5" id="totTotal">$ 0</td><td></td></tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-grid mt-3">
+          <button type="submit" class="btn btn-success btn-lg" id="btnGuardar" {% if not es_edicion %}disabled{% endif %}>
+            {% if es_edicion %}
+            <i class="fas fa-save me-1"></i>Guardar cambios
+            {% else %}
+            <i class="fas fa-save me-1"></i>Guardar cotización
+            {% endif %}
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const buscador = document.getElementById('buscadorProducto');
+  const resultados = document.getElementById('busqResultados');
+  const tbody = document.getElementById('tbodyLineas');
+  const filaVacia = document.getElementById('filaVacia');
+  const lineasCount = document.getElementById('lineasCount');
+  const btnGuardar = document.getElementById('btnGuardar');
+  const fmt = (n) => '$ ' + (Math.round(n || 0)).toLocaleString('es-CL');
+  let timer = null;
+
+  buscador.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = buscador.value.trim();
+    if (q.length < 2) { resultados.style.display = 'none'; resultados.innerHTML=''; return; }
+    timer = setTimeout(() => {
+      fetch('{{ url_for("cotizaciones_api_buscar_productos") }}?q=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(data => {
+          resultados.innerHTML = '';
+          if (!data.items || !data.items.length) {
+            resultados.innerHTML = '<div class="list-group-item text-muted">Sin coincidencias</div>';
+          } else {
+            data.items.forEach(it => {
+              const a = document.createElement('a');
+              a.href = '#';
+              a.className = 'list-group-item list-group-item-action';
+              a.innerHTML = `<div class="d-flex justify-content-between"><strong>${it.nombre}</strong><span class="text-warning">${fmt(it.precio)}</span></div>
+                             <small class="text-muted">${it.codigo || ''} · stock: ${it.stock}</small>`;
+              a.addEventListener('click', (e) => { e.preventDefault(); agregarLinea(it); resultados.style.display='none'; resultados.innerHTML=''; buscador.value=''; buscador.focus(); });
+              resultados.appendChild(a);
+            });
+          }
+          resultados.style.display = 'block';
+        });
+    }, 220);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!resultados.contains(e.target) && e.target !== buscador) {
+      resultados.style.display = 'none';
+    }
+  });
+
+  function agregarLinea(it) {
+    if (filaVacia) filaVacia.remove();
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input type="hidden" name="det_producto_id" value="${it.id || ''}">
+        <input type="hidden" name="det_codigo" value="${it.codigo || ''}">
+        <div><strong>${it.nombre}</strong></div>
+        <small class="text-muted">${it.codigo || ''}</small>
+        <input type="hidden" name="det_nombre" value="${it.nombre.replace(/"/g, '&quot;')}">
+      </td>
+      <td><input type="number" min="0.01" step="0.01" value="1" class="form-control form-control-sm input-cant" name="det_cantidad"></td>
+      <td><input type="number" min="0" step="1" value="${Math.round(it.precio || 0)}" class="form-control form-control-sm input-precio" name="det_precio"></td>
+      <td><input type="number" min="0" step="1" value="0" class="form-control form-control-sm input-desc" name="det_descuento"></td>
+      <td class="text-end fw-bold cell-subtotal">${fmt(it.precio || 0)}</td>
+      <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger btn-remove" title="Quitar"><i class="fas fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+    [tr.querySelector('.input-cant'), tr.querySelector('.input-precio'), tr.querySelector('.input-desc')].forEach(inp => {
+      inp.addEventListener('input', recalcular);
+    });
+    tr.querySelector('.btn-remove').addEventListener('click', () => { tr.remove(); recalcular(); });
+    recalcular();
+  }
+
+  function recalcular() {
+    let bruto = 0;
+    const filas = tbody.querySelectorAll('tr');
+    let n = 0;
+    filas.forEach(tr => {
+      const cant = parseFloat(tr.querySelector('.input-cant')?.value || '0');
+      const pu = parseFloat(tr.querySelector('.input-precio')?.value || '0');
+      const desc = parseFloat(tr.querySelector('.input-desc')?.value || '0');
+      const sub = Math.max(0, cant * pu - desc);
+      const cell = tr.querySelector('.cell-subtotal');
+      if (cell) cell.textContent = fmt(sub);
+      if (!isNaN(cant)) { bruto += sub; n++; }
+    });
+    const descGlobal = parseFloat(document.querySelector('input[name="descuento_global"]').value || '0');
+    bruto = Math.max(0, bruto - descGlobal);
+    const neto = Math.round(bruto / 1.19);
+    const iva = Math.round(bruto - neto);
+    const total = neto + iva;
+    document.getElementById('totBruto').textContent = fmt(bruto + descGlobal);
+    document.getElementById('totNeto').textContent = fmt(neto);
+    document.getElementById('totIva').textContent = fmt(iva);
+    document.getElementById('totTotal').textContent = fmt(total);
+    lineasCount.textContent = n + ' líneas';
+    btnGuardar.disabled = (n === 0);
+  }
+
+  document.querySelector('input[name="descuento_global"]').addEventListener('input', recalcular);
+
+  // Modo edicion: enganchar listeners en las filas pre-renderizadas y recalcular totales.
+  tbody.querySelectorAll('tr').forEach(tr => {
+    if (!tr.querySelector('.input-cant')) return;
+    [tr.querySelector('.input-cant'), tr.querySelector('.input-precio'), tr.querySelector('.input-desc')].forEach(inp => {
+      if (inp) inp.addEventListener('input', recalcular);
+    });
+    const btnRem = tr.querySelector('.btn-remove');
+    if (btnRem) btnRem.addEventListener('click', () => { tr.remove(); recalcular(); });
+  });
+  recalcular();
+
+  // ====== Buscador de clientes existentes ======
+  const buscadorCli = document.getElementById('buscadorCliente');
+  const resultadosCli = document.getElementById('busqClientesResultados');
+  const banner = document.getElementById('clienteSeleccionadoInfo');
+  const banNombre = document.getElementById('clienteInfoNombre');
+  const banCupo = document.getElementById('clienteInfoCupo');
+  const banEstado = document.getElementById('clienteInfoEstado');
+  const btnLimpiar = document.getElementById('btnLimpiarCliente');
+  const camposCliente = ['cliente_id','cliente_nombre','cliente_rut','cliente_telefono','cliente_giro','cliente_direccion','cliente_comuna','cliente_ciudad','cliente_correo'];
+  let timerCli = null;
+
+  function rellenarCliente(c) {
+    document.getElementById('cliente_id').value = c.id || '';
+    document.getElementById('cliente_nombre').value = c.nombre || '';
+    document.getElementById('cliente_rut').value = c.rut || '';
+    document.getElementById('cliente_telefono').value = c.telefono || '';
+    document.getElementById('cliente_giro').value = c.giro || '';
+    document.getElementById('cliente_direccion').value = c.direccion || '';
+    document.getElementById('cliente_comuna').value = c.comuna || '';
+    document.getElementById('cliente_ciudad').value = c.ciudad || '';
+    document.getElementById('cliente_correo').value = c.correo || '';
+
+    banNombre.textContent = c.nombre || '';
+    banCupo.textContent = fmt(c.cupo_disponible || 0);
+    banEstado.textContent = c.estado_credito || 'Activo';
+    banEstado.className = 'badge ms-2 ' + ((c.estado_credito === 'Bloqueado') ? 'bg-danger' : 'bg-success');
+    banner.classList.remove('d-none');
+    btnLimpiar.classList.remove('d-none');
+  }
+
+  function limpiarCliente() {
+    camposCliente.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    banner.classList.add('d-none');
+    btnLimpiar.classList.add('d-none');
+    buscadorCli.value = '';
+    resultadosCli.style.display = 'none';
+    resultadosCli.innerHTML = '';
+  }
+
+  if (btnLimpiar) btnLimpiar.addEventListener('click', limpiarCliente);
+
+  if (buscadorCli) {
+    buscadorCli.addEventListener('input', () => {
+      clearTimeout(timerCli);
+      const q = buscadorCli.value.trim();
+      if (q.length < 2) { resultadosCli.style.display = 'none'; resultadosCli.innerHTML = ''; return; }
+      timerCli = setTimeout(() => {
+        fetch('{{ url_for("cotizaciones_api_buscar_clientes") }}?q=' + encodeURIComponent(q))
+          .then(r => r.json())
+          .then(data => {
+            resultadosCli.innerHTML = '';
+            if (!data.items || !data.items.length) {
+              resultadosCli.innerHTML = '<div class="list-group-item text-muted">Sin coincidencias. Puedes escribir los datos manualmente.</div>';
+            } else {
+              data.items.forEach(c => {
+                const a = document.createElement('a');
+                a.href = '#';
+                a.className = 'list-group-item list-group-item-action';
+                const credColor = (c.estado_credito === 'Bloqueado') ? 'text-danger' : 'text-success';
+                a.innerHTML = `
+                  <div class="d-flex justify-content-between">
+                    <strong>${c.nombre}</strong>
+                    <small class="${credColor}">${c.estado_credito || 'Activo'} · cupo ${fmt(c.cupo_disponible || 0)}</small>
+                  </div>
+                  <small class="text-muted">${c.rut || 's/RUT'} · ${c.telefono || 's/tel'} · ${c.comuna || ''}</small>`;
+                a.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  rellenarCliente(c);
+                  resultadosCli.style.display = 'none';
+                  resultadosCli.innerHTML = '';
+                  buscadorCli.value = '';
+                });
+                resultadosCli.appendChild(a);
+              });
+            }
+            resultadosCli.style.display = 'block';
+          })
+          .catch(() => { resultadosCli.style.display = 'none'; });
+      }, 220);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!resultadosCli.contains(e.target) && e.target !== buscadorCli) {
+        resultadosCli.style.display = 'none';
+      }
+    });
+  }
+
+  // Si el usuario edita manualmente despues de seleccionar, soltamos el cliente_id (queda como cliente nuevo)
+  ['cliente_nombre','cliente_rut'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const idEl = document.getElementById('cliente_id');
+      if (idEl && idEl.value) {
+        idEl.value = '';
+        banner.classList.add('d-none');
+        btnLimpiar.classList.add('d-none');
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

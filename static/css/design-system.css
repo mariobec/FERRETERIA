@@ -46,41 +46,32 @@ html, body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.app-brand-lockup {
-    display: grid;
-    gap: 12px;
+/* Header compacto enterprise: marca LexIA IA ERP, sin logo de cliente.
+   El cliente (Ferreteria Santo Domingo) ya se muestra en la topbar superior. */
+.app-sidebar-header--compact {
+    padding: 14px 16px;
 }
 
-.app-brand-lockup img {
-    width: 100%;
-    max-width: 210px;
-    height: auto;
+.app-brand-compact {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+}
+
+.app-brand-compact:hover {
+    opacity: 0.85;
+}
+
+.app-brand-compact img {
+    display: block;
+    height: 56px;
+    width: auto;
+    max-width: min(300px, 100%);
+    max-height: 56px;
     object-fit: contain;
     object-position: left center;
-    border-radius: 10px;
-}
-
-.app-brand-client {
-    display: grid;
-    gap: 2px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-}
-
-.app-brand-client span {
-    color: #94a3b8;
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.app-brand-client strong {
-    color: #fff;
-    font-size: 0.86rem;
-    line-height: 1.2;
 }
 
 .app-sidebar-nav {
@@ -265,6 +256,25 @@ html, body {
     border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 999px;
     padding: 4px 12px;
+}
+
+.app-topbar-uptime {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #cbd5e1;
+    font-weight: 600;
+    font-size: 0.78rem;
+    background: rgba(34, 211, 238, 0.10);
+    border: 1px solid rgba(34, 211, 238, 0.30);
+    border-radius: 999px;
+    padding: 4px 11px;
+    letter-spacing: 0.02em;
+}
+
+.app-topbar-uptime i {
+    color: #22d3ee;
+    font-size: 0.85rem;
 }
 
 .app-content {

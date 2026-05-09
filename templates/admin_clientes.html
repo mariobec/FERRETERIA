@@ -58,11 +58,11 @@
               </div>
             </div>
             <div class="mb-2">
-              <label class="form-label small fw-semibold">Límite crédito</label>
+              <label class="form-label small fw-semibold">Límite crédito <span class="kpi-help" data-bs-toggle="tooltip" title="Tope autorizado para nuevas ventas a crédito del cliente.">?</span></label>
               <input type="number" name="limite_credito" class="form-control" value="500000" min="0" step="1">
             </div>
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Estado crédito</label>
+              <label class="form-label small fw-semibold">Estado crédito <span class="kpi-help" data-bs-toggle="tooltip" title="Activo permite crédito; Bloqueado impide nuevos vales a crédito.">?</span></label>
               <select name="estado_credito" class="form-select">
                 <option value="Activo">Activo</option>
                 <option value="Bloqueado">Bloqueado</option>
@@ -125,7 +125,7 @@
                 <input type="number" name="limite_credito" class="form-control" min="0" step="1" value="{{ (edit_cliente.limite_credito or 0)|round(0)|int }}">
               </div>
               <div class="col-md-4">
-                <label class="form-label small fw-semibold">Saldo deudor</label>
+                <label class="form-label small fw-semibold">Saldo deudor <span class="kpi-help" data-bs-toggle="tooltip" title="Editar solo para correcciones administrativas puntuales.">?</span></label>
                 <input type="number" name="saldo_deudor" class="form-control" min="0" step="1" value="{{ (edit_cliente.saldo_deudor or 0)|int }}">
               </div>
               <div class="col-md-4">

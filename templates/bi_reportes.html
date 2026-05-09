@@ -28,11 +28,17 @@
     <div class="card-body">
       <form class="row g-2 align-items-end" method="GET" action="{{ url_for('business_intelligence') }}">
         <div class="col-md-3">
-          <label class="form-label fw-semibold mb-1">Desde</label>
+          <label class="form-label fw-semibold mb-1">
+            Desde
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Fecha inicial del período que se analizará en todos los KPIs y gráficos.">?</span>
+          </label>
           <input type="date" name="fecha_inicio" class="form-control form-control-sm" value="{{ fecha_inicio }}">
         </div>
         <div class="col-md-3">
-          <label class="form-label fw-semibold mb-1">Hasta</label>
+          <label class="form-label fw-semibold mb-1">
+            Hasta
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Fecha final del período. El sistema compara automáticamente contra un período anterior equivalente.">?</span>
+          </label>
           <input type="date" name="fecha_fin" class="form-control form-control-sm" value="{{ fecha_fin }}">
         </div>
         <div class="col-md-2 d-grid">
@@ -56,7 +62,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted">Ventas cobradas</small>
+          <small class="text-muted">Ventas cobradas <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de documentos pagados en el período filtrado.">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(total_ventas).replace(",", ".") }}</h4>
           <small class="{% if var_total_ventas is not none and var_total_ventas < 0 %}text-danger{% else %}text-success{% endif %}">
             {% if var_total_ventas is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_total_ventas) }} vs período anterior{% endif %}
@@ -89,7 +95,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted">Monto en crédito</small>
+          <small class="text-muted">Monto en crédito <span class="kpi-help" data-bs-toggle="tooltip" title="Monto vendido a crédito/cartera en el período. No representa efectivo cobrado en caja.">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(total_credito).replace(",", ".") }}</h4>
           <small class="{% if var_total_credito is not none and var_total_credito > 0 %}text-danger{% else %}text-success{% endif %}">
             {% if var_total_credito is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_total_credito) }} vs período anterior{% endif %}

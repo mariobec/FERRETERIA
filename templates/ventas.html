@@ -139,22 +139,30 @@
                         </td>
                         <td class="text-end fw-bold text-success">${{ "{:,.0f}".format(venta.total).replace(",", ".") }}</td>
                         <td class="text-center">
-                            {% if venta.estado == 'Pagada' %}
+                            {% if venta.estado == 'Pagado' %}
                                 <span class="badge bg-success-soft text-success"><i class="fas fa-check me-1"></i>Cobrada</span>
+                            {% elif venta.estado == 'Anulada' %}
+                                <span class="badge bg-secondary-soft text-secondary"><i class="fas fa-ban me-1"></i>Anulada</span>
                             {% else %}
-                                <span class="badge bg-warning-soft text-warning"><i class="fas fa-clock me-1"></i>Pendiente</span>
+                                <span class="badge bg-warning-soft text-warning"><i class="fas fa-clock me-1"></i>{{ venta.estado or 'Pendiente' }}</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
                             <div class="btn-group">
+                                {% if venta.estado != 'Pagado' and venta.estado != 'Anulada' and not venta.metodo_pago %}
                                 <a href="{{ url_for('editar_venta', id=venta.id) }}" class="btn btn-sm btn-outline-light"><i class="fas fa-edit"></i></a>
+                                {% endif %}
                                 <a href="{{ url_for('ver_documento', id=venta.id) }}" class="btn btn-sm btn-outline-light" target="_blank" title="Documento"><i class="fas fa-file-alt"></i></a>
                                 <a href="{{ url_for('descargar_pdf', id=venta.id) }}" class="btn btn-sm btn-outline-info" target="_blank" title="PDF boleta/factura"><i class="fas fa-file-pdf"></i></a>
+                                {% if usuario_tiene_permiso('gestionar_usuarios') or usuario_tiene_permiso('anular_vale_caja') %}
+                                {% if venta.estado != 'Anulada' %}
                                 <form method="POST" action="{{ url_for('eliminar_venta', id=venta.id) }}" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar esta venta?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar esta venta? Se revertirá inventario si correspondía.');">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>
+                                {% endif %}
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -168,6 +176,7 @@
 <style>
     /* Estilos Soft Badges */
     .bg-success-soft { background-color: rgba(34, 197, 94, 0.15); }
+    .bg-secondary-soft { background-color: rgba(148, 163, 184, 0.2); }
     .bg-warning-soft { background-color: rgba(245, 158, 11, 0.15); }
     .form-control:focus, .form-select:focus { background-color: #334155 !important; color: white !important; box-shadow: none; border: 1px solid #22c55e; }
     .table-hover tbody tr:hover { background-color: #1e293b !important; }

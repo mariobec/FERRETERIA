@@ -35,6 +35,20 @@ CATEGORIAS = {
     "Jardin": ["Mangueras", "Palas", "Rastrillos", "Regadores", "Tijeras"],
     "Quincalleria": ["Bisagras", "Candados", "Cerraduras", "Rieles", "Soportes"],
 }
+
+# Costo neto aproximado por familia (CLP). Evita que tornillos queden al precio de un taladro.
+CATEGORY_COST_BAND_CLP = {
+    "Fijaciones": (35, 2800),
+    "Electricidad": (260, 13200),
+    "Gasfiteria": (390, 10500),
+    "Pinturas": (890, 17500),
+    "Herramientas Manuales": (2100, 36900),
+    "Herramientas Electricas": (27900, 148000),
+    "Construccion": (3600, 13200),
+    "Seguridad": (690, 28900),
+    "Jardin": (2300, 36900),
+    "Quincalleria": (520, 24800),
+}
 ADJETIVOS = ["Profesional", "Reforzado", "Industrial", "Premium", "Estandar", "Heavy Duty", "Compacto", "Galvanizado", "Alta Resistencia", "Multiuso"]
 MARCAS = ["Santo Domingo", "Forte", "Maestro", "Kraft", "Andes", "Bauker Pro", "MetalTec", "HogarFix", "Nordic", "TotalPro"]
 COMUNAS = ["Santiago", "Providencia", "La Florida", "Maipu", "Puente Alto", "San Miguel", "Recoleta", "Quilicura", "Pudahuel", "Nunoa"]
@@ -80,10 +94,11 @@ def cargar_productos(tienda, bodega):
             continue
         categoria = random.choice(list(CATEGORIAS.keys()))
         subcategoria = random.choice(CATEGORIAS[categoria])
-        compra = money(random.randint(350, 85000))
-        venta = money(compra * random.uniform(1.28, 1.85))
-        stock_tienda = random.randint(4, 80)
-        stock_bodega = random.randint(10, 220)
+        lo, hi = CATEGORY_COST_BAND_CLP.get(categoria, (400, 11000))
+        compra = money(random.randint(lo, hi))
+        venta = money(compra * random.uniform(1.22, 1.52))
+        stock_tienda = random.randint(3, 48)
+        stock_bodega = random.randint(8, 140)
         producto = Producto(
             nombre=f"{subcategoria} {random.choice(ADJETIVOS)} {random.choice(MARCAS)} {i}",
             codigo_barra=f"7809{200000000 + i}",
@@ -134,8 +149,8 @@ def cargar_clientes():
             correo=f"cliente.demo{i:03d}@example.com",
             comuna=comuna,
             ciudad="Santiago",
-            saldo_deudor=money(random.choice([0, 0, 0, random.randint(25000, 450000)])),
-            limite_credito=money(random.randint(300000, 2500000)),
+            saldo_deudor=money(random.choice([0, 0, 0, random.randint(5000, 165000)])),
+            limite_credito=money(random.randint(250000, 1600000)),
             estado_credito="Activo",
         )
         db.session.add(cliente)
@@ -195,7 +210,7 @@ def cargar_saldos_favor():
         existente = ClienteSaldoFavor.query.get(cliente.id)
         if existente and existente.saldo > 0:
             continue
-        saldo = money(random.randint(3000, 85000))
+        saldo = money(random.randint(1200, 38000))
         if existente:
             existente.saldo = saldo
         else:
@@ -212,7 +227,7 @@ def main():
         bodega = get_or_create_almacen("BODEGA", "Bodega")
         caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
         if not caja:
-            caja = Caja(fecha_apertura=datetime.now() - timedelta(days=1), monto_inicial=100000, estado="Abierta", usuario_apertura="Demo ERP")
+            caja = Caja(fecha_apertura=datetime.now() - timedelta(days=1), monto_inicial=420000, estado="Abierta", usuario_apertura="Demo ERP")
             db.session.add(caja)
             db.session.flush()
 

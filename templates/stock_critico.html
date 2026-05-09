@@ -21,7 +21,7 @@
           <input type="search" name="q" value="{{ q or '' }}" class="form-control" placeholder="Nombre o código">
         </div>
         <div class="col-md-2">
-          <label class="form-label small fw-semibold">Umbral</label>
+          <label class="form-label small fw-semibold">Umbral <span class="kpi-help" data-bs-toggle="tooltip" title="Stock máximo para considerar un producto como crítico.">?</span></label>
           <input type="number" name="umbral" value="{{ umbral }}" min="1" max="200" class="form-control">
         </div>
         <div class="col-md-2">
@@ -33,7 +33,7 @@
 
   <div class="card card-ds">
     <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-      <span>Listado crítico</span>
+      <span>Listado crítico <span class="kpi-help" data-bs-toggle="tooltip" title="Productos activos con stock menor o igual al umbral aplicado.">?</span></span>
       <span class="badge bg-danger">{{ productos|length }}</span>
     </div>
     <div class="card-body p-0 table-responsive">

@@ -20,6 +20,20 @@ CATEGORIAS = {
     "Jardin": ["Mangueras", "Palas", "Rastrillos", "Regadores", "Tijeras"],
     "Quincalleria": ["Bisagras", "Candados", "Cerraduras", "Rieles", "Soportes"],
 }
+
+# Costo neto por familia (CLP) — rangos típicos ferretería Chile / demo creíble.
+CATEGORY_COST_BAND_CLP = {
+    "Fijaciones": (35, 2800),
+    "Electricidad": (260, 13200),
+    "Gasfiteria": (390, 10500),
+    "Pinturas": (890, 17500),
+    "Herramientas Manuales": (2100, 36900),
+    "Herramientas Electricas": (27900, 148000),
+    "Construccion": (3600, 13200),
+    "Seguridad": (690, 28900),
+    "Jardin": (2300, 36900),
+    "Quincalleria": (520, 24800),
+}
 ADJETIVOS = ["Profesional", "Reforzado", "Industrial", "Premium", "Estandar", "Heavy Duty", "Compacto", "Galvanizado", "Alta Resistencia", "Multiuso"]
 MARCAS = ["Santo Domingo", "Forte", "Maestro", "Kraft", "Andes", "Bauker Pro", "MetalTec", "HogarFix", "Nordic", "TotalPro"]
 COMUNAS = ["Santiago", "Providencia", "La Florida", "Maipu", "Puente Alto", "San Miguel", "Recoleta", "Quilicura", "Pudahuel", "Nunoa"]
@@ -70,10 +84,11 @@ def insert_productos(cur, tienda_id, bodega_id):
             continue
         categoria = random.choice(list(CATEGORIAS.keys()))
         subcategoria = random.choice(CATEGORIAS[categoria])
-        compra = money(random.randint(350, 85000))
-        venta = money(compra * random.uniform(1.28, 1.85))
-        stock_tienda = random.randint(4, 80)
-        stock_bodega = random.randint(10, 220)
+        lo, hi = CATEGORY_COST_BAND_CLP.get(categoria, (400, 11000))
+        compra = money(random.randint(lo, hi))
+        venta = money(compra * random.uniform(1.22, 1.52))
+        stock_tienda = random.randint(3, 48)
+        stock_bodega = random.randint(8, 140)
         rows.append((
             f"{subcategoria} {random.choice(ADJETIVOS)} {random.choice(MARCAS)} {i}",
             f"7809{200000000 + i}",
@@ -167,8 +182,8 @@ def insert_clientes(cur):
             f"cliente.demo{i:03d}@example.com",
             comuna,
             "Santiago",
-            money(random.choice([0, 0, 0, random.randint(25000, 450000)])),
-            money(random.randint(300000, 2500000)),
+            money(random.choice([0, 0, 0, random.randint(5000, 165000)])),
+            money(random.randint(250000, 1600000)),
             "Activo",
         ))
     if not rows:
@@ -198,7 +213,7 @@ def ensure_caja(cur):
         INSERT INTO caja (fecha_apertura, monto_inicial, estado, usuario_apertura)
         VALUES (%s, %s, %s, %s) RETURNING id
         """,
-        (datetime.now() - timedelta(days=1), 100000, "Abierta", "Demo ERP"),
+        (datetime.now() - timedelta(days=1), 420000, "Abierta", "Demo ERP"),
     )
     return cur.fetchone()[0]
 
@@ -282,7 +297,7 @@ def insert_saldos(cur):
     rows_mov = []
     now = datetime.now()
     for cliente_id in elegidos:
-        saldo = money(random.randint(3000, 85000))
+        saldo = money(random.randint(1200, 38000))
         rows_saldo.append((cliente_id, saldo, now))
         rows_mov.append((now, cliente_id, None, "CREDITO", saldo, saldo, "Saldo demo por devolucion comercial"))
     execute_values(

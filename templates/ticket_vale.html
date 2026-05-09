@@ -39,6 +39,9 @@
             <p>Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
             <p>Vendedor: {{ venta.usuario }}</p>
             <p>Turno: {{ venta.prioridad }}</p>
+            {% if cotizacion_origen %}
+            <p><strong>Origen:</strong> Cotización {{ cotizacion_origen.numero }}</p>
+            {% endif %}
             <p><strong>Retiro:</strong> {{ venta.punto_retiro or 'Bodega' }}</p>
             <p>Cliente: {{ cliente.nombre if cliente else '---' }}</p>
             <div style="text-align:center;margin:6px 0;">

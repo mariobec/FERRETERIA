@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style>
+  .cot-header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; padding:18px 22px; border-bottom:1px solid #e2e8f0; }
+  .cot-brand img { max-height: 70px; max-width: 240px; object-fit:contain; }
+  .cot-title { text-align:right; }
+  .cot-title h1 { font-size: 1.6rem; margin: 0; color:#0f172a; letter-spacing: 0.04em; }
+  .cot-title small { color:#64748b; }
+  .cot-section { padding: 18px 22px; }
+  .cot-section h6 { color:#475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.78rem; margin-bottom: 8px; }
+  .totales-card { background:#fff8ef; border:1px solid #ffe4c4; border-radius: 14px; padding: 16px; }
+  .totales-card .total-row { display:flex; justify-content:space-between; padding: 4px 0; }
+  .totales-card .total-row.grande { font-size: 1.35rem; font-weight: 800; color:#92400e; border-top: 2px dashed #ffb87a; margin-top: 8px; padding-top: 10px; }
+  @media print {
+    .no-print { display:none !important; }
+    body { background:#fff !important; }
+    .app-shell, .app-sidebar, .app-topbar { display:none !important; }
+    .app-main { margin: 0 !important; padding: 0 !important; }
+    .container-fluid { padding: 0 !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 no-print">
+    <a href="{{ url_for('cotizaciones_lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Volver al listado</a>
+    <div class="d-flex flex-wrap gap-2">
+      {% if cotizacion.estado in ('Vigente', 'Vencida') %}
+      <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalContactoRapido" title="Corregir telefono o correo sin recargar la cotizacion">
+        <i class="fas fa-phone-volume me-1"></i>Cambiar contacto
+      </button>
+      <a href="{{ url_for('cotizacion_editar', cot_id=cotizacion.id) }}" class="btn btn-outline-primary">
+        <i class="fas fa-pen-to-square me-1"></i>Editar cotización
+      </a>
+      {% endif %}
+      <a href="{{ url_for('cotizacion_pdf', cot_id=cotizacion.id) }}" target="_blank" class="btn btn-danger" title="Abre la cotizacion lista para descargar como PDF (selecciona 'Guardar como PDF' en el dialogo)">
+        <i class="fas fa-file-pdf me-1"></i>Descargar PDF
+      </a>
+      <a href="{{ url_for('cotizacion_whatsapp', cot_id=cotizacion.id) }}" target="_blank" class="btn btn-success" title="Abre WhatsApp con el resumen en texto. Adjunta el PDF descargado al chat para enviar el documento.">
+        <i class="fab fa-whatsapp me-1"></i>Enviar por WhatsApp
+      </a>
+      {% if cotizacion.estado not in ('Convertida',) %}
+      <form method="POST" action="{{ url_for('cotizacion_convertir_venta', cot_id=cotizacion.id) }}" onsubmit="return confirm('¿Convertir esta cotización en una venta abierta del POS?');">
+        <button class="btn btn-warning"><i class="fas fa-cart-arrow-down me-1"></i>Convertir en venta</button>
+      </form>
+      {% else %}
+      <a href="{{ url_for('mostrar_ventas') }}" class="btn btn-info"><i class="fas fa-eye me-1"></i>Ver venta #{{ cotizacion.venta_id }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if cotizacion.estado in ('Vigente', 'Vencida') %}
+  <!-- Modal: cambio rapido de contacto (telefono/correo) -->
+  <div class="modal fade" id="modalContactoRapido" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form method="POST" action="{{ url_for('cotizacion_actualizar_contacto', cot_id=cotizacion.id) }}">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="fas fa-phone-volume me-2 text-warning"></i>Corregir contacto del cliente</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small">Util para corregir un numero mal escrito antes de enviar por WhatsApp. No cambia montos ni lineas.</p>
+            <div class="mb-2">
+              <label class="form-label small mb-1">WhatsApp / telefono</label>
+              <input type="text" class="form-control" name="cliente_telefono" value="{{ cotizacion.cliente_telefono or '' }}" placeholder="+56 9...">
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">Correo</label>
+              <input type="email" class="form-control" name="cliente_correo" value="{{ cotizacion.cliente_correo or '' }}" placeholder="contacto@empresa.cl">
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="actualizarMaestro" name="actualizar_maestro" value="1" {% if cotizacion.cliente_id %}checked{% endif %}>
+              <label class="form-check-label small" for="actualizarMaestro">
+                Tambien actualizar estos datos en el cliente maestro
+                {% if not cotizacion.cliente_id %}<span class="text-muted">(este cliente no esta enlazado al maestro)</span>{% endif %}
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-warning"><i class="fas fa-check me-1"></i>Guardar y volver</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="cot-header">
+      <div class="cot-brand">
+        <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ empresa.nombre_comercial }}">
+        <div class="mt-2">
+          <strong>{{ empresa.nombre_comercial }}</strong><br>
+          <small class="text-muted">
+            {% if empresa.razon_social %}{{ empresa.razon_social }}<br>{% endif %}
+            {% if empresa.direccion %}{{ empresa.direccion }} · {% endif %}
+            {% if empresa.telefono %}Tel: {{ empresa.telefono }}{% endif %}
+          </small>
+        </div>
+      </div>
+      <div class="cot-title">
+        <h1>COTIZACIÓN</h1>
+        <div><strong>{{ cotizacion.numero }}</strong></div>
+        <small>Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') if cotizacion.fecha else '' }}</small><br>
+        {% if cotizacion.fecha_vencimiento %}
+        <small>Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)</small><br>
+        {% endif %}
+        {% set estado_badge = {
+          'Vigente': 'bg-success',
+          'Vencida': 'bg-warning text-dark',
+          'Aceptada': 'bg-primary',
+          'Rechazada': 'bg-danger',
+          'Convertida': 'bg-info text-dark',
+        } %}
+        <span class="badge {{ estado_badge.get(cotizacion.estado, 'bg-secondary') }} mt-1">{{ cotizacion.estado }}</span>
+      </div>
+    </div>
+
+    {% if cotizacion.cliente_nombre or cotizacion.cliente_rut or cotizacion.cliente_telefono or cotizacion.cliente_giro or cotizacion.cliente_direccion or cotizacion.cliente_correo %}
+    <div class="cot-section">
+      <h6>Cliente</h6>
+      <div class="row g-2">
+        <div class="col-md-7">
+          <div><strong>{{ cotizacion.cliente_nombre or '—' }}</strong>
+            {% if cotizacion.cliente_rut %}<span class="text-muted"> · RUT {{ cotizacion.cliente_rut }}</span>{% endif %}
+          </div>
+          {% if cotizacion.cliente_giro %}<div class="text-muted small">Giro: {{ cotizacion.cliente_giro }}</div>{% endif %}
+          {% if cotizacion.cliente_direccion or cotizacion.cliente_comuna or cotizacion.cliente_ciudad %}
+          <div class="text-muted small">
+            {% if cotizacion.cliente_direccion %}{{ cotizacion.cliente_direccion }}{% endif %}
+            {% if cotizacion.cliente_comuna %}{% if cotizacion.cliente_direccion %}, {% endif %}{{ cotizacion.cliente_comuna }}{% endif %}
+            {% if cotizacion.cliente_ciudad %}{% if cotizacion.cliente_direccion or cotizacion.cliente_comuna %}, {% endif %}{{ cotizacion.cliente_ciudad }}{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="col-md-5 text-md-end small">
+          {% if cotizacion.cliente_telefono %}<div><i class="fas fa-phone me-1 text-muted"></i>{{ cotizacion.cliente_telefono }}</div>{% endif %}
+          {% if cotizacion.cliente_correo %}<div><i class="fas fa-envelope me-1 text-muted"></i>{{ cotizacion.cliente_correo }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="cot-section">
+      <h6>Detalle</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Código</th>
+              <th>Producto</th>
+              <th class="text-end">Cant.</th>
+              <th class="text-end">Precio unit.</th>
+              <th class="text-end">Desc.</th>
+              <th class="text-end">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in cotizacion.detalles %}
+            <tr>
+              <td><small>{{ d.codigo or '—' }}</small></td>
+              <td>{{ d.nombre }}</td>
+              <td class="text-end">{{ "{:g}".format(d.cantidad or 0) }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+              <td class="text-end">{% if (d.descuento or 0) > 0 %}${{ "{:,.0f}".format(d.descuento).replace(",", ".") }}{% else %}—{% endif %}</td>
+              <td class="text-end fw-bold">${{ "{:,.0f}".format(d.subtotal or 0).replace(",", ".") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="cot-section">
+      <div class="row g-3">
+        <div class="col-md-7">
+          {% if cotizacion.notas %}
+          <h6>Notas / condiciones</h6>
+          <p class="mb-0 text-muted">{{ cotizacion.notas }}</p>
+          {% endif %}
+        </div>
+        <div class="col-md-5">
+          <div class="totales-card">
+            <div class="total-row"><span>Neto</span><strong>${{ "{:,.0f}".format(cotizacion.neto or 0).replace(",", ".") }}</strong></div>
+            <div class="total-row"><span>IVA 19%</span><strong>${{ "{:,.0f}".format(cotizacion.iva or 0).replace(",", ".") }}</strong></div>
+            {% if (cotizacion.descuento_global or 0) > 0 %}
+            <div class="total-row text-danger"><span>Descuento global</span><strong>- ${{ "{:,.0f}".format(cotizacion.descuento_global).replace(",", ".") }}</strong></div>
+            {% endif %}
+            <div class="total-row grande"><span>TOTAL</span><span>${{ "{:,.0f}".format(cotizacion.monto_total or 0).replace(",", ".") }}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cot-section text-center text-muted small" style="border-top: 1px dashed #e2e8f0;">
+      Cotización generada con <strong style="color:#f37021">LexIA IA ERP</strong> · Inteligencia operativa para retail y ferreterías.
+    </div>
+  </div>
+
+  {% if cotizacion.estado in ('Vigente', 'Vencida') %}
+  <div class="card shadow-sm mt-3 no-print">
+    <div class="card-body">
+      <h6 class="mb-2"><i class="fas fa-flag me-1 text-warning"></i>Cambiar estado</h6>
+      <form method="POST" action="{{ url_for('cotizacion_cambiar_estado', cot_id=cotizacion.id) }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small mb-1">Nuevo estado</label>
+          <select name="estado" class="form-select" required>
+            <option value="Aceptada">Aceptada</option>
+            <option value="Rechazada">Rechazada</option>
+            <option value="Vigente">Reactivar como Vigente</option>
+          </select>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label small mb-1">Motivo / observación</label>
+          <input type="text" class="form-control" name="motivo" maxlength="300" placeholder="Ej: Cliente confirma compra. Coordinar despacho lunes.">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-primary"><i class="fas fa-check me-1"></i>Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

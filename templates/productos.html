@@ -85,14 +85,14 @@
       <div class="card-body">
         <form method="GET" action="/productos" class="d-flex flex-wrap w-100 mb-2 align-items-end gap-2" id="form_filtro_productos" data-catalogo="{{ 1 if catalogo_maestro_disponible else 0 }}">
           <div class="flex-grow-1" style="min-width: 14rem; max-width: 38rem">
-            <label class="form-label small text-muted mb-0">Producto (autocompletar como en POS)</label>
+            <label class="form-label small text-muted mb-0">Producto (autocompletar como en POS) <span class="kpi-help" data-bs-toggle="tooltip" title="Busca por nombre o código de barra, igual que en POS.">?</span></label>
             <select id="filtro_buscar_producto_inv" data-placeholder="Escriba nombre o código de barra…" style="width:100%">
               <option></option>
             </select>
             <input type="hidden" name="codigo_barra" id="inv_hidden_codigo_barra" value="{{ codigo_barra or '' }}">
           </div>
           <div style="min-width: 10rem; max-width: 15rem">
-            <label class="form-label small text-muted mb-0">Contiene (opcional)</label>
+            <label class="form-label small text-muted mb-0">Contiene (opcional) <span class="kpi-help" data-bs-toggle="tooltip" title="Filtro adicional por texto libre. Úsalo para acotar resultados amplios.">?</span></label>
             <input type="search" name="q" id="filtro_q_contiene" class="form-control form-control-sm" placeholder="Mín. 2 letras" value="{{ query or '' }}" autocomplete="off">
           </div>
           <select name="categoria" id="filtro_categoria" class="form-select" style="min-width: 11rem; max-width: 18rem">
@@ -152,7 +152,7 @@
       <div class="inv-details-body">
         <form method="POST" action="{{ url_for('actualizar_stock_masivo_productos') }}" class="row g-2 align-items-end" onsubmit="return confirm('Se actualizará stock en múltiples productos. ¿Desea continuar?');">
           <div class="col-md-3">
-            <label class="form-label fw-bold mb-1">Stock objetivo</label>
+            <label class="form-label fw-bold mb-1">Stock objetivo <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad que se aplicará como nuevo stock según el alcance seleccionado.">?</span></label>
             <input type="number" name="stock_objetivo" min="0" step="1" class="form-control" placeholder="0 o 100" required>
           </div>
           <div class="col-md-4">

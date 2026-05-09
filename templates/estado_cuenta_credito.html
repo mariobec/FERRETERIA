@@ -64,6 +64,45 @@
   </div>
   {% endif %}
 
+  {% if cuotas_credito_cliente %}
+  <div class="card card-ds mb-3">
+    <div class="card-header fw-bold"><i class="fas fa-calendar-alt me-2"></i>Cuotas — fechas de pago</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Venta</th>
+              <th>Cuota</th>
+              <th>Fecha pago</th>
+              <th class="text-end pe-3">Monto</th>
+              <th class="text-center">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cq in cuotas_credito_cliente %}
+            <tr>
+              <td class="ps-3 small">#{{ cq.venta_id }}{% if cq.venta and cq.venta.credito_plan_codigo %} <span class="text-muted">({{ cq.venta.credito_plan_codigo }})</span>{% endif %}</td>
+              <td>{{ cq.nro_cuota }} <span class="text-muted">({{ cq.dias_plazo }} d)</span></td>
+              <td>{{ cq.fecha_vencimiento.strftime('%d/%m/%Y') if cq.fecha_vencimiento else '—' }}</td>
+              <td class="text-end pe-3">$ {{ "{:,.0f}".format(cq.monto).replace(",", ".") }}</td>
+              <td class="text-center">
+                {% if cq.estado == 'Pagada' %}
+                <span class="badge bg-success">Pagada</span>
+                {% else %}
+                <span class="badge {% if cq.fecha_vencimiento and cq.fecha_vencimiento < hoy %}bg-danger{% else %}bg-warning text-dark{% endif %}">Pendiente</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="small text-muted px-3 py-2">Cada fila es el monto a pagar en esa fecha (días desde el cobro del vale). Los abonos siguen reduciendo el saldo global del cliente.</div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card card-ds">
     <div class="card-header fw-bold">Liquidación / movimientos del cliente</div>
     <div class="card-body p-0">

@@ -39,6 +39,18 @@
     </div>
   </div>
 
+  {% if cotizacion_origen %}
+  <div class="alert alert-warning border-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <strong><i class="fas fa-file-invoice-dollar me-1"></i>Venta originada desde cotización {{ cotizacion_origen.numero }}</strong>
+      <span class="text-muted ms-2">Cliente y líneas fueron precargados desde la cotización.</span>
+    </div>
+    <a href="{{ url_for('cotizacion_detalle', cot_id=cotizacion_origen.id) }}" class="btn btn-sm btn-outline-warning">
+      <i class="fas fa-arrow-up-right-from-square me-1"></i>Ver cotización
+    </a>
+  </div>
+  {% endif %}
+
   <!-- Buscador de productos con Select2 -->
   <div class="card card-ds mb-4">
     <div class="card-body">
@@ -218,12 +230,12 @@
             </div>
             <div class="col-md-5">
               <label class="form-label fw-bold">RUT Cliente</label>
-              <input type="text" id="cliente_rut" name="cliente_rut" class="form-control" placeholder="12.345.678-5" required>
+              <input type="text" id="cliente_rut" name="cliente_rut" class="form-control" placeholder="12.345.678-5" value="{{ cliente.rut if cliente else (cotizacion_origen.cliente_rut if cotizacion_origen else '') }}" required>
               <div id="rut_error" class="text-danger small mt-1 d-none">RUT inválido, verifique el número.</div>
             </div>
             <div class="col-md-4">
               <label class="form-label fw-bold">Nombre</label>
-              <input type="text" id="cliente_nombre" name="cliente_nombre" class="form-control" placeholder="Nombre cliente">
+              <input type="text" id="cliente_nombre" name="cliente_nombre" class="form-control" placeholder="Nombre cliente" value="{{ cliente.nombre if cliente else (cotizacion_origen.cliente_nombre if cotizacion_origen else '') }}">
             </div>
             <div class="col-md-3 d-grid align-items-end">
               <button type="button" id="buscarClienteBtn" class="btn btn-outline-primary">
@@ -237,28 +249,28 @@
 
             <div class="col-md-4">
               <label class="form-label fw-semibold">Dirección</label>
-              <input type="text" id="cliente_direccion" name="cliente_direccion" class="form-control">
+              <input type="text" id="cliente_direccion" name="cliente_direccion" class="form-control" value="{{ cliente.direccion if cliente else (cotizacion_origen.cliente_direccion if cotizacion_origen else '') }}">
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Giro</label>
-              <input type="text" id="cliente_giro" name="cliente_giro" class="form-control">
+              <input type="text" id="cliente_giro" name="cliente_giro" class="form-control" value="{{ cliente.giro if cliente else (cotizacion_origen.cliente_giro if cotizacion_origen else '') }}">
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Teléfono</label>
-              <input type="text" id="cliente_telefono" name="cliente_telefono" class="form-control">
+              <input type="text" id="cliente_telefono" name="cliente_telefono" class="form-control" value="{{ cliente.telefono if cliente else (cotizacion_origen.cliente_telefono if cotizacion_origen else '') }}">
             </div>
 
             <div class="col-md-6">
               <label class="form-label fw-semibold">Correo</label>
-              <input type="email" id="cliente_correo" name="cliente_correo" class="form-control">
+              <input type="email" id="cliente_correo" name="cliente_correo" class="form-control" value="{{ cliente.correo if cliente else (cotizacion_origen.cliente_correo if cotizacion_origen else '') }}">
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Comuna</label>
-              <input type="text" id="cliente_comuna" name="cliente_comuna" class="form-control" maxlength="80" placeholder="Ej: Copiapó">
+              <input type="text" id="cliente_comuna" name="cliente_comuna" class="form-control" maxlength="80" placeholder="Ej: Copiapó" value="{{ cliente.comuna if cliente else (cotizacion_origen.cliente_comuna if cotizacion_origen else '') }}">
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Ciudad</label>
-              <input type="text" id="cliente_ciudad" name="cliente_ciudad" class="form-control" maxlength="80" placeholder="Ej: Copiapó">
+              <input type="text" id="cliente_ciudad" name="cliente_ciudad" class="form-control" maxlength="80" placeholder="Ej: Copiapó" value="{{ cliente.ciudad if cliente else (cotizacion_origen.cliente_ciudad if cotizacion_origen else '') }}">
             </div>
 
             <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">

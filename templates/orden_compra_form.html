@@ -24,7 +24,14 @@
           <select id="oc_proveedor_id_edit" name="proveedor_id" class="form-select" required>
             {% for p in proveedores %}
             {% set canal_p = (canales_compra_map.get(p.id|string, 'manual') if canales_compra_map is defined else 'manual') %}
-            <option value="{{ p.id }}" data-canal-compra="{{ canal_p }}" {% if p.id == oc.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
+            <option
+              value="{{ p.id }}"
+              data-canal-compra="{{ canal_p }}"
+              data-telefono="{{ p.telefono or '' }}"
+              data-email="{{ p.email or '' }}"
+              data-proveedor="{{ p.nombre or '' }}"
+              {% if p.id == oc.proveedor_id %}selected{% endif %}
+            >{{ p.nombre }}</option>
             {% endfor %}
           </select>
           <div id="oc_canal_wrap_edit" class="mt-2 d-flex flex-wrap align-items-center gap-2">
@@ -64,6 +71,48 @@
           <button type="submit" class="btn btn-primary btn-sm">Guardar cabecera</button>
         </div>
       </form>
+      <form method="post" action="{{ url_for('orden_compra_editar', oid=oc.id) }}" class="row g-2 mt-2">
+        <input type="hidden" name="action" value="registrar_seguimiento">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold mb-1">
+            Seguimiento proveedor
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Registra hitos de contacto con el proveedor para mantener trazabilidad de la OC.">?</span>
+          </label>
+          <select name="seguimiento_estado" class="form-select form-select-sm" required>
+            <option value="">Seleccionar estado…</option>
+            <option value="OC enviada">OC enviada</option>
+            <option value="Proveedor confirma recepcion">Proveedor confirma recepción</option>
+            <option value="Proveedor confirma despacho">Proveedor confirma despacho</option>
+            <option value="Pendiente respuesta proveedor">Pendiente respuesta proveedor</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold mb-1">Nota rápida</label>
+          <input type="text" name="seguimiento_nota" class="form-control form-control-sm" maxlength="180" placeholder="Ej. entrega martes AM, contacto Juan">
+        </div>
+        <div class="col-md-2 d-grid align-items-end">
+          <button type="submit" class="btn btn-sm btn-outline-success mt-md-4">
+            <i class="fas fa-check-circle me-1"></i>Registrar
+          </button>
+        </div>
+      </form>
+      {% if seguimientos_oc %}
+      <div class="mt-3">
+        <div class="small text-muted fw-semibold mb-1">
+          <i class="fas fa-clock-rotate-left me-1"></i>Últimos seguimientos
+          <span class="kpi-help" data-bs-toggle="tooltip" title="Se muestran los últimos 3 hitos registrados para esta OC, del más reciente al más antiguo.">?</span>
+        </div>
+        <div class="d-flex flex-column gap-1">
+          {% for s in seguimientos_oc %}
+          <div class="small border rounded px-2 py-1 bg-light">
+            <span class="text-muted">{{ s.fecha }}</span>
+            <span class="mx-1">·</span>
+            <span>{{ s.detalle }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
       {% else %}
       <form method="post" action="{{ url_for('orden_compra_nueva') }}" class="row g-3">
         {% if producto_sugerido %}
@@ -78,7 +127,14 @@
             <option value="">—</option>
             {% for p in proveedores %}
             {% set canal_p = (canales_compra_map.get(p.id|string, 'manual') if canales_compra_map is defined else 'manual') %}
-            <option value="{{ p.id }}" data-canal-compra="{{ canal_p }}" {% if proveedor_sugerido_id and p.id == proveedor_sugerido_id %}selected{% endif %}>{{ p.nombre }}</option>
+            <option
+              value="{{ p.id }}"
+              data-canal-compra="{{ canal_p }}"
+              data-telefono="{{ p.telefono or '' }}"
+              data-email="{{ p.email or '' }}"
+              data-proveedor="{{ p.nombre or '' }}"
+              {% if proveedor_sugerido_id and p.id == proveedor_sugerido_id %}selected{% endif %}
+            >{{ p.nombre }}</option>
             {% endfor %}
           </select>
           <small id="oc_canal_hint" class="text-muted d-block mt-1"></small>
@@ -226,22 +282,51 @@
     };
     const ctas = {
       chilemat_portal: { text: 'Registrar en Chilemat', href: 'https://app.chilemat.cl/' },
-      whatsapp: { text: 'Enviar por WhatsApp', href: 'https://web.whatsapp.com/' },
-      email: { text: 'Enviar por Email', href: 'mailto:' },
+      whatsapp: { text: 'Enviar OC por WhatsApp', href: 'https://web.whatsapp.com/' },
+      email: { text: 'Enviar OC por Email', href: 'mailto:' },
       manual: { text: '', href: '#' },
     };
+
+    const onlyDigits = (txt) => (txt || '').replace(/\D+/g, '');
+    const ocNumeroInput = document.querySelector('input[name="numero"]');
+    const ocNumero = (ocNumeroInput?.value || '').trim();
+    const totalEstimado = "{{ '{:,.0f}'.format(total_estimado or 0).replace(',', '.') }}";
 
     const paint = () => {
       const opt = sel.options[sel.selectedIndex];
       const canal = (opt?.dataset?.canalCompra || 'manual').toLowerCase();
       const lbl = labels[canal] || labels.manual;
       badge.textContent = lbl;
+      cta.removeAttribute('title');
 
       const cfg = ctas[canal] || ctas.manual;
       if (cfg.text) {
         ctaText.textContent = cfg.text;
         cta.href = cfg.href;
         cta.classList.remove('d-none');
+        const proveedor = (opt?.dataset?.proveedor || '').trim() || 'Proveedor';
+        const numeroTxt = ocNumero || "{{ oc.numero or '' }}";
+        const msg = `Hola ${proveedor}, compartimos OC ${numeroTxt} por total estimado $${totalEstimado}.`;
+        if (canal === 'whatsapp') {
+          const tel = onlyDigits(opt?.dataset?.telefono || '');
+          if (tel) {
+            cta.href = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+          } else {
+            cta.href = '#';
+            cta.classList.add('d-none');
+            cta.title = 'Proveedor sin teléfono cargado.';
+          }
+        } else if (canal === 'email') {
+          const email = (opt?.dataset?.email || '').trim();
+          if (email) {
+            const subject = `OC ${numeroTxt} - Ferreteria Santo Domingo`;
+            cta.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(msg)}`;
+          } else {
+            cta.href = '#';
+            cta.classList.add('d-none');
+            cta.title = 'Proveedor sin email cargado.';
+          }
+        }
       } else {
         cta.classList.add('d-none');
       }

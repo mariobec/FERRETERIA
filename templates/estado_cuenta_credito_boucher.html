@@ -75,6 +75,28 @@
     </div>
     {% endif %}
 
+    {% if cuotas_credito_cliente %}
+    <h3>CUOTAS — FECHAS DE PAGO</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>VENTA</th><th>CUOTA</th><th>FECHA PAGO</th><th class="right">MONTO</th><th>ESTADO</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cq in cuotas_credito_cliente %}
+        <tr>
+          <td>#{{ cq.venta_id }}</td>
+          <td>{{ cq.nro_cuota }} ({{ cq.dias_plazo }} d)</td>
+          <td>{{ cq.fecha_vencimiento.strftime('%d/%m/%Y') if cq.fecha_vencimiento else '—' }}</td>
+          <td class="right">$ {{ "{:,.0f}".format(cq.monto).replace(",", ".") }}</td>
+          <td>{{ cq.estado or 'Pendiente' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
     <h3>HISTORIAL DETALLADO DE MOVIMIENTOS</h3>
     <table>
       <thead>

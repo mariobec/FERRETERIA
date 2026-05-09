@@ -8,15 +8,26 @@
   <style>
     body { background: #f5f7fb; }
     .box { max-width: 1100px; margin: 24px auto; }
+    .public-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px 18px; border-bottom: 1px solid #eef0f4; margin-bottom: 18px; flex-wrap: wrap; }
+    .public-header-brand { display: flex; align-items: center; gap: 14px; }
+    .public-header-brand img { height: 64px; width: auto; max-width: 220px; object-fit: contain; }
+    .public-header-brand h4 { margin: 0; font-size: 1.05rem; color: #0f172a; font-weight: 700; }
+    .public-header-brand small { display: block; color: #64748b; font-size: 0.78rem; margin-top: 2px; }
+    .public-footer { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 22px; padding: 14px 12px; color: #64748b; font-size: 0.78rem; }
+    .public-footer img { height: 44px; width: auto; max-width: min(420px, 85vw); object-fit: contain; opacity: 0.95; border-radius: 4px; }
+    .public-footer span strong { color: #f37021; font-weight: 700; letter-spacing: 0.04em; }
   </style>
 </head>
 <body>
   <div class="box card shadow-sm">
     <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <h4 class="mb-0">Consulta rápida de stock</h4>
-          <small class="text-muted">Búsqueda por nombre o código de barras.</small>
+      <div class="public-header">
+        <div class="public-header-brand">
+          <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ empresa_cfg.nombre_comercial }}">
+          <div>
+            <h4>Consulta rápida de stock</h4>
+            <small>Búsqueda por nombre o código de barras · {{ empresa_cfg.nombre_comercial }}</small>
+          </div>
         </div>
         <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">Volver</a>
       </div>
@@ -90,6 +101,10 @@
       {% else %}
       <div class="alert alert-info mb-0">Ingresa un término para consultar stock en tiempo real.</div>
       {% endif %}
+      <div class="public-footer">
+        <img src="{{ url_for('static', filename='img/lexia-erp-logo-transparent.png') }}" alt="LexIA IA ERP">
+        <span>Powered by <strong>LexIA IA ERP</strong> · Inteligencia operativa para retail y ferreterías</span>
+      </div>
     </div>
   </div>
   <script>

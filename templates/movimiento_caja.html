@@ -28,7 +28,10 @@
         <input type="hidden" name="filtro_q_hoy" value="{{ q_redirect.get('hoy') }}">
         {% endif %}
         <div class="col-md-3">
-          <label class="form-label">Tipo</label>
+          <label class="form-label">
+            Tipo
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Ingreso suma caja; Egreso descuenta caja y exige responsable de retiro.">?</span>
+          </label>
           <select name="tipo" class="form-select" required>
             <option value="Ingreso">Ingreso</option>
             <option value="Egreso">Egreso</option>
@@ -39,7 +42,10 @@
           <input type="text" name="concepto" class="form-control" placeholder="Ej: Compra de insumos" required>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Responsable Retiro</label>
+          <label class="form-label">
+            Responsable Retiro
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Se activa solo en egresos para dejar trazabilidad de quién retira dinero.">?</span>
+          </label>
           <input type="text" id="responsable_retiro" name="responsable_retiro" class="form-control" placeholder="Nombre responsable" disabled>
         </div>
         <div class="col-md-3">

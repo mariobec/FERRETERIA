@@ -1,5 +1,16 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+<style>
+  .oc-row-alerta td {
+    background-color: #fff8e1 !important;
+  }
+  .oc-row-alerta:hover td {
+    background-color: #ffefc2 !important;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
@@ -14,6 +25,37 @@
   </div>
 
   <div class="card card-ds">
+    <div class="card-header bg-white border-bottom">
+      <form method="get" action="{{ url_for('lista_ordenes_compra') }}" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1">
+            Sin seguimiento en
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Muestra OCs cuyo último seguimiento es anterior al rango, o que aún no tienen seguimiento.">?</span>
+          </label>
+          <select name="sin_seg_dias" class="form-select form-select-sm">
+            <option value="0" {% if (sin_seg_dias or 0) == 0 %}selected{% endif %}>Mostrar todas</option>
+            <option value="2" {% if (sin_seg_dias or 0) == 2 %}selected{% endif %}>2 días</option>
+            <option value="3" {% if (sin_seg_dias or 0) == 3 %}selected{% endif %}>3 días</option>
+            <option value="5" {% if (sin_seg_dias or 0) == 5 %}selected{% endif %}>5 días</option>
+            <option value="7" {% if (sin_seg_dias or 0) == 7 %}selected{% endif %}>7 días</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1">
+            Alcance
+            <span class="kpi-help" data-bs-toggle="tooltip" title="Puedes limitar el filtro solo a OCs en curso (Borrador, Enviada, Parcial).">?</span>
+          </label>
+          <select name="solo_pendientes" class="form-select form-select-sm">
+            <option value="1" {% if solo_pendientes %}selected{% endif %}>Solo OCs pendientes</option>
+            <option value="0" {% if not solo_pendientes %}selected{% endif %}>Todos los estados</option>
+          </select>
+        </div>
+        <div class="col-md-6 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-outline-primary">Aplicar filtro</button>
+          <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
     <div class="card-body p-0 table-responsive">
       <table class="table table-sm table-hover align-middle mb-0">
         <thead class="table-light">
@@ -29,14 +71,30 @@
         </thead>
         <tbody>
           {% for o in ordenes %}
-          <tr>
+          <tr class="{% if oc_alerta_ids is defined and o.id in oc_alerta_ids %}oc-row-alerta{% endif %}">
             <td>{{ o.id }}</td>
             <td class="fw-semibold">{{ o.numero }}</td>
             <td>{{ o.proveedor.nombre if o.proveedor else '—' }}</td>
             <td>{{ o.fecha_emision.strftime('%Y-%m-%d') if o.fecha_emision else '—' }}</td>
-            <td><span class="badge bg-secondary">{{ o.estado }}</span></td>
+            <td>
+              <span class="badge bg-secondary">{{ o.estado }}</span>
+              {% if oc_alerta_ids is defined and o.id in oc_alerta_ids %}
+              <span class="badge text-bg-warning ms-1">Sin seguimiento</span>
+              {% endif %}
+            </td>
             <td class="text-end">${{ "{:,.0f}".format(o.total_estimado or 0).replace(",", ".") }}</td>
             <td class="text-end">
+              <form method="post" action="{{ url_for('orden_compra_seguimiento_rapido', oid=o.id) }}" class="d-inline-flex align-items-center gap-1 me-1">
+                <input type="hidden" name="sin_seg_dias" value="{{ sin_seg_dias or 0 }}">
+                <input type="hidden" name="solo_pendientes" value="{{ 1 if solo_pendientes else 0 }}">
+                <select name="seguimiento_estado" class="form-select form-select-sm" style="max-width:180px;">
+                  <option value="Pendiente respuesta proveedor">Pendiente respuesta</option>
+                  <option value="Proveedor confirma recepcion">Confirma recepción</option>
+                  <option value="Proveedor confirma despacho">Confirma despacho</option>
+                </select>
+                <input type="text" name="seguimiento_nota" class="form-control form-control-sm" placeholder="Nota" style="max-width:130px;">
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Registra un hito rápido y lo agrega a la trazabilidad de la OC.">Seguimiento</button>
+              </form>
               <a href="{{ url_for('orden_compra_editar', oid=o.id) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
             </td>
           </tr>

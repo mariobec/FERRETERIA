@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .cim-hero {
+    border-radius: 18px;
+    padding: 18px 20px;
+    color: #fff;
+    background: linear-gradient(135deg, #0b1324 0%, #13213c 55%, #f37021 130%);
+    border: 1px solid rgba(243, 112, 33, 0.35);
+    box-shadow: 0 18px 40px rgba(5, 10, 22, 0.35);
+  }
+  .cim-hero h3 { color: #fff; margin-bottom: 4px; }
+  .cim-kpi {
+    border-radius: 14px;
+    border: 1px solid #e8edf5;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(17, 24, 39, 0.06);
+  }
+  .cim-kpi .label {
+    font-size: .78rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 700;
+  }
+  .cim-kpi .value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+  }
+  .cim-kpi .value.accent { color: #f37021; }
+  .cim-alert {
+    border: 1px solid rgba(243, 112, 33, 0.32);
+    background: rgba(243, 112, 33, 0.10);
+    color: #7c2d12;
+  }
+  .cim-table thead th {
+    background: #0f172a !important;
+    color: #f8fafc !important;
+    font-size: .72rem;
+    letter-spacing: .04em;
+  }
+  .cim-row-lead td {
+    border-bottom: 1px solid #eef2f7;
+  }
+  .cim-pipeline {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .cim-stage {
+    border-radius: 12px;
+    padding: 10px 12px;
+    border: 1px solid #e6ebf3;
+    background: #fff;
+  }
+  .cim-stage .name {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+    font-weight: 700;
+  }
+  .cim-stage .qty {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.1;
+  }
+  .cim-stage.new { border-color: #fde68a; background: #fffbeb; }
+  .cim-stage.contact { border-color: #bfdbfe; background: #eff6ff; }
+  .cim-stage.quote { border-color: #c7d2fe; background: #eef2ff; }
+  .cim-stage.neg { border-color: #fed7aa; background: #fff7ed; }
+  .cim-stage.win { border-color: #86efac; background: #f0fdf4; }
+  .cim-stage.lost { border-color: #fecaca; background: #fef2f2; }
+  @media (max-width: 992px) {
+    .cim-pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="cim-hero mb-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-funnel-dollar me-2"></i>LexIA Comercial · Bandeja de leads</h3>
+      <p class="mb-0 opacity-75">Primer módulo del sistema interno LexIA IA ERP para captación, seguimiento y cierre comercial.</p>
+    </div>
+    <div class="text-end small">
+      <div class="opacity-75">Pipeline activo</div>
+      <div class="fw-bold">Leads aterrizados desde asistente IA</div>
+    </div>
+  </div>
+
+  <div class="alert cim-alert border-0 py-2 small mb-3">
+    <i class="fas fa-triangle-exclamation me-1"></i>
+    <strong>Módulo interno LexIA:</strong> este panel pertenece al backoffice comercial y no al flujo operativo del cliente.
+  </div>
+
+  {% set ns = namespace(total=leads|length, alta=0, nuevo=0, ganado=0, contactado=0, cotizado=0, negociacion=0, perdido=0) %}
+  {% for l in leads %}
+    {% if (l.prioridad or 'NORMAL') == 'ALTA' %}{% set ns.alta = ns.alta + 1 %}{% endif %}
+    {% if (l.estado or 'Nuevo') == 'Nuevo' %}{% set ns.nuevo = ns.nuevo + 1 %}{% endif %}
+    {% if (l.estado or 'Nuevo') == 'Contactado' %}{% set ns.contactado = ns.contactado + 1 %}{% endif %}
+    {% if (l.estado or 'Nuevo') == 'Cotizado' %}{% set ns.cotizado = ns.cotizado + 1 %}{% endif %}
+    {% if (l.estado or 'Nuevo') == 'Negociacion' %}{% set ns.negociacion = ns.negociacion + 1 %}{% endif %}
+    {% if (l.estado or 'Nuevo') == 'Ganado' %}{% set ns.ganado = ns.ganado + 1 %}{% endif %}
+    {% if (l.estado or 'Nuevo') == 'Perdido' %}{% set ns.perdido = ns.perdido + 1 %}{% endif %}
+  {% endfor %}
+  {% set tasa_cierre = ((ns.ganado * 100 / ns.total) if ns.total else 0) %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="card cim-kpi p-3 h-100"><div class="label">Leads visibles</div><div class="value">{{ ns.total }}</div></div></div>
+    <div class="col-md-3"><div class="card cim-kpi p-3 h-100"><div class="label">Prioridad alta</div><div class="value accent">{{ ns.alta }}</div></div></div>
+    <div class="col-md-3"><div class="card cim-kpi p-3 h-100"><div class="label">Nuevos</div><div class="value">{{ ns.nuevo }}</div></div></div>
+    <div class="col-md-3"><div class="card cim-kpi p-3 h-100"><div class="label">Tasa cierre</div><div class="value">{{ "{:.1f}".format(tasa_cierre) }}%</div></div></div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="small fw-semibold">Pipeline comercial en tiempo real</div>
+        <div class="small text-muted">Conversión visible por etapa</div>
+      </div>
+      <div class="cim-pipeline">
+        <div class="cim-stage new"><div class="name">Nuevo</div><div class="qty">{{ ns.nuevo }}</div></div>
+        <div class="cim-stage contact"><div class="name">Contactado</div><div class="qty">{{ ns.contactado }}</div></div>
+        <div class="cim-stage quote"><div class="name">Cotizado</div><div class="qty">{{ ns.cotizado }}</div></div>
+        <div class="cim-stage neg"><div class="name">Negociación</div><div class="qty">{{ ns.negociacion }}</div></div>
+        <div class="cim-stage win"><div class="name">Ganado</div><div class="qty">{{ ns.ganado }}</div></div>
+        <div class="cim-stage lost"><div class="name">Perdido</div><div class="qty">{{ ns.perdido }}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body">
+      <form method="get" action="{{ url_for('comercial_leads') }}" class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Buscar <span class="kpi-help" data-bs-toggle="tooltip" title="Busca por nombre, empresa, teléfono, prioridad o escenario de interés.">?</span></label>
+          <input type="text" name="q" class="form-control form-control-sm" value="{{ q or '' }}" placeholder="Nombre, empresa, teléfono...">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Estado <span class="kpi-help" data-bs-toggle="tooltip" title="Etapa comercial actual del lead.">?</span></label>
+          <select name="estado" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for e in ['Nuevo','Contactado','Cotizado','Negociacion','Ganado','Perdido'] %}
+            <option value="{{ e }}" {% if estado == e %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Prioridad</label>
+          <select name="prioridad" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            {% for p in ['ALTA','MEDIA','NORMAL'] %}
+            <option value="{{ p }}" {% if prioridad == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-outline-primary">Filtrar</button>
+          <a href="{{ url_for('comercial_leads') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0 cim-table">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Lead</th>
+            <th>Diagnóstico</th>
+            <th>Prioridad</th>
+            <th>Estado</th>
+            <th style="min-width:320px;">Gestión rápida</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in leads %}
+          <tr class="cim-row-lead">
+            <td class="small text-muted">{{ l.ts }}</td>
+            <td>
+              <div class="fw-semibold">{{ l.nombre or 'Sin nombre' }}</div>
+              <div class="small">{{ l.empresa or 'Sin empresa' }}</div>
+              <div class="small text-muted">{{ l.telefono or 'Sin teléfono' }}</div>
+            </td>
+            <td class="small">
+              <div><strong>Prioridad área:</strong> {{ l.prioridad_area or '—' }}</div>
+              <div><strong>Predicción:</strong> {{ l.prediccion or '—' }}</div>
+              <div><strong>Facturación:</strong> {{ l.facturacion or '—' }}</div>
+            </td>
+            <td>
+              {% set p = (l.prioridad or 'NORMAL') %}
+              <span class="badge {% if p == 'ALTA' %}bg-danger{% elif p == 'MEDIA' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ p }}</span>
+            </td>
+            <td>
+              <div><span class="badge bg-dark">{{ l.estado or 'Nuevo' }}</span></div>
+              {% if l.nota_estado %}
+              <div class="small text-muted mt-1">{{ l.nota_estado }}</div>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('comercial_lead_estado', lead_id=l.id) }}" class="d-flex gap-1">
+                <input type="hidden" name="q" value="{{ q or '' }}">
+                <input type="hidden" name="f_estado" value="{{ estado or '' }}">
+                <input type="hidden" name="f_prioridad" value="{{ prioridad or '' }}">
+                <select name="estado" class="form-select form-select-sm" style="max-width:140px;">
+                  {% for e in ['Nuevo','Contactado','Cotizado','Negociacion','Ganado','Perdido'] %}
+                  <option value="{{ e }}" {% if (l.estado or 'Nuevo') == e %}selected{% endif %}>{{ e }}</option>
+                  {% endfor %}
+                </select>
+                <input type="text" name="nota" class="form-control form-control-sm" placeholder="Nota comercial">
+                <button type="submit" class="btn btn-sm btn-outline-success">Guardar</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Sin leads registrados por ahora.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

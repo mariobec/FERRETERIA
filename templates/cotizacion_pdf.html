@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cotizacion_{{ cotizacion.numero }}</title>
+  <style>
+    @page { size: Letter; margin: 12mm 12mm 14mm 12mm; }
+    @media print {
+      .no-print { display: none !important; }
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1f2937; margin: 0; padding: 0; font-size: 12px; }
+    .doc-header { display: table; width: 100%; padding: 18px 0; border-bottom: 2px solid #f37021; }
+    .doc-header .col-l, .doc-header .col-r { display: table-cell; vertical-align: top; }
+    .doc-header .col-r { text-align: right; }
+    .brand-logo { max-height: 70px; max-width: 220px; }
+    .brand-name { font-size: 15px; font-weight: bold; color: #111827; margin-top: 6px; }
+    .brand-data { color: #6b7280; font-size: 11px; line-height: 1.3; margin-top: 2px; }
+    .doc-title { font-size: 22px; font-weight: 800; color: #111827; letter-spacing: 0.05em; margin: 0; }
+    .doc-num { font-size: 16px; font-weight: 700; color: #f37021; margin-top: 2px; }
+    .doc-meta { color: #6b7280; font-size: 11px; margin-top: 4px; line-height: 1.4; }
+    .badge-estado { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; color: #fff; margin-top: 4px; }
+    .badge-vigente { background: #16a34a; }
+    .badge-vencida { background: #f59e0b; color: #1f2937; }
+    .badge-aceptada { background: #2563eb; }
+    .badge-rechazada { background: #dc2626; }
+    .badge-convertida { background: #06b6d4; color: #1f2937; }
+
+    .seccion { padding: 14px 0; border-bottom: 1px solid #e5e7eb; }
+    .seccion h6 { color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; margin: 0 0 6px 0; font-weight: 700; }
+    .cliente-grid { display: table; width: 100%; }
+    .cliente-grid .col-l, .cliente-grid .col-r { display: table-cell; vertical-align: top; }
+    .cliente-grid .col-r { text-align: right; width: 35%; }
+    .cliente-nom { font-size: 13px; font-weight: 700; color: #111827; }
+    .cliente-rut { color: #4b5563; font-weight: normal; margin-left: 4px; }
+    .cliente-extra { color: #6b7280; font-size: 11px; margin-top: 2px; }
+
+    table.lineas { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    table.lineas thead th {
+      background: #f3f4f6; color: #374151; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 8px 6px; border-bottom: 2px solid #d1d5db; text-align: left;
+    }
+    table.lineas tbody td { padding: 7px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    table.lineas .text-end { text-align: right; }
+    table.lineas .codigo { color: #6b7280; font-size: 10px; }
+
+    .totales { display: table; width: 100%; margin-top: 12px; }
+    .totales .col-l, .totales .col-r { display: table-cell; vertical-align: top; }
+    .totales .col-r { width: 45%; }
+    .notas { color: #4b5563; font-size: 11px; line-height: 1.5; }
+    .totales-card { background: #fff8ef; border: 1px solid #ffe4c4; border-radius: 10px; padding: 12px 14px; }
+    .totales-row { display: table; width: 100%; padding: 3px 0; }
+    .totales-row .lab, .totales-row .val { display: table-cell; }
+    .totales-row .val { text-align: right; font-weight: 600; }
+    .totales-row.total { font-size: 16px; font-weight: 800; color: #b45309; border-top: 2px dashed #ffb87a; margin-top: 6px; padding-top: 8px; }
+
+    .footer-doc { margin-top: 20px; padding-top: 12px; border-top: 1px dashed #e5e7eb; text-align: center; color: #6b7280; font-size: 10px; }
+    .footer-doc strong { color: #f37021; }
+
+    /* Barra superior con instrucciones (solo visible en pantalla) */
+    .pdf-toolbar {
+      position: sticky; top: 0; z-index: 10;
+      background: #1f2937; color: #fff; padding: 10px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      font-family: 'Helvetica', 'Arial', sans-serif;
+    }
+    .pdf-toolbar .info { font-size: 13px; }
+    .pdf-toolbar strong { color: #fbbf24; }
+    .pdf-toolbar .actions { display: flex; gap: 8px; }
+    .pdf-toolbar .btn {
+      background: #f37021; color: #fff; border: 0; border-radius: 6px;
+      padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none;
+    }
+    .pdf-toolbar .btn:hover { background: #ea580c; }
+    .pdf-toolbar .btn.secondary { background: transparent; border: 1px solid #94a3b8; color: #cbd5e1; }
+    .doc-wrapper { max-width: 760px; margin: 18px auto; background: #fff; padding: 28px 36px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border-radius: 8px; }
+    @media print {
+      body { background: #fff; }
+      .doc-wrapper { box-shadow: none; padding: 0; margin: 0; max-width: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body style="background: #f3f4f6;">
+  <div class="pdf-toolbar no-print">
+    <div class="info">
+      Vista previa de la cotizacion. Presiona <strong>"Descargar PDF"</strong> y elige <strong>"Guardar como PDF"</strong> como destino.
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" onclick="window.print()">Descargar PDF</button>
+      <button type="button" class="btn secondary" onclick="window.close()">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="doc-wrapper">
+  <!-- Cabecera -->
+  <div class="doc-header">
+    <div class="col-l">
+      {% if logo_cliente_b64 %}
+      <img class="brand-logo" src="data:image/png;base64,{{ logo_cliente_b64 }}" alt="{{ empresa.nombre_comercial }}">
+      {% endif %}
+      <div class="brand-name">{{ empresa.nombre_comercial }}</div>
+      <div class="brand-data">
+        {% if empresa.razon_social %}{{ empresa.razon_social }}<br>{% endif %}
+        {% if empresa.rut %}RUT {{ empresa.rut }}<br>{% endif %}
+        {% if empresa.direccion %}{{ empresa.direccion }}<br>{% endif %}
+        {% if empresa.telefono %}Tel: {{ empresa.telefono }}{% endif %}
+        {% if empresa.correo %} · {{ empresa.correo }}{% endif %}
+      </div>
+    </div>
+    <div class="col-r">
+      <h1 class="doc-title">COTIZACION</h1>
+      <div class="doc-num">{{ cotizacion.numero }}</div>
+      <div class="doc-meta">
+        Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') if cotizacion.fecha else '' }}<br>
+        {% if cotizacion.fecha_vencimiento %}
+        Valida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} dias)<br>
+        {% endif %}
+        {% set bcls = {'Vigente': 'badge-vigente', 'Vencida': 'badge-vencida', 'Aceptada': 'badge-aceptada', 'Rechazada': 'badge-rechazada', 'Convertida': 'badge-convertida'} %}
+        <span class="badge-estado {{ bcls.get(cotizacion.estado, '') }}">{{ cotizacion.estado }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cliente -->
+  <div class="seccion">
+    <h6>Cliente</h6>
+    <div class="cliente-grid">
+      <div class="col-l">
+        <div class="cliente-nom">
+          {{ cotizacion.cliente_nombre or 'Cliente sin razon social' }}
+          {% if cotizacion.cliente_rut %}<span class="cliente-rut">&middot; RUT {{ cotizacion.cliente_rut }}</span>{% endif %}
+        </div>
+        {% if cotizacion.cliente_giro %}<div class="cliente-extra">Giro: {{ cotizacion.cliente_giro }}</div>{% endif %}
+        {% if cotizacion.cliente_direccion or cotizacion.cliente_comuna or cotizacion.cliente_ciudad %}
+        <div class="cliente-extra">
+          {% if cotizacion.cliente_direccion %}{{ cotizacion.cliente_direccion }}{% endif %}
+          {% if cotizacion.cliente_comuna %}{% if cotizacion.cliente_direccion %}, {% endif %}{{ cotizacion.cliente_comuna }}{% endif %}
+          {% if cotizacion.cliente_ciudad %}{% if cotizacion.cliente_direccion or cotizacion.cliente_comuna %}, {% endif %}{{ cotizacion.cliente_ciudad }}{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="col-r cliente-extra">
+        {% if cotizacion.cliente_telefono %}<div>Tel: {{ cotizacion.cliente_telefono }}</div>{% endif %}
+        {% if cotizacion.cliente_correo %}<div>{{ cotizacion.cliente_correo }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Detalle -->
+  <div class="seccion">
+    <h6>Detalle</h6>
+    <table class="lineas">
+      <thead>
+        <tr>
+          <th style="width: 18%;">Codigo</th>
+          <th>Producto</th>
+          <th class="text-end" style="width: 7%;">Cant.</th>
+          <th class="text-end" style="width: 14%;">Precio unit.</th>
+          <th class="text-end" style="width: 12%;">Desc.</th>
+          <th class="text-end" style="width: 16%;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in cotizacion.detalles %}
+        <tr>
+          <td><span class="codigo">{{ d.codigo or '-' }}</span></td>
+          <td>{{ d.nombre }}</td>
+          <td class="text-end">{{ '%g' % (d.cantidad or 0) }}</td>
+          <td class="text-end">${{ '{:,.0f}'.format(d.precio_unitario or 0).replace(',', '.') }}</td>
+          <td class="text-end">{% if (d.descuento or 0) > 0 %}${{ '{:,.0f}'.format(d.descuento).replace(',', '.') }}{% else %}-{% endif %}</td>
+          <td class="text-end" style="font-weight: 700;">${{ '{:,.0f}'.format(d.subtotal or 0).replace(',', '.') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Notas y totales -->
+  <div class="totales">
+    <div class="col-l">
+      {% if cotizacion.notas %}
+      <h6 style="color:#6b7280;font-size:10px;text-transform:uppercase;letter-spacing:0.06em;margin:14px 0 6px 0;">Notas / condiciones</h6>
+      <div class="notas">{{ cotizacion.notas }}</div>
+      {% endif %}
+    </div>
+    <div class="col-r">
+      <div class="totales-card">
+        <div class="totales-row"><span class="lab">Neto</span><span class="val">${{ '{:,.0f}'.format(cotizacion.neto or 0).replace(',', '.') }}</span></div>
+        <div class="totales-row"><span class="lab">IVA 19%</span><span class="val">${{ '{:,.0f}'.format(cotizacion.iva or 0).replace(',', '.') }}</span></div>
+        {% if (cotizacion.descuento_global or 0) > 0 %}
+        <div class="totales-row" style="color:#dc2626;"><span class="lab">Descuento global</span><span class="val">- ${{ '{:,.0f}'.format(cotizacion.descuento_global).replace(',', '.') }}</span></div>
+        {% endif %}
+        <div class="totales-row total"><span class="lab">TOTAL</span><span class="val">${{ '{:,.0f}'.format(cotizacion.monto_total or 0).replace(',', '.') }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-doc">
+    Cotizacion generada con <strong>LexIA IA ERP</strong> · Inteligencia operativa para retail y ferreterias.
+  </div>
+  </div>
+
+  {% if auto_print %}
+  <script>
+    // Esperamos a que la imagen del logo cargue antes de disparar el dialogo de impresion.
+    window.addEventListener('load', function () {
+      var imgs = Array.from(document.images || []);
+      var pendientes = imgs.filter(function (im) { return !im.complete; });
+      function lanzar() { setTimeout(function () { window.print(); }, 250); }
+      if (pendientes.length === 0) { lanzar(); return; }
+      var restantes = pendientes.length;
+      pendientes.forEach(function (im) {
+        im.addEventListener('load', function () { if (--restantes <= 0) lanzar(); });
+        im.addEventListener('error', function () { if (--restantes <= 0) lanzar(); });
+      });
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

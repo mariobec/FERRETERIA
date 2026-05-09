@@ -42,7 +42,7 @@
             <input type="text" name="direccion" class="form-control" value="{{ empresa.direccion }}">
           </div>
           <div class="col-md-4">
-            <label class="form-label fw-semibold">RUT empresa (emisor)</label>
+            <label class="form-label fw-semibold">RUT empresa (emisor) <span class="kpi-help" data-bs-toggle="tooltip" title="Se usa como identificador del emisor en documentos tributarios y formatos de impresión.">?</span></label>
             <input type="text" name="rut_empresa" class="form-control" value="{{ empresa.rut_empresa or '' }}" placeholder="Ej: 76.123.456-K">
           </div>
           <div class="col-md-8">
@@ -67,7 +67,7 @@
           </div>
           <div class="col-12">
             <hr>
-            <label class="form-label fw-semibold mb-2">Módulos activos (ERP componible)</label>
+            <label class="form-label fw-semibold mb-2">Módulos activos (ERP componible) <span class="kpi-help" data-bs-toggle="tooltip" title="Activa o desactiva módulos visibles para la empresa sin eliminar datos históricos.">?</span></label>
             <div class="row g-2">
               <div class="col-md-4">
                 <label class="form-check border rounded p-2 w-100">

@@ -2,7 +2,7 @@
    1. CONFIGURACIÓN GENERAL Y VARIABLES
    ============================================================ */
 :root {
-    --primary-corp: #f37021;    /* Naranja Chilemat */
+    --primary-corp: #f37021;    /* Naranja corporativo LexIA */
     --dark-corp: #212529;       /* Negro Sobrio ERP */
     --bg-light: #f4f7f6;        /* Gris claro para fondo POS */
 }
@@ -11,8 +11,11 @@
 body.index-body {
     margin: 0;
     font-family: 'Segoe UI', Roboto, sans-serif;
-    background: url('../img/ferreteria.png') no-repeat center center fixed;
-    background-size: cover;
+    background:
+        radial-gradient(circle at 18% 12%, rgba(243, 112, 33, 0.22), transparent 36rem),
+        radial-gradient(circle at 86% 84%, rgba(32, 201, 151, 0.16), transparent 30rem),
+        linear-gradient(135deg, rgba(10, 14, 22, 0.98), rgba(24, 28, 36, 0.96));
+    background-size: auto, auto, cover;
     height: 100vh;
     color: white;
     overflow: hidden;
@@ -21,15 +24,30 @@ body.index-body {
 }
 
 body.erp-landing {
+    position: relative;
+    isolation: isolate;
     min-height: 100vh;
     height: auto;
     overflow-x: hidden;
     overflow-y: auto;
     background:
         radial-gradient(circle at top left, rgba(243, 112, 33, 0.2), transparent 32rem),
-        linear-gradient(135deg, rgba(10, 14, 22, 0.96), rgba(24, 28, 36, 0.95)),
-        url('../img/ferreteria.png') no-repeat center center fixed;
+        radial-gradient(circle at bottom right, rgba(32, 201, 151, 0.12), transparent 28rem),
+        linear-gradient(135deg, rgba(10, 14, 22, 0.96), rgba(24, 28, 36, 0.95));
     background-size: auto, auto, cover;
+}
+
+/* Fondo contextual retail: desenfocado y levemente oscurecido para no competir con el contenido */
+body.erp-landing::before {
+    content: "";
+    position: fixed;
+    inset: -3%;
+    z-index: -1;
+    background: url('../img/ferreteria.png') no-repeat center center;
+    background-size: cover;
+    filter: blur(6px) brightness(0.45) saturate(0.85);
+    transform: scale(1.04);
+    pointer-events: none;
 }
 
 /* Cuerpo para páginas internas (Punto de Venta, etc.) */
@@ -57,8 +75,10 @@ body:not(.index-body) {
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    padding: 18px clamp(20px, 5vw, 72px);
-    background: rgba(12, 16, 24, 0.82);
+    /* Logo grande por alto; PNG ya recortado al contenido (sin lienzo transparente) */
+    padding: 8px clamp(20px, 5vw, 72px);
+    box-sizing: border-box;
+    background: rgba(12, 16, 24, 0.72);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(18px);
 }
@@ -76,11 +96,14 @@ body:not(.index-body) {
 }
 
 .landing-brand-logo {
-    width: 300px;
-    height: auto;
+    display: block;
+    height: clamp(56px, 7.5vw, 76px);
+    width: auto;
+    max-width: min(560px, 88vw);
+    max-height: 76px;
     object-fit: contain;
     object-position: left center;
-    filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.34));
+    filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.38));
 }
 
 .landing-brand-text {
@@ -109,16 +132,19 @@ body:not(.index-body) {
 .landing-nav-links {
     display: flex;
     align-items: center;
-    gap: 22px;
-    font-size: 0.92rem;
+    gap: 26px;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
 }
 
 .landing-nav-links a {
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.86);
+    transition: color 0.18s ease;
 }
 
 .landing-nav-links a:hover {
-    color: #fff;
+    color: var(--primary-corp);
 }
 
 .landing-hero,
@@ -159,9 +185,9 @@ body:not(.index-body) {
 .landing-hero h1 {
     max-width: 720px;
     color: #fff;
-    font-size: clamp(2.25rem, 5vw, 4.25rem);
-    line-height: 1;
-    letter-spacing: -0.055em;
+    font-size: clamp(2rem, 4.2vw, 3.65rem);
+    line-height: 1.08;
+    letter-spacing: -0.04em;
     margin-bottom: 22px;
 }
 
@@ -244,10 +270,10 @@ body:not(.index-body) {
     overflow: hidden;
     min-height: 520px;
     background:
-        radial-gradient(circle at 80% 8%, rgba(243, 112, 33, 0.34), transparent 13rem),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+        radial-gradient(circle at 80% 8%, rgba(243, 112, 33, 0.18), transparent 13rem),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
     backdrop-filter: blur(22px);
 }
 
@@ -1245,7 +1271,9 @@ body:not(.index-body) {
     }
 
     .landing-brand-logo {
-        width: min(260px, 82vw);
+        height: clamp(50px, 14vw, 68px);
+        max-width: min(100%, 520px);
+        max-height: 68px;
     }
 
     .landing-nav-links {
@@ -1462,11 +1490,11 @@ body .btn-light, body .btn-light-corp {
     text-shadow: 2px 4px 10px rgba(0,0,0,0.5);
 }
 
-/* Estilo para el nombre Santo Domingo (Debajo en Naranja) */
+/* Estilo para subtitulo de marca (debajo del titulo principal) */
 .main-text-group h2 {
     font-size: 1.1rem !important;
     font-weight: 400;
-    color: #f37021 !important; /* Color Naranja Chilemat */
+    color: #f37021 !important; /* Color naranja corporativo */
     letter-spacing: 4px; /* Letras separadas para estilo premium */
     text-transform: uppercase;
     margin-top: 5px;

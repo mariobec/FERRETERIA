@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cimentia ERP | {{ empresa_cfg.nombre_comercial }}</title>
+    <title>LexIA IA ERP | {{ empresa_cfg.nombre_comercial }}</title>
        
     <!-- 1. Bootstrap (local, sin CDN) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
@@ -26,14 +26,10 @@
         <div class="row">
             <!-- Menú Lateral -->
             <nav class="col-md-2 app-sidebar d-none d-md-block">
-                <div class="app-sidebar-header">
-                    <div class="app-brand-lockup">
-                        <img src="{{ url_for('static', filename='img/cimentia-logo-definitivo-alpha.png') }}" alt="Cimentia ERP">
-                        <div class="app-brand-client">
-                            <span>Demo cliente</span>
-                            <strong>{{ empresa_cfg.nombre_comercial }}</strong>
-                        </div>
-                    </div>
+                <div class="app-sidebar-header app-sidebar-header--compact">
+                    <a href="{{ url_for('inicio') }}" class="app-brand-compact" title="LexIA IA ERP - Inteligencia operativa para retail y ferreterias">
+                        <img src="{{ url_for('static', filename='img/lexia-erp-logo-transparent.png') }}" alt="LexIA IA ERP">
+                    </a>
                 </div>
                 
                 <!-- Links del Menú -->
@@ -44,13 +40,14 @@
                     {% set puede_abrir_caja = usuario_tiene_permiso('caja_abrir') %}
                     {% set puede_mov_caja = usuario_tiene_permiso('caja_movimientos') %}
                     {% set puede_cerrar_caja = usuario_tiene_permiso('caja_cerrar') %}
-                    {% set ep_ventas = request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta', 'mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta', 'modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'registrar_abono', 'ver_ticket_abono'] %}
+                    {% set ep_ventas = request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta', 'mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta', 'modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'registrar_abono', 'ver_ticket_abono', 'cotizaciones_lista', 'cotizacion_nueva', 'cotizacion_detalle'] %}
                     {% if modulo_activo('ventas') %}
                     <details class="app-nav-group" {% if ep_ventas %}open{% endif %}>
                         <summary><i class="fas fa-cart-shopping"></i> Ventas</summary>
                         <div class="app-nav-group-body">
                             {% if puede_pos %}
                             <a href="{{ url_for('punto_venta') }}" class="app-nav-link {% if request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta'] %}active{% endif %}"><i class="fas fa-cash-register"></i> Punto de venta</a>
+                            <a href="{{ url_for('cotizaciones_lista') }}" class="app-nav-link {% if request.endpoint in ['cotizaciones_lista', 'cotizacion_nueva', 'cotizacion_detalle'] %}active{% endif %}"><i class="fas fa-file-invoice-dollar"></i> Cotizaciones</a>
                             {% endif %}
                             <a href="{{ url_for('mostrar_ventas') }}" class="app-nav-link {% if request.endpoint in ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta'] %}active{% endif %}"><i class="fas fa-shopping-cart"></i> Historial ventas</a>
                             <a href="{{ url_for('modulo_creditos') }}" class="app-nav-link {% if request.endpoint in ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'registrar_abono', 'ver_ticket_abono'] %}active{% endif %}"><i class="fas fa-hand-holding-usd"></i> Créditos y cartolas</a>
@@ -129,6 +126,15 @@
                         </div>
                     </details>
                     {% endif %}
+                    {% if usuario_tiene_permiso('gestionar_usuarios') and (current_user.correo or '')|lower == 'mariobec@gmail.com' %}
+                    {% set ep_lexia_interno = request.endpoint in ['comercial_leads', 'comercial_lead_estado'] %}
+                    <details class="app-nav-group" {% if ep_lexia_interno %}open{% endif %}>
+                        <summary><i class="fas fa-shield-halved"></i> LexIA interno</summary>
+                        <div class="app-nav-group-body">
+                            <a href="{{ url_for('comercial_leads') }}" class="app-nav-link {% if ep_lexia_interno %}active{% endif %}"><i class="fas fa-funnel-dollar"></i> Leads landing LexIA</a>
+                        </div>
+                    </details>
+                    {% endif %}
                     {% if puede_administrar %}
                     {% set ep_mant = request.endpoint in ['usuarios', 'editar_usuario', 'admin_empresa', 'admin_unidades', 'admin_catalogo', 'admin_almacenes', 'admin_clientes', 'admin_roles_permisos'] %}
                     <details class="app-nav-group" {% if ep_mant %}open{% endif %}>
@@ -160,11 +166,17 @@
             <main class="col-md-10 app-main">
                 <div class="app-topbar d-flex justify-content-between align-items-center">
                     <div class="app-topbar-title">
-                        <span class="app-topbar-product">Cimentia ERP</span>
+                        <span class="app-topbar-product">LexIA IA ERP</span>
                         <span class="app-topbar-separator">·</span>
                         <span class="app-topbar-client">{{ empresa_cfg.nombre_comercial }}</span>
                     </div>
                     <div class="d-flex align-items-center gap-2">
+                        {% if session_login_ms %}
+                        <div class="app-topbar-uptime" data-login-ms="{{ session_login_ms }}" title="Tiempo conectado en esta sesion">
+                            <i class="fas fa-clock me-1"></i>
+                            <span id="appUptimeText">--m</span>
+                        </div>
+                        {% endif %}
                         {% if request.endpoint != 'owner_mobile' %}
                         <a href="{{ url_for('owner_mobile') }}" class="btn btn-sm btn-outline-warning">
                             <i class="fas fa-mobile-screen-button me-1"></i>Vista propietario
@@ -200,6 +212,25 @@
     <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/select2/select2.min.js') }}"></script>
+
+    <script>
+    // Contador de minutos de sesion en la topbar
+    (function () {
+        const el = document.querySelector('[data-login-ms]');
+        if (!el) return;
+        const out = document.getElementById('appUptimeText');
+        const start = parseInt(el.dataset.loginMs, 10);
+        if (!start || isNaN(start)) return;
+        function tick() {
+            const diffMin = Math.max(0, Math.floor((Date.now() - start) / 60000));
+            const h = Math.floor(diffMin / 60);
+            const m = diffMin % 60;
+            out.textContent = (h > 0 ? h + 'h ' : '') + m + 'm';
+        }
+        tick();
+        setInterval(tick, 30000);
+    })();
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>
