@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .c360p-hero {
+    background: linear-gradient(120deg, #0f172a 0%, #1e293b 50%, #164e63 100%);
+    color: #f1f5f9;
+    border-radius: 16px;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, .22);
+    border: 1px solid rgba(148, 163, 184, .2);
+  }
+  .c360p-hero .badge-etapa { font-size: .95rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1040px;">
+  <div class="c360p-hero">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <div class="small text-info fw-bold text-uppercase mb-1">Ficha Customer 360</div>
+        <h3 class="page-title mb-1 text-white"><i class="fas fa-chart-line me-2"></i>{{ cliente.nombre }}</h3>
+        <p class="page-subtitle mb-0 opacity-90"><code class="text-info">{{ cliente.rut }}</code></p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('admin_c360_llamadas_hoy') }}" class="btn btn-outline-warning btn-sm fw-bold">Cola llamadas</a>
+        <a href="{{ url_for('estado_cuenta_credito', cliente_id=cliente.id) }}" class="btn btn-outline-light btn-sm">Cartola</a>
+        <a href="{{ url_for('admin_clientes') }}" class="btn btn-outline-secondary btn-sm">← Clientes</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card card-ds border-0 shadow-sm h-100">
+        <div class="card-header fw-bold bg-light">Etapa detectada (motor 30 días)</div>
+        <div class="card-body">
+          <p class="mb-2"><span class="text-muted small">Etapa actual (foco venta/crédito):</span><br>
+            <strong class="fs-5">{{ cliente.c360_etapa_actual or '—' }}</strong>
+          </p>
+          {% if perfil.get('score_puntualidad') is not none %}
+          <p class="small mb-1">Score puntualidad: <strong>{{ perfil.get('score_puntualidad') }}</strong> (cupo sugerido solo si &gt; 90)</p>
+          <p class="small mb-1">Prob. mora (heurística): <strong>{{ perfil.get('probabilidad_mora') }}%</strong></p>
+          <p class="small mb-1">Cupo sugerido próxima fase: <strong>${{ "{:,.0f}".format(perfil.get('cupo_sugerido_proxima_fase') or 0).replace(",", ".") }}</strong></p>
+          {% endif %}
+          {% if perfil.get('alerta_oportunidad_credito') %}
+          <div class="alert alert-info small mb-0 mt-2">{{ perfil.get('alerta_oportunidad_credito') }}</div>
+          {% endif %}
+          <form method="post" class="mt-3">
+            <input type="hidden" name="action" value="recalcular">
+            <button type="submit" class="btn btn-primary btn-sm">Recalcular predicción</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card card-ds border-0 shadow-sm h-100">
+        <div class="card-header fw-bold bg-light">Compras por fase ({{ agg.dias }} días)</div>
+        <div class="card-body">
+          <ul class="list-unstyled small mb-0">
+            {% for fk in c360_fases_obra %}
+            <li class="d-flex justify-content-between border-bottom py-1">
+              <span>{{ c360_fase_labels.get(fk, fk) }}</span>
+              <strong>${{ "{:,.0f}".format(agg.por_fase.get(fk, 0)).replace(",", ".") }}</strong>
+            </li>
+            {% endfor %}
+            <li class="d-flex justify-content-between pt-1 text-muted">
+              <span>Sin clasificar / producto</span>
+              <span>${{ "{:,.0f}".format(agg.sin_clasificar or 0).replace(",", ".") }}</span>
+            </li>
+            <li class="d-flex justify-content-between pt-2 fw-bold">
+              <span>Total</span>
+              <span>${{ "{:,.0f}".format(agg.total or 0).replace(",", ".") }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds border-0 shadow-sm mt-3">
+    <div class="card-header fw-bold bg-light d-flex justify-content-between align-items-center">
+      <span>OCR simulado (factura / dropzone)</span>
+      <span class="badge text-bg-secondary">Mock</span>
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-3">
+        Suelte un archivo o use el selector: simula extracción y, si la <strong>fase máxima detectada</strong> supera la etapa actual del cliente,
+        actualiza etapa y aumenta el límite de crédito de forma conservadora (revisar siempre).
+      </p>
+      <div id="c360-dropzone" class="border border-2 border-dashed rounded-3 p-4 text-center mb-3" style="background: #f8fafc; cursor: pointer;">
+        <input type="file" id="c360-file" class="d-none" accept="image/*,.pdf">
+        <div id="c360-drop-hint"><i class="fas fa-cloud-arrow-up fa-2x text-primary mb-2 d-block"></i>Arrastre aquí o clic para elegir archivo</div>
+        <div id="c360-drop-loading" class="d-none"><span class="spinner-border spinner-border-sm text-primary"></span> Procesando OCR simulado…</div>
+      </div>
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="action" value="ocr_mock">
+        <div class="col-md-8">
+          <label class="form-label small fw-semibold">Fase máxima “detectada” (manual hasta integrar Textract/Vision)</label>
+          <select name="fase_max_ocr" class="form-select form-select-sm">
+            <option value="">— Elija —</option>
+            {% for fk in c360_fases_obra %}
+            <option value="{{ fk }}">{{ c360_fase_labels.get(fk, fk) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-success btn-sm w-100">Aplicar como OCR</button>
+        </div>
+      </form>
+      <p class="small text-muted mt-2 mb-0">API JSON: <code>POST /api/c360/ocr-mock</code> con <code>{"cliente_id":{{ cliente.id }},"fase_max_detectada":"ACABADOS"}</code></p>
+    </div>
+  </div>
+
+  {% if perfil.get('ocr_ultimo') %}
+  <div class="alert alert-secondary small mt-3 mb-0">Último OCR: {{ perfil.ocr_ultimo | tojson }}</div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const z = document.getElementById('c360-dropzone');
+  const inp = document.getElementById('c360-file');
+  const hint = document.getElementById('c360-drop-hint');
+  const loading = document.getElementById('c360-drop-loading');
+  if (!z || !inp) return;
+
+  function setBusy(b) {
+    hint.classList.toggle('d-none', b);
+    loading.classList.toggle('d-none', !b);
+  }
+
+  function runMock() {
+    const sel = document.querySelector('select[name="fase_max_ocr"]');
+    const fase = sel ? sel.value : '';
+    if (!fase) {
+      alert('Seleccione la fase máxima detectada antes de soltar el archivo (simulación).');
+      return;
+    }
+    setBusy(true);
+    fetch('{{ url_for("api_c360_ocr_mock") }}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ cliente_id: {{ cliente.id }}, fase_max_detectada: fase })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        setBusy(false);
+        if (x.j && x.j.ok) {
+          window.location.reload();
+        } else {
+          alert((x.j && x.j.mensaje) || x.j.error || 'Error en OCR mock');
+        }
+      })
+      .catch(function () { setBusy(false); alert('Error de red'); });
+  }
+
+  z.addEventListener('click', function () { inp.click(); });
+  inp.addEventListener('change', function () { if (inp.files && inp.files.length) runMock(); });
+  z.addEventListener('dragover', function (e) { e.preventDefault(); z.classList.add('border-primary'); });
+  z.addEventListener('dragleave', function () { z.classList.remove('border-primary'); });
+  z.addEventListener('drop', function (e) {
+    e.preventDefault();
+    z.classList.remove('border-primary');
+    runMock();
+  });
+})();
+</script>
+{% endblock %}

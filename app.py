@@ -14,29 +14,33 @@ _pgopt_actual = _os_early.environ.get('PGOPTIONS', '')
 if not _neon_pooler and 'lc_messages' not in _pgopt_actual:
     _os_early.environ['PGOPTIONS'] = (_pgopt_actual + ' -c lc_messages=C').strip()
 
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date, datetime, timedelta
 import csv
 import os
 import json
+import hmac
 import html
 import uuid
+import secrets
 from collections import defaultdict
 from functools import wraps
 from flask_login import current_user, login_required, UserMixin, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import inspect as sa_inspect, and_, exists, func, or_, text, UniqueConstraint
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.orm import joinedload, aliased
 import qrcode
 import io
 import base64
 import re
+import shutil
 import urllib.error
 import urllib.request
 import pdfkit
+import requests
 from flask import make_response, render_template
 
 
@@ -925,6 +929,7 @@ _ENDPOINTS_CAJA_ESTRICTA = {
     'finalizar_venta',
     'actualizar_item',
     'pos_usuarios_autorizar_descuento',
+    'api_pos_cross_sell_reject',
     # Caja operativa / cobranzas
     'caja_pendientes',
     'procesar_cobro_caja',
@@ -1036,6 +1041,7 @@ _PERMISOS_SISTEMA_INICIAL = (
     'caja_abrir',
     'caja_movimientos',
     'caja_cerrar',
+    'bodega_operador',
 )
 
 
@@ -1077,6 +1083,7 @@ def _seed_permisos_roles_operativos():
                 'caja_movimientos',
                 'caja_cerrar',
                 'anular_vale_caja',
+                'anular_vale_con_despacho_bodega',
                 'autorizar_descuento_pos',
             },
             'encargado': {
@@ -1086,8 +1093,11 @@ def _seed_permisos_roles_operativos():
                 'caja_movimientos',
                 'caja_cerrar',
                 'anular_vale_caja',
+                'anular_vale_con_despacho_bodega',
                 'autorizar_descuento_pos',
             },
+            'bodeguero': {'bodega_operador'},
+            'bodeguera': {'bodega_operador'},
         }
 
         cambios = False
@@ -1131,8 +1141,14 @@ def forzar_cambio_clave_si_corresponde():
     _asegurar_columnas_ventas_legacy()
     _asegurar_columnas_productos_legacy()
     _asegurar_columnas_detalle_ventas_legacy()
+    _asegurar_columnas_customer_360_legacy()
+    _asegurar_tabla_c360_llamadas_snapshot()
+    _asegurar_tabla_cobranza_whatsapp_log()
+    _asegurar_tabla_erp_audit_log()
     # Si alguna comprobación legacy dejó Postgres en estado abortado, limpiamos antes de la ruta.
     db.session.rollback()
+    # Columnas despacho bodega: deben existir antes de cualquier Venta.query (p. ej. inicio/dashboard).
+    _asegurar_columnas_ventas_bodega_despacho()
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
@@ -1230,6 +1246,8 @@ class Producto(db.Model):
     ubicacion_estante = db.Column(db.String(12))
     ubicacion_nivel = db.Column(db.String(12))
     activo = db.Column(db.Boolean, default=True)
+    # Taxonomía obra (Customer 360 / motor predictivo). NULL = sin clasificar.
+    fase_obra = db.Column(db.String(32), nullable=True)
 
     subcategoria_catalogo = db.relationship(
         'CatalogoSubcategoria',
@@ -1425,6 +1443,17 @@ def stock_disponible_venta_tienda(producto):
     if not producto:
         return 0
     aid = id_almacen_tienda()
+    if aid and _tablas_inventario_almacen_existen():
+        v = stock_producto_en_almacen(producto.id, aid)
+        return int(v or 0)
+    return int(producto.stock or 0)
+
+
+def stock_disponible_bodega(producto):
+    """Stock en almacén BODEGA (0 si no hay tablas multi-almacén)."""
+    if not producto:
+        return 0
+    aid = id_almacen_bodega()
     if aid and _tablas_inventario_almacen_existen():
         v = stock_producto_en_almacen(producto.id, aid)
         return int(v or 0)
@@ -1709,8 +1738,12 @@ class Venta(db.Model):
     usuario_anulacion = db.Column(db.String(80), nullable=True)
     punto_retiro = db.Column(db.String(30), nullable=True, default='Bodega')
     cotizacion_origen_id = db.Column(db.Integer, nullable=True)
-    # Plan de cuotas: solo 30_60_90 (días corridos desde el cobro). NULL = crédito sin plan de cuotas.
+    # Plan de cuotas: días corridos desde el cobro en caja. NULL = crédito sin plan de cuotas.
     credito_plan_codigo = db.Column(db.String(32), nullable=True)
+    # Despacho físico desde bodega (Voice-to-Action); el vale sigue Pendiente hasta cobro en caja.
+    bodega_despacho_estado = db.Column(db.String(20), nullable=True)  # SALIDA_PARCIAL | DESPACHADO
+    bodega_despacho_json = db.Column(db.Text, nullable=True)  # JSON: detalle_id -> consumo stock ya salido de bodega
+    bodega_despacho_ultimo_at = db.Column(db.DateTime, nullable=True)  # último despacho voz exitoso (worker alertas)
 
     # Relaciones
     caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True)
@@ -1760,10 +1793,25 @@ class Venta(db.Model):
 
 # --- CUOTAS CRÉDITO (venta al crédito con fechas de vencimiento) ---
 
-# Días corridos desde el cobro en caja → fecha de pago de cada cuota (único plan soportado).
+# Días corridos desde el cobro en caja → fecha de pago de cada cuota (mismo total repartido en N partes iguales).
 PLANES_CUOTA_CREDITO_DIAS = {
     '30_60_90': (30, 60, 90),
+    'sem_4': (7, 14, 21, 28),
+    'sem_8': tuple(7 * i for i in range(1, 9)),
+    'quin_4': (15, 30, 45, 60),
+    'quin_6': tuple(15 * i for i in range(1, 7)),
+    'mens_6': tuple(30 * i for i in range(1, 7)),
 }
+
+PLANES_CUOTA_CREDITO_OPCIONES = (
+    ('', 'Crédito simple (sin plan de cuotas)'),
+    ('30_60_90', '3 cuotas — 30 / 60 / 90 días desde el cobro'),
+    ('sem_4', '4 cuotas semanales (+7 … +28 días)'),
+    ('sem_8', '8 cuotas semanales (+7 … +56 días)'),
+    ('quin_4', '4 cuotas quincenales (+15 … +60 días)'),
+    ('quin_6', '6 cuotas quincenales (+15 … +90 días)'),
+    ('mens_6', '6 cuotas mensuales (+30 … +180 días)'),
+)
 
 
 class VentaCuotaCredito(db.Model):
@@ -1774,6 +1822,7 @@ class VentaCuotaCredito(db.Model):
     dias_plazo = db.Column(db.Integer, nullable=False)
     fecha_vencimiento = db.Column(db.Date, nullable=False)
     monto = db.Column(db.Float, nullable=False)
+    monto_pagado = db.Column(db.Float, nullable=False, default=0.0)
     estado = db.Column(db.String(20), nullable=False, default='Pendiente')
 
     venta = db.relationship(
@@ -1785,6 +1834,94 @@ class VentaCuotaCredito(db.Model):
             order_by='VentaCuotaCredito.nro_cuota',
         ),
     )
+
+
+class CobranzaRecordatorioWhatsappLog(db.Model):
+    """Registro de recordatorios por cuota (máx. una fila por cuota y día)."""
+
+    __tablename__ = 'cobranza_recordatorio_whatsapp'
+    __table_args__ = (
+        UniqueConstraint('venta_cuota_credito_id', 'fecha_envio', name='uq_cobranza_rec_cuota_dia'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    venta_cuota_credito_id = db.Column(
+        db.Integer, db.ForeignKey('ventas_cuotas_credito.id'), nullable=False, index=True
+    )
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False, index=True)
+    fecha_envio = db.Column(db.Date, nullable=False)
+    usuario_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+
+class ReabastoClienteWaLog(db.Model):
+    """Log de WhatsApp de re-abastecimiento (recordatorio ~48h antes del próximo pedido estimado)."""
+
+    __tablename__ = 'reabasto_cliente_wa_log'
+    __table_args__ = (
+        UniqueConstraint('cliente_id', 'producto_id', 'fecha_gatillo', name='uq_reabasto_cli_prod_dia'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id', ondelete='CASCADE'), nullable=False, index=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id', ondelete='CASCADE'), nullable=False, index=True)
+    fecha_gatillo = db.Column(db.Date, nullable=False)
+    enviado_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ErpAuditLog(db.Model):
+    """Auditoría de acciones críticas (stock, caja, bodega, anulaciones)."""
+
+    __tablename__ = 'erp_audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    evento = db.Column(db.String(80), nullable=False)
+    entidad_tipo = db.Column(db.String(40), nullable=False)
+    entidad_id = db.Column(db.Integer, nullable=True, index=True)
+    usuario = db.Column(db.String(120), nullable=True)
+    ip = db.Column(db.String(45), nullable=True)
+    datos_antes = db.Column(db.Text, nullable=True)
+    datos_despues = db.Column(db.Text, nullable=True)
+
+
+def _asegurar_tabla_reabasto_cliente_wa_log():
+    if app.config.get('_REABASTO_WA_TABLE_OK'):
+        return True
+    try:
+        ReabastoClienteWaLog.__table__.create(bind=db.engine, checkfirst=True)
+        db.session.commit()
+        app.config['_REABASTO_WA_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla reabasto_cliente_wa_log: %s', ex)
+        return False
+
+
+def _asegurar_tabla_cobranza_whatsapp_log():
+    """Crea la tabla de log de cobranza WhatsApp si no existe (bases nuevas o legacy)."""
+    if app.config.get('_COBRANZA_WHATSAPP_TABLE_OK'):
+        return True
+    try:
+        CobranzaRecordatorioWhatsappLog.__table__.create(bind=db.engine, checkfirst=True)
+        app.config['_COBRANZA_WHATSAPP_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo crear tabla cobranza_recordatorio_whatsapp: %s', ex)
+        return False
+
+
+def _asegurar_tabla_erp_audit_log():
+    """Crea `erp_audit_log` si no existe (MySQL/Postgres)."""
+    if app.config.get('_ERP_AUDIT_LOG_TABLE_OK'):
+        return True
+    try:
+        ErpAuditLog.__table__.create(bind=db.engine, checkfirst=True)
+        app.config['_ERP_AUDIT_LOG_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla erp_audit_log: %s', ex)
+        return False
 
 
 def _fecha_base_cuotas_credito(dt):
@@ -1825,9 +1962,214 @@ def _registrar_cuotas_credito_venta(venta, plan_codigo, fecha_base_dt):
                 dias_plazo=int(dias_plazo),
                 fecha_vencimiento=fv,
                 monto=float(monto),
+                monto_pagado=0.0,
                 estado='Pendiente',
             )
         )
+
+
+def _sql_cuota_saldo_pendiente():
+    """Saldo CLP aún no cubierto en la fila de cuota (monto - monto_pagado)."""
+    return func.coalesce(VentaCuotaCredito.monto, 0) - func.coalesce(VentaCuotaCredito.monto_pagado, 0)
+
+
+def _cuota_saldo_pendiente_row(cq):
+    m = float(cq.monto or 0)
+    mp = float(getattr(cq, 'monto_pagado', None) or 0)
+    return max(0.0, float(int(round(m - mp))))
+
+
+def _aplicar_abono_cascada_cuotas_cliente(cliente, monto_aplicar):
+    """
+    Aplica el abono a las cuotas abiertas del cliente, de la más antigua a la más reciente
+    (por fecha_vencimiento e id). Actualiza monto_pagado y estado Pagada/Parcial.
+    Retorna líneas de texto para el comentario del abono.
+    """
+    monto_aplicar = float(int(round(float(monto_aplicar or 0))))
+    if monto_aplicar <= 0 or not cliente:
+        return []
+    cuotas = (
+        VentaCuotaCredito.query.join(Venta, Venta.id == VentaCuotaCredito.venta_id)
+        .filter(
+            Venta.cliente_id == cliente.id,
+            Venta.metodo_pago == 'Credito',
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .order_by(VentaCuotaCredito.fecha_vencimiento.asc(), VentaCuotaCredito.id.asc())
+        .all()
+    )
+    rem = monto_aplicar
+    lineas = []
+    for cq in cuotas:
+        if rem <= 0:
+            break
+        pend = _cuota_saldo_pendiente_row(cq)
+        if pend <= 0:
+            continue
+        x = min(rem, pend)
+        mp_new = float(cq.monto_pagado or 0) + float(x)
+        mtot = float(cq.monto or 0)
+        cq.monto_pagado = min(mtot, float(int(round(mp_new))))
+        if cq.monto_pagado + 0.5 >= mtot:
+            cq.monto_pagado = mtot
+            cq.estado = 'Pagada'
+        else:
+            cq.estado = 'Parcial'
+        rem -= x
+        lineas.append(f'Cuota {cq.nro_cuota} (Venta #{cq.venta_id}): ${x:,.0f}'.replace(',', '.'))
+    return lineas
+
+
+def _cobranza_env_int(name, default):
+    try:
+        v = int(float((os.getenv(name) or str(default)).strip()))
+        return max(0, min(v, 365))
+    except (TypeError, ValueError):
+        return default
+
+
+def _cobranza_dias_horizonte_default():
+    return _cobranza_env_int('COBRANZA_DIAS_AVISO', 7)
+
+
+def _cobranza_mora_dias_atras_default():
+    return _cobranza_env_int('COBRANZA_MORA_DIAS_ATRAS', 90)
+
+
+def _telefono_whatsapp_chile_digits(telefono):
+    raw = ''.join(ch for ch in (telefono or '') if ch.isdigit())
+    if not raw:
+        return ''
+    if raw.startswith('56'):
+        return raw
+    return '56' + raw
+
+
+def _cobranza_mensaje_cuota(cliente_nombre, nro_cuota, fecha_venc, monto_pend, venta_id):
+    fv = fecha_venc.strftime('%d/%m/%Y') if fecha_venc else '—'
+    mtxt = f'${int(round(float(monto_pend))):,}'.replace(',', '.')
+    nombre = (cliente_nombre or 'cliente').strip() or 'cliente'
+    return (
+        f'Estimado/a {nombre}, le recordamos su cuota n°{int(nro_cuota or 0)} '
+        f'del documento #{int(venta_id)} con vencimiento {fv}. Monto pendiente: {mtxt}. '
+        f'Ante cualquier duda puede responder este mensaje. Gracias.'
+    )
+
+
+def _cobranza_cuotas_pendientes_filas(hoy, dias_horizonte, mora_atras_dias):
+    """Cuotas con saldo > 0, vencimiento entre (hoy - mora) y (hoy + horizonte), venta a crédito."""
+    hoy = hoy or date.today()
+    sup = hoy + timedelta(days=int(dias_horizonte))
+    inf = hoy - timedelta(days=int(mora_atras_dias))
+    pend = _sql_cuota_saldo_pendiente()
+    log_hoy = aliased(CobranzaRecordatorioWhatsappLog)
+    rows = (
+        db.session.query(VentaCuotaCredito, Venta, Cliente, log_hoy.id)
+        .select_from(VentaCuotaCredito)
+        .join(Venta, Venta.id == VentaCuotaCredito.venta_id)
+        .join(Cliente, Cliente.id == Venta.cliente_id)
+        .outerjoin(
+            log_hoy,
+            and_(
+                log_hoy.venta_cuota_credito_id == VentaCuotaCredito.id,
+                log_hoy.fecha_envio == hoy,
+            ),
+        )
+        .filter(
+            Venta.metodo_pago == 'Credito',
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+            pend > 0.01,
+            VentaCuotaCredito.fecha_vencimiento <= sup,
+            VentaCuotaCredito.fecha_vencimiento >= inf,
+        )
+        .order_by(VentaCuotaCredito.fecha_vencimiento.asc(), VentaCuotaCredito.id.asc())
+        .all()
+    )
+    out = []
+    for cq, venta, cliente, log_id_hoy in rows:
+        pendiente = _cuota_saldo_pendiente_row(cq)
+        wa_digits = _telefono_whatsapp_chile_digits(cliente.telefono)
+        out.append(
+            {
+                'cuota': cq,
+                'venta_id': venta.id,
+                'cliente_nombre': cliente.nombre,
+                'cliente_id': cliente.id,
+                'telefono': cliente.telefono,
+                'wa_digits': wa_digits,
+                'pendiente': pendiente,
+                'ya_enviado_hoy': log_id_hoy is not None,
+                'mensaje': _cobranza_mensaje_cuota(
+                    cliente.nombre, cq.nro_cuota, cq.fecha_vencimiento, pendiente, venta.id
+                ),
+            }
+        )
+    return out
+
+
+def _cobranza_sin_enviar_hoy_count(dias_horizonte=None, mora_atras_dias=None):
+    hoy = date.today()
+    d = dias_horizonte if dias_horizonte is not None else _cobranza_dias_horizonte_default()
+    m = mora_atras_dias if mora_atras_dias is not None else _cobranza_mora_dias_atras_default()
+    filas = _cobranza_cuotas_pendientes_filas(hoy, d, m)
+    return sum(1 for f in filas if not f['ya_enviado_hoy'])
+
+
+def _cobranza_dispatch_cron_secret():
+    """Token compartido para cron (sin cookie de sesión)."""
+    return (os.getenv('COBRANZA_DISPATCH_CRON_SECRET') or os.getenv('WHATSAPP_DISPATCH_CRON_SECRET') or '').strip()
+
+
+def _wa_cloud_config():
+    """Credenciales WhatsApp Cloud API (Meta). None si faltan."""
+    token = (os.getenv('WHATSAPP_CLOUD_ACCESS_TOKEN') or '').strip()
+    phone_id = (os.getenv('WHATSAPP_CLOUD_PHONE_NUMBER_ID') or '').strip()
+    if not token or not phone_id:
+        return None
+    ver = (os.getenv('WHATSAPP_CLOUD_API_VERSION') or 'v21.0').strip().lstrip('/') or 'v21.0'
+    if not ver.startswith('v'):
+        ver = 'v' + ver
+    return {'token': token, 'phone_number_id': phone_id, 'version': ver}
+
+
+def _whatsapp_cloud_send_text(to_e164_digits, body):
+    """
+    Envía mensaje tipo texto por WhatsApp Cloud API.
+    Retorna (ok: bool, detalle: str). Meta puede rechazar si hace falta plantilla aprobada (fuera de ventana 24h).
+    """
+    cfg = _wa_cloud_config()
+    if not cfg:
+        return False, 'wa_cloud_not_configured'
+    to = ''.join(c for c in (to_e164_digits or '') if c.isdigit())
+    if len(to) < 8:
+        return False, 'invalid_to'
+    text = (body or '')[:4096]
+    if not text.strip():
+        return False, 'empty_body'
+    url = f"https://graph.facebook.com/{cfg['version']}/{cfg['phone_number_id']}/messages"
+    payload = {
+        'messaging_product': 'whatsapp',
+        'to': to,
+        'type': 'text',
+        'text': {'preview_url': False, 'body': text},
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+        headers={
+            'Authorization': f'Bearer {cfg["token"]}',
+            'Content-Type': 'application/json; charset=utf-8',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            return True, (resp.read().decode('utf-8', errors='replace') or 'ok')
+    except urllib.error.HTTPError as e:
+        err = e.read().decode('utf-8', errors='replace')
+        return False, f'http_{e.code}:{err}'
+    except Exception as e:
+        return False, str(e)
 
 
 def _plan_cuotas_credito_valido(raw):
@@ -1838,9 +2180,15 @@ def _plan_cuotas_credito_valido(raw):
 def _mensaje_resumen_plan_cuotas(plan_codigo):
     """Texto corto para flashes / UI."""
     c = (plan_codigo or '').strip()
-    if c == '30_60_90':
-        return '3 cuotas a 30, 60 y 90 días corridos desde el cobro'
-    return c
+    msgs = {
+        '30_60_90': '3 cuotas a 30, 60 y 90 días corridos desde el cobro',
+        'sem_4': '4 cuotas semanales (+7 a +28 días desde el cobro)',
+        'sem_8': '8 cuotas semanales (+7 a +56 días desde el cobro)',
+        'quin_4': '4 cuotas quincenales (+15 a +60 días desde el cobro)',
+        'quin_6': '6 cuotas quincenales (+15 a +90 días desde el cobro)',
+        'mens_6': '6 cuotas mensuales (+30 a +180 días desde el cobro)',
+    }
+    return msgs.get(c, c or '—')
 
 
 # --- DETALLE VENTA ---
@@ -2038,6 +2386,11 @@ class Cliente(db.Model):
     limite_credito = db.Column(db.Float, default=500000.0) # Máximo que le podemos fiar
     estado_credito = db.Column(db.String(20), default="Activo") # Activo o Bloqueado
 
+    # Customer 360: etapa detectada para venta/crédito proactivo (OBRA_GRUESA … TERMINACIONES).
+    c360_etapa_actual = db.Column(db.String(32), nullable=True)
+    # JSON: probabilidad_mora, cupo_sugerido_proxima_fase, score_puntualidad, alertas, último cálculo, etc.
+    c360_perfil_json = db.Column(db.Text, nullable=True)
+
     # Relación con sus abonos (Historial de pagos)
     abonos = db.relationship('AbonoCredito', backref='cliente', lazy=True)
 
@@ -2050,6 +2403,33 @@ class Cliente(db.Model):
     def tiene_deuda(self):
         """Devuelve True si debe dinero, útil para alertas en el POS"""
         return self.saldo_deudor > 0
+
+
+def _asegurar_columnas_customer_360_legacy():
+    """Añade columnas Customer 360 en productos y clientes (bases legacy)."""
+    if app.config.get('_CUSTOMER360_COLS_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        names = set(insp.get_table_names())
+        if 'productos' in names:
+            cols = {c['name'] for c in insp.get_columns('productos')}
+            if 'fase_obra' not in cols:
+                db.session.execute(text('ALTER TABLE productos ADD COLUMN fase_obra VARCHAR(32) NULL'))
+        if 'clientes' in names:
+            cols_c = {c['name'] for c in insp.get_columns('clientes')}
+            if 'c360_etapa_actual' not in cols_c:
+                db.session.execute(text('ALTER TABLE clientes ADD COLUMN c360_etapa_actual VARCHAR(32) NULL'))
+            if 'c360_perfil_json' not in cols_c:
+                db.session.execute(text('ALTER TABLE clientes ADD COLUMN c360_perfil_json TEXT NULL'))
+        db.session.commit()
+        app.config['_CUSTOMER360_COLS_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar columnas Customer 360: %s', ex)
+        return False
+
 
 # 8. ROLES Y USUARIOS: control de acceso y permisos
 class Rol(db.Model):
@@ -2264,6 +2644,107 @@ class MovimientoSaldoFavor(db.Model):
     cliente = db.relationship('Cliente', backref='movimientos_saldo_favor')
     cambio = db.relationship('CambioOperacion')
 
+
+class C360LlamadaSnapshotDia(db.Model):
+    """Foto diaria de clientes con recomendar_llamada=True (worker/motor C360) para medir conversiones a venta."""
+
+    __tablename__ = 'c360_llamadas_snapshot_dia'
+    __table_args__ = (UniqueConstraint('fecha', 'cliente_id', name='uq_c360_snap_fecha_cliente'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id', ondelete='CASCADE'), nullable=False, index=True)
+    etapa_sugerida = db.Column(db.String(32), nullable=True)
+    cupo_sugerido_clp = db.Column(db.Integer, nullable=False, default=0)
+    score_snapshot = db.Column(db.Float, nullable=True)
+    run_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    cliente = db.relationship('Cliente', backref=db.backref('c360_llamadas_snapshot', lazy='dynamic'))
+
+
+class C360ProactivaOferta(db.Model):
+    """Seguimiento de ofertas/cierres WhatsApp generadas por C360 (clic en link, conversión a venta)."""
+
+    __tablename__ = 'c360_proactiva_ofertas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(48), unique=True, nullable=False, index=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id', ondelete='CASCADE'), nullable=False, index=True)
+    cotizacion_id = db.Column(db.Integer, db.ForeignKey('cotizaciones.id', ondelete='SET NULL'), nullable=True, index=True)
+    etapa_disparo = db.Column(db.String(32), nullable=True)
+    etapa_anterior = db.Column(db.String(32), nullable=True)
+    tipo = db.Column(db.String(24), nullable=False, default='OFERTA_MANUAL')  # OFERTA_AUTO | OFERTA_MANUAL | COBRANZA_AUTO
+    wa_sent_at = db.Column(db.DateTime, nullable=True)
+    wa_result = db.Column(db.Text, nullable=True)
+    link_clicked_at = db.Column(db.DateTime, nullable=True)
+    venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id', ondelete='SET NULL'), nullable=True)
+    convertida_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    cliente = db.relationship('Cliente', backref=db.backref('c360_proactiva_ofertas', lazy='dynamic'))
+    cotizacion = db.relationship('Cotizacion', foreign_keys=[cotizacion_id])
+
+
+def _asegurar_tabla_c360_proactiva_ofertas():
+    if app.config.get('_C360_PROACTIVA_TABLE_OK'):
+        return True
+    try:
+        C360ProactivaOferta.__table__.create(bind=db.engine, checkfirst=True)
+        db.session.commit()
+        app.config['_C360_PROACTIVA_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla c360_proactiva_ofertas: %s', ex)
+        return False
+
+
+def _asegurar_tabla_c360_llamadas_snapshot():
+    """Crea tabla de snapshot diario de llamadas recomendadas (bases sin migración formal)."""
+    if app.config.get('_C360_SNAPSHOT_TABLE_OK'):
+        return True
+    try:
+        C360LlamadaSnapshotDia.__table__.create(bind=db.engine, checkfirst=True)
+        db.session.commit()
+        app.config['_C360_SNAPSHOT_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla c360_llamadas_snapshot_dia: %s', ex)
+        return False
+
+
+from services import c360_service as _c360_service
+
+C360_FASE_OBRA_VALORES = _c360_service.C360_FASE_OBRA_VALORES
+C360_FASE_OBRA_LABELS = _c360_service.C360_FASE_OBRA_LABELS
+C360_FASE_ORDEN = _c360_service.C360_FASE_ORDEN
+C360_KIT_SUBCATEGORIA_KEYWORDS = _c360_service.C360_KIT_SUBCATEGORIA_KEYWORDS
+
+_c360_fase_obra_valida = _c360_service.c360_fase_obra_valida
+_c360_fase_orden = _c360_service.c360_fase_orden
+_c360_perfil_dict_desde_cliente = _c360_service.c360_perfil_dict_desde_cliente
+_c360_guardar_perfil_cliente = _c360_service.c360_guardar_perfil_cliente
+_c360_montos_por_fase_ultimos_dias = _c360_service.c360_montos_por_fase_ultimos_dias
+_c360_score_puntualidad_cliente = _c360_service.c360_score_puntualidad_cliente
+_c360_probabilidad_mora_cliente = _c360_service.c360_probabilidad_mora_cliente
+c360_project_predictor_actualizar_cliente = _c360_service.c360_project_predictor_actualizar_cliente
+_c360_sum_cupo_sugerido_clientes_activos = _c360_service.c360_sum_cupo_sugerido_clientes_activos
+c360_ocr_mock_actualizar_si_fase_superior = _c360_service.c360_ocr_mock_actualizar_si_fase_superior
+_c360_cron_secret = _c360_service.c360_cron_secret
+_c360_lista_llamadas_recomendadas = _c360_service.c360_lista_llamadas_recomendadas
+_c360_cliente_tiene_cuota_credito_vencida = _c360_service.c360_cliente_tiene_cuota_credito_vencida
+_c360_comercial_permite_oferta_proactiva = _c360_service.c360_comercial_permite_oferta_proactiva
+_c360_public_base_url = _c360_service.c360_public_base_url
+_c360_productos_kit_por_etapa = _c360_service.c360_productos_kit_por_etapa
+_c360_wa_proactividad_reciente = _c360_service.c360_wa_proactividad_reciente
+generar_oferta_personalizada = _c360_service.generar_oferta_personalizada
+generarOfertaPersonalizada = generar_oferta_personalizada
+_c360_disparar_whatsapp_proximidad_post_commit = _c360_service.c360_disparar_whatsapp_proximidad_post_commit
+c360_worker_recalcular_clientes = _c360_service.c360_worker_recalcular_clientes
+_c360_upsert_llamada_snapshot_si_recomendada = _c360_service.c360_upsert_llamada_snapshot_si_recomendada
+_c360_dashboard_ia_metricas = _c360_service.c360_dashboard_ia_metricas
+_c360_command_center_stats = _c360_service.c360_command_center_stats
 
 def registrar_movimiento_kardex(
     id_producto,
@@ -2985,6 +3466,27 @@ def inicio():
             "nivel": "success",
         })
 
+    c360_cc = None
+    try:
+        if current_user.is_authenticated and (
+            usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios')
+        ):
+            if _asegurar_columnas_customer_360_legacy():
+                c360_cc = _c360_command_center_stats()
+                if c360_cc and (c360_cc.get('n_prioridad_llamada') or 0) > 0:
+                    alertas_accionables.insert(
+                        0,
+                        {
+                            "titulo": f"Customer 360: {c360_cc['n_prioridad_llamada']} clientes en prioridad de llamada",
+                            "detalle": "Motor de etapa de obra + crédito: revisá la cola y ejecutá el motor si hace tiempo que no corre.",
+                            "accion": "Abrir Command Center C360",
+                            "url": url_for('gerencia_c360_ia_dashboard', **{'from': 'inicio'}),
+                            "nivel": "info",
+                        },
+                    )
+    except Exception:
+        c360_cc = None
+
     return render_template(
         'inicio.html',
         stock_activo=stock_activo,
@@ -3013,6 +3515,7 @@ def inicio():
         compra_sugerida_total=compra_sugerida_total,
         compra_sugerida_skus=compra_sugerida_skus,
         top_quiebre=top_quiebre,
+        c360_cc=c360_cc,
     )
 
 
@@ -3847,6 +4350,63 @@ def panel_dueno():
     return render_template('bi_panel_dueno_completo.html', **_contexto_panel_dueno_pitch())
 
 
+def gerencia_c360_ia_dashboard():
+    """Dueño: llamadas recomendadas (snapshot diario del worker C360) vs ventas concretadas el mismo día (ROI heurístico)."""
+    _asegurar_columnas_customer_360_legacy()
+    _asegurar_tabla_c360_llamadas_snapshot()
+    fe = (request.args.get('fecha') or '').strip()
+    try:
+        fecha_ref = datetime.strptime(fe, '%Y-%m-%d').date() if fe else datetime.now().date()
+    except ValueError:
+        fecha_ref = datetime.now().date()
+    metricas = _c360_dashboard_ia_metricas(fecha_ref)
+    fecha_str = fecha_ref.strftime('%Y-%m-%d')
+    ayer = (fecha_ref - timedelta(days=1)).strftime('%Y-%m-%d')
+    manana = (fecha_ref + timedelta(days=1)).strftime('%Y-%m-%d')
+    cc_stats = _c360_command_center_stats()
+    try:
+        top_llamadas = _c360_lista_llamadas_recomendadas()[:14]
+    except Exception:
+        top_llamadas = []
+    dist = cc_stats.get('dist_etapas') or []
+    cc_max_etapa_n = max([int(x.get('n', 0)) for x in dist] + [1])
+    return render_template(
+        'gerencia_c360_ia_dashboard.html',
+        fecha_str=fecha_str,
+        fecha_ayer=ayer,
+        fecha_manana=manana,
+        cc_stats=cc_stats,
+        cc_max_etapa_n=cc_max_etapa_n,
+        top_llamadas=top_llamadas,
+        **metricas,
+    )
+
+
+def gerencia_c360_ejecutar_motor():
+    """Recalcula motor C360 para N clientes activos (misma lógica que worker nocturno, vía sesión)."""
+    _asegurar_columnas_customer_360_legacy()
+    try:
+        max_n = int((request.form.get('max') or '300').strip())
+    except (TypeError, ValueError):
+        max_n = 300
+    max_n = max(10, min(max_n, 2000))
+    out = c360_worker_recalcular_clientes(max_n)
+    if out.get('ok'):
+        flash(
+            'Customer 360: motor ejecutado — '
+            f"{out.get('procesados', 0)} clientes procesados, "
+            f"{out.get('con_llamada', 0)} con prioridad de llamada comercial, "
+            f"{out.get('errores', 0)} errores.",
+            'success',
+        )
+    else:
+        flash('No se pudo ejecutar el motor C360 (revisar columnas/tabla o logs).', 'danger')
+    nxt = (request.form.get('next') or '').strip()
+    if nxt == 'llamadas':
+        return redirect(url_for('admin_c360_llamadas_hoy'))
+    return redirect(url_for('gerencia_c360_ia_dashboard'))
+
+
 @app.route('/bi/demo/dueno')
 @permisos_required('panel_gerencia', 'gestionar_usuarios')
 def bi_dueno_demo():
@@ -4379,7 +4939,20 @@ def mostrar_productos():
         catalogo_maestro_disponible=_catalogo_ui_disponible(),
         subcategorias_todas_legacy=_subcategorias_filtro_legacy(''),
         puede_editar_stock_admin=_usuario_puede_ajustar_stock(),
+        c360_fases_obra=C360_FASE_OBRA_VALORES,
+        c360_fase_labels=C360_FASE_OBRA_LABELS,
     )
+
+
+@app.route('/productos/<int:id>/fase-obra', methods=['POST'])
+@login_required
+def producto_actualizar_fase_obra(id):
+    _asegurar_columnas_customer_360_legacy()
+    p = Producto.query.get_or_404(id)
+    p.fase_obra = _c360_fase_obra_valida(request.form.get('fase_obra'))
+    db.session.commit()
+    flash('Fase de obra del producto actualizada.', 'success')
+    return redirect(request.referrer or url_for('mostrar_productos'))
 
 
 @app.route('/precios/revision')
@@ -4664,6 +5237,8 @@ def filtrar_productos(tipo):
         catalogo_maestro_disponible=_catalogo_ui_disponible(),
         subcategorias_todas_legacy=subcategorias,
         puede_editar_stock_admin=_usuario_puede_ajustar_stock(),
+        c360_fases_obra=C360_FASE_OBRA_VALORES,
+        c360_fase_labels=C360_FASE_OBRA_LABELS,
     )
 
 
@@ -5435,8 +6010,11 @@ def guardar_producto():
         ubicacion_pasillo=(request.form.get('ubicacion_pasillo') or '').strip() or None,
         ubicacion_estante=(request.form.get('ubicacion_estante') or '').strip() or None,
         ubicacion_nivel=(request.form.get('ubicacion_nivel') or '').strip() or None,
-        activo=True
+        activo=True,
     )
+    fo = _c360_fase_obra_valida(request.form.get('fase_obra'))
+    if fo:
+        nuevo_p.fase_obra = fo
     if sub_cat_id:
         _sincronizar_producto_desde_subcatalogo(nuevo_p, sub_cat_id)
     db.session.add(nuevo_p)
@@ -5962,11 +6540,7 @@ def mostrar_ventas():
                            productos=productos,
                            ventas_pagination=ventas_pagination)
 
-# proceso de guardar venta desde formulario de ventas
-@app.route('/guardar_venta', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')
+# proceso de guardar venta desde formulario de ventas (ruta: blueprints/pos.py)
 def guardar_venta():
     # 1. Obtenemos la caja
     caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
@@ -6151,6 +6725,106 @@ def _nombre_usuario_pos_actual():
     return nom or "POS"
 
 
+def _asegurar_columnas_ventas_bodega_despacho():
+    """Columnas despacho bodega (Voice-to-Action); no usa el flag global _VENTAS_LEGACY_OK."""
+    if app.config.get('_VENTAS_BODEGA_DSP_COL_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'ventas' not in set(insp.get_table_names()):
+            return False
+        cols = {c['name'] for c in insp.get_columns('ventas')}
+        if (
+            'bodega_despacho_estado' in cols
+            and 'bodega_despacho_json' in cols
+            and 'bodega_despacho_ultimo_at' in cols
+        ):
+            app.config['_VENTAS_BODEGA_DSP_COL_OK'] = True
+            return True
+        dn = (db.engine.dialect.name or '').lower()
+        cambios = False
+        if 'bodega_despacho_estado' not in cols:
+            if dn == 'postgresql':
+                db.session.execute(
+                    text(
+                        'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_despacho_estado VARCHAR(20) NULL'
+                    )
+                )
+            else:
+                db.session.execute(
+                    text('ALTER TABLE ventas ADD COLUMN bodega_despacho_estado VARCHAR(20) NULL')
+                )
+            cambios = True
+        if 'bodega_despacho_json' not in cols:
+            if dn == 'postgresql':
+                db.session.execute(
+                    text('ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_despacho_json TEXT NULL')
+                )
+            else:
+                db.session.execute(text('ALTER TABLE ventas ADD COLUMN bodega_despacho_json TEXT NULL'))
+            cambios = True
+        if 'bodega_despacho_ultimo_at' not in cols:
+            if dn == 'postgresql':
+                db.session.execute(
+                    text(
+                        'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_despacho_ultimo_at TIMESTAMP NULL'
+                    )
+                )
+            else:
+                db.session.execute(
+                    text('ALTER TABLE ventas ADD COLUMN bodega_despacho_ultimo_at DATETIME NULL')
+                )
+            cambios = True
+        if cambios:
+            db.session.commit()
+        app.config['_VENTAS_BODEGA_DSP_COL_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar columnas bodega despacho en ventas: %s', ex)
+        return False
+
+
+from services import audit_service as _audit_service
+from services import stock_service as _stock_service
+from services.venta_service import transaccion_critica
+
+
+def _json_audit_chunk(data):
+    return _audit_service.json_audit_chunk(data)
+
+
+def _audit_log(evento, entidad_tipo, entidad_id=None, usuario=None, datos_antes=None, datos_despues=None, ip=None):
+    """Registro de auditoría; no debe interrumpir el flujo principal."""
+    return _audit_service.audit_log(
+        evento, entidad_tipo, entidad_id=entidad_id, usuario=usuario, datos_antes=datos_antes, datos_despues=datos_despues, ip=ip
+    )
+
+
+def _venta_tiene_despacho_bodega(venta):
+    return _stock_service.venta_tiene_despacho_bodega(venta)
+
+
+def stock_validar_invariante_venta(venta):
+    return _stock_service.stock_validar_invariante_venta(venta)
+
+
+def _revertir_stock_bodega_por_anulacion(venta, usuario_nom):
+    return _stock_service.revertir_stock_bodega_por_anulacion(venta, usuario_nom)
+
+
+def _venta_bodega_despacho_map(venta):
+    return _stock_service.venta_bodega_despacho_map(venta)
+
+
+def _venta_consumo_ya_despachado_bodega(venta, detalle_id):
+    return _stock_service.venta_consumo_ya_despachado_bodega(venta, detalle_id)
+
+
+def _venta_actualizar_estado_despacho_bodega(venta):
+    return _stock_service.venta_actualizar_estado_despacho_bodega(venta)
+
+
 def _venta_abierta_por_caja_y_usuario(caja_id, usuario_nombre):
     return (
         Venta.query.filter_by(estado="Abierta", caja_id=caja_id, usuario=usuario_nombre)
@@ -6181,13 +6855,17 @@ def _venta_validar_stock_tienda(venta):
                 continue
             factor_venta_stock = _factor_venta_a_stock(producto)
             consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
-            disp = stock_disponible_venta_tienda(producto)
+            ya_bod = _venta_consumo_ya_despachado_bodega(venta, d.id)
+            consumo_tienda = max(0, consumo_stock - ya_bod)
             if consumo_stock <= 0:
                 faltantes.append(f"{producto.nombre}: conversión inválida.")
                 continue
-            if disp < consumo_stock:
+            if consumo_tienda <= 0:
+                continue
+            disp = stock_disponible_venta_tienda(producto)
+            if disp < consumo_tienda:
                 faltantes.append(
-                    f"{producto.nombre} (disponible tienda: {disp}, requerido: {consumo_stock})"
+                    f"{producto.nombre} (disponible tienda: {disp}, requerido tras despacho bodega: {consumo_tienda})"
                 )
         except Exception as ex:
             db.session.rollback()
@@ -6247,6 +6925,35 @@ def _asegurar_columnas_ventas_legacy():
                 app.logger.warning(
                     "No se pudo crear la tabla ventas_cuotas_credito; ejecute python init_db.py o sql/2026_05_08_ventas_cuotas_credito.sql"
                 )
+        if 'ventas_cuotas_credito' in set(insp.get_table_names()):
+            cq_cols = {c['name'] for c in insp.get_columns('ventas_cuotas_credito')}
+            if 'monto_pagado' not in cq_cols:
+                dn = (db.engine.dialect.name or '').lower()
+                if dn == 'postgresql':
+                    db.session.execute(
+                        text(
+                            'ALTER TABLE ventas_cuotas_credito ADD COLUMN IF NOT EXISTS '
+                            'monto_pagado DOUBLE PRECISION NOT NULL DEFAULT 0'
+                        )
+                    )
+                else:
+                    try:
+                        db.session.execute(
+                            text(
+                                'ALTER TABLE ventas_cuotas_credito ADD COLUMN monto_pagado '
+                                'DOUBLE PRECISION NOT NULL DEFAULT 0'
+                            )
+                        )
+                    except Exception:
+                        db.session.rollback()
+                db.session.execute(
+                    text(
+                        "UPDATE ventas_cuotas_credito SET monto_pagado = COALESCE(monto, 0) "
+                        "WHERE estado = 'Pagada'"
+                    )
+                )
+                db.session.commit()
+                insp = sa_inspect(db.engine)
         app.config['_VENTAS_LEGACY_OK'] = True
         return True
     except Exception as ex:
@@ -6404,11 +7111,7 @@ def _redondear_montos_ventas_pendientes():
         return False
 
 
-# proceso de punto de venta, creación de venta abierta y manejo de vales pendientes........................................
-@app.route('/punto_venta')
-@login_required      # Verifica que el usuario esté logueado
-@caja_requerida     # <--- ESTA ES LA LÍNEA QUE FALTA
-@permisos_required('pos_emitir_vale')
+# proceso de punto de venta (ruta: blueprints/pos.py)
 def punto_venta():
     if not _asegurar_columnas_caja_cuadratura():
         flash("No se pudo preparar la tabla de caja (cuadratura). Revise permisos de BD.", "danger")
@@ -6474,6 +7177,9 @@ def punto_venta():
     # Si la venta tiene cliente asociado
     cliente = venta.cliente if venta and venta.cliente_id else None
 
+    if venta:
+        _pos_cross_sell_sync_session_scope(venta.id)
+
     detalles = venta.detalles or []
     factores_stock = {}
     consumos_stock = {}
@@ -6484,6 +7190,8 @@ def punto_venta():
 
     pids = [d.id_producto for d in detalles if d.id_producto]
     stock_tienda = stock_tienda_por_producto_ids(pids)
+
+    pos_cross_sell = session.pop('pos_cross_sell', None)
 
     # Renderizar la plantilla con los datos
     return render_template(
@@ -6496,19 +7204,681 @@ def punto_venta():
         factores_stock=factores_stock,
         consumos_stock=consumos_stock,
         stock_tienda=stock_tienda,
+        pos_cross_sell=pos_cross_sell,
+    )
+
+
+def _prime_catalogo_link():
+    base = _c360_public_base_url()
+    path = '/catalogo?q=pinturas&prime=10'
+    if base:
+        return f"{base.rstrip('/')}{path}"
+    try:
+        return url_for('catalogo_publico', q='pinturas', _external=True)
+    except Exception:
+        return path
+
+
+def _pos_cross_sell_rules_load():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'cross_sell_associations.json')
+    try:
+        with open(path, encoding='utf-8') as f:
+            d = json.load(f)
+            if isinstance(d, list) and d:
+                return d
+    except Exception:
+        pass
+    return []
+
+
+POS_CROSS_SELL_SESSION_REJECTED = 'pos_cross_sell_rejected_rules'
+POS_CROSS_SELL_SESSION_SCOPE = '_pos_cross_sell_venta_scope_id'
+
+
+def _pos_cross_sell_rejected_rule_ids_session():
+    try:
+        from flask import has_request_context
+
+        if not has_request_context():
+            return []
+    except Exception:
+        return []
+    r = session.get(POS_CROSS_SELL_SESSION_REJECTED)
+    if not isinstance(r, list):
+        return []
+    return [str(x).strip() for x in r if x is not None and str(x).strip()]
+
+
+def _pos_cross_sell_sync_session_scope(venta_id):
+    """Si cambia el vale abierto, limpia reglas rechazadas (nueva transacción)."""
+    if venta_id is None:
+        return
+    try:
+        vid = int(venta_id)
+    except (TypeError, ValueError):
+        return
+    prev = session.get(POS_CROSS_SELL_SESSION_SCOPE)
+    try:
+        prev_int = int(prev) if prev is not None else None
+    except (TypeError, ValueError):
+        prev_int = None
+    if prev_int != vid:
+        session[POS_CROSS_SELL_SESSION_REJECTED] = []
+        session[POS_CROSS_SELL_SESSION_SCOPE] = vid
+        session.modified = True
+
+
+def _pos_cross_sell_clear_session_nueva_venta_pos():
+    """Tras emitir vale o vaciar carrito: modal cross-sell, rechazos y ámbito de vale (nueva venta desde cero)."""
+    session.pop('pos_cross_sell', None)
+    session.pop(POS_CROSS_SELL_SESSION_REJECTED, None)
+    session.pop(POS_CROSS_SELL_SESSION_SCOPE, None)
+    session.modified = True
+
+
+def _pos_blob_producto(p):
+    return f'{(p.nombre or "")} {(p.categoria or "")} {(p.subcategoria or "")}'.lower()
+
+
+# Patrones ILIKE por familia (clave canónica). Evita subcadenas cortas tipo %lij% → "Lijadora".
+_POS_CROSS_SELL_KW_LIKE_PATTERNS = {
+    'lija': (
+        '%lija%',
+        '%papel%lija%',
+        '%lijas%',
+        '%pliego%lija%',
+        '%lija al agua%',
+        '%lija seco%',
+        '%malla%lija%',
+        '%disco%lija%',
+        '%esponja%lija%',
+        '%rollo%lija%',
+        '%tira%lija%',
+    ),
+    'pegamento': (
+        '%pegamento%',
+        '%pegamento pvc%',
+        '%cemento pvc%',
+        '%adhesivo pvc%',
+        '%soldadura pvc%',
+        '%soldadura%pvc%',
+        '%tipo n%',
+        '%tipo-n%',
+        '%primer pvc%',
+        '%curador pvc%',
+        '%líquido pvc%',
+        '%liquido pvc%',
+    ),
+    'arena': (
+        '%arena gruesa%',
+        '%arena fina%',
+        '%saco%arena%',
+        '%bolsa%arena%',
+        '%arena%saco%',
+        '%arena kg%',
+        '%arena kilo%',
+        '%arena%m3%',
+        '%m3%arena%',
+        '%metro cubico%arena%',
+        '%hormigon%arena%',
+        '%mezcla%arena%',
+        '% arena %',
+    ),
+    'carretilla': (
+        '%carretilla%',
+        '%carretill%',
+        '%carrito%obra%',
+        '%carrito%carga%',
+        '%carro%plataforma%',
+        '%zorra%obra%',
+    ),
+    'espatula': (
+        '%espátula%',
+        '%espatula%',
+        '%espátulas%',
+        '%espatulas%',
+        '%llana dentada%',
+        '%alisador%',
+    ),
+    'llana': ('%llana%', '%llana dura%', '%llana mango%', '%llana acero%', '%llana plástica%', '%llana plastica%'),
+    'cubeta': ('%cubeta%', '%cubeta plástica%', '%cubeta plastic%', '%bandeja obra%', '%palangana%'),
+}
+
+
+def _pos_cross_sell_canonical_suggest_keyword(kw):
+    """Unifica aliases del JSON o reglas antiguas (lij → lija, carret → carretilla)."""
+    k = (kw or '').strip().lower()
+    if not k:
+        return ''
+    aliases = {
+        'lij': 'lija',
+        'lijas': 'lija',
+        'pegament': 'pegamento',
+        'pegamentos': 'pegamento',
+        'carret': 'carretilla',
+        'carretill': 'carretilla',
+        'arenas': 'arena',
+        'espátula': 'espatula',
+        'espátulas': 'espatula',
+        'yana': 'llana',
+    }
+    return aliases.get(k, k)
+
+
+def _pos_cross_sell_sql_likes_for_keyword(kw):
+    k = _pos_cross_sell_canonical_suggest_keyword(kw)
+    if not k:
+        return []
+    if k in _POS_CROSS_SELL_KW_LIKE_PATTERNS:
+        return list(_POS_CROSS_SELL_KW_LIKE_PATTERNS[k])
+    return [f'%{k}%']
+
+
+def _pos_cross_sell_nombre_parece_lija_abrasivo(nombre_lower):
+    """Lija abrasiva (no lijadora): palabra lija o compuestos claros."""
+    n = nombre_lower or ''
+    if re.search(r'\blijas?\b', n):
+        return True
+    if 'papel de lija' in n or 'papel lija' in n or 'malla lija' in n or 'disco lija' in n:
+        return True
+    if 'lija al agua' in n or 'lija seco' in n or 'lija grano' in n:
+        return True
+    return False
+
+
+def _pos_cross_sell_false_positive_lija(nombre_lower):
+    """Herramienta eléctrica u oficio, no consumible de lija (lijadora contiene «lija» como subcadena)."""
+    n = nombre_lower or ''
+    if _pos_cross_sell_nombre_parece_lija_abrasivo(n):
+        return False
+    if 'lijador' in n:
+        return True
+    for x in ('esmeril', 'amoladora', 'pulidora', 'recipro', 'sierra caladora', 'multiherramienta'):
+        if x in n and 'lijador' not in n:
+            return True
+    return False
+
+
+def _pos_cross_sell_false_positive_arena(nombre_lower):
+    n = nombre_lower or ''
+    if 'filtro' in n and 'arena' in n:
+        return True
+    if 'pintura' in n and 'arena' in n and 'saco' not in n and 'bolsa' not in n and 'kg' not in n:
+        return True
+    if 'color arena' in n or 'tono arena' in n:
+        return True
+    return False
+
+
+def _pos_cross_sell_rank_sugerencia(p, kw_raw):
+    """Mayor = mejor candidato para la palabra clave sugerida."""
+    canon = _pos_cross_sell_canonical_suggest_keyword(kw_raw)
+    n = (p.nombre or '').lower()
+    c = (p.categoria or '').lower()
+    s = (p.subcategoria or '').lower()
+    blob = f'{n} {c} {s}'
+    score = 0.0
+    if canon == 'lija':
+        if _pos_cross_sell_false_positive_lija(n):
+            return -500.0
+        if _pos_cross_sell_nombre_parece_lija_abrasivo(n):
+            score += 120.0
+        for frag in ('grano', 'hoja', 'pliego', 'disco', 'malla', 'esponja', 'lija al', 'lija seco', 'rollo', 'tira'):
+            if frag in n:
+                score += 18.0
+        if 'pvc' in blob and _pos_cross_sell_nombre_parece_lija_abrasivo(n):
+            score += 22.0
+        if re.search(r'^\s*lijas?\b', n) or re.search(r'\blijas?\s*$', n) or ' lija ' in n:
+            score += 12.0
+    elif canon == 'pegamento':
+        if 'lijador' in n:
+            score -= 130.0
+        for mal in ('esmeril', 'amoladora', 'pulidora', 'taladro', 'rotomartillo', 'demoledor'):
+            if mal in n:
+                score -= 85.0
+        for frag in (
+            'pegamento',
+            'cemento pvc',
+            'adhesivo pvc',
+            'soldadura',
+            'tipo n',
+            'tipo-n',
+            'primer pvc',
+            'curador pvc',
+            'líquido pvc',
+            'liquido pvc',
+        ):
+            if frag in n or frag.replace(' ', '') in n.replace(' ', ''):
+                score += 100.0
+        if 'pvc' in blob and ('pegamento' in blob or 'cemento' in blob or 'soldadur' in blob or 'adhesivo' in blob):
+            score += 28.0
+    elif canon == 'arena':
+        if _pos_cross_sell_false_positive_arena(n):
+            return -400.0
+        if 'arenador' in n or 'arenadora' in n:
+            score -= 65.0
+        if 'arena' in n and 'arenador' not in n:
+            score += 75.0
+        for frag in ('saco', 'bolsa', 'gruesa', 'fina', 'm3', 'kilos', 'kg ', ' kg', 'hormigon', 'mezcla'):
+            if frag in n:
+                score += 15.0
+    elif canon == 'carretilla':
+        if 'carretilla' in n or 'carretill' in n:
+            score += 85.0
+        if 'carrito' in n and ('carga' in n or 'obra' in n):
+            score += 55.0
+        if 'zorra' in n and 'obra' in n:
+            score += 50.0
+        if 'rueda' in n and ('carga' in n or 'plataforma' in n):
+            score += 20.0
+    kw_low = (kw_raw or '').strip().lower()
+    if kw_low in blob:
+        score += 6.0
+    if canon in blob:
+        score += 8.0
+    st = int(p.stock or 0)
+    score += min(12.0, st / 25.0)
+    try:
+        pv = float(p.precio_venta or 0)
+        if pv > 0:
+            score += 4.0
+    except (TypeError, ValueError):
+        pass
+    return score
+
+
+def _pos_cross_sell_pick_product_for_keyword(kw, excluded_ids):
+    """
+    Busca hasta varios candidatos por ILIKE (patrones seguros por kw), rankea y elige el mejor.
+    excluded_ids: no sugerir productos ya en el carrito ni ya elegidos en esta regla.
+    """
+    likes = _pos_cross_sell_sql_likes_for_keyword(kw)
+    if not likes:
+        return None
+    ors = []
+    for like in likes:
+        ors.append(
+            db.or_(
+                db.func.lower(Producto.nombre).like(like),
+                db.func.lower(db.func.coalesce(Producto.subcategoria, '')).like(like),
+                db.func.lower(db.func.coalesce(Producto.categoria, '')).like(like),
+            )
+        )
+    q = Producto.query.filter(
+        Producto.activo == True,
+        Producto.stock > 0,
+        db.or_(*ors),
+    )
+    if excluded_ids:
+        q = q.filter(~Producto.id.in_(list(excluded_ids)))
+    canon_kw = _pos_cross_sell_canonical_suggest_keyword(kw)
+    if canon_kw == 'lija':
+        q = q.filter(~db.func.lower(Producto.nombre).like('%lijador%'))
+    cands = q.order_by(Producto.nombre.asc()).limit(60).all()
+    if not cands and canon_kw and canon_kw in _POS_CROSS_SELL_KW_LIKE_PATTERNS:
+        like_fallback = f'%{canon_kw}%'
+        q2 = Producto.query.filter(
+            Producto.activo == True,
+            Producto.stock > 0,
+            db.or_(
+                db.func.lower(Producto.nombre).like(like_fallback),
+                db.func.lower(db.func.coalesce(Producto.subcategoria, '')).like(like_fallback),
+                db.func.lower(db.func.coalesce(Producto.categoria, '')).like(like_fallback),
+            ),
+        )
+        if excluded_ids:
+            q2 = q2.filter(~Producto.id.in_(list(excluded_ids)))
+        if canon_kw == 'lija':
+            q2 = q2.filter(~db.func.lower(Producto.nombre).like('%lijador%'))
+        cands = q2.order_by(Producto.nombre.asc()).limit(60).all()
+    best_p, best_sc = None, -99999.0
+    for p in cands:
+        sc = _pos_cross_sell_rank_sugerencia(p, kw)
+        stp = int(p.stock or 0)
+        stb = int(best_p.stock or 0) if best_p else -1
+        if sc > best_sc or (abs(sc - best_sc) < 0.01 and stp > stb):
+            best_sc, best_p = sc, p
+    if best_p is None or best_sc < 5.0:
+        return None
+    return best_p
+
+
+def _pos_cross_sell_rule_priority_score(rule, combined_lower):
+    """Mayor prioridad = regla más acorde al carrito actual (obra vs tubería)."""
+    if_any = [(k or '').strip().lower() for k in (rule.get('if_cart_contains_any') or []) if k]
+    miss_any = rule.get('if_cart_missing_any') or []
+    tit = (rule.get('titulo') or '').lower()
+    cl = (combined_lower or '').lower()
+    tiene_obra = any(
+        seg in cl
+        for seg in (
+            'cemento',
+            'mortero',
+            'morter ',
+            'yeso ',
+            ' yeso',
+            'hormigon',
+            'hormigón',
+            'saco cement',
+            'bolsa cement',
+            'cal hidra',
+        )
+    )
+    best = 0
+    for kw in if_any:
+        if kw not in cl:
+            continue
+        if any(
+            m in kw
+            for m in (
+                'cement',
+                'morter',
+                'yeso',
+                'hormigon',
+                'hormigón',
+                'saco',
+                'bolsa',
+                'cal ',
+            )
+        ):
+            best = max(best, 82)
+        elif any(
+            p in kw
+            for p in (
+                'pvc',
+                'tub',
+                'tuber',
+                'codo',
+                'tee',
+                'union',
+                'reducc',
+                'cañer',
+                'caner',
+                'presion',
+                'presión',
+            )
+        ):
+            best = max(best, 26)
+        else:
+            best = max(best, 12)
+    if tiene_obra and 'pegamento' in tit and 'lija' in tit:
+        best -= 48
+    nmiss = sum(1 for m in miss_any if m and (m or '').strip().lower() not in cl)
+    best += nmiss * 7
+    return best
+
+
+def _pos_cross_sell_collect_items_for_rule(rule, pid_in_cart):
+    sugg_kw = rule.get('suggest_keywords') or []
+    items = []
+    seen = set(pid_in_cart)
+    for kw in sugg_kw:
+        if not kw:
+            continue
+        cand = _pos_cross_sell_pick_product_for_keyword(kw, seen)
+        if cand and cand.id not in seen:
+            seen.add(cand.id)
+            items.append(
+                {
+                    'id': cand.id,
+                    'nombre': cand.nombre,
+                    'precio': int(round(float(cand.precio_venta or 0))),
+                    'codigo': cand.codigo_barra or cand.codigo_interno or '',
+                }
+            )
+    return items
+
+
+def _pos_cross_sell_match_rules(cart_product_ids, rejected_rule_ids=None):
+    rules = _pos_cross_sell_rules_load()
+    if not rules or not cart_product_ids:
+        return None
+    if rejected_rule_ids is None:
+        rejected_rule_ids = _pos_cross_sell_rejected_rule_ids_session()
+    rejected_set = {str(x).strip() for x in (rejected_rule_ids or []) if str(x).strip()}
+    prods = Producto.query.filter(Producto.id.in_(list(cart_product_ids))).all()
+    combined = ' '.join(_pos_blob_producto(p) for p in prods)
+    combined_lower = combined.lower()
+    pid_in_cart = {int(x) for x in cart_product_ids if x is not None}
+    candidatos = []
+    for rule_idx, rule in enumerate(rules):
+        rule_id = str(rule.get('rule_id') or f'rule_{rule_idx}').strip()
+        if rule_id in rejected_set:
+            continue
+        if_any = rule.get('if_cart_contains_any') or []
+        miss_any = rule.get('if_cart_missing_any') or []
+        sugg_kw = rule.get('suggest_keywords') or []
+        if not if_any or not sugg_kw:
+            continue
+        if not any(((kw or '').lower() in combined_lower) for kw in if_any if kw):
+            continue
+        if miss_any and not any(((kw or '').lower() not in combined_lower) for kw in miss_any if kw):
+            continue
+        items = _pos_cross_sell_collect_items_for_rule(rule, pid_in_cart)
+        items = [it for it in items if int(it.get('id') or 0) not in pid_in_cart]
+        if not items:
+            continue
+        pr = _pos_cross_sell_rule_priority_score(rule, combined_lower)
+        candidatos.append((pr, rule, items, rule_id))
+    if not candidatos:
+        return None
+    candidatos.sort(key=lambda x: -x[0])
+    _, rule_win, items_win, rule_id_win = candidatos[0]
+    return {
+        'rule_id': rule_id_win,
+        'titulo': (rule_win.get('titulo') or 'Productos sugeridos')[:120],
+        'mensaje': (rule_win.get('stat_copy') or '')[:400],
+        'items': items_win[:8],
+    }
+
+
+def _pos_cross_sell_build_for_venta(venta_id):
+    v = Venta.query.get(int(venta_id))
+    if not v or not v.detalles:
+        return None
+    pids = [d.id_producto for d in v.detalles if d.id_producto]
+    if not pids:
+        return None
+    return _pos_cross_sell_match_rules(pids, None)
+
+
+REABASTO_INSUMO_KEYWORDS = (
+    'clavo',
+    'cemento',
+    'disco',
+    'morter',
+    'arena',
+    'hierro',
+    'yeso',
+    'bolsa',
+    'carburo',
+    'broca',
+)
+
+
+def _median(vals):
+    s = sorted(vals)
+    n = len(s)
+    if n == 0:
+        return None
+    m = n // 2
+    if n % 2:
+        return float(s[m])
+    return 0.5 * (float(s[m - 1]) + float(s[m]))
+
+
+def calcular_proximo_pedido(cliente_id):
+    """
+    Estima próxima fecha de recompra por insumos recurrentes (histórico de ventas).
+    Incluye fecha_recordatorio_48h (2 días antes del próximo pedido estimado).
+    """
+    cliente_id = int(cliente_id)
+    hoy = date.today()
+    cut = datetime.now() - timedelta(days=420)
+    q = (
+        db.session.query(DetalleVenta, Venta, Producto)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .join(Producto, Producto.id == DetalleVenta.id_producto)
+        .filter(
+            Venta.cliente_id == cliente_id,
+            Venta.fecha >= cut,
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .order_by(Venta.fecha.asc())
+    )
+    by_pid = defaultdict(list)
+    for dv, ve, pr in q.all():
+        blob = _pos_blob_producto(pr)
+        if not any(k in blob for k in REABASTO_INSUMO_KEYWORDS):
+            continue
+        fd = ve.fecha.date() if hasattr(ve.fecha, 'date') else ve.fecha
+        by_pid[pr.id].append((fd, pr.nombre))
+    items = []
+    for pid, pairs in by_pid.items():
+        dates = sorted({p[0] for p in pairs})
+        nombre = pairs[-1][1]
+        if len(dates) < 2:
+            continue
+        gaps = []
+        for i in range(1, len(dates)):
+            gaps.append((dates[i] - dates[i - 1]).days)
+        med = _median(gaps)
+        if not med or med < 3:
+            continue
+        ultima = dates[-1]
+        try:
+            prox = ultima + timedelta(days=int(round(med)))
+        except Exception:
+            continue
+        rec48 = prox - timedelta(days=2)
+        items.append(
+            {
+                'producto_id': pid,
+                'nombre': nombre,
+                'ultima_compra': ultima.isoformat(),
+                'intervalo_medio_dias': round(med, 1),
+                'fecha_proximo_pedido_estimada': prox.isoformat(),
+                'fecha_recordatorio_48h': rec48.isoformat(),
+                'dias_hasta_proximo': (prox - hoy).days,
+            }
+        )
+    return {'ok': True, 'cliente_id': cliente_id, 'items': items}
+
+
+calcularProximoPedido = calcular_proximo_pedido
+
+
+def _wa_consulta_stock_secret():
+    return (
+        (os.getenv('WA_CONSULTA_STOCK_SECRET') or '').strip()
+        or (os.getenv('COBRANZA_DISPATCH_CRON_SECRET') or '').strip()
+        or _c360_cron_secret()
+    )
+
+
+def _reabasto_wa_cron_secret():
+    return (os.getenv('REABASTO_WA_CRON_SECRET') or '').strip() or _cobranza_dispatch_cron_secret()
+
+
+def _vale_despacho_alertas_cron_secret():
+    """Bearer para cron de alertas vales despachados en bodega sin cobro (fallback a cobranza)."""
+    return (os.getenv('VALE_DESPACHO_ALERTAS_CRON_SECRET') or '').strip() or _cobranza_dispatch_cron_secret()
+
+
+def _vale_despacho_sin_cobro_alert_horas():
+    try:
+        h = int((os.getenv('VALE_DESPACHO_SIN_COBRO_ALERTA_HORAS') or '48').strip())
+    except (TypeError, ValueError):
+        return 48
+    return max(1, min(h, 24 * 30))
+
+
+def _vista_vales_riesgo_despacho_existe():
+    try:
+        insp = sa_inspect(db.engine)
+        return 'vista_vales_riesgo_despacho' in insp.get_view_names()
+    except Exception:
+        return False
+
+
+def _vale_despacho_alerta_interna_wa_digits():
+    """Número interno (supervisor / ventas) para alertas de vales sin cobro post-despacho."""
+    raw = (os.getenv('VALE_DESPACHO_ALERTA_INTERNA_WA') or os.getenv('WHATSAPP_VENTAS') or '').strip()
+    d = _telefono_whatsapp_chile_digits(raw)
+    return d if len(d) >= 10 else ''
+
+
+def _fetch_vales_riesgo_meta_desde_vista(horas_umbral, limit=250):
+    """
+    Filas de vista_vales_riesgo_despacho con horas_desde_ref >= umbral.
+    Requiere ejecutar sql/2026_05_08_vista_vales_riesgo_despacho_*.sql en la BD.
+    """
+    if not _vista_vales_riesgo_despacho_existe():
+        return []
+    sql = text(
+        """
+        SELECT venta_id, horas_desde_ref, ref_despacho_o_emision, bodega_despacho_estado, vendedor
+        FROM vista_vales_riesgo_despacho
+        WHERE horas_desde_ref >= :h
+        ORDER BY ref_despacho_o_emision ASC
+        LIMIT :lim
+        """
+    )
+    rows = db.session.execute(sql, {'h': float(horas_umbral), 'lim': int(limit)}).fetchall()
+    out = []
+    for r in rows:
+        out.append(
+            {
+                'venta_id': int(r[0]),
+                'horas_desde_ref': float(r[1]) if r[1] is not None else None,
+                'ref_despacho_o_emision': r[2],
+                'bodega_despacho_estado': r[3],
+                'vendedor': (r[4] or '').strip() if r[4] is not None else None,
+            }
+        )
+    return out
+
+
+def _buscar_cliente_por_telefono_loose(digits):
+    d = ''.join(c for c in (digits or '') if c.isdigit())
+    if len(d) < 8:
+        return None
+    for c in Cliente.query.filter(Cliente.telefono.isnot(None)).all():
+        cd = ''.join(ch for ch in (c.telefono or '') if ch.isdigit())
+        if not cd:
+            continue
+        if cd.endswith(d[-9:]) or d.endswith(cd[-9:]) or cd == d:
+            return c
+    return None
+
+
+def _buscar_productos_texto_stock(qtext, limit=5):
+    q = (qtext or '').strip()
+    if len(q) < 2:
+        return []
+    like = f'%{q.lower()}%'
+    return (
+        Producto.query.filter(
+            Producto.activo == True,
+            or_(
+                db.func.lower(Producto.nombre).like(like),
+                db.func.lower(db.func.coalesce(Producto.codigo_barra, '')).like(like),
+                db.func.lower(db.func.coalesce(Producto.codigo_interno, '')).like(like),
+            ),
+        )
+        .order_by(Producto.stock.desc(), Producto.nombre.asc())
+        .limit(limit)
+        .all()
     )
 
 
 # proceso de agregar productos a venta abierta desde punto de venta........................................
 
-@app.route('/agregar_producto_venta', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('pos_emitir_vale')
 def agregar_producto_venta():
     try:
-        codigo = (request.form.get('codigo') or '').strip()
-        producto_id_raw = request.form.get('producto_id')
+        session.pop('pos_cross_sell', None)
+        codigo = (request.form.get('codigo') or request.args.get('codigo') or '').strip()
+        producto_id_raw = request.form.get('producto_id') or request.args.get('producto_id')
         caja = obtener_caja_activa()
         if not caja:
             flash("No hay caja abierta para operar en Punto de Venta.", "warning")
@@ -6573,6 +7943,7 @@ def agregar_producto_venta():
             )
             db.session.add(venta)
             db.session.flush()
+        _pos_cross_sell_sync_session_scope(venta.id)
 
         cantidad = 1
         precio_unitario = pu_ef
@@ -6589,6 +7960,12 @@ def agregar_producto_venta():
         db.session.flush()
         venta.recalcular_total()
         db.session.commit()
+        try:
+            cs = _pos_cross_sell_build_for_venta(venta.id)
+            if cs:
+                session['pos_cross_sell'] = cs
+        except Exception:
+            app.logger.exception('POS cross-sell')
         return redirect(url_for('punto_venta'))
     except Exception as ex:
         db.session.rollback()
@@ -6598,16 +7975,17 @@ def agregar_producto_venta():
 
 # proceso de eliminar producto de venta abierta desde punto de venta........................................
 
-@app.route('/eliminar_detalle/<int:id>', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('pos_emitir_vale')
 def eliminar_detalle(id):
     detalle = DetalleVenta.query.get_or_404(id)
     venta = detalle.venta
     db.session.delete(detalle)
     venta.recalcular_total()
     db.session.commit()
+    db.session.refresh(venta)
+    if (venta.estado or '') == 'Abierta':
+        n_lineas = DetalleVenta.query.filter_by(id_venta=venta.id).count()
+        if n_lineas == 0 or float(venta.monto_total or 0) <= 0:
+            _pos_cross_sell_clear_session_nueva_venta_pos()
     return redirect(url_for('punto_venta'))
 
 #eliminar venta abierta o pendiente desde pantalla de ventas........................................................................
@@ -6649,6 +8027,8 @@ def eliminar_venta(id):
     try:
         db.session.delete(venta)
         db.session.commit()
+        if estado_prev == 'Abierta':
+            _pos_cross_sell_clear_session_nueva_venta_pos()
         msg = f"Venta N°{vid} eliminada."
         if stock_movido:
             msg += (
@@ -6668,10 +8048,6 @@ def eliminar_venta(id):
 
 # proceso de finalización de venta, validación de cliente y emisión de vale................................
 
-@app.route('/finalizar_venta', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('pos_emitir_vale')
 def finalizar_venta():
     caja = obtener_caja_activa()
     if not caja:
@@ -6759,6 +8135,7 @@ def finalizar_venta():
     venta.estado = "Pendiente"
     venta.punto_retiro = punto_retiro
     db.session.commit()
+    _pos_cross_sell_clear_session_nueva_venta_pos()
 
     # Mensaje de confirmación
     flash(f"Vale N°{venta.id} emitido para {cliente.nombre}. Turno {venta.prioridad}.", "info")
@@ -6825,9 +8202,6 @@ def editar_venta(id):
     return render_template('editar_venta.html', venta=venta, productos=productos)
 
 
-@app.route('/pos/usuarios_autorizar_descuento')
-@login_required
-@caja_requerida
 def pos_usuarios_autorizar_descuento():
     """Lista usuarios activos que pueden autorizar aumento de descuento en POS (autocompletado)."""
     q = (request.args.get('q') or '').strip().lower()
@@ -6846,10 +8220,6 @@ def pos_usuarios_autorizar_descuento():
 
 
 # proceso de actualización de cantidad y descuento en venta abierta desde punto de venta........................................
-@app.route('/actualizar_item', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('pos_emitir_vale')
 def actualizar_item():
     detalle_id = request.form.get('actualizar')
     solo_cantidad = request.form.get('solo_cantidad') == '1'
@@ -7059,11 +8429,7 @@ def _aplicar_mov_saldo_favor(cliente_id, cambio_id, tipo, monto, observacion):
     return nuevo
 
 
-# CAJA vales pendientes
-@app.route('/caja/vales_pendientes')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
+# CAJA vales pendientes (ruta registrada en blueprints/caja.py)
 def caja_pendientes():
     _redondear_montos_ventas_pendientes()
     db.session.rollback()
@@ -7130,7 +8496,10 @@ def caja_pendientes():
         v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
         v.cola_es_borrador = False
 
+    _asegurar_columnas_ventas_bodega_despacho()
     cola_combined = list(borradores_pos) + list(vales)
+    for v in cola_combined:
+        v.tiene_despacho_bodega = _venta_tiene_despacho_bodega(v)
     cot_ids = [v.cotizacion_origen_id for v in vales if v.cotizacion_origen_id]
     cot_ids.extend(v.cotizacion_origen_id for v in borradores_pos if v.cotizacion_origen_id)
     cot_ids = list(dict.fromkeys(cot_ids))
@@ -7180,13 +8549,10 @@ def caja_pendientes():
         cola_combined=cola_combined,
         creditos_hoy=creditos_hoy,
         cotizaciones_map=cotizaciones_map,
+        planes_cuotas_credito=PLANES_CUOTA_CREDITO_OPCIONES,
     )
 
 
-@app.route('/caja/cambios', methods=['GET', 'POST'])
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def caja_cambios():
     if not _asegurar_tablas_cambios():
         flash("No se pudo preparar tablas de cambios/saldos. Revise permisos de BD.", "danger")
@@ -7386,10 +8752,6 @@ def caja_cambios():
     )
 
 
-@app.route('/api/cambios/producto/<codigo>')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def api_cambios_producto(codigo):
     p = _producto_por_codigo_pos(codigo)
     if not p:
@@ -7477,10 +8839,6 @@ def _parse_folio_vale(q):
         return None
 
 
-@app.route('/api/cambios/buscar_venta')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def api_cambios_buscar_venta():
     """Busca venta original para precargar líneas en cambio.
 
@@ -7555,19 +8913,11 @@ def api_cambios_buscar_venta():
     return jsonify(ok=False, mensaje='Sin resultados. Pruebe folio (ej. 1234 o VL001234) o RUT del cliente.'), 404
 
 
-@app.route('/api/cambios/venta/<int:id>')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def api_cambios_venta_detalle(id):
     v = Venta.query.get_or_404(id)
     return jsonify(ok=True, venta=_venta_a_dict_para_cambio(v))
 
 
-@app.route('/caja/cambios/<int:id>/ticket')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def ticket_cambio(id):
     cambio = CambioOperacion.query.get_or_404(id)
     devueltos = [d for d in (cambio.detalles or []) if (d.tipo or '').upper() == 'DEVUELTO']
@@ -7583,10 +8933,6 @@ def ticket_cambio(id):
     )
 
 
-@app.route('/caja/cambios/historial')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def caja_cambios_historial():
     if not _asegurar_tablas_cambios():
         flash("No se pudo preparar tablas de cambios/saldos. Revise permisos de BD.", "danger")
@@ -7656,9 +9002,6 @@ def caja_cambios_historial():
     )
 
 
-@app.route('/caja/saldos-favor')
-@login_required
-@permisos_required('caja_cobrar_vale', 'gestionar_usuarios')
 def caja_saldos_favor():
     """Clientes con saldo a favor vigente por devoluciones/cambios."""
     if not _asegurar_tablas_cambios():
@@ -7706,13 +9049,10 @@ def caja_saldos_favor():
     )
 
 
-@app.route('/caja/vales/<int:id>/anular', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('anular_vale_caja')
 def anular_vale_caja(id):
-    """Vale emitido y no cobrado: cliente no retorna. No descuenta stock (aún no pasó por cobro)."""
-    venta = Venta.query.get_or_404(id)
+    """Vale emitido y no cobrado: cliente no retorna. Revierte despacho de bodega si hubo (voz) con permiso extra."""
+    _asegurar_columnas_ventas_bodega_despacho()
+    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
     caja_act = obtener_caja_activa()
     st = (venta.estado or '').strip()
     mp = venta.metodo_pago
@@ -7731,12 +9071,45 @@ def anular_vale_caja(id):
             'warning',
         )
         return redirect(url_for('caja_pendientes'))
+    if puede_pendiente and _venta_tiene_despacho_bodega(venta):
+        if not (
+            usuario_tiene_permiso('anular_vale_con_despacho_bodega')
+            or usuario_tiene_permiso('gestionar_usuarios')
+        ):
+            flash(
+                'Este vale tiene despacho registrado en bodega (voz). '
+                'Se requiere permiso anular_vale_con_despacho_bodega o gestionar_usuarios para anular y revertir stock.',
+                'danger',
+            )
+            return redirect(url_for('caja_pendientes'))
     motivo = (request.form.get('motivo') or '').strip()[:500]
-    venta.estado = 'Anulada'
-    venta.motivo_anulacion = motivo or None
-    venta.fecha_anulacion = datetime.now()
-    venta.usuario_anulacion = (current_user.nombre or '')[:80] if current_user.is_authenticated else None
+    usr_an = (current_user.nombre or '')[:80] if current_user.is_authenticated else None
+    datos_antes = {
+        'estado': st,
+        'bodega_despacho_estado': getattr(venta, 'bodega_despacho_estado', None),
+        'bodega_despacho_json': getattr(venta, 'bodega_despacho_json', None),
+    }
+    hubo_despacho = bool(puede_pendiente and _venta_tiene_despacho_bodega(venta))
     try:
+        with transaccion_critica():
+            if hubo_despacho:
+                _revertir_stock_bodega_por_anulacion(venta, usr_an or 'Caja')
+            venta.estado = 'Anulada'
+            venta.motivo_anulacion = motivo or None
+            venta.fecha_anulacion = datetime.now()
+            venta.usuario_anulacion = usr_an
+        _audit_log(
+            'anular_vale',
+            'venta',
+            venta.id,
+            usuario=usr_an,
+            datos_antes=datos_antes,
+            datos_despues={
+                'estado': 'Anulada',
+                'motivo': motivo,
+                'revirtio_bodega': hubo_despacho,
+            },
+        )
         db.session.commit()
     except Exception as ex:
         db.session.rollback()
@@ -7750,14 +9123,16 @@ def anular_vale_caja(id):
             flash(f'No se pudo anular el vale: {ex}', 'danger')
         return redirect(url_for('caja_pendientes'))
     tipo_doc = 'Borrador POS' if st == 'Abierta' else 'Vale'
-    flash(f'{tipo_doc} #{venta.id} anulado. No descontó stock (no estaba cobrado).', 'success')
+    if hubo_despacho:
+        flash(
+            f'{tipo_doc} #{venta.id} anulado. Se revirtió el stock de bodega asociado al despacho por voz.',
+            'success',
+        )
+    else:
+        flash(f'{tipo_doc} #{venta.id} anulado. No descontó stock de tienda (no estaba cobrado).', 'success')
     return redirect(url_for('caja_pendientes'))
 
 
-@app.route('/procesar_cobro_caja/<int:id>', methods=['POST'])
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def procesar_cobro_caja(id):
     db.session.rollback()
     venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
@@ -7810,14 +9185,18 @@ def procesar_cobro_caja(id):
             consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
             if consumo_stock <= 0:
                 raise ValueError(f"Conversión inválida para {producto.nombre}.")
-            disp = stock_disponible_venta_tienda(producto)
-            if disp < consumo_stock:
-                raise ValueError(f"Stock insuficiente para {producto.nombre}.")
+            ya_bod = _venta_consumo_ya_despachado_bodega(venta, d.id)
+            consumo_tienda = max(0, consumo_stock - ya_bod)
+            if consumo_tienda > 0:
+                disp = stock_disponible_venta_tienda(producto)
+                if disp < consumo_tienda:
+                    raise ValueError(f"Stock insuficiente para {producto.nombre}.")
             lineas_stock.append({
                 'detalle_id': d.id,
                 'producto_id': producto.id,
                 'cantidad_venta': d.cantidad or 0,
                 'consumo_stock': consumo_stock,
+                'consumo_tienda': consumo_tienda,
             })
 
         # Partimos la transacción real desde un estado limpio. Esto evita que
@@ -7826,25 +9205,14 @@ def procesar_cobro_caja(id):
         venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
         caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
 
-        venta.metodo_pago = metodo
-        venta.tipo_documento = tipo_doc
-        venta.caja_id = caja_activa.id
-        venta.fecha = datetime.now()
-        venta.desglosar_iva()
+        try:
+            stock_validar_invariante_venta(venta)
+        except ValueError as inv_e:
+            flash(str(inv_e), 'danger')
+            return redirect(url_for('caja_pendientes'))
 
-        if metodo == "Credito":
-            venta.estado = "Pendiente"
-            venta.monto_recibido = 0
-            venta.vuelto = 0
-            venta.saldo_favor_usado = 0
-            plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
-            venta.credito_plan_codigo = plan_cuotas or None
-            VentaCuotaCredito.query.filter_by(venta_id=venta.id).delete(synchronize_session=False)
-            if plan_cuotas:
-                _registrar_cuotas_credito_venta(venta, plan_cuotas, venta.fecha)
-            if venta.cliente:
-                venta.cliente.saldo_deudor = (venta.cliente.saldo_deudor or 0) + venta.monto_total
-        else:
+        # Validaciones de pago fuera del savepoint (evita rollback/redirect dentro de transaccion_critica).
+        if metodo != "Credito":
             if saldo_favor_usado > 0:
                 if not venta.cliente_id:
                     flash("Para usar saldo a favor el vale debe tener cliente identificado.", "warning")
@@ -7853,40 +9221,78 @@ def procesar_cobro_caja(id):
                 saldo_favor_usado = min(saldo_favor_usado, saldo_cliente_actual, float(venta.monto_total or 0))
                 total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
             if monto_recibido < total_a_pagar:
-                flash("El monto recibido no puede ser menor al total pendiente después de saldo a favor.", "warning")
+                flash(
+                    "El monto recibido no puede ser menor al total pendiente después de saldo a favor.",
+                    "warning",
+                )
                 return redirect(url_for('caja_pendientes'))
-            venta.estado = "Pagado"
-            venta.monto_recibido = monto_recibido
-            venta.vuelto = monto_recibido - total_a_pagar
-            venta.saldo_favor_usado = saldo_favor_usado
-            if saldo_favor_usado > 0:
-                _aplicar_mov_saldo_favor(
-                    venta.cliente_id,
-                    None,
-                    'DEBITO',
-                    saldo_favor_usado,
-                    f'Uso en venta #{venta.id}',
+
+        estado_antes_cobro = venta.estado
+        usr_cobro = (current_user.nombre or '')[:120] if current_user.is_authenticated else None
+
+        with transaccion_critica():
+            venta.metodo_pago = metodo
+            venta.tipo_documento = tipo_doc
+            venta.caja_id = caja_activa.id
+            venta.fecha = datetime.now()
+            venta.desglosar_iva()
+
+            if metodo == "Credito":
+                venta.estado = "Pendiente"
+                venta.monto_recibido = 0
+                venta.vuelto = 0
+                venta.saldo_favor_usado = 0
+                plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
+                venta.credito_plan_codigo = plan_cuotas or None
+                VentaCuotaCredito.query.filter_by(venta_id=venta.id).delete(synchronize_session=False)
+                if plan_cuotas:
+                    _registrar_cuotas_credito_venta(venta, plan_cuotas, venta.fecha)
+                if venta.cliente:
+                    venta.cliente.saldo_deudor = (venta.cliente.saldo_deudor or 0) + venta.monto_total
+            else:
+                venta.estado = "Pagado"
+                venta.monto_recibido = monto_recibido
+                venta.vuelto = monto_recibido - total_a_pagar
+                venta.saldo_favor_usado = saldo_favor_usado
+                if saldo_favor_usado > 0:
+                    _aplicar_mov_saldo_favor(
+                        venta.cliente_id,
+                        None,
+                        'DEBITO',
+                        saldo_favor_usado,
+                        f'Uso en venta #{venta.id}',
+                    )
+
+            for linea in lineas_stock:
+                producto = Producto.query.get(linea['producto_id'])
+                if not producto:
+                    raise ValueError(f"Producto no encontrado en línea #{linea['detalle_id']}.")
+                consumo_tienda = int(linea.get('consumo_tienda', linea['consumo_stock']) or 0)
+                if consumo_tienda <= 0:
+                    continue
+                err_st = descontar_stock_venta_tienda(producto, consumo_tienda)
+                if err_st:
+                    raise ValueError(f"{producto.nombre}: {err_st}")
+                registrar_movimiento_kardex(
+                    producto.id,
+                    'SALIDA',
+                    consumo_tienda,
+                    f"Cobro vale/venta #{venta.id} ({metodo})"
+                    f" ({linea['cantidad_venta']} {producto.unidad_venta_final} -> {consumo_tienda} stock tienda)",
+                    usuario=current_user.nombre,
+                    id_almacen=id_almacen_tienda() or 1,
+                    referencia_tipo='venta',
+                    referencia_id=venta.id,
+                    stock_saldo=None,
                 )
 
-        for linea in lineas_stock:
-            producto = Producto.query.get(linea['producto_id'])
-            if not producto:
-                raise ValueError(f"Producto no encontrado en línea #{linea['detalle_id']}.")
-            consumo_stock = linea['consumo_stock']
-            err_st = descontar_stock_venta_tienda(producto, consumo_stock)
-            if err_st:
-                raise ValueError(f"{producto.nombre}: {err_st}")
-            registrar_movimiento_kardex(
-                producto.id,
-                'SALIDA',
-                consumo_stock,
-                f"Cobro vale/venta #{venta.id} ({metodo})"
-                f" ({linea['cantidad_venta']} {producto.unidad_venta_final} -> {consumo_stock} stock)",
-                usuario=current_user.nombre,
-                id_almacen=id_almacen_tienda() or 1,
-                referencia_tipo='venta',
-                referencia_id=venta.id,
-                stock_saldo=None,
+            _audit_log(
+                'cobro_vale',
+                'venta',
+                venta.id,
+                usuario=usr_cobro,
+                datos_antes={'estado': estado_antes_cobro, 'metodo_pago': None},
+                datos_despues={'estado': venta.estado, 'metodo_pago': metodo, 'tipo_documento': tipo_doc},
             )
 
         db.session.commit()
@@ -7914,10 +9320,6 @@ def procesar_cobro_caja(id):
         return redirect(url_for('caja_pendientes'))
 
 
-@app.route('/caja/vale_retiro/<int:id>')
-@login_required
-@caja_requerida
-@permisos_required('caja_cobrar_vale')
 def ver_ticket_cobro(id):
     venta = (
         Venta.query.options(joinedload(Venta.detalles), joinedload(Venta.cuotas_credito))
@@ -8447,9 +9849,6 @@ def _resumen_caja_cerrada(caja):
     )
 
 
-@app.route('/caja/historial_cierres')
-@login_required
-@permisos_required('gestionar_usuarios')
 def caja_historial_cierres():
     q_usuario = (request.args.get('usuario') or '').strip()
     q_desde = (request.args.get('desde') or '').strip()
@@ -8510,9 +9909,6 @@ def caja_historial_cierres():
     )
 
 
-@app.route('/caja/historial_cierres/<int:id>/ticket')
-@login_required
-@permisos_required('gestionar_usuarios', 'caja_cerrar')
 def ticket_cierre_historico(id):
     caja = Caja.query.get_or_404(id)
     if caja.estado != "Cerrada":
@@ -9103,6 +10499,282 @@ def admin_clientes():
     )
 
 
+def admin_cliente_c360(cliente_id):
+    """Customer 360: predicción etapa obra, OCR simulado, recálculo motor."""
+    _asegurar_columnas_customer_360_legacy()
+    c = Cliente.query.get_or_404(cliente_id)
+    if _cliente_es_sistema_final(c):
+        flash('El cliente genérico del POS no usa Customer 360.', 'info')
+        return redirect(url_for('admin_clientes'))
+    if request.method == 'POST':
+        act = (request.form.get('action') or '').strip()
+        if act == 'recalcular':
+            try:
+                c360_project_predictor_actualizar_cliente(c.id, commit=True)
+                flash('Motor de predicción ejecutado (ventana 30 días).', 'success')
+            except Exception as ex:
+                db.session.rollback()
+                flash(f'Error al recalcular: {ex}', 'danger')
+        elif act == 'ocr_mock':
+            fase = (request.form.get('fase_max_ocr') or '').strip()
+            ok, msg = c360_ocr_mock_actualizar_si_fase_superior(c, fase)
+            if ok:
+                try:
+                    db.session.commit()
+                    flash(msg, 'success')
+                except Exception as ex:
+                    db.session.rollback()
+                    flash(f'Error al guardar OCR simulado: {ex}', 'danger')
+            else:
+                flash(msg, 'warning')
+        return redirect(url_for('admin_cliente_c360', cliente_id=c.id))
+    perfil = _c360_perfil_dict_desde_cliente(c)
+    agg = _c360_montos_por_fase_ultimos_dias(c.id, 30)
+    return render_template(
+        'admin_cliente_c360.html',
+        cliente=c,
+        perfil=perfil,
+        agg=agg,
+        c360_fases_obra=C360_FASE_OBRA_VALORES,
+        c360_fase_labels=C360_FASE_OBRA_LABELS,
+    )
+
+
+def api_c360_ocr_mock():
+    """JSON para dropzone: {cliente_id, fase_max_detectada}. Simula extracción y aplica regla de fase superior."""
+    _asegurar_columnas_customer_360_legacy()
+    data = request.get_json(silent=True) or {}
+    try:
+        cid = int(data.get('cliente_id'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'cliente_id'}), 400
+    fase = data.get('fase_max_detectada') or data.get('fase_maxima')
+    c = Cliente.query.get(cid)
+    if not c:
+        return jsonify({'ok': False, 'error': 'cliente'}), 404
+    if _cliente_es_sistema_final(c):
+        return jsonify({'ok': False, 'error': 'cliente_pos'}), 400
+    ok, msg = c360_ocr_mock_actualizar_si_fase_superior(c, fase)
+    if ok:
+        try:
+            db.session.commit()
+        except Exception as ex:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': str(ex)}), 500
+    return jsonify(
+        {
+            'ok': bool(ok),
+            'mensaje': msg,
+            'etapa_actual': c.c360_etapa_actual,
+            'limite_credito': float(c.limite_credito or 0),
+            'perfil': _c360_perfil_dict_desde_cliente(c),
+        }
+    )
+
+
+def api_c360_worker_noche():
+    """
+    Cron nocturno: recalcula motor C360 para muchos clientes activos.
+    Authorization: Bearer <C360_CRON_SECRET> (o COBRANZA_DISPATCH_CRON_SECRET si C360 no está definido).
+    Cuerpo JSON opcional: {\"max\": 300}
+    """
+    secret = _c360_cron_secret()
+    if not secret:
+        return jsonify({'ok': False, 'error': 'cron_secret_not_configured'}), 503
+    tok = _bearer_token_from_request()
+    try:
+        token_ok = bool(tok) and hmac.compare_digest(tok, secret)
+    except (TypeError, ValueError):
+        token_ok = False
+    if not token_ok:
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    body = request.get_json(silent=True) or {}
+    try:
+        max_n = int(body.get('max', 300))
+    except (TypeError, ValueError):
+        max_n = 300
+    out = c360_worker_recalcular_clientes(max_n)
+    if not out.get('ok'):
+        return jsonify(out), 500
+    return jsonify(out)
+
+
+def admin_c360_llamadas_hoy():
+    """Lista priorizada para vendedores: clientes con recomendar_llamada tras último cálculo C360."""
+    _asegurar_columnas_customer_360_legacy()
+    filas = _c360_lista_llamadas_recomendadas()
+    cc = _c360_command_center_stats()
+    cupo_top = sum(int(x.get('cupo_sugerido') or 0) for x in filas[:20]) if filas else 0
+    oferta_tracks = {}
+    if filas and _asegurar_tabla_c360_proactiva_ofertas():
+        ids = [x['cliente'].id for x in filas]
+        for row in (
+            C360ProactivaOferta.query.filter(C360ProactivaOferta.cliente_id.in_(ids))
+            .order_by(C360ProactivaOferta.created_at.desc())
+            .all()
+        ):
+            if row.cliente_id not in oferta_tracks:
+                oferta_tracks[row.cliente_id] = row
+    return render_template(
+        'admin_c360_llamadas_hoy.html',
+        filas=filas,
+        hoy=date.today(),
+        cc_stats=cc,
+        cupo_prioridad_sum_clp=int(cupo_top),
+        oferta_tracks=oferta_tracks,
+    )
+
+
+def admin_c360_enviar_oferta_ia():
+    """Genera cotización kit C360 + envía WhatsApp Cloud (Meta) al cliente."""
+    try:
+        cliente_id = int((request.form.get('cliente_id') or '').strip())
+    except (TypeError, ValueError):
+        cliente_id = 0
+    if not cliente_id:
+        flash('Cliente inválido.', 'warning')
+        return redirect(url_for('admin_c360_llamadas_hoy'))
+    cli = Cliente.query.get(cliente_id)
+    if not cli:
+        flash('Cliente no encontrado.', 'warning')
+        return redirect(url_for('admin_c360_llamadas_hoy'))
+    wa = _telefono_whatsapp_chile_digits(cli.telefono)
+    if not wa:
+        flash('El cliente no tiene teléfono para WhatsApp.', 'warning')
+        return redirect(url_for('admin_c360_llamadas_hoy'))
+    ucre = (getattr(current_user, 'nombre', None) or 'usuario')[:100]
+    mora = _c360_cliente_tiene_cuota_credito_vencida(cli.id)
+    if mora:
+        nombre_corto = ((cli.nombre or 'cliente').strip().split() or [''])[0] or 'cliente'
+        body = (
+            f'Hola {nombre_corto}, le recordamos regularizar documentos a crédito con cuotas vencidas. '
+            f'Ante dudas puede responder este mensaje. Gracias.'
+        )
+        ok, det = _whatsapp_cloud_send_text(wa, body)
+        if not _asegurar_tabla_c360_proactiva_ofertas():
+            flash('No se pudo registrar seguimiento (tabla C360 proactiva).', 'danger')
+            return redirect(url_for('admin_c360_llamadas_hoy'))
+        tok = secrets.token_urlsafe(24)[:48]
+        seg = C360ProactivaOferta(
+            token=tok,
+            cliente_id=cli.id,
+            cotizacion_id=None,
+            etapa_disparo=(cli.c360_etapa_actual or '')[:32] or None,
+            etapa_anterior=None,
+            tipo='COBRANZA_MANUAL',
+            wa_sent_at=datetime.utcnow() if ok else None,
+            wa_result=(det or '')[:2000],
+        )
+        db.session.add(seg)
+        db.session.commit()
+        flash('Cliente en mora: se envió recordatorio de cobranza por WhatsApp.' if ok else f'WhatsApp no enviado: {det}', 'warning' if ok else 'danger')
+        return redirect(url_for('admin_c360_llamadas_hoy'))
+    out = generar_oferta_personalizada(
+        cli.id,
+        commit=True,
+        usuario_creador=ucre,
+        tipo_oferta='OFERTA_MANUAL',
+        etapa_anterior=None,
+    )
+    if not out.get('ok'):
+        flash(f"No se pudo armar la oferta: {out.get('error', 'error')}", 'warning')
+        return redirect(url_for('admin_c360_llamadas_hoy'))
+    label = C360_FASE_OBRA_LABELS.get((cli.c360_etapa_actual or '').strip().upper(), cli.c360_etapa_actual or 'su obra')
+    nombre_corto = ((cli.nombre or 'cliente').strip().split() or [''])[0] or 'cliente'
+    url = out.get('url_publica_abs') or ''
+    body = (
+        f'Hola {nombre_corto}, tenemos un kit de materiales para la fase de {label} listo para despacho '
+        f'con precio especial (cotización {out.get("numero")}). ¿Te lo enviamos? Ver detalle: {url}'
+    )
+    ok, det = _whatsapp_cloud_send_text(wa, body)
+    try:
+        seg = (
+            C360ProactivaOferta.query.filter_by(cotizacion_id=out['cotizacion_id'])
+            .order_by(C360ProactivaOferta.id.desc())
+            .first()
+        )
+        if seg:
+            seg.wa_sent_at = datetime.utcnow() if ok else None
+            seg.wa_result = (det or '')[:2000]
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception('C360: registrar wa manual oferta')
+    flash(
+        f'Oferta {out.get("numero")} generada y WhatsApp {"enviado" if ok else "falló"}.' if ok else f'Cotización creada; WhatsApp falló: {det}',
+        'success' if ok else 'warning',
+    )
+    return redirect(url_for('admin_c360_llamadas_hoy'))
+
+
+def _c360_oferta_publica_registrar_click(seg):
+    if not seg or seg.link_clicked_at:
+        return
+    seg.link_clicked_at = datetime.utcnow()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def c360_oferta_publica_landing(token):
+    """Landing pública con seguimiento de clic (sin login)."""
+    if not _asegurar_tabla_c360_proactiva_ofertas():
+        abort(404)
+    tok = (token or '')[:48]
+    seg = C360ProactivaOferta.query.filter_by(token=tok).first()
+    if not seg or not seg.cotizacion_id:
+        abort(404)
+    _c360_oferta_publica_registrar_click(seg)
+    cot = Cotizacion.query.get(seg.cotizacion_id)
+    if not cot:
+        abort(404)
+    empresa = obtener_config_empresa()
+    from urllib.parse import quote
+
+    mtxt = f'${float(cot.monto_total or 0):,.0f}'.replace(',', '.')
+    wa_txt = quote(
+        f'Hola, confirmo interés en la oferta {cot.numero} por un total de {mtxt}.',
+        safe='',
+    )
+    return render_template('c360_oferta_publica.html', seg=seg, cot=cot, empresa=empresa, wa_txt=wa_txt)
+
+
+def c360_oferta_publica_pdf(token):
+    """PDF imprimible de la cotización vinculada al token (sin login)."""
+    if not _asegurar_tabla_c360_proactiva_ofertas():
+        abort(404)
+    tok = (token or '')[:48]
+    seg = C360ProactivaOferta.query.filter_by(token=tok).first()
+    if not seg or not seg.cotizacion_id:
+        abort(404)
+    _c360_oferta_publica_registrar_click(seg)
+    cot = Cotizacion.query.get(seg.cotizacion_id)
+    if not cot:
+        abort(404)
+    try:
+        db.session.expire(cot)
+        db.session.refresh(cot)
+    except Exception:
+        pass
+    empresa = obtener_config_empresa()
+    logo_b64 = None
+    try:
+        logo_path = os.path.join(app.root_path, 'static', 'img', 'cliente-logo-light.png')
+        if os.path.isfile(logo_path):
+            with open(logo_path, 'rb') as fimg:
+                logo_b64 = base64.b64encode(fimg.read()).decode()
+    except Exception:
+        logo_b64 = None
+    return render_template(
+        'cotizacion_pdf.html',
+        cotizacion=cot,
+        empresa=empresa,
+        logo_cliente_b64=logo_b64,
+        auto_print=False,
+    )
+
+
 @app.route('/admin/roles-permisos', methods=['GET', 'POST'])
 @permisos_required('gestionar_usuarios')
 def admin_roles_permisos():
@@ -9676,6 +11348,264 @@ def _openai_extraer_items_factura(data_urls_jpeg, api_key):
             }
         )
     return limpio
+
+
+def _normalizar_frase_ia_material(s):
+    t = (s or '').strip()
+    if not t:
+        return ''
+    t = t.split('\n')[0].strip()
+    t = t.strip(' "\'«»`')
+    return t.strip()
+
+
+def _frase_ia_material_no_clara(frase):
+    t = _normalizar_frase_ia_material(frase).lower()
+    if len(t) < 5:
+        return True
+    neg = (
+        'no puedo',
+        'no identific',
+        'desconozco',
+        'no es posible',
+        'imposible determinar',
+        'no visible',
+        'sin identificar',
+        'unable to',
+        'cannot identify',
+        'unclear',
+        'no hay suficiente',
+        'no se puede',
+        'no reconozco',
+    )
+    if any(x in t for x in neg):
+        return True
+    if not re.search(r'[a-záéíóúñ0-9]', t):
+        return True
+    return False
+
+
+_STOP_TOK_MATERIAL = frozenset(
+    {
+        'solo',
+        'material',
+        'ferreteria',
+        'ferretería',
+        'pieza',
+        'producto',
+        'elemento',
+        'este',
+        'esta',
+        'imagen',
+        'objeto',
+        'uno',
+        'una',
+        'del',
+        'los',
+        'las',
+        'con',
+        'por',
+        'para',
+    }
+)
+
+
+def _tokens_desde_frase_material(frase):
+    raw = (frase or '').lower()
+    toks = re.findall(r'[a-záéíóúñ0-9./]+', raw, flags=re.IGNORECASE)
+    out = []
+    for t in toks:
+        t = t.strip('./')
+        if len(t) >= 2 and t not in _STOP_TOK_MATERIAL:
+            out.append(t.lower())
+    seen = set()
+    uniq = []
+    for t in out:
+        if t not in seen:
+            seen.add(t)
+            uniq.append(t)
+    return uniq[:14]
+
+
+def _haystack_producto_busqueda_foto(p):
+    parts = [
+        (p.nombre or ''),
+        (p.categoria or ''),
+        (p.subcategoria or ''),
+        (getattr(p, 'fase_obra', None) or ''),
+    ]
+    return ' '.join(parts).lower()
+
+
+def _score_producto_frase_material(p, frase_norm_lower, tokens):
+    h = _haystack_producto_busqueda_foto(p)
+    s = 0.0
+    for tok in tokens:
+        if len(tok) < 2:
+            continue
+        if tok in h:
+            s += 4.0 if len(tok) >= 4 else 2.0
+    if frase_norm_lower and len(frase_norm_lower) >= 5 and frase_norm_lower in h:
+        s += 10.0
+    cat = (p.categoria or '').lower()
+    sub = (p.subcategoria or '').lower()
+    nom = (p.nombre or '').lower()
+    for tok in tokens:
+        if len(tok) < 3:
+            continue
+        if tok in cat:
+            s += 3.5
+        if tok in sub:
+            s += 3.5
+        if tok in nom:
+            s += 2.5
+    return s
+
+
+def _coleccion_candidatos_por_frase_material(frase, priorizar_categoria=False):
+    """Devuelve (lista Producto, tokens) para rankear coincidencias."""
+    tokens = _tokens_desde_frase_material(frase)
+    base = Producto.query.filter(Producto.activo.isnot(False))
+    conds = []
+    for t in tokens[:10]:
+        if len(t) < 2:
+            continue
+        pat = f'%{t}%'
+        if priorizar_categoria:
+            conds.append(
+                db.or_(
+                    Producto.categoria.ilike(pat),
+                    Producto.subcategoria.ilike(pat),
+                )
+            )
+        else:
+            conds.append(
+                db.or_(
+                    Producto.nombre.ilike(pat),
+                    Producto.categoria.ilike(pat),
+                    Producto.subcategoria.ilike(pat),
+                )
+            )
+    if conds:
+        rows = base.filter(db.or_(*conds)).distinct().limit(450).all()
+        return rows, tokens
+    ph = _normalizar_frase_ia_material(frase).strip()
+    if len(ph) >= 3:
+        pat = f'%{ph}%'
+        rows = (
+            base.filter(
+                db.or_(
+                    Producto.nombre.ilike(pat),
+                    Producto.categoria.ilike(pat),
+                    Producto.subcategoria.ilike(pat),
+                )
+            )
+            .distinct()
+            .limit(450)
+            .all()
+        )
+        if rows:
+            return rows, tokens
+    rows = base.order_by(Producto.stock.desc()).limit(120).all()
+    return rows, tokens
+
+
+def _top_productos_desde_candidatos_foto(candidatos, frase, limit=3):
+    frase_n = _normalizar_frase_ia_material(frase).lower()
+    tokens = _tokens_desde_frase_material(frase)
+    if not tokens and frase_n and len(frase_n) >= 3:
+        tokens = [frase_n]
+    scored = []
+    for p in candidatos:
+        sc = _score_producto_frase_material(p, frase_n, tokens)
+        scored.append((p, sc))
+    scored.sort(key=lambda x: (-x[1], -(x[0].stock or 0)))
+    return scored[:limit]
+
+
+def _openai_identificar_material_ferreteria_foto(jpeg_bytes, api_key):
+    """
+    Visión OpenAI: una frase con nombre técnico y dimensiones del material.
+    Modelo por defecto gpt-4o-mini (OPENAI_MATERIAL_SKU_MODEL / OPENAI_VISION_MODEL).
+    """
+    model = (os.getenv('OPENAI_MATERIAL_SKU_MODEL') or os.getenv('OPENAI_VISION_MODEL') or 'gpt-4o-mini').strip()
+    detail = (os.getenv('OPENAI_VISION_DETAIL') or 'low').strip().lower()
+    if detail not in ('low', 'high', 'auto'):
+        detail = 'low'
+    b64 = base64.b64encode(jpeg_bytes).decode('ascii')
+    data_url = f'data:image/jpeg;base64,{b64}'
+    prompt = (
+        'Identifica este material de ferretería. '
+        'Devuelve solo el nombre técnico y dimensiones en una sola frase.'
+    )
+    content = [
+        {'type': 'text', 'text': prompt},
+        {'type': 'image_url', 'image_url': {'url': data_url, 'detail': detail}},
+    ]
+    payload = {
+        'model': model,
+        'temperature': 0.2,
+        'max_tokens': 120,
+        'messages': [{'role': 'user', 'content': content}],
+    }
+    req = urllib.request.Request(
+        'https://api.openai.com/v1/chat/completions',
+        data=json.dumps(payload).encode('utf-8'),
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {api_key}',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            body = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        err_txt = e.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'OpenAI HTTP {e.code}: {err_txt[:500]}') from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f'Error de red: {e}') from e
+
+    try:
+        msg = body['choices'][0]['message']['content']
+    except (KeyError, IndexError, TypeError) as e:
+        raise RuntimeError('Respuesta OpenAI inesperada') from e
+
+    return _normalizar_frase_ia_material(msg)
+
+
+def _armar_top3_identificacion_foto(frase):
+    """
+    Devuelve (lista de hasta 3 tuplas (Producto, score), estrategia, ia_poco_clara).
+    Si la IA no es clara, prioriza coincidencia por categoría/subcategoría.
+    """
+    unclear = _frase_ia_material_no_clara(frase)
+    if unclear:
+        cands, _ = _coleccion_candidatos_por_frase_material(frase, priorizar_categoria=True)
+        estrategia = 'categoria_relacionada'
+        if len(cands) < 8:
+            c2, _ = _coleccion_candidatos_por_frase_material(frase, priorizar_categoria=False)
+            seen = {p.id for p in cands}
+            for p in c2:
+                if p.id not in seen:
+                    cands.append(p)
+                    seen.add(p.id)
+    else:
+        cands, _ = _coleccion_candidatos_por_frase_material(frase, priorizar_categoria=False)
+        estrategia = 'nombre_categoria'
+    top_scored = _top_productos_desde_candidatos_foto(cands, frase, limit=50)
+    if top_scored and all(sc <= 0 for _, sc in top_scored):
+        by_stock = sorted(cands, key=lambda p: -(p.stock or 0))[:3]
+        top_scored = [(p, 0.0) for p in by_stock]
+    out = top_scored[:3]
+    if len(out) < 3:
+        used = {p.id for p, _ in out}
+        q = Producto.query.filter(Producto.activo.isnot(False))
+        if used:
+            q = q.filter(~Producto.id.in_(list(used)))
+        for p in q.order_by(Producto.stock.desc()).limit(3 - len(out)).all():
+            out.append((p, 0.01))
+    return out[:3], estrategia, unclear
 
 
 def _matchear_producto_linea_factura(codigo_factura, descripcion):
@@ -10377,6 +12307,409 @@ def orden_compra_editar(oid):
     )
 
 
+def _usuario_puede_bodega_voice():
+    if not getattr(current_user, 'is_authenticated', False):
+        return False
+    if _rol_es_administrador_por_nombre(getattr(current_user, 'rol', None)):
+        return True
+    return usuario_tiene_permiso('bodega_operador')
+
+
+def _openai_api_key():
+    return (os.getenv('OPENAI_API_KEY') or '').strip()
+
+
+def _bodega_normalizar_busqueda(s):
+    t = (s or '').lower().strip()
+    for ch in ',.;:-_/\\':
+        t = t.replace(ch, ' ')
+    return ' '.join(t.split())
+
+
+def _bodega_score_nombre_vs_query(nombre, query):
+    n = _bodega_normalizar_busqueda(nombre)
+    q = _bodega_normalizar_busqueda(query)
+    if not q or not n:
+        return 0
+    toks = [x for x in q.split() if len(x) > 1]
+    if not toks:
+        toks = [q]
+    score = 0
+    for t in toks:
+        if t in n:
+            score += 3
+        elif any(w.startswith(t) for w in n.split()):
+            score += 1
+    if q and n.startswith(q[: min(24, len(q))]):
+        score += 4
+    return score
+
+
+def _bodega_whisper_transcribe(audio_bytes, filename='audio.webm'):
+    key = _openai_api_key()
+    if not key:
+        return None, 'openai_key_missing'
+    try:
+        files = {'file': (filename or 'audio.webm', audio_bytes, 'application/octet-stream')}
+        data = {'model': 'whisper-1'}
+        r = requests.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            headers={'Authorization': f'Bearer {key}'},
+            files=files,
+            data=data,
+            timeout=120,
+        )
+        if not r.ok:
+            return None, f'whisper_http_{r.status_code}:{(r.text or "")[:600]}'
+        j = r.json()
+        return (j.get('text') or '').strip(), None
+    except Exception as e:
+        return None, str(e)
+
+
+def _bodega_gpt_parse_comando(transcript):
+    key = _openai_api_key()
+    if not key:
+        return None, 'openai_key_missing'
+    system = (
+        'Eres un asistente de bodega de ferretería. Tu tarea es extraer: '
+        '1. Acción (descontar, verificar stock, marcar despacho), 2. Producto, 3. Cantidad, '
+        '4. Número de Vale/Documento. Responde SOLO en JSON con las claves exactas: '
+        '"accion", "producto", "cantidad", "numero_vale". '
+        'accion en minúsculas: descontar, verificar_stock o marcar_despacho. '
+        'cantidad es número o null. numero_vale es número entero o null.'
+    )
+    try:
+        r = requests.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
+            json={
+                'model': 'gpt-4o-mini',
+                'temperature': 0.1,
+                'messages': [
+                    {'role': 'system', 'content': system},
+                    {'role': 'user', 'content': transcript},
+                ],
+            },
+            timeout=90,
+        )
+        if not r.ok:
+            return None, f'gpt_http_{r.status_code}:{(r.text or "")[:600]}'
+        msg = (r.json().get('choices') or [{}])[0].get('message') or {}
+        raw = (msg.get('content') or '').strip()
+        if not raw:
+            return None, 'gpt_empty'
+        raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.I)
+        raw = re.sub(r'\s*```$', '', raw)
+        return json.loads(raw), None
+    except json.JSONDecodeError as e:
+        return None, f'gpt_json:{e}'
+    except Exception as e:
+        return None, str(e)
+
+
+def _bodega_parse_cantidad(v):
+    if v is None or v == '':
+        return None
+    try:
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, int):
+            return max(1, v)
+        if isinstance(v, float):
+            return max(1, int(v))
+        s = str(v).strip().replace(',', '.')
+        return max(1, int(float(s)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _bodega_voice_ejecutar(parsed, usuario_nom):
+    """Ejecuta intención parseada por GPT. Retorna dict con ok, speak, wa_sent, error, data."""
+    acc = (parsed.get('accion') or '').strip().lower().replace('-', '_')
+    acc = re.sub(r'_+', '_', acc.replace(' ', '_')).strip('_')
+    prod_q = (parsed.get('producto') or '').strip()
+    cant_gpt = _bodega_parse_cantidad(parsed.get('cantidad'))
+    vid_raw = parsed.get('numero_vale')
+    try:
+        vid = int(vid_raw) if vid_raw is not None and str(vid_raw).strip() != '' else None
+    except (TypeError, ValueError):
+        vid = None
+
+    if acc == 'verificar_stock':
+        if not prod_q:
+            return {'ok': False, 'error': 'sin_producto', 'speak': 'No entendí qué producto verificar.'}
+        pq = prod_q[:80].replace('%', '').replace('_', '')
+        q_like = f'%{pq}%'
+        hits = (
+            Producto.query.filter(Producto.activo == True)
+            .filter(db.func.lower(Producto.nombre).like(q_like))
+            .order_by(Producto.nombre.asc())
+            .limit(8)
+            .all()
+        )
+        if not hits:
+            for t in [x for x in _bodega_normalizar_busqueda(prod_q).split() if len(x) >= 3][:3]:
+                hits = (
+                    Producto.query.filter(Producto.activo == True)
+                    .filter(db.func.lower(Producto.nombre).like(f'%{t}%'))
+                    .order_by(Producto.nombre.asc())
+                    .limit(6)
+                    .all()
+                )
+                if hits:
+                    break
+        if not hits:
+            return {
+                'ok': True,
+                'data': {'hits': []},
+                'speak': f'No encontré producto similar a {prod_q} en el catálogo.',
+            }
+        lines = []
+        for p in hits[:5]:
+            st_t = stock_disponible_venta_tienda(p)
+            st_b = stock_disponible_bodega(p)
+            lines.append(f'{p.nombre}: tienda {st_t}, bodega {st_b}.')
+        speak = ' '.join(lines)
+        return {'ok': True, 'data': {'hits': [{'id': p.id, 'nombre': p.nombre} for p in hits[:5]]}, 'speak': speak}
+
+    if acc not in ('descontar', 'marcar_despacho'):
+        return {
+            'ok': False,
+            'error': 'accion_no_soportada',
+            'speak': 'Acción no reconocida. Decí descontar, verificar stock o marcar despacho.',
+        }
+
+    if vid is None:
+        return {'ok': False, 'error': 'sin_vale', 'speak': 'Necesito el número de vale o documento.'}
+    if not prod_q:
+        return {'ok': False, 'error': 'sin_producto', 'speak': 'Necesito el nombre del producto.'}
+
+    venta = Venta.query.options(
+        joinedload(Venta.cliente),
+        joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+    ).get(vid)
+    if not venta:
+        return {'ok': False, 'error': 'vale_no_existe', 'speak': f'No existe el vale {vid}.'}
+    st = (venta.estado or '').strip()
+    mp = venta.metodo_pago
+    mp_vacio = mp is None or (isinstance(mp, str) and not str(mp).strip())
+    if st != 'Pendiente' or not mp_vacio:
+        return {'ok': False, 'error': 'vale_no_cobrable_bodega', 'speak': f'El documento {vid} no está pendiente de cobro en caja.'}
+
+    best_d, best_sc = None, -1
+    for d in venta.detalles or []:
+        p = d.producto or Producto.query.get(d.id_producto)
+        if not p:
+            continue
+        sc = _bodega_score_nombre_vs_query(p.nombre or '', prod_q)
+        if sc > best_sc:
+            best_sc, best_d = sc, d
+    if not best_d or best_sc < 1:
+        return {'ok': False, 'error': 'producto_no_en_vale', 'speak': f'No encontré {prod_q} en el vale {vid}.'}
+
+    producto = best_d.producto or Producto.query.get(best_d.id_producto)
+    factor = _factor_venta_a_stock(producto)
+    need = int(round((best_d.cantidad or 0) * factor))
+    already = _venta_consumo_ya_despachado_bodega(venta, best_d.id)
+    remaining = max(0, need - already)
+    if remaining <= 0:
+        return {'ok': False, 'error': 'linea_ya_despachada', 'speak': f'Esa línea del vale {vid} ya fue despachada por bodega.'}
+
+    if acc == 'marcar_despacho' or cant_gpt is None:
+        consumo_delta = remaining
+    else:
+        pedido = int(round(cant_gpt * factor))
+        consumo_delta = min(remaining, max(1, pedido))
+
+    aid_b = id_almacen_bodega()
+    if not aid_b or not _tablas_inventario_almacen_existen():
+        return {'ok': False, 'error': 'sin_almacen_bodega', 'speak': 'Almacén bodega no configurado.'}
+
+    disp_b = stock_disponible_bodega(producto)
+    if disp_b < consumo_delta:
+        return {
+            'ok': False,
+            'error': 'stock_bodega_insuficiente',
+            'speak': f'Stock insuficiente en bodega para {producto.nombre}. Hay {disp_b}, se piden {consumo_delta}.',
+        }
+
+    datos_antes_dsp = {
+        'bodega_despacho_json': getattr(venta, 'bodega_despacho_json', None),
+        'bodega_despacho_estado': getattr(venta, 'bodega_despacho_estado', None),
+        'detalle_id': best_d.id,
+        'consumo_delta': int(consumo_delta),
+    }
+    wa_digits = None
+    wa_body = None
+    if venta.cliente:
+        wa_digits = _telefono_whatsapp_chile_digits(getattr(venta.cliente, 'telefono', None))
+        if wa_digits and len(wa_digits) >= 10:
+            uqty = max(1, int(round(consumo_delta / factor))) if factor > 0 else int(consumo_delta)
+            wa_body = (
+                f'¡Buenas noticias! Tus {uqty} {producto.nombre} acaban de salir de bodega hacia tu domicilio'
+            )
+
+    try:
+        with transaccion_critica():
+            _, err = ajustar_stock_almacen(producto.id, aid_b, -int(consumo_delta))
+            if err:
+                raise ValueError(err)
+
+            m = _venta_bodega_despacho_map(venta)
+            m[str(best_d.id)] = already + int(consumo_delta)
+            venta.bodega_despacho_json = json.dumps(m, ensure_ascii=False)
+            _refrescar_stock_total_producto(producto)
+            _venta_actualizar_estado_despacho_bodega(venta)
+            venta.bodega_despacho_ultimo_at = datetime.now()
+            stock_validar_invariante_venta(venta)
+
+            registrar_movimiento_kardex(
+                producto.id,
+                'SALIDA',
+                int(consumo_delta),
+                f'Despacho bodega vale #{vid} (voz) por {usuario_nom}',
+                usuario=usuario_nom,
+                id_almacen=aid_b,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                stock_saldo=None,
+            )
+            _audit_log(
+                'bodega_despacho_voz',
+                'venta',
+                venta.id,
+                usuario=usuario_nom,
+                datos_antes=datos_antes_dsp,
+                datos_despues={
+                    'bodega_despacho_estado': venta.bodega_despacho_estado,
+                    'detalle_id': best_d.id,
+                    'consumo_delta': int(consumo_delta),
+                },
+            )
+        db.session.commit()
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('bodega voice commit: %s', ex)
+        msg = str(ex) if ex else 'error'
+        return {'ok': False, 'error': 'commit', 'speak': f'No se pudo guardar el despacho. {msg[:100]}'}
+
+    wa_ok = False
+    if wa_digits and wa_body:
+        wa_ok, _det = _whatsapp_cloud_send_text(wa_digits, wa_body)
+
+    out = {
+        'ok': True,
+        'wa_sent': wa_ok,
+        'data': {
+            'vale_id': vid,
+            'bodega_despacho_estado': venta.bodega_despacho_estado,
+            'consumo_delta': consumo_delta,
+            'producto': producto.nombre,
+        },
+    }
+    if wa_ok:
+        out['speak'] = f'Entendido, vale {vid} actualizado y cliente notificado.'
+    else:
+        out['speak'] = f'Entendido, vale {vid} actualizado. WhatsApp no enviado al cliente.'
+    return out
+
+
+def bodega_despachos():
+    _asegurar_columnas_ventas_bodega_despacho()
+    vales = (
+        Venta.query.options(
+            joinedload(Venta.cliente),
+            joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        )
+        .filter(
+            Venta.estado == 'Pendiente',
+            Venta.metodo_pago.is_(None),
+        )
+        .order_by(Venta.fecha.desc())
+        .limit(200)
+        .all()
+    )
+    return render_template('bodega_despachos.html', vales=vales)
+
+
+def api_bodega_voice_command():
+    if not _usuario_puede_bodega_voice():
+        return (
+            jsonify({'ok': False, 'error': 'sin_permiso', 'speak': 'No tienes permiso de operador de bodega.'}),
+            403,
+        )
+    if not _asegurar_columnas_ventas_bodega_despacho():
+        return jsonify({'ok': False, 'error': 'db_columnas', 'speak': 'Error de base de datos.'}), 500
+
+    if not _openai_api_key():
+        return jsonify(
+            {
+                'ok': False,
+                'error': 'openai_key_missing',
+                'speak': 'Falta configurar la clave Open A I en el servidor.',
+            }
+        ), 503
+
+    fs = request.files.get('audio') or request.files.get('file')
+    if not fs or not (fs.filename or '').strip():
+        return jsonify({'ok': False, 'error': 'sin_audio', 'speak': 'No recibí audio.'}), 400
+    raw = fs.read()
+    if not raw or len(raw) < 256:
+        return jsonify({'ok': False, 'error': 'audio_vacio', 'speak': 'El audio está vacío.'}), 400
+    if len(raw) > 6 * 1024 * 1024:
+        return jsonify({'ok': False, 'error': 'audio_muy_grande', 'speak': 'El audio es demasiado grande.'}), 400
+
+    fn = secure_filename(fs.filename or '') or 'audio.webm'
+
+    transcript, err = _bodega_whisper_transcribe(raw, fn)
+    if err or not transcript:
+        return jsonify(
+            {
+                'ok': False,
+                'error': err or 'whisper_sin_texto',
+                'speak': 'No pude transcribir el audio. Reintentá.',
+            }
+        ), 502
+
+    parsed, err2 = _bodega_gpt_parse_comando(transcript)
+    if err2 or not isinstance(parsed, dict):
+        return jsonify(
+            {
+                'ok': False,
+                'error': err2 or 'gpt_parse',
+                'transcript': transcript,
+                'speak': 'Entendí el audio pero no pude interpretar el comando.',
+            }
+        ), 422
+
+    usuario_nom = (current_user.nombre if current_user.is_authenticated else '') or 'Bodega'
+    try:
+        out = _bodega_voice_ejecutar(parsed, usuario_nom)
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_bodega_voice_command: %s', ex)
+        return jsonify(
+            {
+                'ok': False,
+                'error': 'ejecucion',
+                'transcript': transcript,
+                'parsed': parsed,
+                'speak': f'Error al ejecutar: {str(ex)[:120]}',
+            }
+        ), 500
+
+    code = 200 if out.get('ok') else 400
+    body = {'ok': out.get('ok'), 'transcript': transcript, 'parsed': parsed, 'speak': out.get('speak')}
+    if out.get('error'):
+        body['error'] = out['error']
+    if out.get('data') is not None:
+        body['data'] = out['data']
+    if 'wa_sent' in out:
+        body['wa_sent'] = out['wa_sent']
+    return jsonify(body), code
+
+
 @app.route('/recepciones')
 @login_required
 def lista_recepciones():
@@ -11008,12 +13341,119 @@ def _cartola_credito_context(cliente_id, fecha_desde_txt, fecha_hasta_txt, orden
     }
 
 
+def _cartera_exists_venta_antigua_riesgo(cutoff_dt):
+    """Heurística cartera: crédito explícito o vale pendiente sin método (aún no pasó por caja)."""
+    mp = func.lower(func.coalesce(Venta.metodo_pago, ''))
+    return exists().where(
+        and_(
+            Venta.cliente_id == Cliente.id,
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+            Venta.fecha < cutoff_dt,
+            or_(
+                Venta.metodo_pago == 'Credito',
+                mp == 'credito',
+                and_(
+                    Venta.estado == 'Pendiente',
+                    or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ''),
+                ),
+            ),
+        )
+    )
+
+
+def _cartera_dashboard_kpis():
+    """KPIs operativos + buckets de mora por cuotas vencidas (saldo de cuotas, no necesariamente = saldo cliente)."""
+    hoy_d = date.today()
+    start_d = datetime.combine(hoy_d, datetime.min.time())
+    end_d = datetime.combine(hoy_d, datetime.max.time())
+    row_hoy = (
+        db.session.query(
+            func.count(AbonoCredito.id),
+            func.coalesce(func.sum(AbonoCredito.monto_abono), 0.0),
+        )
+        .filter(AbonoCredito.fecha >= start_d, AbonoCredito.fecha <= end_d)
+        .first()
+    )
+    abonos_hoy_cnt = int(row_hoy[0] or 0)
+    abonos_hoy_monto = float(row_hoy[1] or 0.0)
+
+    pend = _sql_cuota_saldo_pendiente()
+    rows_venc = (
+        db.session.query(pend, VentaCuotaCredito.fecha_vencimiento, Venta.cliente_id)
+        .join(Venta, Venta.id == VentaCuotaCredito.venta_id)
+        .filter(
+            pend > 0.01,
+            VentaCuotaCredito.fecha_vencimiento < hoy_d,
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .all()
+    )
+    aging_1_15 = aging_16_30 = aging_31p = 0.0
+    ids_cli_cuota_vencida = set()
+    for monto_pend, fv, cli_id in rows_venc:
+        dias = (hoy_d - fv).days
+        m = float(monto_pend or 0)
+        if dias <= 15:
+            aging_1_15 += m
+        elif dias <= 30:
+            aging_16_30 += m
+        else:
+            aging_31p += m
+        if cli_id is not None:
+            ids_cli_cuota_vencida.add(int(cli_id))
+    monto_cuotas_vencidas = aging_1_15 + aging_16_30 + aging_31p
+
+    aging_al_dia = float(
+        db.session.query(func.coalesce(func.sum(pend), 0.0))
+        .select_from(VentaCuotaCredito)
+        .join(Venta, Venta.id == VentaCuotaCredito.venta_id)
+        .filter(
+            pend > 0.01,
+            VentaCuotaCredito.fecha_vencimiento >= hoy_d,
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .scalar()
+        or 0.0
+    )
+
+    cut_susp = hoy_d - timedelta(days=15)
+    ids_suspendidos = set()
+    for r in (
+        db.session.query(Venta.cliente_id)
+        .join(VentaCuotaCredito, VentaCuotaCredito.venta_id == Venta.id)
+        .filter(
+            Venta.cliente_id.isnot(None),
+            pend > 0.01,
+            VentaCuotaCredito.fecha_vencimiento < cut_susp,
+            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
+        )
+        .distinct()
+        .all()
+    ):
+        if r[0] is not None:
+            ids_suspendidos.add(int(r[0]))
+
+    return {
+        'abonos_hoy_cnt': abonos_hoy_cnt,
+        'abonos_hoy_monto': abonos_hoy_monto,
+        'aging_al_dia': aging_al_dia,
+        'aging_1_15': aging_1_15,
+        'aging_16_30': aging_16_30,
+        'aging_31p': aging_31p,
+        'monto_cuotas_vencidas': monto_cuotas_vencidas,
+        'n_clientes_cuota_vencida': len(ids_cli_cuota_vencida),
+        'ids_suspendidos': ids_suspendidos,
+    }
+
+
 @app.route('/creditos')
 @login_required
 @caja_requerida
 def modulo_creditos():
     vista = (request.args.get('vista') or 'ultimos').strip().lower()
-    if vista not in ('ultimos', 'todos'):
+    if vista == 'todos':
+        vista = 'abonos'
+    if vista not in ('ultimos', 'abonos', 'cartera', 'alerta'):
         vista = 'ultimos'
 
     clientes = Cliente.query.filter(Cliente.saldo_deudor > 0).order_by(Cliente.nombre.asc()).all()
@@ -11022,7 +13462,11 @@ def modulo_creditos():
         AbonoCredito.query.options(joinedload(AbonoCredito.cliente))
         .order_by(AbonoCredito.fecha.desc())
     )
-    ultimos_abonos = q_abonos.limit(200).all() if vista == 'todos' else q_abonos.limit(25).all()
+    if vista in ('ultimos', 'abonos'):
+        lim_abonos = 900 if vista == 'abonos' else 25
+        ultimos_abonos = q_abonos.limit(lim_abonos).all()
+    else:
+        ultimos_abonos = []
 
     total_cartera_credito = float(
         db.session.query(func.coalesce(func.sum(Cliente.saldo_deudor), 0.0))
@@ -11031,31 +13475,28 @@ def modulo_creditos():
         or 0.0
     )
 
-    # Clientes con deuda y al menos una venta al crédito antigua (heurística "por cobrar / alerta").
+    # Clientes con deuda y documento "en riesgo" (crédito explícito o vale pendiente sin método, antiguo).
     dias_alerta_credito = 45
     cutoff = datetime.now() - timedelta(days=dias_alerta_credito)
-    cargo_credito_antiguo = exists().where(
-        and_(
-            Venta.cliente_id == Cliente.id,
-            Venta.metodo_pago == 'Credito',
-            or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
-            Venta.fecha < cutoff,
-        )
-    )
-    n_credito_alert = int(
-        db.session.query(func.count(Cliente.id))
+    existe_venta_antigua = _cartera_exists_venta_antigua_riesgo(cutoff)
+    ids_alerta = {
+        row[0]
+        for row in db.session.query(Cliente.id)
         .filter(Cliente.saldo_deudor > 0)
-        .filter(cargo_credito_antiguo)
-        .scalar()
-        or 0
-    )
+        .filter(existe_venta_antigua)
+        .all()
+    }
+    n_credito_alert = len(ids_alerta)
 
     limite_cuotas = date.today() + timedelta(days=7)
+    pend_cv = _sql_cuota_saldo_pendiente()
     n_cuotas_por_vencer = int(
         db.session.query(func.count(VentaCuotaCredito.id))
+        .select_from(VentaCuotaCredito)
         .join(Venta, Venta.id == VentaCuotaCredito.venta_id)
         .filter(
-            VentaCuotaCredito.estado == 'Pendiente',
+            Venta.metodo_pago == 'Credito',
+            pend_cv > 0.01,
             VentaCuotaCredito.fecha_vencimiento <= limite_cuotas,
             or_(Venta.estado.is_(None), Venta.estado != 'Anulada'),
         )
@@ -11063,6 +13504,26 @@ def modulo_creditos():
         or 0
     )
 
+    if vista == 'alerta':
+        clientes_cartera = [c for c in clientes if c.id in ids_alerta]
+    elif vista == 'cartera':
+        clientes_cartera = clientes
+    else:
+        clientes_cartera = []
+
+    dash = _cartera_dashboard_kpis()
+    n_cobranza_sin_enviar = 0
+    if _asegurar_tabla_cobranza_whatsapp_log():
+        try:
+            n_cobranza_sin_enviar = _cobranza_sin_enviar_hoy_count()
+        except Exception:
+            app.logger.exception('No se pudo calcular badge cobranza WhatsApp')
+    c360_proyeccion_cupo = 0
+    if _asegurar_columnas_customer_360_legacy():
+        try:
+            c360_proyeccion_cupo = _c360_sum_cupo_sugerido_clientes_activos()
+        except Exception:
+            app.logger.exception('No se pudo sumar proyección Customer 360')
     return render_template(
         'modulo_creditos.html',
         clientes=clientes,
@@ -11072,6 +13533,12 @@ def modulo_creditos():
         n_credito_alert=n_credito_alert,
         dias_alerta_credito=dias_alerta_credito,
         n_cuotas_por_vencer=n_cuotas_por_vencer,
+        clientes_cartera=clientes_cartera,
+        ids_alerta=ids_alerta,
+        ids_alerta_list=sorted(ids_alerta),
+        cartera_dash=dash,
+        n_cobranza_sin_enviar=n_cobranza_sin_enviar,
+        c360_proyeccion_cupo=c360_proyeccion_cupo,
     )
 
 
@@ -11105,8 +13572,24 @@ def estado_cuenta_credito_pdf(cliente_id):
         flash('Cliente no encontrado.', 'danger')
         return redirect(url_for('modulo_creditos'))
     html = render_template('estado_cuenta_credito_pdf.html', **ctx)
-    path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
-    config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+    wk = (os.getenv('WKHTMLTOPDF_PATH') or '').strip() or shutil.which('wkhtmltopdf') or ''
+    if not wk and os.name == 'nt':
+        wk = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
+    if not wk or not os.path.isfile(wk):
+        flash(
+            'PDF con wkhtmltopdf no disponible en el servidor. Use «Resumen imprimible» y guarde como PDF desde el navegador.',
+            'info',
+        )
+        return redirect(
+            url_for(
+                'estado_cuenta_credito_resumen_imprimible',
+                cliente_id=cliente_id,
+                desde=request.args.get('desde'),
+                hasta=request.args.get('hasta'),
+                orden=request.args.get('orden', 'desc'),
+            )
+        )
+    config = pdfkit.configuration(wkhtmltopdf=wk)
     options = {
         'page-size': 'Letter',
         'encoding': 'UTF-8',
@@ -11128,6 +13611,24 @@ def estado_cuenta_credito_pdf(cliente_id):
         return redirect(url_for('estado_cuenta_credito', cliente_id=cliente_id))
 
 
+@app.route('/creditos/estado_cuenta/<int:cliente_id>/resumen-imprimible')
+@login_required
+@caja_requerida
+def estado_cuenta_credito_resumen_imprimible(cliente_id):
+    """Resumen en HTML listo para imprimir o «Guardar como PDF» del navegador (sin wkhtmltopdf)."""
+    ctx = _cartola_credito_context(
+        cliente_id,
+        request.args.get('desde'),
+        request.args.get('hasta'),
+        request.args.get('orden', 'desc'),
+    )
+    if ctx is None:
+        flash('Cliente no encontrado.', 'danger')
+        return redirect(url_for('modulo_creditos'))
+    ctx['empresa'] = obtener_config_empresa()
+    return render_template('cartera_resumen_cliente_print.html', **ctx)
+
+
 @app.route('/creditos/estado_cuenta/<int:cliente_id>/boucher')
 @login_required
 @caja_requerida
@@ -11144,6 +13645,707 @@ def estado_cuenta_credito_boucher(cliente_id):
     ctx['mostrar_control_interno'] = True
     ctx['saldo_maestro'] = ctx['saldo_actual']
     return render_template('estado_cuenta_credito_boucher.html', **ctx)
+
+
+@app.route('/creditos/cobranza')
+@login_required
+@caja_requerida
+def cobranza_cuotas():
+    if not _asegurar_tabla_cobranza_whatsapp_log():
+        flash('No se pudo preparar el módulo de cobranza (tabla en BD). Revise permisos.', 'danger')
+        return redirect(url_for('modulo_creditos'))
+    hoy = date.today()
+    try:
+        dias = int(request.args.get('dias', _cobranza_dias_horizonte_default()))
+    except (TypeError, ValueError):
+        dias = _cobranza_dias_horizonte_default()
+    dias = max(0, min(dias, 90))
+    mora = _cobranza_mora_dias_atras_default()
+    filas = _cobranza_cuotas_pendientes_filas(hoy, dias, mora)
+    filas_js = [
+        {
+            'id': f['cuota'].id,
+            'wa': f['wa_digits'],
+            'msg': f['mensaje'],
+        }
+        for f in filas
+    ]
+    n_sin_enviar = sum(1 for f in filas if not f['ya_enviado_hoy'])
+    return render_template(
+        'cobranza_cuotas.html',
+        filas=filas,
+        filas_js=filas_js,
+        dias=dias,
+        mora_atras=mora,
+        hoy=hoy,
+        n_sin_enviar=n_sin_enviar,
+    )
+
+
+@app.route('/creditos/cobranza/marcar-enviado', methods=['POST'])
+@login_required
+@caja_requerida
+def cobranza_marcar_enviado_whatsapp():
+    if not _asegurar_tabla_cobranza_whatsapp_log():
+        flash('No se pudo preparar la tabla de cobranza.', 'danger')
+        return redirect(url_for('modulo_creditos'))
+    try:
+        cuota_id = int(request.form.get('venta_cuota_credito_id', 0))
+    except (TypeError, ValueError):
+        flash('Identificador de cuota inválido.', 'danger')
+        return redirect(url_for('cobranza_cuotas'))
+    cq = VentaCuotaCredito.query.get(cuota_id)
+    if not cq:
+        flash('Cuota no encontrada.', 'danger')
+        return redirect(url_for('cobranza_cuotas'))
+    venta = Venta.query.get(cq.venta_id)
+    if not venta or not venta.cliente_id:
+        flash('Venta o cliente no asociado.', 'danger')
+        return redirect(url_for('cobranza_cuotas'))
+    hoy = date.today()
+    if CobranzaRecordatorioWhatsappLog.query.filter_by(
+        venta_cuota_credito_id=cuota_id, fecha_envio=hoy
+    ).first():
+        flash('Ya constaba enviado hoy para esta cuota.', 'info')
+    else:
+        db.session.add(
+            CobranzaRecordatorioWhatsappLog(
+                venta_cuota_credito_id=cuota_id,
+                cliente_id=venta.cliente_id,
+                fecha_envio=hoy,
+                usuario_id=current_user.id if current_user.is_authenticated else None,
+            )
+        )
+        try:
+            db.session.commit()
+            flash('Recordatorio registrado como enviado hoy.', 'success')
+        except IntegrityError:
+            db.session.rollback()
+            flash('Otro usuario registró el envío al mismo tiempo; ya consta hoy.', 'info')
+    rdias = (request.form.get('dias') or '').strip()
+    if rdias.isdigit():
+        return redirect(url_for('cobranza_cuotas', dias=int(rdias)))
+    return redirect(url_for('cobranza_cuotas'))
+
+
+@app.route('/api/creditos/cobranza/sugerencias')
+@login_required
+@caja_requerida
+def api_creditos_cobranza_sugerencias():
+    """JSON para integración externa (cron + WhatsApp Cloud API). Sin token: solo sesión."""
+    if not _asegurar_tabla_cobranza_whatsapp_log():
+        return jsonify({'ok': False, 'error': 'tabla_cobranza'}), 500
+    hoy = date.today()
+    try:
+        dias = int(request.args.get('dias', _cobranza_dias_horizonte_default()))
+    except (TypeError, ValueError):
+        dias = _cobranza_dias_horizonte_default()
+    dias = max(0, min(dias, 90))
+    mora = _cobranza_mora_dias_atras_default()
+    filas = _cobranza_cuotas_pendientes_filas(hoy, dias, mora)
+    items = []
+    for f in filas:
+        cq = f['cuota']
+        items.append(
+            {
+                'venta_cuota_credito_id': cq.id,
+                'venta_id': f['venta_id'],
+                'cliente_id': f['cliente_id'],
+                'nro_cuota': cq.nro_cuota,
+                'fecha_vencimiento': cq.fecha_vencimiento.isoformat() if cq.fecha_vencimiento else None,
+                'monto_pendiente_clp': f['pendiente'],
+                'ya_enviado_hoy': f['ya_enviado_hoy'],
+                'wa_number_e164_digits': f['wa_digits'],
+                'mensaje_sugerido': f['mensaje'],
+            }
+        )
+    return jsonify(
+        {
+            'ok': True,
+            'hoy': hoy.isoformat(),
+            'dias_horizonte': dias,
+            'mora_dias_atras': mora,
+            'items': items,
+        }
+    )
+
+
+def _bearer_token_from_request():
+    auth = (request.headers.get('Authorization') or '').strip()
+    low = auth.lower()
+    if low.startswith('bearer '):
+        return auth[7:].strip()
+    return ''
+
+
+@app.route('/api/creditos/cobranza/dispatch-cloud', methods=['POST'])
+def api_creditos_cobranza_dispatch_cloud():
+    """
+    Cron / integración: envía por Meta WhatsApp Cloud API las cuotas pendientes de recordatorio hoy.
+    Autenticación: header Authorization: Bearer <COBRANZA_DISPATCH_CRON_SECRET>.
+    Cuerpo JSON opcional: dry_run (bool), max (1-100), dias, mora (mismos límites que cobranza manual).
+    """
+    secret = _cobranza_dispatch_cron_secret()
+    if not secret:
+        return jsonify({'ok': False, 'error': 'dispatch_secret_not_configured'}), 503
+    tok = _bearer_token_from_request()
+    try:
+        token_ok = bool(tok) and hmac.compare_digest(tok, secret)
+    except (TypeError, ValueError):
+        # compare_digest exige misma longitud; token vacío o distinto → no 500
+        token_ok = False
+    if not token_ok:
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    if not _wa_cloud_config():
+        return jsonify({'ok': False, 'error': 'wa_cloud_not_configured'}), 503
+    if not _asegurar_tabla_cobranza_whatsapp_log():
+        return jsonify({'ok': False, 'error': 'tabla_cobranza'}), 500
+
+    body = request.get_json(silent=True) or {}
+    dry_run = bool(body.get('dry_run'))
+    try:
+        max_n = int(body.get('max', 25))
+    except (TypeError, ValueError):
+        max_n = 25
+    max_n = max(1, min(max_n, 100))
+    try:
+        dias = int(body['dias']) if body.get('dias') is not None else _cobranza_dias_horizonte_default()
+    except (TypeError, ValueError):
+        dias = _cobranza_dias_horizonte_default()
+    dias = max(0, min(dias, 90))
+    try:
+        mora = int(body['mora']) if body.get('mora') is not None else _cobranza_mora_dias_atras_default()
+    except (TypeError, ValueError):
+        mora = _cobranza_mora_dias_atras_default()
+    mora = max(0, min(mora, 365))
+
+    hoy = date.today()
+    filas = _cobranza_cuotas_pendientes_filas(hoy, dias, mora)
+    candidatos = [
+        f
+        for f in filas
+        if not f['ya_enviado_hoy'] and len((f.get('wa_digits') or '')) >= 10
+    ]
+    resultados = []
+    enviados = 0
+    errores = 0
+    omitidos = 0
+
+    for f in candidatos[:max_n]:
+        cq = f['cuota']
+        wa = f['wa_digits']
+        msg = f['mensaje']
+        try:
+            cli_cob = Cliente.query.get(f['cliente_id'])
+            if cli_cob and cq.fecha_vencimiento >= hoy:
+                if not _c360_cliente_tiene_cuota_credito_vencida(cli_cob.id):
+                    perf_cob = _c360_perfil_dict_desde_cliente(cli_cob)
+                    if float(perf_cob.get('score_puntualidad') or 0) > 90.0:
+                        msg = (
+                            msg
+                            + '\n\nGracias por tu puntualidad. Por ser cliente Prime, hoy tienes 10% en Pinturas. '
+                            + f'Mira el catálogo aquí: {_prime_catalogo_link()}'
+                        )
+        except Exception:
+            app.logger.exception('Cobranza: append oferta prime')
+        if dry_run:
+            resultados.append({'venta_cuota_credito_id': cq.id, 'accion': 'dry_run', 'to': wa})
+            continue
+        ok, info = _whatsapp_cloud_send_text(wa, msg)
+        if ok:
+            try:
+                db.session.add(
+                    CobranzaRecordatorioWhatsappLog(
+                        venta_cuota_credito_id=cq.id,
+                        cliente_id=f['cliente_id'],
+                        fecha_envio=hoy,
+                        usuario_id=None,
+                    )
+                )
+                db.session.commit()
+                enviados += 1
+                resultados.append({'venta_cuota_credito_id': cq.id, 'ok': True})
+            except IntegrityError:
+                db.session.rollback()
+                omitidos += 1
+                resultados.append({'venta_cuota_credito_id': cq.id, 'ok': False, 'note': 'duplicate_log'})
+        else:
+            errores += 1
+            resultados.append(
+                {'venta_cuota_credito_id': cq.id, 'ok': False, 'error': (info or '')[:900]}
+            )
+
+    return jsonify(
+        {
+            'ok': True,
+            'meta_politica': (
+                'Los mensajes de texto libre pueden fallar si el cliente no escribió en las últimas 24h; '
+                'Meta suele exigir plantilla (template) aprobada para contacto proactivo.'
+            ),
+            'dry_run': dry_run,
+            'candidatos': len(candidatos),
+            'procesados_cap': max_n,
+            'enviados': enviados,
+            'errores': errores,
+            'omitidos': omitidos,
+            'detalle': resultados,
+        }
+    )
+
+
+def api_pos_cross_sell_sugerencias():
+    """Sugerencias cross-sell según IDs de producto ya en carrito/cotización (JSON)."""
+    raw = (request.args.get('producto_ids') or '').strip()
+    if not raw:
+        return jsonify({'ok': True, 'sugerencia': None})
+    pids = []
+    for x in raw.split(','):
+        x = (x or '').strip()
+        if x.isdigit():
+            pids.append(int(x))
+    if not pids:
+        return jsonify({'ok': True, 'sugerencia': None})
+    s = _pos_cross_sell_match_rules(pids, [])
+    return jsonify({'ok': True, 'sugerencia': s})
+
+
+def api_pos_cross_sell_reject():
+    """El vendedor cierra el modal cross-sell: no volver a mostrar esta regla en el vale actual."""
+    body = request.get_json(silent=True) or {}
+    rid = (body.get('rule_id') or request.form.get('rule_id') or '').strip()
+    if not rid:
+        return jsonify({'ok': False, 'error': 'sin_rule_id'}), 400
+    lst = session.get(POS_CROSS_SELL_SESSION_REJECTED)
+    if not isinstance(lst, list):
+        lst = []
+    if rid not in lst:
+        lst.append(rid)
+    session[POS_CROSS_SELL_SESSION_REJECTED] = lst
+    session.modified = True
+    return jsonify({'ok': True})
+
+
+@app.route('/api/wa/consulta-stock', methods=['POST'])
+def api_wa_consulta_stock():
+    """
+    Vendedor virtual: texto → stock y precio según perfil (Bearer WA_CONSULTA_STOCK_SECRET o fallback cron).
+    Cuerpo JSON: { "texto": "cemento", "telefono": "569..." }
+    """
+    sec = _wa_consulta_stock_secret()
+    if not sec:
+        return jsonify({'ok': False, 'error': 'secret_not_configured'}), 503
+    tok = _bearer_token_from_request()
+    try:
+        if not tok or not hmac.compare_digest(tok, sec):
+            return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    texto = (data.get('texto') or data.get('q') or data.get('message') or '').strip()
+    telefono = (data.get('telefono') or data.get('from') or data.get('wa_id') or '').strip()
+    if len(texto) < 2:
+        return jsonify({'ok': False, 'error': 'texto_requerido'}), 400
+    cli = _buscar_cliente_por_telefono_loose(telefono) if telefono else None
+    prods = _buscar_productos_texto_stock(texto, limit=4)
+    if not prods:
+        return jsonify({'ok': True, 'resultados': [], 'mensaje': 'Sin coincidencias en inventario.'})
+    wa_ventas = ''.join(ch for ch in (os.getenv('WHATSAPP_VENTAS', '') or '') if ch.isdigit())
+    res = []
+    from urllib.parse import quote
+
+    for p in prods:
+        cupo_ok = bool(
+            cli and (float(cli.limite_credito or 0) - float(cli.saldo_deudor or 0) > 50000)
+        )
+        pm = float(p.precio_mayoreo or 0)
+        pv = float(p.precio_venta or 0)
+        if cupo_ok and pm > 0:
+            precio = pm
+            lista = 'mayoreo'
+        else:
+            precio = pv
+            lista = 'retail'
+        st = int(stock_disponible_venta_tienda(p) or 0)
+        mtxt = f'${int(round(precio)):,}'.replace(',', '.')
+        body = f'Hola, reservo consulta: {p.nombre} — stock {st} u., precio ref. {mtxt} ({lista}).'
+        wurl = f'https://wa.me/{wa_ventas}?text={quote(body)}' if wa_ventas else None
+        res.append(
+            {
+                'producto_id': p.id,
+                'nombre': p.nombre,
+                'codigo': p.codigo_barra or p.codigo_interno,
+                'stock_tienda': st,
+                'precio_mostrado_clp': int(round(precio)),
+                'lista_precio': lista,
+                'url_reservar_wa': wurl,
+            }
+        )
+    return jsonify({'ok': True, 'cliente_encontrado': bool(cli), 'resultados': res})
+
+
+@app.route('/api/ventas/reabasto-dispatch-wa', methods=['POST'])
+def api_ventas_reabasto_dispatch_wa():
+    """
+    Cron: WhatsApp ~48h antes del próximo pedido estimado (calcular_proximo_pedido).
+    Authorization: Bearer REABASTO_WA_CRON_SECRET o COBRANZA_DISPATCH_CRON_SECRET.
+    """
+    secret = _reabasto_wa_cron_secret()
+    if not secret:
+        return jsonify({'ok': False, 'error': 'secret_not_configured'}), 503
+    tok = _bearer_token_from_request()
+    try:
+        if not tok or not hmac.compare_digest(tok, secret):
+            return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    if not _wa_cloud_config():
+        return jsonify({'ok': False, 'error': 'wa_cloud_not_configured'}), 503
+    if not _asegurar_tabla_reabasto_cliente_wa_log():
+        return jsonify({'ok': False, 'error': 'tabla'}), 500
+    body = request.get_json(silent=True) or {}
+    dry_run = bool(body.get('dry_run'))
+    try:
+        max_cli = int(body.get('max_clientes', 80) or 80)
+    except (TypeError, ValueError):
+        max_cli = 80
+    max_cli = max(1, min(max_cli, 500))
+    hoy = date.today()
+    client_ids = [
+        r[0]
+        for r in db.session.query(Cliente.id)
+        .filter(Cliente.estado_credito == 'Activo')
+        .order_by(Cliente.id.asc())
+        .limit(max_cli)
+        .all()
+    ]
+    enviados = 0
+    detalle = []
+    for cid in client_ids:
+        cli = Cliente.query.get(cid)
+        if not cli or _cliente_es_sistema_final(cli):
+            continue
+        wa = _telefono_whatsapp_chile_digits(cli.telefono)
+        if len(wa) < 10:
+            continue
+        out = calcular_proximo_pedido(cid)
+        for it in out.get('items') or []:
+            try:
+                rec = date.fromisoformat((it.get('fecha_recordatorio_48h') or '')[:10])
+            except Exception:
+                continue
+            if rec != hoy:
+                continue
+            pid = int(it.get('producto_id') or 0)
+            if not pid:
+                continue
+            if ReabastoClienteWaLog.query.filter_by(cliente_id=cid, producto_id=pid, fecha_gatillo=hoy).first():
+                continue
+            nombre_corto = ((cli.nombre or '').split() or [''])[0] or 'cliente'
+            body = (
+                f'Hola {nombre_corto}, estimamos que pronto necesitará reponer {it.get("nombre") or "un insumo"} '
+                f'según su ritmo de compra. ¿Desea el despacho automático de su pedido habitual? '
+                f'Responda SÍ para coordinar o visite la ferretería.'
+            )
+            if dry_run:
+                detalle.append({'cliente_id': cid, 'producto_id': pid, 'dry_run': True})
+                continue
+            ok, info = _whatsapp_cloud_send_text(wa, body)
+            if ok:
+                db.session.add(
+                    ReabastoClienteWaLog(cliente_id=cid, producto_id=pid, fecha_gatillo=hoy, enviado_at=datetime.utcnow())
+                )
+                db.session.commit()
+                enviados += 1
+                detalle.append({'cliente_id': cid, 'producto_id': pid, 'ok': True})
+            else:
+                detalle.append({'cliente_id': cid, 'producto_id': pid, 'ok': False, 'error': (info or '')[:240]})
+    return jsonify({'ok': True, 'dry_run': dry_run, 'enviados': enviados, 'detalle': detalle})
+
+
+@app.route('/api/ventas/alertas-despachos-pendientes', methods=['POST'])
+def api_ventas_alertas_despachos_pendientes():
+    """
+    Cron: vales Pendiente (sin método de pago) con despacho de bodega y sin cobro desde hace N horas.
+    Authorization: Bearer VALE_DESPACHO_ALERTAS_CRON_SECRET o COBRANZA_DISPATCH_CRON_SECRET.
+    JSON opcional:
+      dry_run (bool), send_wa (bool), send_wa_interno (bool), notify_slack (bool), max (1-100), use_view (bool).
+      dry_run true: no envía WA/Slack; devuelve dry_run_previews (textos WA interno + Slack) si hay candidatos.
+      notify_slack: Incoming Webhook si SLACK_WEBHOOK_URL o ERP_SLACK_WEBHOOK_URL y candidatos ≥ VALES_RIESGO_SLACK_MIN (default 1).
+      Tras envíos reales: audit_log evento cron_alertas_vales_despacho (si hubo al menos un WA cliente, WA interno o Slack OK).
+    Umbral horas: VALE_DESPACHO_SIN_COBRO_ALERTA_HORAS (default 48).
+    use_view=true usa la vista vista_vales_riesgo_despacho si existe (sql/2026_05_08_vista_vales_riesgo_despacho_*.sql).
+    send_wa_interno: un mensaje resumen a VALE_DESPACHO_ALERTA_INTERNA_WA o WHATSAPP_VENTAS.
+    """
+    secret = _vale_despacho_alertas_cron_secret()
+    if not secret:
+        return jsonify({'ok': False, 'error': 'cron_secret_not_configured'}), 503
+    tok = _bearer_token_from_request()
+    try:
+        if not tok or not hmac.compare_digest(tok, secret):
+            return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+
+    _asegurar_columnas_ventas_bodega_despacho()
+    body = request.get_json(silent=True) or {}
+    dry_run = bool(body.get('dry_run'))
+    send_wa = bool(body.get('send_wa'))
+    send_wa_interno = bool(body.get('send_wa_interno'))
+    use_view = bool(body.get('use_view'))
+    try:
+        max_n = int(body.get('max', 40) or 40)
+    except (TypeError, ValueError):
+        max_n = 40
+    max_n = max(1, min(max_n, 100))
+    horas = _vale_despacho_sin_cobro_alert_horas()
+    limite = datetime.now() - timedelta(hours=horas)
+
+    vista_ok = use_view and _vista_vales_riesgo_despacho_existe()
+    vista_solicitada_ausente = use_view and not _vista_vales_riesgo_despacho_existe()
+
+    items = []
+    if vista_ok:
+        meta_rows = _fetch_vales_riesgo_meta_desde_vista(horas, 250)
+        if not meta_rows:
+            items = []
+        else:
+            ids = [m['venta_id'] for m in meta_rows]
+            ventas_por_id = {
+                v.id: v
+                for v in Venta.query.options(joinedload(Venta.cliente)).filter(Venta.id.in_(ids)).all()
+            }
+            for m in meta_rows:
+                vid = m['venta_id']
+                v = ventas_por_id.get(vid)
+                if not v or not _venta_tiene_despacho_bodega(v):
+                    continue
+                ref = m.get('ref_despacho_o_emision') or getattr(v, 'bodega_despacho_ultimo_at', None) or v.fecha
+                hrs = m.get('horas_desde_ref')
+                if hrs is None and ref:
+                    hrs = (datetime.now() - ref).total_seconds() / 3600.0
+                items.append(
+                    {
+                        'venta_id': vid,
+                        'ultimo_despacho_o_fecha': ref.isoformat() if hasattr(ref, 'isoformat') else None,
+                        'horas_sin_cobro': round(float(hrs), 2) if hrs is not None else None,
+                        'bodega_despacho_estado': m.get('bodega_despacho_estado')
+                        or getattr(v, 'bodega_despacho_estado', None),
+                        'vendedor': m.get('vendedor') or (v.usuario or '').strip() or None,
+                    }
+                )
+                if len(items) >= max_n:
+                    break
+    else:
+        json_no_vacio = and_(
+            Venta.bodega_despacho_json.isnot(None),
+            func.length(func.trim(Venta.bodega_despacho_json)) > 2,
+        )
+        est_dsp = and_(Venta.bodega_despacho_estado.isnot(None), func.trim(Venta.bodega_despacho_estado) != '')
+        ref_ts = func.coalesce(Venta.bodega_despacho_ultimo_at, Venta.fecha)
+        q = (
+            Venta.query.options(joinedload(Venta.cliente))
+            .filter(
+                Venta.estado == 'Pendiente',
+                Venta.metodo_pago.is_(None),
+                or_(est_dsp, json_no_vacio),
+                ref_ts < limite,
+            )
+        )
+        candidatos = q.order_by(Venta.fecha.asc()).limit(250).all()
+        for v in candidatos:
+            if not _venta_tiene_despacho_bodega(v):
+                continue
+            ult = getattr(v, 'bodega_despacho_ultimo_at', None) or v.fecha
+            hrs = (datetime.now() - ult).total_seconds() / 3600.0 if ult else None
+            items.append(
+                {
+                    'venta_id': v.id,
+                    'ultimo_despacho_o_fecha': ult.isoformat() if ult else None,
+                    'horas_sin_cobro': round(hrs, 2) if hrs is not None else None,
+                    'bodega_despacho_estado': getattr(v, 'bodega_despacho_estado', None),
+                    'vendedor': (v.usuario or '').strip() or None,
+                }
+            )
+            if len(items) >= max_n:
+                break
+
+    dry_run_previews = None
+    if dry_run and items:
+        from services.sistema_health_service import texto_resumen_vales_riesgo_slack
+
+        lineas_prev = [
+            f"#{it['venta_id']} — {it.get('vendedor') or 'sin vendedor'} — {it.get('horas_sin_cobro') or '?'} h — {it.get('bodega_despacho_estado') or ''}"
+            for it in items[:40]
+        ]
+        wa_interno_preview = (
+            f'*Alerta ERP* Vales con despacho bodega sin cobro (≥{horas} h) — {len(items)} caso(s):\n'
+            + '\n'.join(lineas_prev)
+        )
+        if len(wa_interno_preview) > 3800:
+            wa_interno_preview = wa_interno_preview[:3790] + '\n…(truncado)'
+        dry_run_previews = {
+            'wa_interno': wa_interno_preview,
+            'slack': texto_resumen_vales_riesgo_slack(horas, items),
+        }
+
+    wa_enviados = 0
+    detalle_wa = []
+    if send_wa and not dry_run:
+        if not _wa_cloud_config():
+            return jsonify({'ok': False, 'error': 'wa_cloud_not_configured', 'items': items}), 503
+        for row in items:
+            vid = row['venta_id']
+            venta = Venta.query.options(joinedload(Venta.cliente)).get(vid)
+            if not venta or not venta.cliente:
+                detalle_wa.append({'venta_id': vid, 'ok': False, 'error': 'sin_cliente'})
+                continue
+            wa = _telefono_whatsapp_chile_digits(getattr(venta.cliente, 'telefono', None))
+            if len(wa) < 10:
+                detalle_wa.append({'venta_id': vid, 'ok': False, 'error': 'sin_telefono'})
+                continue
+            nombre = ((venta.cliente.nombre or '').split() or [''])[0] or 'cliente'
+            msg = (
+                f'Hola {nombre}, le recordamos que su pedido (vale #{vid}) sigue pendiente de pago en caja '
+                f'después del despacho desde bodega. Puede acercarse a finalizar el cobro cuando le acomode.'
+            )
+            ok_w, info = _whatsapp_cloud_send_text(wa, msg)
+            detalle_wa.append({'venta_id': vid, 'ok': ok_w, 'error': (info or '')[:200] if not ok_w else None})
+            if ok_w:
+                wa_enviados += 1
+
+    wa_interno_ok = False
+    detalle_wa_interno = []
+    if send_wa_interno and not dry_run and items:
+        dest_in = _vale_despacho_alerta_interna_wa_digits()
+        if not dest_in:
+            detalle_wa_interno.append({'ok': False, 'error': 'VALE_DESPACHO_ALERTA_INTERNA_WA_o_WHATSAPP_VENTAS'})
+        elif not _wa_cloud_config():
+            detalle_wa_interno.append({'ok': False, 'error': 'wa_cloud_not_configured'})
+        else:
+            lineas = [
+                f"#{it['venta_id']} — {it.get('vendedor') or 'sin vendedor'} — {it.get('horas_sin_cobro') or '?'} h — {it.get('bodega_despacho_estado') or ''}"
+                for it in items[:40]
+            ]
+            cuerpo = (
+                f'*Alerta ERP* Vales con despacho bodega sin cobro (≥{horas} h) — {len(items)} caso(s):\n'
+                + '\n'.join(lineas)
+            )
+            if len(cuerpo) > 3800:
+                cuerpo = cuerpo[:3790] + '\n…(truncado)'
+            ok_i, info_i = _whatsapp_cloud_send_text(dest_in, cuerpo)
+            wa_interno_ok = bool(ok_i)
+            detalle_wa_interno.append({'ok': ok_i, 'destino': dest_in[:6] + '…', 'error': (info_i or '')[:200] if not ok_i else None})
+
+    slack_enviado = False
+    slack_error = None
+    if bool(body.get('notify_slack')) and not dry_run and items:
+        from services.sistema_health_service import slack_post_text, texto_resumen_vales_riesgo_slack
+
+        raw_min = (os.getenv('VALES_RIESGO_SLACK_MIN') or '1').strip()
+        try:
+            min_slack = int(raw_min or '1')
+        except ValueError:
+            min_slack = 1
+        min_slack = max(1, min(min_slack, 500))
+        webhook = (os.getenv('SLACK_WEBHOOK_URL') or os.getenv('ERP_SLACK_WEBHOOK_URL') or '').strip()
+        if len(items) >= min_slack:
+            if webhook:
+                txt = texto_resumen_vales_riesgo_slack(horas, items)
+                slack_enviado, slack_err = slack_post_text(webhook, txt)
+                slack_error = slack_err
+            else:
+                slack_error = 'slack_webhook_no_configurado'
+
+    return jsonify(
+        {
+            'ok': True,
+            'horas_umbral': horas,
+            'dry_run': dry_run,
+            'send_wa': send_wa,
+            'send_wa_interno': send_wa_interno,
+            'notify_slack': bool(body.get('notify_slack')),
+            'slack_enviado': slack_enviado,
+            'slack_error': slack_error,
+            'use_view': use_view,
+            'vista_usada': vista_ok,
+            'vista_solicitada_no_existe': vista_solicitada_ausente,
+            'candidatos': len(items),
+            'wa_enviados': wa_enviados,
+            'wa_interno_enviado': wa_interno_ok,
+            'items': items,
+            'detalle_wa': detalle_wa if send_wa else [],
+            'detalle_wa_interno': detalle_wa_interno if send_wa_interno else [],
+        }
+    )
+
+
+def api_pos_identificar_producto_foto():
+    """
+    Identificación por visión OpenAI (gpt-4o-mini por defecto) + ranking en catálogo
+    (nombre, categoría, subcategoría, fase_obra). Devuelve hasta 3 productos por relevancia.
+    """
+    api_key = (os.getenv('OPENAI_API_KEY') or '').strip()
+    if not api_key:
+        return jsonify({'ok': False, 'sin_api_key': True, 'error': 'Configure OPENAI_API_KEY en el servidor.'}), 503
+    f = request.files.get('foto') or request.files.get('imagen')
+    if not f or not getattr(f, 'filename', None):
+        return jsonify({'ok': False, 'error': 'sin_archivo'}), 400
+    try:
+        raw = f.read()
+    except Exception:
+        return jsonify({'ok': False, 'error': 'lectura_archivo'}), 400
+    if not raw or len(raw) > 10 * 1024 * 1024:
+        return jsonify({'ok': False, 'error': 'archivo_vacio_o_muy_grande'}), 400
+    try:
+        jpeg = _optimizar_imagen_factura_ia(raw)
+    except Exception:
+        return jsonify({'ok': False, 'error': 'imagen_no_soportada'}), 400
+    try:
+        frase = _openai_identificar_material_ferreteria_foto(jpeg, api_key)
+    except RuntimeError as ex:
+        return jsonify({'ok': False, 'error': str(ex)}), 502
+
+    triples, estrategia, unclear = _armar_top3_identificacion_foto(frase)
+    if not triples:
+        return jsonify({'ok': False, 'error': 'sin_productos', 'ia_frase': frase}), 404
+
+    productos = []
+    for p, sc in triples:
+        productos.append(
+            {
+                'producto_id': p.id,
+                'nombre': p.nombre,
+                'codigo': (p.codigo_barra or p.codigo_interno or '') or '',
+                'categoria': (p.categoria or '') or '',
+                'subcategoria': (p.subcategoria or '') or '',
+                'stock': int(p.stock or 0),
+                'relevancia': round(float(sc), 2),
+            }
+        )
+    p0, sc0 = triples[0]
+    conf = min(0.99, max(0.12, 0.18 + (sc0 / 25.0)))
+    if unclear:
+        msg = (
+            'La IA no entregó una descripción clara; se priorizaron coincidencias por categoría/subcategoría '
+            'y stock. Revise la lista.'
+        )
+    else:
+        msg = f'Coincidencias en catálogo según: «{frase}».'
+
+    out = {
+        'ok': True,
+        'mock': False,
+        'ia_frase': frase,
+        'ia_clara': not unclear,
+        'estrategia': estrategia,
+        'productos': productos,
+        'producto_id': p0.id,
+        'nombre': p0.nombre,
+        'codigo': p0.codigo_barra or p0.codigo_interno or '',
+        'confianza_simulada': conf,
+        'mensaje': msg,
+    }
+    return jsonify(out)
 
 
 @app.route('/registrar_abono', methods=['POST'])
@@ -11183,6 +14385,11 @@ def registrar_abono():
     if nuevo_saldo <= 0:
         cliente.estado_credito = "Activo"
 
+    lineas_cascada = _aplicar_abono_cascada_cuotas_cliente(cliente, monto_aplicado)
+    comentario_abono = f"Abono registrado por {current_user.nombre}"
+    if lineas_cascada:
+        comentario_abono = comentario_abono + ' | Cascada: ' + '; '.join(lineas_cascada)
+
     abono = AbonoCredito(
         cliente_id=cliente.id,
         monto_abono=monto_aplicado,
@@ -11191,7 +14398,7 @@ def registrar_abono():
         metodo_pago=metodo_pago,
         caja_id=caja_activa.id,
         usuario_id=current_user.id,
-        comentario=f"Abono registrado por {current_user.nombre}"
+        comentario=comentario_abono,
     )
     db.session.add(abono)
     db.session.commit()
@@ -11882,6 +15089,14 @@ def cotizacion_convertir_venta(cot_id):
     cot.estado = 'Convertida'
     cot.venta_id = venta.id
     cot.fecha_estado = datetime.utcnow()
+    try:
+        if _asegurar_tabla_c360_proactiva_ofertas():
+            off = C360ProactivaOferta.query.filter_by(cotizacion_id=cot.id).first()
+            if off:
+                off.venta_id = venta.id
+                off.convertida_at = datetime.utcnow()
+    except Exception:
+        app.logger.exception('C360: marca conversion oferta proactiva cot_id=%s', cot.id)
     db.session.commit()
 
     if productos_no_encontrados:
@@ -11980,6 +15195,68 @@ def cotizaciones_api_buscar_clientes():
             'cupo_disponible': cupo,
         })
     return jsonify(items=items)
+
+
+@app.route('/api/creditos/buscar_deudores')
+@login_required
+@caja_requerida
+def creditos_api_buscar_deudores():
+    """Autocompletar clientes con saldo deudor (módulo cartera) por nombre o RUT mientras se escribe."""
+    q_raw = (request.args.get('q') or '').strip()
+    if not q_raw:
+        return jsonify(results=[])
+    q_lower = q_raw.lower()
+    like_nombre = f"%{q_lower}%"
+    like_rut = f"%{q_raw}%"
+    q_digits = ''.join(ch for ch in q_raw if ch.isdigit())
+    partes = [
+        func.lower(Cliente.nombre).like(like_nombre),
+        Cliente.rut.ilike(like_rut),
+    ]
+    if len(q_digits) >= 2:
+        partes.append(Cliente.rut.ilike(f"%{q_digits}%"))
+    rows = (
+        Cliente.query.filter(Cliente.saldo_deudor > 0, or_(*partes))
+        .order_by(Cliente.nombre.asc())
+        .limit(40)
+        .all()
+    )
+    results = []
+    for c in rows:
+        saldo = float(c.saldo_deudor or 0)
+        rut = (c.rut or '').strip()
+        nombre = (c.nombre or '').strip()
+        monto_txt = f"${saldo:,.0f}".replace(",", ".")
+        results.append(
+            {
+                'id': c.id,
+                'text': f'{nombre} — {rut} — {monto_txt}',
+                'saldo_deudor': saldo,
+                'rut': rut,
+            }
+        )
+    return jsonify(results=results)
+
+
+@app.route('/api/sistema/salud')
+@login_required
+@permisos_required('gestionar_usuarios')
+def api_sistema_salud():
+    """Métricas mínimas de salud operativa (Fase 4 plan v2)."""
+    from services.sistema_health_service import collect_sistema_salud_metrics
+
+    return jsonify({'ok': True, **collect_sistema_salud_metrics()})
+
+
+from blueprints.bodega import register_bodega_routes
+from blueprints.c360 import register_c360_routes
+from blueprints.caja import register_caja_routes
+from blueprints.pos import register_pos_routes
+
+register_bodega_routes(app)
+register_caja_routes(app)
+register_pos_routes(app)
+register_c360_routes(app)
 
 
 # --- cierre del archivo ---

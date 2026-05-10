@@ -25,7 +25,9 @@
   <div class="page-header mb-3">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
       <div>
-        <h3 class="page-title"><i class="fas fa-shield-alt text-danger me-2"></i>Centro de Alertas de Precios Premium</h3>
+        <h3 class="page-title"><i class="fas fa-shield-alt text-danger me-2"></i>Centro de Alertas de Precios Premium
+          <span class="kpi-help" data-bs-toggle="tooltip" title="Demostración gerencial: prioriza SKUs por dinero en riesgo y margen. No modifica precios reales al pulsar acciones.">?</span>
+        </h3>
         <p class="page-subtitle mb-0">Simulación gerencial para priorizar decisiones por <strong>dinero en riesgo</strong> (CLP).</p>
       </div>
       <div class="d-flex gap-2">
@@ -36,25 +38,25 @@
   </div>
 
   <div class="premium-dark p-3 p-md-4 mb-3">
-    <div class="small text-uppercase fw-semibold mb-2">Panel de control de fugas de capital · demo</div>
+    <div class="small text-uppercase fw-semibold mb-2">Panel de control de fugas de capital · demo <span class="kpi-help" data-bs-toggle="tooltip" title="Números ilustrativos para reunión de gerencia; enlaza con BI real abajo en el panel dueño.">?</span></div>
     <div class="row g-3">
       <div class="col-md-4">
         <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-critical">
-          <small class="text-muted">Dinero en riesgo hoy</small>
+          <small class="text-muted">Dinero en riesgo hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Suma demo de margen o utilidad en riesgo si no se corrigen precios frente a costo actual.">?</span></small>
           <div class="fs-3 fw-bold">${{ "{:,.0f}".format(dinero_en_riesgo).replace(",", ".") }}</div>
           <div class="small text-muted">Pérdida proyectada si se vende con precios desactualizados.</div>
         </div>
       </div>
       <div class="col-md-4">
         <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-warning">
-          <small class="text-muted">Productos críticos</small>
+          <small class="text-muted">Productos críticos <span class="kpi-help" data-bs-toggle="tooltip" title="Conteo demo de referencias con margen bajo o negativo según reglas del tablero.">?</span></small>
           <div class="fs-3 fw-bold">{{ productos_criticos }}</div>
           <div class="small text-muted">SKUs con margen comprometido o negativo.</div>
         </div>
       </div>
       <div class="col-md-4">
         <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-positive">
-          <small class="text-muted">Oportunidad de recuperación</small>
+          <small class="text-muted">Oportunidad de recuperación <span class="kpi-help" data-bs-toggle="tooltip" title="Estimación demo de utilidad recuperable al alinear precio de venta a sugerido.">?</span></small>
           <div class="fs-3 fw-bold text-success">${{ "{:,.0f}".format(oportunidad_recuperacion).replace(",", ".") }}</div>
           <div class="small text-muted">Recuperación estimada al aplicar precios sugeridos.</div>
         </div>
@@ -65,17 +67,17 @@
   <div class="row g-3 mb-3">
     <div class="col-lg-8">
       <div class="card card-ds">
-        <div class="card-header bg-white fw-bold">Tabla de alertas inteligentes (ordenada por gravedad económica)</div>
+        <div class="card-header bg-white fw-bold">Tabla de alertas inteligentes (ordenada por gravedad económica) <span class="kpi-help" data-bs-toggle="tooltip" title="Orden demo por pérdida estimada en CLP. Columnas comparan costo catálogo, precio actual y margen.">?</span></div>
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0 table-premium">
             <thead class="table-light">
               <tr>
                 <th>Producto</th>
-                <th class="text-end">Costo actual</th>
-                <th class="text-end">Precio hoy</th>
-                <th class="text-end">Margen real</th>
-                <th class="text-end">Pérdida estimada</th>
-                <th class="text-center">Acción</th>
+                <th class="text-end">Costo actual <span class="kpi-help" data-bs-toggle="tooltip" title="Costo de reposición / precio compra del catálogo en la demo.">?</span></th>
+                <th class="text-end">Precio hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Precio de venta vigente usado en el ejemplo.">?</span></th>
+                <th class="text-end">Margen real <span class="kpi-help" data-bs-toggle="tooltip" title="Margen porcentual aproximado precio vs costo en la fila.">?</span></th>
+                <th class="text-end">Pérdida estimada <span class="kpi-help" data-bs-toggle="tooltip" title="Dinero demo que dejarías de ganar o perderías al mantener el precio actual.">?</span></th>
+                <th class="text-center">Acción <span class="kpi-help" data-bs-toggle="tooltip" title="Botón ilustrativo; no persiste cambios en la base de datos.">?</span></th>
               </tr>
             </thead>
             <tbody>
@@ -105,7 +107,7 @@
     </div>
     <div class="col-lg-4">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">Brecha de utilidad (impacto del ERP)</div>
+        <div class="card-header bg-white fw-bold">Brecha de utilidad (impacto del ERP) <span class="kpi-help" data-bs-toggle="tooltip" title="Gráfico demo: contraste entre mantener precios actuales vs aplicar sugeridos en el guion.">?</span></div>
         <div class="card-body">
           <canvas id="chartBrechaUtilidad" height="220"></canvas>
           <hr>
@@ -119,7 +121,7 @@
   <div class="card card-ds border-danger border-opacity-25 mb-4">
     <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
-        <h6 class="fw-bold mb-1"><i class="fas fa-bolt text-danger me-2"></i>Botón de pánico (demo)</h6>
+        <h6 class="fw-bold mb-1"><i class="fas fa-bolt text-danger me-2"></i>Botón de pánico (demo) <span class="kpi-help" data-bs-toggle="tooltip" title="Ilustración de flujo masivo; no ejecuta actualización masiva en catálogo.">?</span></h6>
         <p class="small text-muted mb-0">Aplicar todos los precios sugeridos y notificar a sala de ventas.</p>
       </div>
       <button type="button" class="btn btn-danger fw-bold" title="Acción demo, no persiste cambios">

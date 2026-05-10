@@ -1,29 +1,14 @@
 {% extends 'base.html' %}
 
-{% block extra_css %}
-<style>
-  .kpi-help {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    margin-left: 4px;
-    border-radius: 50%;
-    background: #e9ecef;
-    color: #495057;
-    font-size: .68rem;
-    font-weight: 800;
-    cursor: help;
-  }
-</style>
-{% endblock %}
+{% block extra_css %}{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header">
     <div>
-      <h3 class="page-title"><i class="fas fa-robot text-primary me-2"></i>IA de Abastecimiento</h3>
+      <h3 class="page-title"><i class="fas fa-robot text-primary me-2"></i>IA de Abastecimiento
+        <span class="kpi-help" data-bs-toggle="tooltip" title="Proyección de demanda a partir de ventas recientes y stock actual; sugiere cantidades a comprar por SKU. No reemplaza criterio del comprador.">?</span>
+      </h3>
       <p class="page-subtitle">Predicción de demanda + sugerencia automática de compra por producto.</p>
     </div>
     <a href="{{ url_for('mostrar_productos') }}" class="btn btn-outline-primary btn-sm">
@@ -35,11 +20,11 @@
     <div class="card-body">
       <form method="GET" action="{{ url_for('ia_abastecimiento') }}" class="row g-2 align-items-end">
         <div class="col-md-4">
-          <label class="form-label small text-muted mb-0">Buscar producto</label>
+          <label class="form-label small text-muted mb-0">Buscar producto <span class="kpi-help" data-bs-toggle="tooltip" title="Filtra por nombre o código interno; vacío analiza el universo permitido por permisos y módulo.">?</span></label>
           <input type="text" name="q" class="form-control form-control-sm" placeholder="Nombre o código..." value="{{ q or '' }}">
         </div>
         <div class="col-md-2">
-          <label class="form-label small text-muted mb-0">Horizonte (días)</label>
+          <label class="form-label small text-muted mb-0">Horizonte (días) <span class="kpi-help" data-bs-toggle="tooltip" title="Días hacia adelante para proyectar consumo y cobertura de stock.">?</span></label>
           <select name="dias" class="form-select form-select-sm">
             <option value="7" {% if dias_horizonte == 7 %}selected{% endif %}>7</option>
             <option value="15" {% if dias_horizonte == 15 %}selected{% endif %}>15</option>
@@ -52,7 +37,7 @@
         <div class="col-md-3">
           <div class="form-check mt-4">
             <input type="checkbox" class="form-check-input" id="solo_alerta" name="solo_alerta" value="1" {% if solo_alerta %}checked{% endif %}>
-            <label class="form-check-label" for="solo_alerta">Mostrar solo productos con pedido sugerido</label>
+            <label class="form-check-label" for="solo_alerta">Mostrar solo productos con pedido sugerido <span class="kpi-help" data-bs-toggle="tooltip" title="Oculta filas donde la sugerencia de compra es cero o no aplica.">?</span></label>
           </div>
         </div>
         <div class="col-md-3 d-flex justify-content-end gap-2">

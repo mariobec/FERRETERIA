@@ -19,6 +19,9 @@
       <a class="btn btn-outline-primary" href="{{ url_for('estado_cuenta_credito_pdf', cliente_id=cliente.id, desde=fecha_desde_txt or None, hasta=fecha_hasta_txt or None, orden=orden) }}" target="_blank">
         <i class="fas fa-file-pdf me-1"></i>PDF
       </a>
+      <a class="btn btn-outline-dark" href="{{ url_for('estado_cuenta_credito_resumen_imprimible', cliente_id=cliente.id, desde=fecha_desde_txt or None, hasta=fecha_hasta_txt or None, orden=orden) }}" target="_blank" title="A4 para imprimir o guardar como PDF desde el navegador">
+        <i class="fas fa-file-alt me-1"></i>Resumen imprimible
+      </a>
       <button class="btn btn-primary" onclick="window.print()">
         <i class="fas fa-print me-1"></i>Imprimir cartola
       </button>
@@ -75,22 +78,30 @@
               <th class="ps-3">Venta</th>
               <th>Cuota</th>
               <th>Fecha pago</th>
-              <th class="text-end pe-3">Monto</th>
+              <th class="text-end">Cuota</th>
+              <th class="text-end pe-3">Pendiente</th>
               <th class="text-center">Estado</th>
             </tr>
           </thead>
           <tbody>
             {% for cq in cuotas_credito_cliente %}
+            {% set mp = cq.monto_pagado or 0 %}
+            {% set pend = (cq.monto or 0) - mp %}
             <tr>
               <td class="ps-3 small">#{{ cq.venta_id }}{% if cq.venta and cq.venta.credito_plan_codigo %} <span class="text-muted">({{ cq.venta.credito_plan_codigo }})</span>{% endif %}</td>
               <td>{{ cq.nro_cuota }} <span class="text-muted">({{ cq.dias_plazo }} d)</span></td>
               <td>{{ cq.fecha_vencimiento.strftime('%d/%m/%Y') if cq.fecha_vencimiento else '—' }}</td>
-              <td class="text-end pe-3">$ {{ "{:,.0f}".format(cq.monto).replace(",", ".") }}</td>
+              <td class="text-end">$ {{ "{:,.0f}".format(cq.monto).replace(",", ".") }}</td>
+              <td class="text-end pe-3 fw-semibold">$ {{ "{:,.0f}".format(pend).replace(",", ".") }}</td>
               <td class="text-center">
                 {% if cq.estado == 'Pagada' %}
                 <span class="badge bg-success">Pagada</span>
+                {% elif cq.estado == 'Parcial' %}
+                <span class="badge bg-info text-dark">Parcial</span>
+                {% elif cq.fecha_vencimiento and cq.fecha_vencimiento < hoy %}
+                <span class="badge bg-danger">Vencida</span>
                 {% else %}
-                <span class="badge {% if cq.fecha_vencimiento and cq.fecha_vencimiento < hoy %}bg-danger{% else %}bg-warning text-dark{% endif %}">Pendiente</span>
+                <span class="badge bg-warning text-dark">Pendiente</span>
                 {% endif %}
               </td>
             </tr>
@@ -98,7 +109,7 @@
           </tbody>
         </table>
       </div>
-      <div class="small text-muted px-3 py-2">Cada fila es el monto a pagar en esa fecha (días desde el cobro del vale). Los abonos siguen reduciendo el saldo global del cliente.</div>
+      <div class="small text-muted px-3 py-2">Los abonos se aplican en cascada a la cuota más antigua primero (estado Parcial/Pagada). El saldo deudor del cliente es el total adeudado.</div>
     </div>
   </div>
   {% endif %}

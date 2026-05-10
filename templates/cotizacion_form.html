@@ -192,6 +192,21 @@
   </form>
 </div>
 
+<div class="modal fade" id="cotCrossSellModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title small fw-bold" id="cotCrossSellTitle">Sugerencia</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body py-2" id="cotCrossSellBody"></div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   const buscador = document.getElementById('buscadorProducto');
@@ -259,6 +274,53 @@
     });
     tr.querySelector('.btn-remove').addEventListener('click', () => { tr.remove(); recalcular(); });
     recalcular();
+    setTimeout(checkCotCrossSell, 120);
+  }
+
+  function checkCotCrossSell() {
+    const ids = [];
+    tbody.querySelectorAll('input[name="det_producto_id"]').forEach((inp) => {
+      const v = (inp.value || '').trim();
+      if (v && /^\d+$/.test(v)) ids.push(v);
+    });
+    if (ids.length === 0) return;
+    fetch('{{ url_for("api_pos_cross_sell_sugerencias") }}?producto_ids=' + encodeURIComponent(ids.join(',')))
+      .then((r) => r.json())
+      .then((data) => {
+        const s = data.sugerencia;
+        if (!s || !s.items || !s.items.length) return;
+        const body = document.getElementById('cotCrossSellBody');
+        const title = document.getElementById('cotCrossSellTitle');
+        if (!body || !title) return;
+        title.textContent = s.titulo || 'Productos sugeridos';
+        body.innerHTML = '<p class="small text-muted mb-2">' + (s.mensaje || '') + '</p><div class="d-flex flex-wrap gap-1" id="cotCrossSellBtns"></div>';
+        const wrap = document.getElementById('cotCrossSellBtns');
+        s.items.forEach((it) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-sm btn-outline-primary';
+          b.textContent = 'Agregar ' + (it.nombre || '');
+          b.addEventListener('click', () => {
+            agregarLinea({
+              id: it.id,
+              nombre: it.nombre,
+              codigo: it.codigo || '',
+              precio: it.precio || 0,
+              stock: 0,
+            });
+            if (typeof bootstrap !== 'undefined') {
+              const m = document.getElementById('cotCrossSellModal');
+              if (m) bootstrap.Modal.getInstance(m)?.hide();
+            }
+          });
+          wrap.appendChild(b);
+        });
+        const modalEl = document.getElementById('cotCrossSellModal');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+      })
+      .catch(() => {});
   }
 
   function recalcular() {

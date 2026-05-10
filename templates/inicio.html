@@ -85,19 +85,25 @@
   .predict-kpi { border: 1px solid #eef1f4; border-radius: .75rem; padding: .8rem; background: #fff; }
   .predict-kpi .label { font-size: .78rem; color: #6b7280; font-weight: 700; text-transform: uppercase; }
   .predict-kpi .value { font-size: 1.3rem; font-weight: 800; margin-top: .1rem; }
-  .kpi-help {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    margin-left: 6px;
-    border-radius: 50%;
-    background: #e9ecef;
-    color: #495057;
-    font-size: .68rem;
+  .c360-home-strip {
+    background: linear-gradient(110deg, #0f172a 0%, #1e3a5f 45%, #0e7490 100%);
+    color: #e2e8f0;
+    border-radius: 14px;
+    padding: 1rem 1.15rem;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, .2);
+    border: 1px solid rgba(148, 163, 184, .25);
+  }
+  .c360-home-strip .c360-hs-k {
+    font-size: 1.35rem;
     font-weight: 800;
-    cursor: help;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .c360-home-strip .c360-hs-l {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: rgba(148, 163, 184, .95);
   }
 </style>
 {% endblock %}
@@ -177,6 +183,39 @@
     </div>
   </div>
 
+  {% if c360_cc and (usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios')) %}
+  <div class="c360-home-strip mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+      <div>
+        <div class="small fw-bold text-info text-uppercase mb-1">Customer 360 — resumen en vivo</div>
+        <div class="fw-bold text-white">Inteligencia comercial sobre la cartera activa</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="btn btn-sm btn-outline-light fw-bold">Command Center</a>
+        <a href="{{ url_for('admin_c360_llamadas_hoy') }}" class="btn btn-sm btn-warning fw-bold text-dark">Cola llamadas</a>
+      </div>
+    </div>
+    <div class="row g-2 g-md-3 text-center text-md-start">
+      <div class="col-6 col-md-3">
+        <div class="c360-hs-l">Prioridad llamada</div>
+        <div class="c360-hs-k text-warning">{{ c360_cc.n_prioridad_llamada }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="c360-hs-l">Perfiles calculados</div>
+        <div class="c360-hs-k text-info">{{ c360_cc.n_perfil_calculado }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="c360-hs-l">Σ cupo sugerido CLP</div>
+        <div class="c360-hs-k text-success">${{ "{:,.0f}".format(c360_cc.cupo_sugerido_sigma_clp|int).replace(",", ".") }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="c360-hs-l">SKU sin fase obra</div>
+        <div class="c360-hs-k text-white-50">{{ c360_cc.productos_sin_fase_activos }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card panel-card mb-3 quick-actions">
     <div class="card-header">Acciones rápidas</div>
     <div class="card-body">
@@ -198,7 +237,16 @@
         <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('ia_abastecimiento') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-robot me-1"></i>IA compras</a></div>
         {% endif %}
         {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('panel_dueno') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-briefcase me-1"></i>Informes gerencia</a></div>
+        <div class="col-12"><div class="small text-muted fw-bold text-uppercase mb-1 mt-1">Gerencia y dueño</div></div>
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('panel_dueno') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-chart-pie me-1"></i>Panel ejecutivo</a></div>
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-robot me-1"></i>ROI IA · C360</a></div>
+        {% if usuario_tiene_permiso('panel_gerencia') %}
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('simulador_margen') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-flask me-1"></i>Simulador margen</a></div>
+        {% endif %}
+        {% endif %}
+        {% if modulo_activo('bi') %}
+        <div class="col-12"><div class="small text-muted fw-bold text-uppercase mb-1 mt-1">BI operativo</div></div>
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('business_intelligence') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-chart-line me-1"></i>BI reportes</a></div>
         {% endif %}
         {% if puede_administrar %}
         <div class="col-lg-4 col-md-6 col-12"><a href="{{ url_for('mostrar_productos') }}" class="btn qa-btn qa-admin w-100"><i class="fas fa-layer-group me-1"></i>Ajuste inicial de stock (admin)</a></div>
@@ -466,11 +514,6 @@
     const hour = new Date().getHours();
     const greeting = document.getElementById('greeting');
     if (greeting) greeting.textContent = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches';
-    if (window.bootstrap && bootstrap.Tooltip) {
-      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-        new bootstrap.Tooltip(el);
-      });
-    }
   });
 </script>
 {% endblock %}

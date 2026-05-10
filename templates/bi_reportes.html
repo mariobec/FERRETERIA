@@ -4,7 +4,9 @@
 <div class="container-fluid px-0">
   <div class="page-header">
     <div>
-      <h3 class="page-title"><i class="fas fa-chart-line text-primary me-2"></i>Business Intelligence</h3>
+      <h3 class="page-title"><i class="fas fa-chart-line text-primary me-2"></i>Business Intelligence
+        <span class="kpi-help" data-bs-toggle="tooltip" title="KPIs y gráficos con datos reales de ventas Pagado en el rango elegido. El comparativo usa un período anterior de la misma duración.">?</span>
+      </h3>
       <p class="page-subtitle">Reportes premium para ventas, crédito, medios de pago y rotación.</p>
       <div class="small mt-2">
         <a href="#reportes-detalle" class="text-decoration-none fw-semibold"><i class="fas fa-layer-group me-1"></i>Reportes desde detalle de ventas</a>
@@ -73,7 +75,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted">Documentos emitidos</small>
+          <small class="text-muted">Documentos emitidos <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de ventas en el período con estado distinto de Abierta (incluye pendientes y pagadas según filtro de la consulta).">?</span></small>
           <h4 class="fw-bold mb-0">{{ total_documentos }}</h4>
           <small class="{% if var_total_documentos is not none and var_total_documentos < 0 %}text-danger{% else %}text-success{% endif %}">
             {% if var_total_documentos is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_total_documentos) }} vs período anterior{% endif %}
@@ -84,7 +86,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted">Ticket promedio</small>
+          <small class="text-muted">Ticket promedio <span class="kpi-help" data-bs-toggle="tooltip" title="Promedio de monto total por documento en el período (misma base que ventas cobradas arriba).">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ticket_promedio).replace(",", ".") }}</h4>
           <small class="{% if var_ticket_promedio is not none and var_ticket_promedio < 0 %}text-danger{% else %}text-success{% endif %}">
             {% if var_ticket_promedio is none %}Sin base comparativa{% else %}{{ "{:+.1f}%".format(var_ticket_promedio) }} vs período anterior{% endif %}
@@ -108,7 +110,7 @@
   <div class="row g-3 mb-4">
     <div class="col-lg-8">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">Flujo de ventas por día</div>
+        <div class="card-header bg-white fw-bold">Flujo de ventas por día <span class="kpi-help" data-bs-toggle="tooltip" title="Suma diaria de montos de ventas válidas en el rango seleccionado.">?</span></div>
         <div class="card-body">
           <canvas id="chartVentasDia" height="120"></canvas>
         </div>
@@ -116,7 +118,7 @@
     </div>
     <div class="col-lg-4">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">Participación por medio de pago</div>
+        <div class="card-header bg-white fw-bold">Participación por medio de pago <span class="kpi-help" data-bs-toggle="tooltip" title="Distribución del monto vendido según método de pago registrado en cada venta.">?</span></div>
         <div class="card-body">
           <canvas id="chartMetodos" height="200"></canvas>
         </div>
@@ -144,7 +146,7 @@
     <div class="col-md-4">
       <div class="card card-ds h-100 border-success border-opacity-50">
         <div class="card-body">
-          <small class="text-muted d-block">ABC margen ($)</small>
+          <small class="text-muted d-block">ABC margen ($) <span class="kpi-help" data-bs-toggle="tooltip" title="Cuántos SKU explican ~80% del margen estimado (subtotal − costo con precio compra actual).">?</span></small>
           <p class="mb-0 fw-bold">{{ abc_n80_margin }} SKU<span class="fw-normal text-muted small"> concentran el ~80% del margen positivo</span></p>
           <small class="text-muted">Margen total período: ${{ "{:,.0f}".format(abc_total_margin).replace(",", ".") }}{% if abc_skus_margin_neg %} · <span class="text-warning">{{ abc_skus_margin_neg }} SKU con margen negativo</span>{% endif %}</small>
         </div>
@@ -153,7 +155,7 @@
     <div class="col-md-4">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted d-block">Clases A / B / C</small>
+          <small class="text-muted d-block">Clases A / B / C <span class="kpi-help" data-bs-toggle="tooltip" title="Regla clásica ABC: A acumula hasta ~80%, B hasta ~95%, C es la cola larga.">?</span></small>
           <p class="mb-0 small"><strong>A</strong>: hasta 80% acumulado · <strong>B</strong>: hasta 95% · <strong>C</strong>: resto. Priorizá política de precio en A por volumen y compras en A por margen.</p>
         </div>
       </div>
@@ -163,7 +165,7 @@
   <div class="row g-3 mb-4">
     <div class="col-xl-6">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">ABC por volumen (unidades)</div>
+        <div class="card-header bg-white fw-bold">ABC por volumen (unidades) <span class="kpi-help" data-bs-toggle="tooltip" title="Detalle por línea Pagado: unidades vendidas y % acumulado para armar clases A/B/C.">?</span></div>
         <div class="table-responsive" style="max-height: 380px;">
           <table class="table table-sm table-hover mb-0 table-ds align-middle">
             <thead class="table-light sticky-top">
@@ -194,7 +196,7 @@
     </div>
     <div class="col-xl-6">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">ABC por margen ($) — solo SKU con margen positivo</div>
+        <div class="card-header bg-white fw-bold">ABC por margen ($) — solo SKU con margen positivo <span class="kpi-help" data-bs-toggle="tooltip" title="Excluye combinaciones con margen ≤ 0 para enfocar dónde se gana dinero.">?</span></div>
         <div class="table-responsive" style="max-height: 380px;">
           <table class="table table-sm table-hover mb-0 table-ds align-middle">
             <thead class="table-light sticky-top">
@@ -227,7 +229,7 @@
 
   <div class="card card-ds mb-4">
     <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <span>Mix categoría × medio de pago ($ subtotal)</span>
+      <span>Mix categoría × medio de pago ($ subtotal) <span class="kpi-help" data-bs-toggle="tooltip" title="Matriz: suma de subtotales por categoría de producto y método de pago de la venta.">?</span></span>
       <small class="text-muted fw-normal">Útil para ver dónde pesa el crédito vs efectivo/débito por rubro</small>
     </div>
     <div class="table-responsive">
@@ -270,7 +272,7 @@
   <div class="row g-3 mb-4">
     <div class="col-lg-6">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">Picos por hora del día (documentos Pagado)</div>
+        <div class="card-header bg-white fw-bold">Picos por hora del día (documentos Pagado) <span class="kpi-help" data-bs-toggle="tooltip" title="Agrupa por hora 0–23 la fecha/hora de cada venta Pagado en el período.">?</span></div>
         <div class="card-body">
           <canvas id="chartBiHora" height="140"></canvas>
           <p class="small text-muted mb-0 mt-2">Barras: monto cobrado · Línea: cantidad de tickets. Ajustá dotación de caja en horas altas.</p>
@@ -279,7 +281,7 @@
     </div>
     <div class="col-lg-6">
       <div class="card card-ds h-100">
-        <div class="card-header bg-white fw-bold">Ventas por día de la semana</div>
+        <div class="card-header bg-white fw-bold">Ventas por día de la semana <span class="kpi-help" data-bs-toggle="tooltip" title="Lunes a domingo según calendario de la fecha de venta.">?</span></div>
         <div class="card-body">
           <canvas id="chartBiDiaSemana" height="140"></canvas>
           <p class="small text-muted mb-0 mt-2">Lunes a domingo según fecha de la venta. Planificá reposición y personal los días fuertes.</p>
@@ -291,7 +293,7 @@
   <div class="row g-3">
     <div class="col-lg-6">
       <div class="card card-ds">
-        <div class="card-header bg-white fw-bold">Top productos por venta</div>
+        <div class="card-header bg-white fw-bold">Top productos por venta <span class="kpi-help" data-bs-toggle="tooltip" title="Ranking por monto de subtotales agregados por producto en ventas Pagado.">?</span></div>
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0 table-ds align-middle">
             <thead class="table-light">
@@ -318,7 +320,7 @@
     </div>
     <div class="col-lg-6">
       <div class="card card-ds mb-3">
-        <div class="card-header bg-white fw-bold">Ventas por vendedor (Pagado)</div>
+        <div class="card-header bg-white fw-bold">Ventas por vendedor (Pagado) <span class="kpi-help" data-bs-toggle="tooltip" title="Agrupado por usuario que emitió la venta; solo documentos en estado Pagado.">?</span></div>
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0 table-ds align-middle">
             <thead class="table-light">
@@ -346,7 +348,7 @@
       </div>
 
       <div class="card card-ds">
-        <div class="card-header bg-white fw-bold">Últimas ventas del período</div>
+        <div class="card-header bg-white fw-bold">Últimas ventas del período <span class="kpi-help" data-bs-toggle="tooltip" title="Muestra las más recientes dentro del rango de fechas aplicado.">?</span></div>
         <div class="table-responsive">
           <table class="table table-sm table-hover mb-0 table-ds align-middle">
             <thead class="table-light">

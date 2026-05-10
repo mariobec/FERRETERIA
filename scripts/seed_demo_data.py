@@ -6,8 +6,13 @@ precios, stock por almacén, ubicación y variaciones típicas de unidad_compra 
 factor_conversion para pruebas de POS, inventario y export Excel.
 
 Ejecutar desde la raíz del proyecto: python scripts/seed_demo_data.py
+
+Opcional — después del seed, alinear cartera demo (mismo parche que run_demo_seeds_dual):
+  PATCH_DEMO_CARTERA=1 python scripts/seed_demo_data.py
 """
+import os
 import random
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -199,7 +204,8 @@ def cargar_ventas(caja):
         fecha = datetime.now() - timedelta(days=random.randint(0, 89), hours=random.randint(0, 10), minutes=random.randint(0, 59))
         cliente = random.choice(clientes) if random.random() < 0.72 else None
         metodo = random.choices(["Efectivo", "Debito", "Credito"], weights=[55, 32, 13])[0]
-        estado = "Pendiente" if metodo == "Credito" and random.random() < 0.35 else "Pagado"
+        # Crédito tienda = deuda pendiente (coherente con caja al cobrar Credito).
+        estado = "Pendiente" if metodo == "Credito" else "Pagado"
         venta = Venta(
             fecha=fecha,
             usuario="Demo ERP",
@@ -273,6 +279,19 @@ def main():
             "clientes_saldo_favor_total": ClienteSaldoFavor.query.filter(ClienteSaldoFavor.saldo > 0).count(),
         }
         print(resumen)
+
+        flag = (os.environ.get("PATCH_DEMO_CARTERA") or "").strip().lower()
+        if flag in ("1", "true", "yes", "on", "si"):
+            root = Path(__file__).resolve().parents[1]
+            patch_py = root / "scripts" / "patch_demo_credito_cartera.py"
+            print(f"PATCH_DEMO_CARTERA={flag!r} -> ejecutando {patch_py.name} ...", flush=True)
+            r = subprocess.run(
+                [sys.executable, str(patch_py)],
+                cwd=str(root),
+                env=os.environ.copy(),
+            )
+            if r.returncode != 0:
+                print(f"ADVERTENCIA: {patch_py.name} terminó con código {r.returncode}", flush=True)
 
 
 if __name__ == "__main__":

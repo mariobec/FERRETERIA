@@ -2,10 +2,17 @@
 Versión rápida del seed demo (SQL directo). Misma política que seed_demo_data.py: solo datos de prueba.
 
 Ejecutar: python scripts/seed_demo_data_fast.py  (requiere DATABASE_URL / Postgres)
+
+Opcional — alinear cartera demo (Flask + RUT 77%) después del seed SQL:
+  set PATCH_DEMO_CARTERA=1   (Windows PowerShell: $env:PATCH_DEMO_CARTERA='1')
+  python scripts/seed_demo_data_fast.py
 """
 import os
 import random
+import subprocess
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import psycopg2
 from psycopg2.extras import execute_values
@@ -258,7 +265,7 @@ def insert_ventas(cur, caja_id):
         fecha = datetime.now() - timedelta(days=random.randint(0, 89), hours=random.randint(0, 10), minutes=random.randint(0, 59))
         cliente_id = random.choice(clientes) if clientes and random.random() < 0.72 else None
         metodo = random.choices(["Efectivo", "Debito", "Credito"], weights=[55, 32, 13])[0]
-        estado = "Pendiente" if metodo == "Credito" and random.random() < 0.35 else "Pagado"
+        estado = "Pendiente" if metodo == "Credito" else "Pagado"
         detalles = []
         total = 0
         for producto_id, precio in random.sample(productos, random.randint(1, 5)):
@@ -371,6 +378,19 @@ def main():
                 "clientes_saldo_favor_total": fetch_scalar(cur, "SELECT COUNT(*) FROM clientes_saldos_favor WHERE saldo > 0"),
             })
             print(resumen)
+
+    flag = (os.environ.get("PATCH_DEMO_CARTERA") or "").strip().lower()
+    if flag in ("1", "true", "yes", "on", "si"):
+        root = Path(__file__).resolve().parents[1]
+        patch_py = root / "scripts" / "patch_demo_credito_cartera.py"
+        print(f"PATCH_DEMO_CARTERA={flag!r} -> ejecutando {patch_py.name} ...", flush=True)
+        r = subprocess.run(
+            [sys.executable, str(patch_py)],
+            cwd=str(root),
+            env=os.environ.copy(),
+        )
+        if r.returncode != 0:
+            print(f"ADVERTENCIA: {patch_py.name} terminó con código {r.returncode}", flush=True)
 
 
 if __name__ == "__main__":

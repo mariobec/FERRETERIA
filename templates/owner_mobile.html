@@ -50,7 +50,7 @@
   <div class="row g-2 mb-3">
     <div class="col-6">
       <div class="owner-card">
-        <div class="owner-label">Ventas hoy</div>
+        <div class="owner-label">Ventas hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de ventas del día calendario actual (excluye estado Abierta).">?</span></div>
         <div class="owner-value">${{ "{:,.0f}".format(ventas_hoy).replace(",", ".") }}</div>
         <div class="owner-sub">
           {% if var_ventas_hoy is not none %}
@@ -63,21 +63,21 @@
     </div>
     <div class="col-6">
       <div class="owner-card">
-        <div class="owner-label">Caja comercial</div>
+        <div class="owner-label">Caja comercial <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de transacciones registradas hoy (mismo criterio que el panel operativo).">?</span></div>
         <div class="owner-value">{{ transacciones_hoy }}</div>
         <div class="owner-sub">Transacciones hoy</div>
       </div>
     </div>
     <div class="col-6">
       <div class="owner-card">
-        <div class="owner-label">Cartera por cobrar</div>
+        <div class="owner-label">Cartera por cobrar <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de saldo deudor vigente en clientes con crédito.">?</span></div>
         <div class="owner-value">${{ "{:,.0f}".format(dinero_credito).replace(",", ".") }}</div>
         <div class="owner-sub">Clientes con saldo vigente</div>
       </div>
     </div>
     <div class="col-6">
       <div class="owner-card">
-        <div class="owner-label">Órdenes pendientes</div>
+        <div class="owner-label">Órdenes pendientes <span class="kpi-help" data-bs-toggle="tooltip" title="Órdenes de compra en estados Borrador, Enviada o Parcial.">?</span></div>
         <div class="owner-value">{{ oc_pendientes }}</div>
         <div class="owner-sub">OC por gestionar</div>
       </div>
@@ -86,7 +86,7 @@
 
   <div class="owner-card mb-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <h6 class="mb-0 fw-bold"><i class="fas fa-triangle-exclamation text-danger me-1"></i> Riesgo de abastecimiento</h6>
+      <h6 class="mb-0 fw-bold"><i class="fas fa-triangle-exclamation text-danger me-1"></i> Riesgo de abastecimiento <span class="kpi-help" data-bs-toggle="tooltip" title="Resumen del mismo motor de quiebre que el inicio: cobertura en días y sugerencia de compra.">?</span></h6>
       <a class="btn btn-sm btn-outline-primary fw-bold" href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">Ver detalle</a>
     </div>
     <div class="row g-2 mb-2">
@@ -113,10 +113,20 @@
   </div>
 
   <div class="sticky-owner-actions owner-actions">
+    {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+    <div class="row g-2 pb-1">
+      <div class="col-6"><a href="{{ url_for('panel_dueno') }}" class="btn btn-dark w-100 fw-bold"><i class="fas fa-chart-pie me-1"></i>Panel ejecutivo</a></div>
+      <div class="col-6"><a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="btn btn-primary w-100 fw-bold"><i class="fas fa-robot me-1"></i>ROI IA</a></div>
+    </div>
+    {% endif %}
     <div class="row g-2 pb-2">
       <div class="col-4"><a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning w-100">Cobrar vales</a></div>
       <div class="col-4"><a href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}" class="btn btn-outline-primary w-100">IA compras</a></div>
-      <div class="col-4"><a href="{{ url_for('business_intelligence', from='inicio') }}" class="btn btn-outline-dark w-100">Ver BI</a></div>
+      {% if modulo_activo('bi') %}
+      <div class="col-4"><a href="{{ url_for('business_intelligence', from='inicio') }}" class="btn btn-outline-dark w-100">BI reportes</a></div>
+      {% else %}
+      <div class="col-4"><a href="{{ url_for('mostrar_ventas', from='inicio') }}" class="btn btn-outline-secondary w-100">Ventas</a></div>
+      {% endif %}
     </div>
   </div>
 </div>

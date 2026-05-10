@@ -1,0 +1,230 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .c360q-hero {
+    background: linear-gradient(118deg, #0f172a 0%, #1e293b 40%, #0c4a6e 100%);
+    color: #f8fafc;
+    border-radius: 18px;
+    padding: 1.25rem 1.4rem;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, .32), inset 0 1px 0 rgba(255,255,255,.06);
+    border: 1px solid rgba(148, 163, 184, .22);
+    position: relative;
+    overflow: hidden;
+  }
+  .c360q-hero::after {
+    content: "";
+    position: absolute;
+    right: -30px;
+    bottom: -40px;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251, 191, 36, .28), transparent 68%);
+    pointer-events: none;
+  }
+  .c360q-hero h2 { font-weight: 800; letter-spacing: -0.02em; }
+  .c360q-kpi {
+    background: rgba(15, 23, 42, .5);
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 12px;
+    padding: .85rem 1rem;
+    height: 100%;
+    backdrop-filter: blur(8px);
+  }
+  .c360q-kpi .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: rgba(148, 163, 184, .95); }
+  .c360q-kpi .v { font-size: 1.45rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .c360q-run {
+    border-radius: 14px;
+    border: 1px dashed rgba(251, 191, 36, .55);
+    background: linear-gradient(180deg, rgba(251,191,36,.12), rgba(15,23,42,.25));
+  }
+  .c360q-row:hover { background: rgba(13, 110, 253, .04); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1180px;">
+  <div class="c360q-hero mb-4">
+    <div class="position-relative" style="z-index:1;">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <div class="small text-warning fw-bold text-uppercase mb-1">Customer 360 · Acción comercial</div>
+          <h2 class="mb-2"><i class="fas fa-phone-volume me-2 text-warning"></i>Cola prioritaria de llamadas</h2>
+          <p class="small mb-0 opacity-90" style="max-width: 42rem;">
+            Clientes activos con <strong>recomendar_llamada</strong> tras el último cálculo del motor:
+            <strong>Etapa avanzada</strong> (INSTALACIONES / ACABADOS / TERMINACIONES) con score &gt; 88,
+            u <strong>calidad de datos</strong>: etapa OBRA_GRUESA pero con ≥30% del monto en productos sin <code>fase_obra</code>,
+            venta ≥ $20.000 en 30 días, límite crédito ≥ $120.000 y score &gt; 86 (prioriza llamar para clasificar el catálogo).
+            Orden: mayor cupo sugerido primero.
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="btn btn-outline-light btn-sm fw-bold">
+            <i class="fas fa-bullseye me-1"></i>Command Center
+          </a>
+          <a href="{{ url_for('admin_clientes') }}" class="btn btn-outline-secondary btn-sm">← Clientes</a>
+          <a href="{{ url_for('modulo_creditos') }}" class="btn btn-outline-warning btn-sm">Créditos</a>
+        </div>
+      </div>
+      <div class="row g-2 g-md-3">
+        <div class="col-6 col-lg-3">
+          <div class="c360q-kpi">
+            <div class="lbl">En cola hoy</div>
+            <div class="v text-warning">{{ filas|length }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="c360q-kpi">
+            <div class="lbl">Σ cupo top 20</div>
+            <div class="v text-success">${{ "{:,.0f}".format(cupo_prioridad_sum_clp|int).replace(",", ".") }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="c360q-kpi">
+            <div class="lbl">Cartera activa</div>
+            <div class="v text-white">{{ cc_stats.n_clientes_activos }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="c360q-kpi">
+            <div class="lbl">Productos sin fase</div>
+            <div class="v text-info">{{ cc_stats.productos_sin_fase_activos }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+  <div class="card c360q-run mb-3">
+    <div class="card-body py-3">
+      <div class="row g-3 align-items-center">
+        <div class="col-lg-7">
+          <div class="fw-bold text-dark mb-1"><i class="fas fa-bolt text-warning me-1"></i>Refrescar prioridades</div>
+          <p class="small text-muted mb-0">
+            Ejecuta el mismo motor que el worker nocturno y vuelve a esta cola. Ideal antes de una reunión con el cliente.
+          </p>
+        </div>
+        <div class="col-lg-5">
+          <form method="post" action="{{ url_for('gerencia_c360_ejecutar_motor') }}" class="row g-2 align-items-end">
+            <div class="col-7">
+              <label class="form-label small fw-semibold mb-0">Máx. clientes</label>
+              <select name="max" class="form-select form-select-sm">
+                <option value="120">120</option>
+                <option value="300" selected>300</option>
+                <option value="600">600</option>
+              </select>
+            </div>
+            <div class="col-5 d-grid">
+              <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark" name="next" value="llamadas">
+                Correr motor
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="alert alert-info small mb-3">
+    <i class="fas fa-clock me-1"></i>Fecha de trabajo: <strong>{{ hoy.strftime('%d/%m/%Y') }}</strong>.
+    La lista refleja el último perfil guardado; para automatizar use cron con <code>C360_CRON_SECRET</code>
+    (<code>POST /api/c360/worker-noche</code>) o el botón de arriba.
+  </div>
+
+  <div class="card card-ds border-0 shadow-sm">
+    <div class="card-header fw-bold bg-light d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-list-ol me-1 text-primary"></i>Contactos ordenados por impacto</span>
+      <span class="badge text-bg-dark">{{ filas|length }} registro(s)</span>
+    </div>
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">#</th>
+            <th>Cliente</th>
+            <th>Teléfono</th>
+            <th>Etapa</th>
+            <th class="text-nowrap">Tipo prioridad</th>
+            <th class="text-end">Cupo sugerido</th>
+            <th>Motivo / alerta</th>
+            <th class="text-nowrap">Seguimiento IA</th>
+            <th class="text-nowrap">Acción IA</th>
+            <th class="text-end pe-3">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in filas %}
+          <tr class="c360q-row">
+            <td class="ps-3 text-muted small">{{ loop.index }}</td>
+            <td class="fw-semibold">
+              {{ r.cliente.nombre }}
+              <div><code class="small">{{ r.cliente.rut }}</code></div>
+            </td>
+            <td class="small text-nowrap">{{ r.telefono or '—' }}</td>
+            <td>
+              {% set et = (r.etapa or '')|upper %}
+              <span class="badge {% if et in ['TERMINACIONES','ACABADOS'] %}text-bg-success{% elif et == 'INSTALACIONES' %}text-bg-primary{% elif et == 'OBRA_GRUESA' %}text-bg-secondary{% else %}text-bg-dark{% endif %}">{{ r.etapa or '—' }}</span>
+            </td>
+            <td class="small">
+              {% if r.motivo_llamada == 'DATA_QUALITY' %}
+              <span class="badge text-bg-warning text-dark">Datos / catálogo</span>
+              {% elif r.motivo_llamada == 'ETAPA_AVANZADA' %}
+              <span class="badge text-bg-primary">Etapa avanzada</span>
+              {% else %}
+              <span class="badge text-bg-light text-muted border">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-bold text-success">${{ "{:,.0f}".format(r.cupo_sugerido).replace(",", ".") }}</td>
+            <td class="small" style="max-width: 280px;">{{ r.alerta }}</td>
+            <td class="small">
+              {% set tr = oferta_tracks.get(r.cliente.id) %}
+              {% if tr %}
+                {% if tr.venta_id %}
+                <span class="badge text-bg-success">Venta #{{ tr.venta_id }}</span>
+                {% elif tr.convertida_at %}
+                <span class="badge text-bg-success">Convertida</span>
+                {% elif tr.link_clicked_at %}
+                <span class="badge text-bg-info">Clic enlace</span>
+                {% elif tr.wa_sent_at %}
+                <span class="badge text-bg-secondary">WA enviado</span>
+                {% else %}
+                <span class="badge text-bg-light text-muted border">Registro</span>
+                {% endif %}
+                {% if tr.cotizacion_id %}
+                <a class="small d-block mt-1" href="{{ url_for('cotizacion_detalle', cot_id=tr.cotizacion_id) }}">Ver cotización</a>
+                {% endif %}
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <form method="post" action="{{ url_for('admin_c360_enviar_oferta_ia') }}" class="d-inline">
+                <input type="hidden" name="cliente_id" value="{{ r.cliente.id }}">
+                <button type="submit" class="btn btn-sm btn-success py-0" title="Kit por etapa + cotización + WhatsApp (Meta)">Enviar oferta</button>
+              </form>
+            </td>
+            <td class="text-end pe-3 text-nowrap">
+              <a href="{{ url_for('admin_cliente_c360', cliente_id=r.cliente.id) }}" class="btn btn-sm btn-outline-primary py-0">360</a>
+              <a href="{{ url_for('estado_cuenta_credito', cliente_id=r.cliente.id) }}" class="btn btn-sm btn-outline-warning py-0">Cartola</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" class="text-center text-muted py-5">
+              <div class="mb-2"><i class="fas fa-inbox fa-2x opacity-50"></i></div>
+              Sin contactos en cola con los criterios actuales.
+              {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+              <div class="mt-2"><strong>Sugerencia:</strong> ejecute el motor y clasifique <code>fase_obra</code> en productos para alimentar el predictor.</div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

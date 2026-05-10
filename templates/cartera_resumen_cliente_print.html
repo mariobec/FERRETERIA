@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Estado de cuenta — {{ cliente.nombre }}</title>
+  <style>
+    @page { margin: 14mm; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; font-size: 11pt; line-height: 1.45; }
+    h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
+    .muted { color: #555; font-size: .85rem; }
+    .box { border: 1px solid #ccc; border-radius: 8px; padding: 12px 14px; margin: 12px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 10pt; }
+    th, td { border-bottom: 1px solid #ddd; padding: 6px 4px; text-align: left; }
+    th { background: #f3f4f6; font-weight: 600; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .tot { font-weight: 700; margin-top: 10px; font-size: 1.05rem; }
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom:12px;">
+    <button type="button" onclick="window.print()" style="padding:.5rem 1rem;font-weight:600;cursor:pointer;">Imprimir / Guardar como PDF</button>
+  </div>
+  <header>
+    <h1>{{ (empresa.get('nombre_comercial') or empresa.get('razon_social') or 'Ferretería') if empresa else 'Ferretería' }}</h1>
+    <div class="muted">Resumen de cuenta crédito — generado {{ generado_en.strftime('%d/%m/%Y %H:%M') if generado_en else '' }}</div>
+  </header>
+
+  <div class="box">
+    <strong>Cliente:</strong> {{ cliente.nombre }}<br>
+    {% if cliente.rut %}<strong>RUT:</strong> {{ cliente.rut }}<br>{% endif %}
+    {% if cliente.direccion %}<strong>Dirección:</strong> {{ cliente.direccion }}<br>{% endif %}
+    {% if cliente.telefono %}<strong>Teléfono:</strong> {{ cliente.telefono }}<br>{% endif %}
+    <strong>Saldo deudor actual:</strong> $ {{ "{:,.0f}".format(saldo_actual or 0).replace(",", ".") }}<br>
+    <strong>Límite crédito:</strong> $ {{ "{:,.0f}".format(cliente.limite_credito or 0).replace(",", ".") }} — <strong>Estado:</strong> {{ cliente.estado_credito or 'Activo' }}
+  </div>
+
+  {% if cuotas_credito_cliente %}
+  <h2 style="font-size:1rem;margin:16px 0 6px;">Cuotas plan crédito</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Cuota</th>
+        <th>Vencimiento</th>
+        <th class="num">Monto cuota</th>
+        <th class="num">Pendiente</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for q in cuotas_credito_cliente %}
+      {% set mp = q.monto_pagado or 0 %}
+      {% set pend = (q.monto or 0) - mp %}
+      <tr>
+        <td>#{{ q.nro_cuota }}</td>
+        <td>{{ q.fecha_vencimiento.strftime('%d/%m/%Y') if q.fecha_vencimiento else '—' }}</td>
+        <td class="num">$ {{ "{:,.0f}".format(q.monto or 0).replace(",", ".") }}</td>
+        <td class="num">$ {{ "{:,.0f}".format(pend).replace(",", ".") }}</td>
+        <td>{{ q.estado or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2 style="font-size:1rem;margin:16px 0 6px;">Movimientos ({{ fecha_desde_txt or 'inicio' }} — {{ fecha_hasta_txt or 'hoy' }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Detalle</th>
+        <th class="num">Monto</th>
+        <th class="num">Saldo corr.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in movimientos %}
+      <tr>
+        <td>{{ m.fecha.strftime('%d/%m/%Y %H:%M') if m.fecha else '—' }}</td>
+        <td>{{ m.detalle or m.ref or '—' }}</td>
+        <td class="num">{% if m.tipo == 'abono' %}-{% endif %}$ {{ "{:,.0f}".format(m.monto or 0).replace(",", ".") }}</td>
+        <td class="num">$ {{ "{:,.0f}".format(m.saldo_visual or 0).replace(",", ".") }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">Sin movimientos en el rango.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="tot">
+    Total cargos: $ {{ "{:,.0f}".format(total_cargos or 0).replace(",", ".") }} &nbsp;|&nbsp;
+    Total abonos: $ {{ "{:,.0f}".format(total_abonos or 0).replace(",", ".") }}
+  </div>
+  <p class="muted" style="margin-top:14px;">Documento informativo. Firma cliente __________________ &nbsp;&nbsp; Firma ferretería __________________</p>
+</body>
+</html>

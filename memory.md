@@ -36,7 +36,7 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 | `sql/`, `scripts/` | DDL incremental y utilidades. |
 | `demo_ferreteria/` | Demo empaquetada para cliente. |
 | `CARGA DE DATOS/` | CSV masivos. |
-| `docs/` | Doc suelta (ej. branding). |
+| `docs/` | Doc suelta (branding, **`roadmap_customer_360_ferreteria_2026.md`**). |
 
 Copias viejas (`app-28-04-2026.py`, `ventas.*.py`): **operativo = `app.py`**.
 
@@ -192,6 +192,13 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 - **Rutas:** lista, `nueva`, `detalle`, `editar`, `contacto`, `estado`, `pdf`, `whatsapp`, **`convertir`** → POS, APIs buscar productos/clientes.
 - **Lógica:** cotización con snapshot cliente; **`cotizacion_convertir_venta`** crea **`Venta` Abierta**, copia líneas, marca cotización **`Convertida`** y **`venta_id`**; enlaza/crea **`Cliente`** desde snapshot si falta; valida stock y advierte faltantes **antes de emitir vale** en POS.
 
+### 19. Roadmap — Customer 360 + módulo clientes (plan 2026, pendiente de código)
+
+- **Documento detallado:** `docs/roadmap_customer_360_ferreteria_2026.md` (fuente de verdad del plan por fases).
+- **Resumen:** P0 urgente = ficha **Customer 360** en Flask, motor **etapa de proyecto** (clasificación obra gruesa / instalaciones / acabados), **fecha estimada siguiente compra** (~21 días), **score de puntualidad** y regla **>90 %** solo para **sugerencias** de crédito proactivo (no automático), **log de predicciones** medible vs ventas. P1 = CDP ligero, timeline, dashboard ferretero predictivo. P2 = Smart dropzone + OCR simulado/real y abonos prellenados. P2b = **worker/cron** “llamadas recomendadas”. P3 = portal cliente, IA asistida.
+- **Stack acordado en roadmap:** priorizar **monolito Flask/Jinja**; React+TS+Tailwind solo si se decide micro-frontend para dropzone.
+- **Para retomar con el asistente:** *«Lee `memory.md` y `docs/roadmap_customer_360_ferreteria_2026.md`; sigue el roadmap Customer 360 desde la fase que indique.»*
+
 ---
 
 ## Índice de rutas HTTP (`app.py`, 132 entradas)
@@ -255,7 +262,23 @@ Referencias `L####` = línea aproximada en `app.py` para ubicar la vista rápido
 | 2026-05-08 | Al eliminar venta **Pagada** (no crédito), **egreso en `movimiento_caja`** sobre la misma `caja_id` por el neto cobrado fuera de saldo a favor; efectivo usa ticket (`monto_recibido - vuelto`). Sin egreso si monto neto es 0 o falta `caja_id`. |
 | 2026-05-08 | **Caja día anterior + cierre bloqueado:** `_ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA` permite `caja_pendientes`, `procesar_cobro_caja`, `anular_vale_caja`, `ver_ticket_cobro` aunque la caja sea de otro día (evita callejón). **`cola_combined`** lista borradores POS **`Abierta`** de la caja + vales pendientes; **`procesar_cobro_caja`** / **`anular_vale_caja`** soportan esos borradores donde aplica. |
 | 2026-05-08 | Crédito en cuotas: único plan **`30_60_90`** (días corridos desde cobro). Medio **`TarjetaCredito`** para cobro inmediato con TC bancaria (UI y totales `total_tarjeta_credito` en cierre/ticket); **`Credito`** sigue siendo cuenta tienda. Cheque: sin medio dedicado aún (documentar política si se agrega). |
+| 2026-05-08 | **Roadmap Customer 360** (módulo clientes + predicción obra + OCR + worker llamadas) guardado en **`docs/roadmap_customer_360_ferreteria_2026.md`** y referenciado en esta memoria (§19) para retomar cuando el usuario lo recuerde. |
+| 2026-05-08 | **Plan v2 Grok:** Fase 1A revisada y cerrada técnicamente (savepoint en cobro/voz/anular; fix saldo/monto **fuera** de `transaccion_critica()` en `procesar_cobro_caja`; reversión bodega limpia **`bodega_despacho_json`** cuando map vacío en `services/stock_service.py`). Tabla verificación en **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`**. |
+| 2026-05-08 | **Fase 1B cerrada:** cron **`POST /api/ventas/alertas-despachos-pendientes`** con `dry_run_previews`, Slack opcional, audit **`cron_alertas_vales_despacho`** tras envíos OK; **`sql/README_VISTA_VALES_RIESGO.md`**; **`scripts/smoke_alertas_vales_despacho.py`**. |
+| 2026-05-08 | **Servicios / observabilidad:** `services/c360_service.py`, `services/sistema_health_service.py` (`GET /api/sistema/salud`). Blueprint **`blueprints/c360.py`** registrado al final de `app.py`. Auto-columnas **`_asegurar_columnas_ventas_bodega_despacho`** en `before_request` autenticado. |
 
 ---
 
-*Última actualización del contenido estructural: 2026-05-08 (memoria operativa caja/cobranza/cuotas).*
+## Continuar después (siguiente sesión)
+
+**Pedido explícito del usuario:** retomar con extracción **Fase 2 → `services/stock_service.py`** (ampliar lógica allí y delegar desde `app.py`) cuando digan que siguen; **no** mover vistas/templates por ahora.
+
+**Ya implementado y estable:**
+- Blueprints: `blueprints/bodega.py`, `caja.py`, `pos.py`, `c360.py` (+ `_app_ref.py` anti-import circular).
+- Plan operativo: **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`** y **`docs/FLUJOS_CRITICOS.md`** (actualizados).
+
+**Respaldo recomendado en disco:** `git add -A` + commit con mensaje claro (o ZIP del repo) antes de más refactors.
+
+---
+
+*Última actualización del contenido estructural: 2026-05-08 (handoff plan LexIA + Fase 1B).*

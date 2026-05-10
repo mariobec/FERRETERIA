@@ -70,6 +70,11 @@
             <a href="{{ url_for('inventario_dashboard_premium') }}" class="btn btn-sm btn-outline-light mt-2">
               <i class="fas fa-wand-magic-sparkles me-1"></i> Ver prototipo premium
             </a>
+            {% if usuario_tiene_permiso('pos_emitir_vale') %}
+            <button type="button" class="btn btn-sm btn-light text-dark mt-2 ms-1" data-bs-toggle="modal" data-bs-target="#modalFotoSkuInv">
+              <i class="fas fa-camera me-1"></i> Identificar por foto (demo)
+            </button>
+            {% endif %}
         </div>
     </div>
 
@@ -323,6 +328,16 @@
                     <label class="form-label fw-bold">Nivel</label>
                     <input type="text" name="ubicacion_nivel" class="form-control" placeholder="N1">
                 </div>
+                <div class="col-12">
+                    <label class="form-label fw-bold">Fase de obra (Customer 360)</label>
+                    <select name="fase_obra" class="form-select" style="max-width: 28rem" title="Taxonomía para motor predictivo y cartera">
+                        <option value="">— Sin clasificar —</option>
+                        {% for fk in c360_fases_obra %}
+                        <option value="{{ fk }}">{{ c360_fase_labels.get(fk, fk) }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="small text-muted mb-0 mt-1">Usada para agrupar compras y proyectar siguiente fase de proyecto / crédito.</p>
+                </div>
                 <div class="col-md-12 d-flex align-items-end justify-content-end">
                     <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold shadow">
                         <i class="fas fa-save me-2"></i>GUARDAR PRODUCTO
@@ -390,6 +405,7 @@
               <th>UM Compra/Venta</th>
               <th>Stock</th>
               <th>Precio Venta</th>
+              <th>Fase obra</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
@@ -425,6 +441,17 @@
                 {% endif %}
               </td>
               <td class="fw-bold">${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
+              <td>
+                <form method="post" action="{{ url_for('producto_actualizar_fase_obra', id=p.id) }}" class="d-flex flex-column gap-1" style="min-width: 9rem;">
+                  <select name="fase_obra" class="form-select form-select-sm" aria-label="Fase obra {{ p.nombre }}">
+                    <option value="">—</option>
+                    {% for fk in c360_fases_obra %}
+                    <option value="{{ fk }}" {% if (p.fase_obra or '') == fk %}selected{% endif %} title="{{ c360_fase_labels.get(fk, fk) }}">{{ fk }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="btn btn-sm btn-outline-secondary py-0">OK</button>
+                </form>
+              </td>
               <td>
                 {% if p.activo %}
                   <span class="badge text-bg-success">Activo</span>
@@ -462,7 +489,7 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="9" class="text-center text-muted py-5">No hay productos para los filtros seleccionados.</td>
+              <td colspan="10" class="text-center text-muted py-5">No hay productos para los filtros seleccionados.</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -485,6 +512,25 @@
         </li>
       </ul>
     </nav>
+    {% endif %}
+
+    {% if usuario_tiene_permiso('pos_emitir_vale') %}
+    <div class="modal fade" id="modalFotoSkuInv" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h5 class="modal-title small fw-bold"><i class="fas fa-camera me-1"></i>Identificar por foto (IA)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted">OpenAI describe el material; el sistema lista hasta 3 productos del catálogo por relevancia.</p>
+            <input type="file" id="invFotoSkuInput" class="form-control form-control-sm" accept="image/*">
+            <button type="button" class="btn btn-primary btn-sm mt-2" id="invFotoSkuSubmit">Analizar imagen</button>
+            <div id="invFotoSkuResult" class="small mt-2 text-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     {% endif %}
 </div>
 {% endblock %}
@@ -694,6 +740,51 @@
       o.textContent = s.n3;
       hoja.appendChild(o);
     });
+  });
+})();
+
+(function fotoSkuMockInv() {
+  const inp = document.getElementById('invFotoSkuInput');
+  const out = document.getElementById('invFotoSkuResult');
+  const btn = document.getElementById('invFotoSkuSubmit');
+  if (!inp || !btn || !out) return;
+  btn.addEventListener('click', function () {
+    if (!inp.files || !inp.files[0]) {
+      out.textContent = 'Seleccione una imagen.';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('foto', inp.files[0]);
+    out.textContent = 'Analizando…';
+    fetch('{{ url_for("api_pos_identificar_producto_foto") }}', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) {
+          out.textContent = j.sin_api_key ? (j.error || 'Falta OPENAI_API_KEY.') : (j.error || 'Error');
+          return;
+        }
+        var ia = (j.ia_frase || '').replace(/</g, '&lt;');
+        var html = '<div class="small text-muted mb-1">IA: <em>' + ia + '</em></div>';
+        html += '<div class="small mb-1">' + (j.mensaje || '') + '</div>';
+        var list = j.productos || [];
+        if (list.length) {
+          html += '<ul class="small mb-0 ps-3">';
+          for (var i = 0; i < list.length; i++) {
+            var it = list[i];
+            var q = encodeURIComponent((it.nombre || '').slice(0, 80));
+            var catUrl = '{{ url_for("mostrar_productos") }}?q=' + q;
+            html += '<li class="mb-1"><strong>' + (it.nombre || '').replace(/</g, '&lt;') + '</strong> · ' +
+              (it.codigo || '') + ' · st. ' + (it.stock != null ? it.stock : '') +
+              ' · rel. ' + (it.relevancia != null ? it.relevancia : '') +
+              ' <a class="btn btn-sm btn-outline-secondary py-0 px-2" href="' + catUrl + '">Ver listado</a></li>';
+          }
+          html += '</ul>';
+        }
+        out.innerHTML = html;
+      })
+      .catch(function () {
+        out.textContent = 'Error de red';
+      });
   });
 })();
 </script>

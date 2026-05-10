@@ -8,7 +8,9 @@
   </div>
   <div class="page-header">
     <div>
-      <h3 class="page-title"><i class="fas fa-flask text-primary me-2"></i>Simulador «¿Qué pasa si…?»</h3>
+      <h3 class="page-title"><i class="fas fa-flask text-primary me-2"></i>Simulador «¿Qué pasa si…?»
+        <span class="kpi-help" data-bs-toggle="tooltip" title="Recalcula margen bruto sobre ventas históricas en estado Pagado con costo actual del catálogo. Los % aplican al precio y costo medios por SKU; la elasticidad mueve cantidades de forma simple.">?</span>
+      </h3>
       <p class="page-subtitle mb-0">Impacto sobre margen bruto y ventas usando el mismo volumen histórico (ventas <strong>Pagado</strong>) y el costo actual del catálogo (<strong>precio compra</strong>).</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
@@ -38,30 +40,30 @@
     <div class="card-body">
       <form class="row g-3 align-items-end" method="get" action="{{ url_for('simulador_margen') }}">
         <div class="col-md-2">
-          <label class="form-label fw-semibold mb-1">Desde</label>
+          <label class="form-label fw-semibold mb-1">Desde <span class="kpi-help" data-bs-toggle="tooltip" title="Inicio del rango de ventas Pagado incluidas en el cálculo.">?</span></label>
           <input type="date" name="fecha_inicio" class="form-control form-control-sm" value="{{ fecha_inicio }}">
         </div>
         <div class="col-md-2">
-          <label class="form-label fw-semibold mb-1">Hasta</label>
+          <label class="form-label fw-semibold mb-1">Hasta <span class="kpi-help" data-bs-toggle="tooltip" title="Fin del rango (día inclusive).">?</span></label>
           <input type="date" name="fecha_fin" class="form-control form-control-sm" value="{{ fecha_fin }}">
         </div>
         <div class="col-md-2">
-          <label class="form-label fw-semibold mb-1">Δ Precio venta %</label>
+          <label class="form-label fw-semibold mb-1">Δ Precio venta % <span class="kpi-help" data-bs-toggle="tooltip" title="Ajuste porcentual al precio unitario histórico ponderado por SKU antes de aplicar elasticidad.">?</span></label>
           <input type="number" step="0.1" name="d_precio" class="form-control form-control-sm" value="{{ d_precio }}" placeholder="Ej. 5 o -3">
           <div class="form-text">Sobre precio medio histórico por SKU</div>
         </div>
         <div class="col-md-2">
-          <label class="form-label fw-semibold mb-1">Δ Costo compra %</label>
+          <label class="form-label fw-semibold mb-1">Δ Costo compra % <span class="kpi-help" data-bs-toggle="tooltip" title="Simula alza o baja del costo de catálogo (precio compra) en todos los SKU del período.">?</span></label>
           <input type="number" step="0.1" name="d_costo" class="form-control form-control-sm" value="{{ d_costo }}" placeholder="Ej. 8">
           <div class="form-text">Simula alza proveedor</div>
         </div>
         <div class="col-md-2">
-          <label class="form-label fw-semibold mb-1">Elasticidad η</label>
+          <label class="form-label fw-semibold mb-1">Elasticidad η <span class="kpi-help" data-bs-toggle="tooltip" title="Factor simple: cantidad simulada = histórica × (1 + η × Δprecio%). 0 deja cantidades iguales al histórico.">?</span></label>
           <input type="number" step="0.05" name="elasticidad" class="form-control form-control-sm" value="{{ elasticidad }}" placeholder="0">
           <div class="form-text">Δcantidad ≈ η × Δprecio%. Ej. −0,3 y +10% precio → −3% unidades</div>
         </div>
         <div class="col-md-2">
-          <label class="form-label fw-semibold mb-1">Categoría</label>
+          <label class="form-label fw-semibold mb-1">Categoría <span class="kpi-help" data-bs-toggle="tooltip" title="Limita el análisis a una categoría de producto; vacío = todas.">?</span></label>
           <select name="categoria" class="form-select form-select-sm">
             <option value="">Todas</option>
             {% for c in categorias_sel %}
@@ -84,7 +86,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted">Ventas (histórico)</small>
+          <small class="text-muted">Ventas (histórico) <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de subtotales de líneas en ventas Pagado en el período.">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ventas_base).replace(",", ".") }}</h4>
           <small class="text-muted">{{ n_skus }} SKU con movimiento</small>
         </div>
@@ -93,7 +95,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100">
         <div class="card-body">
-          <small class="text-muted">Margen bruto base</small>
+          <small class="text-muted">Margen bruto base <span class="kpi-help" data-bs-toggle="tooltip" title="Ventas − costo (cantidad × precio compra actual) sobre el mismo conjunto de líneas.">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(margen_base).replace(",", ".") }}</h4>
           <small class="text-muted">{% if pct_m_base is not none %}{{ "{:.1f}".format(pct_m_base) }}% sobre ventas{% else %}—{% endif %}</small>
         </div>
@@ -102,7 +104,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100 border-primary border-opacity-25">
         <div class="card-body">
-          <small class="text-muted">Ventas simuladas</small>
+          <small class="text-muted">Ventas simuladas <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de precios ajustados × cantidades ajustadas por elasticidad.">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(ventas_sim).replace(",", ".") }}</h4>
           <small class="{% if delta_ventas >= 0 %}text-success{% else %}text-danger{% endif %}">
             {{ "{:+.0f}".format(delta_ventas).replace(",", ".") }} vs histórico
@@ -113,7 +115,7 @@
     <div class="col-md-3">
       <div class="card card-ds h-100 border-primary border-opacity-25">
         <div class="card-body">
-          <small class="text-muted">Margen bruto simulado</small>
+          <small class="text-muted">Margen bruto simulado <span class="kpi-help" data-bs-toggle="tooltip" title="Ventas simuladas menos costo simulado (mismo criterio de líneas que el base).">?</span></small>
           <h4 class="fw-bold mb-0">${{ "{:,.0f}".format(margen_sim).replace(",", ".") }}</h4>
           <small class="{% if delta_margen >= 0 %}text-success{% else %}text-danger{% endif %}">
             {{ "{:+.0f}".format(delta_margen).replace(",", ".") }} vs base
@@ -138,7 +140,7 @@
   <div class="card card-ds">
     <div class="card-body p-0">
       <div class="px-3 py-2 border-bottom bg-light">
-        <span class="fw-semibold">Mayor impacto en margen (hasta 40 SKU)</span>
+        <span class="fw-semibold">Mayor impacto en margen (hasta 40 SKU) <span class="kpi-help" data-bs-toggle="tooltip" title="SKU ordenados por el mayor efecto en margen al aplicar el escenario (Δ precio, Δ costo y η).">?</span></span>
       </div>
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">
@@ -146,12 +148,12 @@
             <tr>
               <th>Producto</th>
               <th>Categoría</th>
-              <th class="text-end">Und vendidas</th>
-              <th class="text-end">Precio medio hist.</th>
-              <th class="text-end">Costo cat.</th>
-              <th class="text-end">Margen base</th>
-              <th class="text-end">Margen simulado</th>
-              <th class="text-end">Δ Margen</th>
+              <th class="text-end">Und vendidas <span class="kpi-help" data-bs-toggle="tooltip" title="Unidades históricas en el período; en simulación se ajustan con η y Δ precio.">?</span></th>
+              <th class="text-end">Precio medio hist. <span class="kpi-help" data-bs-toggle="tooltip" title="Promedio ponderado del precio unitario en ventas Pagado.">?</span></th>
+              <th class="text-end">Costo cat. <span class="kpi-help" data-bs-toggle="tooltip" title="Precio de compra actual del maestro de productos.">?</span></th>
+              <th class="text-end">Margen base <span class="kpi-help" data-bs-toggle="tooltip" title="Subtotal − cantidad × costo en datos reales del período.">?</span></th>
+              <th class="text-end">Margen simulado <span class="kpi-help" data-bs-toggle="tooltip" title="Mismo SKU con precio y costo simulados y cantidad ajustada.">?</span></th>
+              <th class="text-end">Δ Margen <span class="kpi-help" data-bs-toggle="tooltip" title="Margen simulado menos margen base en pesos.">?</span></th>
             </tr>
           </thead>
           <tbody>

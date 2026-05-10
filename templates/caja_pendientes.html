@@ -166,6 +166,11 @@
                                 {% if v.cola_es_borrador %}
                                 <span class="badge bg-warning text-dark ms-1">Borrador POS</span>
                                 {% endif %}
+                                {% if v.tiene_despacho_bodega %}
+                                <span class="badge bg-info text-dark ms-1 border border-dark border-opacity-25"
+                                    data-bs-toggle="tooltip"
+                                    title="Material ya salió de bodega (comando por voz). Anular sin cobro requiere permiso especial y revierte stock de bodega.">Despachado en Bodega</span>
+                                {% endif %}
                                 {% if v.cotizacion_origen_id %}
                                 {% set cot_ref = cotizaciones_map.get(v.cotizacion_origen_id) if cotizaciones_map else none %}
                                 <div class="small text-warning fw-semibold mt-1">
@@ -191,9 +196,17 @@
                                     </button>
                                     {% endif %}
                                     {% if usuario_tiene_permiso('anular_vale_caja') %}
-                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalAnular{{ v.id }}" title="Cliente no retorna">
+                                    {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
+                                    {% if puede_anular_dsp %}
+                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalAnular{{ v.id }}" title="Cliente no retorna{% if v.tiene_despacho_bodega %} — con reversión de bodega{% endif %}">
                                         Anular
                                     </button>
+                                    {% else %}
+                                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" disabled
+                                        title="Vale con despacho en bodega: solicite a supervisor (permiso anular_vale_con_despacho_bodega).">
+                                        Anular
+                                    </button>
+                                    {% endif %}
                                     {% endif %}
                                 </div>
                                 {% if not v.stock_cobrable %}
@@ -273,10 +286,11 @@
                                             <div class="mb-3 d-none border rounded p-3 bg-light" id="credito_cuotas_wrap_{{ v.id }}">
                                                 <label class="form-label fw-bold text-dark">Crédito en cuotas <span class="text-muted fw-normal small">(fechas de pago)</span></label>
                                                 <select name="credito_plan_cuotas" id="credito_plan_cuotas_{{ v.id }}" class="form-select">
-                                                    <option value="" selected>Crédito simple (sin plan de cuotas)</option>
-                                                    <option value="30_60_90">3 cuotas — 30, 60 y 90 días corridos desde el cobro</option>
+                                                    {% for val, label in planes_cuotas_credito %}
+                                                    <option value="{{ val }}" {% if val == '' %}selected{% endif %}>{{ label }}</option>
+                                                    {% endfor %}
                                                 </select>
-                                                <div class="form-text text-dark">Solo el plan <strong>30 / 60 / 90</strong> está disponible: cada cuota vence a esa cantidad de días después del cobro en caja. El total se reparte en tres partes iguales.</div>
+                                                <div class="form-text text-dark">Cada plan reparte el <strong>total del vale</strong> en cuotas iguales; los días son desde el cobro en caja. Sin plan = crédito simple (una sola deuda en cuenta).</div>
                                             </div>
                                             {% endif %}
                                             <div class="mb-3">
@@ -295,6 +309,8 @@
                         </div>
 
                         {% if usuario_tiene_permiso('anular_vale_caja') %}
+                        {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
+                        {% if puede_anular_dsp %}
                         <div class="modal fade modal-premium" id="modalAnular{{ v.id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content shadow-lg border-danger border-opacity-25">
@@ -304,7 +320,13 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body p-4">
-                                            <p class="small text-muted mb-2">{% if v.cola_es_borrador %}Descartar venta en curso en el POS. El stock no se había descontado aún.{% else %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock no se había descontado aún.{% endif %}</p>
+                                            {% if v.tiene_despacho_bodega %}
+                                            <div class="alert alert-warning border-warning mb-3">
+                                                <strong><i class="fas fa-warehouse me-1"></i>Atención — riesgo de inventario</strong>
+                                                <p class="small mb-0 mt-2">Este vale tiene salidas ya registradas en <strong>bodega</strong> (despacho por voz). Si confirma la anulación, el sistema <strong>devolverá el stock a bodega</strong> y dejará trazas en auditoría y kardex, en una sola transacción.</p>
+                                            </div>
+                                            {% endif %}
+                                            <p class="small text-muted mb-2">{% if v.cola_es_borrador %}Descartar venta en curso en el POS. El stock no se había descontado aún.{% elif v.tiene_despacho_bodega %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. La tienda no había cobrado; se revierte lo despachado en bodega.{% else %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock de tienda no se había descontado aún.{% endif %}</p>
                                             <label class="form-label fw-bold" for="motivo_anular_{{ v.id }}">Motivo</label>
                                             <select name="motivo" id="motivo_anular_{{ v.id }}" class="form-select" required>
                                                 <option value="" disabled selected>Seleccione una opción…</option>
@@ -325,6 +347,7 @@
                                 </div>
                             </div>
                         </div>
+                        {% endif %}
                         {% endif %}
                         {% else %}
                         <tr><td colspan="5" class="text-center py-5 text-muted">No hay documentos en cola de cobro.</td></tr>

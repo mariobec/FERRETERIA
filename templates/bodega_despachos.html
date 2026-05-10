@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% block extra_css %}
+<style>
+  .bodega-voice-fab {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(20px, env(safe-area-inset-bottom));
+    z-index: 1080;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(145deg, #0f766e, #0d9488);
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(15, 118, 110, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .bodega-voice-fab:active { transform: scale(0.96); }
+  .bodega-voice-fab.recording {
+    background: linear-gradient(145deg, #b91c1c, #dc2626);
+    animation: bodega-pulse 1s ease-in-out infinite;
+  }
+  @keyframes bodega-pulse {
+    0%, 100% { box-shadow: 0 8px 24px rgba(220, 38, 38, 0.45); }
+    50% { box-shadow: 0 10px 32px rgba(220, 38, 38, 0.65); }
+  }
+  .bodega-voice-toast {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 100px;
+    z-index: 1070;
+    max-width: min(560px, 92vw);
+    display: none;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-truck-ramp-box text-success me-2"></i>Despachos bodega</h3>
+      <p class="page-subtitle mb-0">
+        Vales pendientes de cobro (mismo criterio que caja). Usá el micrófono para comandos de voz (hasta 10 s): descontar stock en bodega y avisar al cliente por WhatsApp.
+      </p>
+    </div>
+    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+  </div>
+
+  <div class="alert alert-info border-0 small mb-3">
+    <strong>Permiso:</strong> <code>bodega_operador</code>.
+    <strong>IA:</strong> requiere <code>OPENAI_API_KEY</code>. <strong>WhatsApp:</strong> variables <code>WHATSAPP_CLOUD_*</code>.
+  </div>
+
+  <div id="bodegaVoiceToast" class="alert alert-secondary bodega-voice-toast shadow" role="status"></div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-hover table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Vale</th>
+            <th>Cliente</th>
+            <th>Retiro</th>
+            <th>Despacho bodega</th>
+            <th class="text-end">Total</th>
+            <th>Líneas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vales %}
+          <tr>
+            <td class="font-monospace fw-semibold">#{{ v.id }}</td>
+            <td>{{ v.cliente.nombre if v.cliente else '—' }}</td>
+            <td>{{ v.punto_retiro or '—' }}</td>
+            <td>
+              {% if v.bodega_despacho_estado %}
+                <span class="badge bg-secondary">{{ v.bodega_despacho_estado }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
+            <td class="small">
+              {% for d in (v.detalles or []) %}
+                {% set p = d.producto %}
+                <div>{{ (p.nombre if p else '?')[:48] }}{% if p and (p.nombre|length) > 48 %}…{% endif %} × {{ d.cantidad }}</div>
+              {% else %}
+                <span class="text-muted">Sin líneas</span>
+              {% endfor %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No hay vales pendientes de cobro.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<button type="button" id="bodegaVoiceFab" class="bodega-voice-fab" title="Mantener para hablar (máx. 10 s)" aria-label="Comando de voz">
+  <i class="fas fa-microphone"></i>
+</button>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const fab = document.getElementById('bodegaVoiceFab');
+  const toast = document.getElementById('bodegaVoiceToast');
+  const maxMs = 10000;
+  let mediaRecorder = null;
+  let chunks = [];
+  let stopTimer = null;
+  let stream = null;
+  let audioCtx = null;
+
+  function showToast(html, kind) {
+    toast.className = 'alert bodega-voice-toast shadow ' + (kind === 'danger' ? 'alert-danger' : kind === 'success' ? 'alert-success' : 'alert-secondary');
+    toast.innerHTML = html;
+    toast.style.display = 'block';
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function () { toast.style.display = 'none'; }, 8000);
+  }
+
+  function speak(text) {
+    if (!text || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'es-CL';
+      window.speechSynthesis.speak(u);
+    } catch (e) { console.warn(e); }
+  }
+
+  function stopRecording() {
+    if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      try { mediaRecorder.stop(); } catch (e) {}
+    }
+    fab.classList.remove('recording');
+  }
+
+  async function startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showToast('Tu navegador no permite captura de micrófono.', 'danger');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      const gain = audioCtx.createGain();
+      gain.gain.value = 0;
+      src.connect(gain);
+      gain.connect(audioCtx.destination);
+    } catch (e) {
+      showToast('No se pudo acceder al micrófono.', 'danger');
+      return;
+    }
+
+    chunks = [];
+    const opts = { mimeType: 'audio/webm;codecs=opus' };
+    try {
+      mediaRecorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(opts.mimeType) ? opts : undefined);
+    } catch (e) {
+      showToast('No se pudo iniciar la grabación.', 'danger');
+      cleanupStream();
+      return;
+    }
+
+    mediaRecorder.ondataavailable = function (ev) {
+      if (ev.data && ev.data.size) chunks.push(ev.data);
+    };
+
+    mediaRecorder.onstop = async function () {
+      cleanupStream();
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      chunks = [];
+      if (!blob || blob.size < 200) {
+        showToast('Grabación demasiado corta.', 'danger');
+        return;
+      }
+      const fd = new FormData();
+      fd.append('audio', blob, 'voz-bodega.webm');
+      showToast('<i class="fas fa-spinner fa-spin me-2"></i>Procesando…', '');
+      try {
+        const res = await fetch('{{ url_for("api_bodega_voice_command") }}', {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' },
+        });
+        const data = await res.json().catch(function () { return {}; });
+        const msg = (data.speak || data.error || 'Sin respuesta').toString();
+        showToast('<strong>Transcripción:</strong> ' + (data.transcript || '—') + '<br><strong>Resultado:</strong> ' + msg, data.ok ? 'success' : 'danger');
+        speak(msg);
+      } catch (err) {
+        showToast('Error de red al enviar el audio.', 'danger');
+        speak('Error de red.');
+      }
+    };
+
+    fab.classList.add('recording');
+    mediaRecorder.start(200);
+    stopTimer = setTimeout(function () {
+      stopRecording();
+    }, maxMs);
+  }
+
+  function cleanupStream() {
+    try {
+      if (stream) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+      }
+    } catch (e) {}
+    stream = null;
+    try {
+      if (audioCtx && audioCtx.state !== 'closed') audioCtx.close();
+    } catch (e) {}
+    audioCtx = null;
+  }
+
+  let pressActive = false;
+  fab.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    pressActive = true;
+    startRecording();
+  });
+  fab.addEventListener('pointerup', function (e) {
+    e.preventDefault();
+    if (pressActive) stopRecording();
+    pressActive = false;
+  });
+  fab.addEventListener('pointerleave', function () {
+    if (pressActive) stopRecording();
+    pressActive = false;
+  });
+})();
+</script>
+{% endblock %}

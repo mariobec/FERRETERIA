@@ -75,6 +75,12 @@
           <input type="text" id="posBarcodeWedge" class="form-control font-monospace" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Haga clic aquí y escanee — se agrega al vale al terminar (Enter)">
           <div class="form-text">Si la pistola hace bip pero no agrega ítems, mantenga el foco en este campo (no en cantidad ni en el buscador). Use también el buscador abajo para nombre o código.</div>
         </div>
+        <div class="col-12">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">
+            <i class="fas fa-camera me-1"></i> Identificar por foto (demo)
+          </button>
+          <span class="small text-muted ms-2">Simulación: sugiere un SKU de catálogo con stock alto.</span>
+        </div>
         <div class="col-md-10">
           <label class="form-label fw-bold">Buscar producto</label>
           <select id="buscarProducto" class="form-select" style="width:100%">
@@ -317,6 +323,54 @@
   </div>
 </div>
 
+{% if pos_cross_sell %}
+<div class="modal fade" id="modalPosCrossSell" tabindex="-1" aria-labelledby="modalPosCrossSellLabel" aria-hidden="true" data-rule-id="{{ pos_cross_sell.rule_id }}">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header py-2 bg-primary text-white">
+        <h5 class="modal-title small fw-bold" id="modalPosCrossSellLabel"><i class="fas fa-layer-group me-1"></i>{{ pos_cross_sell.titulo }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar" id="modalPosCrossSellBtnCerrarX"></button>
+      </div>
+      <div class="modal-body py-3">
+        <p class="small text-muted mb-2">{{ pos_cross_sell.mensaje }}</p>
+        <p class="small fw-semibold mb-2">Productos sugeridos:</p>
+        <div class="d-flex flex-wrap gap-2">
+          {% for it in pos_cross_sell['items'] %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}">
+            <i class="fas fa-plus me-1"></i>{{ it.nombre }}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" id="modalPosCrossSellBtnAhoraNo">Ahora no</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="modal fade" id="modalPosFotoSku" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title small fw-bold"><i class="fas fa-camera me-1"></i>Identificar por foto (IA)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Suba una foto: OpenAI describe el material y el sistema sugiere hasta 3 ítems del catálogo.</p>
+        <input type="file" id="posFotoSkuInput" class="form-control form-control-sm" accept="image/*">
+        <button type="button" class="btn btn-primary btn-sm mt-2" id="posFotoSkuSubmit">Analizar imagen</button>
+        <div id="posFotoSkuResult" class="small mt-2 text-body"></div>
+      </div>
+      <div class="modal-footer py-2 flex-wrap gap-1 justify-content-between" id="posFotoSkuFooterBtns">
+        <a href="#" class="btn btn-sm btn-success d-none" id="posFotoSkuAgregarLink"><i class="fas fa-plus me-1"></i>Agregar mejor coincidencia</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="modalConfirmarPuntoRetiro" tabindex="-1" aria-labelledby="modalConfirmarPuntoRetiroLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -365,8 +419,106 @@
     'agregar_producto': url_for('agregar_producto_venta'),
     'actualizar_item': url_for('actualizar_item'),
     'consultar_cliente': url_for('consultar_cliente'),
-    'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento')
+    'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento'),
+    'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
+    'cross_sell_reject': url_for('api_pos_cross_sell_reject')
   }
 } | tojson }}</script>
 <script src="{{ url_for('static', filename='js/pos.js') }}"></script>
+{% if pos_cross_sell %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var el = document.getElementById('modalPosCrossSell');
+  if (el && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    bootstrap.Modal.getOrCreateInstance(el).show();
+  }
+  var mx = document.getElementById('modalPosCrossSell');
+  if (!mx) return;
+  var rejectUrl = (function () {
+    try {
+      var cfg = document.getElementById('pos-config');
+      if (cfg && cfg.textContent) return JSON.parse(cfg.textContent).urls.cross_sell_reject || '';
+    } catch (e) {}
+    return '';
+  })();
+  function postCrossSellReject() {
+    if (mx.dataset.suggestedAdd === '1') return;
+    var rid = (mx.getAttribute('data-rule-id') || '').trim();
+    if (!rid || !rejectUrl || mx.dataset.rejectSent === '1') return;
+    mx.dataset.rejectSent = '1';
+    fetch(rejectUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule_id: rid }),
+      credentials: 'same-origin'
+    }).catch(function () {});
+  }
+  mx.querySelectorAll('a[href*="agregar_producto"]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      mx.dataset.suggestedAdd = '1';
+    });
+  });
+  mx.addEventListener('shown.bs.modal', function () {
+    delete mx.dataset.rejectSent;
+    delete mx.dataset.suggestedAdd;
+  });
+  mx.addEventListener('hidden.bs.modal', function () {
+    postCrossSellReject();
+    delete mx.dataset.suggestedAdd;
+  });
+});
+</script>
+{% endif %}
+<script>
+(function posFotoSkuMock() {
+  var inp = document.getElementById('posFotoSkuInput');
+  var out = document.getElementById('posFotoSkuResult');
+  var btn = document.getElementById('posFotoSkuSubmit');
+  var link = document.getElementById('posFotoSkuAgregarLink');
+  if (!inp || !out || !btn) return;
+  btn.addEventListener('click', function () {
+    if (!inp.files || !inp.files[0]) {
+      out.textContent = 'Seleccione una imagen.';
+      if (link) { link.classList.add('d-none'); }
+      return;
+    }
+    var fd = new FormData();
+    fd.append('foto', inp.files[0]);
+    out.textContent = 'Analizando…';
+    if (link) { link.classList.add('d-none'); }
+    fetch('{{ url_for("api_pos_identificar_producto_foto") }}', { method: 'POST', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) {
+          out.textContent = j.sin_api_key ? (j.error || 'Falta OPENAI_API_KEY.') : (j.error || 'Error');
+          return;
+        }
+        var ia = (j.ia_frase || '').replace(/</g, '&lt;');
+        var html = '<div class="small text-muted mb-1">IA: <em>' + ia + '</em></div>';
+        html += '<div class="small mb-1">' + (j.mensaje || '') + '</div>';
+        var list = j.productos || [];
+        if (list.length) {
+          html += '<ul class="small mb-0 ps-3">';
+          for (var i = 0; i < list.length; i++) {
+            var it = list[i];
+            var href = '{{ url_for("agregar_producto_venta") }}?producto_id=' + encodeURIComponent(String(it.producto_id));
+            html += '<li class="mb-1"><strong>' + (it.nombre || '').replace(/</g, '&lt;') + '</strong> · ' +
+              (it.codigo || '') + ' · st. ' + (it.stock != null ? it.stock : '') +
+              ' · rel. ' + (it.relevancia != null ? it.relevancia : '') +
+              ' <a class="btn btn-sm btn-outline-primary py-0 px-2" href="' + href + '">+ Vale</a></li>';
+          }
+          html += '</ul>';
+        }
+        out.innerHTML = html;
+        if (link && j.producto_id) {
+          link.href = '{{ url_for("agregar_producto_venta") }}?producto_id=' + encodeURIComponent(String(j.producto_id));
+          link.classList.remove('d-none');
+        }
+      })
+      .catch(function () {
+        out.textContent = 'Error de red';
+      });
+  });
+})();
+</script>
 {% endblock %}

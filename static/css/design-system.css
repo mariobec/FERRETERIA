@@ -184,6 +184,46 @@ html, body {
     text-align: center;
 }
 
+/* Subtítulo dentro de un grupo (agrupa enlaces por lógica operativa / gerencia) */
+.app-nav-group-body .app-nav-group-subtitle {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.95);
+    padding: 10px 20px 4px 28px;
+    margin: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.app-nav-group-body .app-nav-group-subtitle:first-child {
+    border-top: 0;
+    padding-top: 4px;
+}
+
+/* Ayuda contextual (? ) en tableros y formularios (Bootstrap tooltip) */
+.kpi-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 4px;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #495057;
+    font-size: 0.68rem;
+    font-weight: 800;
+    cursor: help;
+    vertical-align: middle;
+    line-height: 1;
+}
+.premium-dark .kpi-help,
+.premium-stock-shell .kpi-help {
+    background: rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
 .logout-premium {
     display: flex;
     justify-content: center;

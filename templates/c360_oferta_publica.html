@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oferta materiales — {{ cot.numero }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+</head>
+<body class="bg-light">
+  <div class="container py-4" style="max-width: 640px;">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <h1 class="h4 fw-bold mb-2">Kit sugerido · {{ empresa.get('nombre_comercial', 'Ferretería') }}</h1>
+        <p class="text-muted small mb-3">Cotización <strong>{{ cot.numero }}</strong> · Cliente {{ cot.cliente_nombre or '—' }}</p>
+        <p class="mb-3">Gracias por tu interés. Podés revisar el detalle imprimible y confirmar con la ferretería por WhatsApp.</p>
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary fw-bold" href="{{ url_for('c360_oferta_publica_pdf', token=seg.token) }}" target="_blank" rel="noopener">Ver / imprimir PDF</a>
+          <a class="btn btn-success fw-bold" href="https://wa.me/?text={{ wa_txt }}" target="_blank" rel="noopener">Confirmar por WhatsApp</a>
+        </div>
+        <p class="small text-muted mt-4 mb-0">Si este enlace no te corresponde, ignorá el mensaje.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

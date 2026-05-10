@@ -1,182 +1,676 @@
 {% extends "base.html" %}
-{% block content %}
+{% block extra_css %}
 <style>
-.creditos-historial-header .nav-pills .nav-link:not(.active) { color: rgba(255,255,255,.78); }
-.creditos-historial-header .nav-pills .nav-link:not(.active):hover { color: #fff; }
-.creditos-historial-header .nav-pills .nav-link.active { background: #f37021; color: #111; font-weight: 700; }
+  .creditos-premium {
+    --cp-shell: #131a24;
+    --cp-panel: #161d27;
+    --cp-panel-deep: #101620;
+    --cp-border: rgba(255, 255, 255, .09);
+    --cp-border-soft: rgba(255, 255, 255, .06);
+    --cp-orange: #f37021;
+    --cp-muted: rgba(255, 255, 255, .58);
+    --cp-text: rgba(255, 255, 255, .92);
+  }
+  .creditos-premium .cp-dashboard-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    background: linear-gradient(165deg, #161d2e 0%, var(--cp-shell) 42%, #0e131c 100%);
+    border: 1px solid var(--cp-border);
+    border-radius: 1.1rem;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .35), 0 0 0 1px rgba(255, 255, 255, .03) inset;
+    overflow: hidden;
+  }
+  .creditos-premium .cp-shell-header {
+    padding: 1.1rem 1.35rem;
+    border-bottom: 1px solid var(--cp-border-soft);
+    background: rgba(0, 0, 0, .15);
+  }
+  .creditos-premium .cp-shell-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin: 0;
+  }
+  .creditos-premium .cp-shell-sub {
+    font-size: .8rem;
+    color: var(--cp-muted);
+    margin: .2rem 0 0;
+  }
+  .creditos-premium .cp-shell-badge {
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .4rem .85rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .08);
+    color: rgba(255, 255, 255, .88);
+    border: 1px solid var(--cp-border-soft);
+  }
+  .creditos-premium .cp-shell-body {
+    min-height: min(72vh, 820px);
+  }
+  .creditos-premium .cp-panel--aside {
+    background: var(--cp-panel-deep);
+    border-right: 1px solid var(--cp-border-soft);
+  }
+  @media (max-width: 991.98px) {
+    .creditos-premium .cp-panel--aside {
+      border-right: 0;
+      border-bottom: 1px solid var(--cp-border-soft);
+    }
+  }
+  .creditos-premium .cp-aside-inner {
+    padding: 1.25rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    min-height: min(72vh, 820px);
+  }
+  .creditos-premium .cp-aside-inner .cp-aside-scroll {
+    flex: 1 1 auto;
+  }
+  .creditos-premium .cp-aside-foot {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--cp-border-soft);
+    font-size: .72rem;
+    color: var(--cp-muted);
+    line-height: 1.45;
+  }
+  .creditos-premium .cp-label-over {
+    font-size: .65rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--cp-muted);
+    margin-bottom: .35rem;
+  }
+  .creditos-premium .cp-form-on-dark .form-select,
+  .creditos-premium .cp-form-on-dark .form-control {
+    background: #fff;
+    border-color: rgba(0, 0, 0, .12);
+    color: #111;
+    border-radius: .65rem;
+  }
+  .creditos-premium .cp-form-on-dark .form-select:focus,
+  .creditos-premium .cp-form-on-dark .form-control:focus {
+    border-color: var(--cp-orange);
+    box-shadow: 0 0 0 .15rem rgba(243, 112, 33, .2);
+  }
+  .creditos-premium .cp-saldo-box {
+    background: rgba(255, 255, 255, .06);
+    border: 1px solid var(--cp-border);
+    border-radius: .85rem;
+    padding: 1rem;
+    text-align: center;
+  }
+  .creditos-premium .cp-panel--main {
+    background: var(--cp-panel);
+    display: flex;
+    flex-direction: column;
+  }
+  .creditos-premium .cp-main-inner {
+    padding: 1rem 1.25rem 0;
+    flex: 0 0 auto;
+  }
+  .creditos-premium .cp-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem;
+  }
+  @media (min-width: 992px) {
+    .creditos-premium .cp-kpi-grid--4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  @media (max-width: 575.98px) {
+    .creditos-premium .cp-kpi-grid,
+    .creditos-premium .cp-kpi-grid--4 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .creditos-premium .cp-stat {
+    background: rgba(255, 255, 255, .035);
+    border: 1px solid var(--cp-border-soft);
+    border-radius: .65rem;
+    padding: .65rem .75rem;
+    min-height: 4.35rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .creditos-premium a.cp-stat:hover {
+    border-color: rgba(243, 112, 33, .4);
+    background: rgba(255, 255, 255, .05);
+  }
+  .creditos-premium .cp-stat--focus {
+    border-color: rgba(243, 112, 33, .35);
+    background: rgba(243, 112, 33, .08);
+  }
+  .creditos-premium .cp-stat-label {
+    font-size: .6rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--cp-muted);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .creditos-premium .cp-stat-val {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    margin-top: .15rem;
+  }
+  .creditos-premium .cp-stat-sub {
+    font-size: .68rem;
+    color: var(--cp-muted);
+    margin-top: .1rem;
+  }
+  .creditos-premium .cp-stat-val--warn {
+    color: #fcd34d;
+  }
+  .creditos-premium .cp-stat-val--danger {
+    color: #fca5a5;
+  }
+  .creditos-premium .cp-stat-unit {
+    font-size: .75rem;
+    font-weight: 600;
+    opacity: .85;
+  }
+  .creditos-premium .cp-aging-wrap {
+    background: rgba(0, 0, 0, .2);
+    border: 1px solid var(--cp-border-soft);
+    border-radius: .65rem;
+    padding: .55rem .75rem;
+    margin-top: .65rem;
+  }
+  .creditos-premium .cp-aging {
+    height: 9px;
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    background: rgba(255, 255, 255, .06);
+  }
+  .creditos-premium .cp-aging > span { min-width: 2px; height: 100%; }
+  .creditos-premium .aging-al { background: #22c55e; }
+  .creditos-premium .aging-15 { background: #ca8a04; }
+  .creditos-premium .aging-30 { background: #ea580c; }
+  .creditos-premium .aging-31 { background: #dc2626; }
+  .creditos-premium .cp-legend {
+    font-size: .6rem;
+    color: var(--cp-muted);
+  }
+  .creditos-premium .cp-alert-soft {
+    border-radius: .55rem;
+    border: 1px solid rgba(248, 113, 113, .35);
+    background: rgba(127, 29, 29, .2);
+    color: #fecaca;
+    font-size: .75rem;
+    padding: .5rem .75rem;
+    margin-top: .5rem;
+  }
+  .creditos-premium .cp-tabbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .15rem;
+    border-bottom: 1px solid var(--cp-border-soft);
+    margin: .75rem 1.25rem 0;
+    padding-bottom: 0;
+  }
+  .creditos-premium .cp-tabbar .nav-link {
+    color: var(--cp-muted);
+    font-size: .78rem;
+    font-weight: 600;
+    padding: .55rem .95rem;
+    border: none;
+    border-radius: .45rem .45rem 0 0;
+    margin-bottom: -1px;
+  }
+  .creditos-premium .cp-tabbar .nav-link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, .05);
+  }
+  .creditos-premium .cp-tabbar .nav-link.active {
+    color: #fff;
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid var(--cp-border-soft);
+    border-bottom-color: var(--cp-panel);
+  }
+  .creditos-premium .cp-table-wrap {
+    flex: 1 1 auto;
+    min-height: 200px;
+    max-height: min(52vh, 560px);
+    overflow: auto;
+    border-top: 1px solid var(--cp-border-soft);
+    margin-top: 0;
+  }
+  .creditos-premium .table-cp {
+    --bs-table-bg: rgba(16, 22, 32, 0.98);
+    --bs-table-color: rgba(255, 255, 255, 0.92);
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.045);
+    --bs-table-striped-color: rgba(255, 255, 255, 0.92);
+    --bs-table-hover-bg: rgba(243, 112, 33, 0.1);
+    --bs-table-hover-color: #fff;
+    margin-bottom: 0;
+  }
+  .creditos-premium .table-cp td,
+  .creditos-premium .table-cp th {
+    border-color: var(--cp-border-soft);
+    vertical-align: middle;
+  }
+  .creditos-premium .table-cp .cp-td-muted {
+    color: rgba(255, 255, 255, .72) !important;
+  }
+  .creditos-premium .table-cp .cp-td-strong {
+    color: #fff !important;
+    font-variant-numeric: tabular-nums;
+  }
+  .creditos-premium .table-cp thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #1a2230;
+    color: rgba(255, 255, 255, .72);
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .creditos-premium .cp-empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--cp-muted);
+  }
+  .creditos-premium .cp-cupo-bar {
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .1);
+    overflow: hidden;
+    max-width: 140px;
+  }
+  .creditos-premium .cp-cupo-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4ade80, var(--cp-orange) 55%, #f87171);
+  }
+  .creditos-premium .kpi-help {
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
 </style>
-<div class="container-fluid py-4">
-    <div class="row">
-        <!-- BUSCADOR Y REGISTRO -->
-        <div class="col-md-5">
-            <div class="card shadow-sm border-0 rounded-4 mb-4">
-                <div class="card-header bg-dark text-white rounded-top-4 py-3">
-                    <h5 class="mb-0"><i class="fas fa-search-dollar me-2"></i>Buscar Cliente / Registrar Abono</h5>
-                </div>
-                <div class="card-body p-4">
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Seleccionar Cliente</label>
-                        <select id="select-cliente" class="form-select form-select-lg shadow-sm border-2">
-                            <option value="">Escriba nombre o RUT...</option>
-                            {% for c in clientes %}
-                            <option value="{{ c.id }}" data-saldo="{{ c.saldo_deudor }}" data-rut="{{ c.rut }}">
-                                {{ c.nombre }} ({{ c.rut }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <div class="small text-muted mt-2">
-                            {{ clientes|length }} cliente(s) con saldo deudor vigente.
-                        </div>
-                    </div>
+{% endblock %}
 
-                    <div id="area-pago" class="d-none animate__animated animate__fadeIn">
-                        <div class="alert alert-warning border-0 rounded-4 text-center">
-                            <p class="mb-1 small text-uppercase fw-bold">Deuda Actual</p>
-                            <h2 class="fw-bold mb-0 text-dark" id="display-saldo">$ 0</h2>
-                        </div>
-                        <a id="btn-cartola-cliente" href="#" class="btn btn-outline-dark w-100 rounded-pill mb-3 d-none">
-                            <i class="fas fa-file-invoice me-2"></i>Ver cartola / estado de cuenta
-                        </a>
+{% block content %}
+<div class="container-fluid py-3 py-lg-4 creditos-premium">
+  <div class="cp-dashboard-shell">
+    <header class="cp-shell-header d-flex flex-wrap align-items-start justify-content-between gap-3">
+      <div>
+        <h1 class="cp-shell-title d-flex align-items-center flex-wrap gap-1">Crédito y cobranza
+          <span class="kpi-help" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Registrar abonos, ver cartera y alertas por atraso. Montos desde saldo deudor y planes de cuotas. Enlace a cobranza WhatsApp para cuotas.">?</span>
+        </h1>
+        <p class="cp-shell-sub">Registrar abonos y monitorear cartera, alertas y cuotas en un solo panel.</p>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+      <a href="{{ url_for('cobranza_cuotas') }}" class="btn btn-sm btn-outline-light border-secondary text-nowrap" title="Cuotas por vencer y recordatorio WhatsApp">
+        <i class="fab fa-whatsapp text-success me-1"></i>Cobranza cuotas
+        {% if n_cobranza_sin_enviar and n_cobranza_sin_enviar > 0 %}
+        <span class="badge bg-danger ms-1">{{ n_cobranza_sin_enviar }}</span>
+        {% endif %}
+      </a>
+      <span class="cp-shell-badge">
+        {% if filtro_vista in ('ultimos', 'abonos') %}
+          {{ ultimos_abonos|length }} abono(s) en esta vista
+        {% elif filtro_vista == 'alerta' %}
+          {{ clientes_cartera|length }} cliente(s) en alerta
+        {% else %}
+          {{ clientes_cartera|length }} deudor(es) listados
+        {% endif %}
+      </span>
+      </div>
+    </header>
 
-                        <form action="{{ url_for('registrar_abono') }}" method="POST">
-                            <input type="hidden" name="cliente_id" id="input-cliente-id">
-                            
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Monto a Abonar</label>
-                                <div class="input-group input-group-lg">
-                                    <span class="input-group-text bg-success text-white border-0">$</span>
-                                    <input type="number" name="monto_abono" class="form-control border-2" placeholder="0" required>
-                                </div>
-                            </div>
-
-                            <div class="mb-4">
-                                <label class="form-label fw-bold">Método de Pago</label>
-                                <select name="metodo_pago" class="form-select border-2">
-                                    <option value="Efectivo">Efectivo</option>
-                                    <option value="Debito">Débito / prepago</option>
-                                    <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
-                                    <option value="Transferencia">Transferencia</option>
-                                </select>
-                            </div>
-
-                            <button type="submit" class="btn btn-success btn-lg w-100 fw-bold rounded-pill py-3">
-                                <i class="fas fa-check-circle me-2"></i>PROCESAR ABONO
-                            </button>
-                        </form>
-                    </div>
-                </div>
+    <div class="row g-0 cp-shell-body">
+      <!-- Registro abonos -->
+      <aside class="col-lg-4 col-xl-4 cp-panel cp-panel--aside">
+        <div class="cp-aside-inner">
+          <div class="cp-aside-scroll cp-form-on-dark">
+            <div class="d-flex align-items-start gap-2 mb-3">
+              <span class="rounded-2 d-inline-flex align-items-center justify-content-center bg-white bg-opacity-10 text-white" style="width:2.25rem;height:2.25rem;"><i class="fas fa-hand-holding-dollar"></i></span>
+              <div>
+                <div class="text-white fw-semibold">Registrar abono</div>
+                <div class="small" style="color: var(--cp-muted);">Cliente con saldo deudor y monto a imputar.</div>
+              </div>
             </div>
+
+            <div class="cp-label-over">Cliente</div>
+            <select id="select-cliente" class="form-select form-select-lg mb-2" data-search-url="{{ url_for('creditos_api_buscar_deudores') }}">
+              <option value="">Escriba nombre o RUT para buscar…</option>
+            </select>
+            <div class="small mb-3" style="color: var(--cp-muted);">
+              <i class="fas fa-users me-1 opacity-75"></i>{{ clientes|length }} con saldo deudor vigente.
+            </div>
+
+            <div id="area-pago" class="d-none">
+              <div class="cp-saldo-box mb-3">
+                <div class="small text-uppercase fw-semibold" style="color: var(--cp-muted); font-size:.65rem;">Saldo seleccionado</div>
+                <div class="fs-3 fw-bold text-white mt-1" id="display-saldo" style="font-variant-numeric: tabular-nums;">$ 0</div>
+              </div>
+              <a id="btn-cartola-cliente" href="#" class="btn btn-outline-light border-secondary w-100 mb-3 d-none">
+                <i class="fas fa-file-invoice me-2"></i>Ver cartola / estado de cuenta
+              </a>
+
+              <form action="{{ url_for('registrar_abono') }}" method="POST">
+                <input type="hidden" name="cliente_id" id="input-cliente-id">
+                <div class="cp-label-over">Monto a abonar</div>
+                <div class="input-group input-group-lg mb-3">
+                  <span class="input-group-text border-secondary bg-dark text-white">$</span>
+                  <input type="number" name="monto_abono" class="form-control" placeholder="0" min="1" step="1" required>
+                </div>
+                <div class="cp-label-over">Método de pago</div>
+                <select name="metodo_pago" class="form-select form-select-lg mb-4">
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Debito">Débito / prepago</option>
+                  <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
+                  <option value="Transferencia">Transferencia</option>
+                </select>
+                <button type="submit" class="btn btn-lg w-100 fw-bold text-dark border-0" style="background: linear-gradient(135deg, #f37021, #ff9a56); border-radius: .65rem;">
+                  <i class="fas fa-check-circle me-2"></i>Procesar abono
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="cp-aside-foot">
+            <i class="fas fa-circle-info me-1"></i> Los abonos liquidan primero las cuotas más antiguas. Use la cartola para el detalle por cliente.
+          </div>
+        </div>
+      </aside>
+
+      <!-- Dashboard -->
+      <section class="col-lg-8 col-xl-8 cp-panel cp-panel--main">
+        {% set wd = cartera_dash %}
+        <div class="cp-main-inner">
+          <div class="cp-kpi-grid cp-kpi-grid--4 mb-2">
+            <a href="{{ url_for('modulo_creditos', vista='cartera') }}" class="text-decoration-none cp-stat {% if filtro_vista == 'cartera' %}cp-stat--focus{% endif %}" title="Ver deudores">
+              <div class="cp-stat-label">Total cartera <span class="kpi-help" onclick="event.preventDefault();event.stopPropagation();" data-bs-toggle="tooltip" title="Suma de saldo_deudor de clientes con crédito activo listados en cartera.">?</span></div>
+              <div class="cp-stat-val">$ {{ "{:,.0f}".format(total_cartera_credito).replace(",", ".") }}</div>
+            </a>
+            <a href="{{ url_for('modulo_creditos', vista='alerta') }}" class="text-decoration-none cp-stat {% if filtro_vista == 'alerta' %}cp-stat--focus{% endif %}" title="Solo alerta">
+              <div class="cp-stat-label">En alerta (&gt;{{ dias_alerta_credito }} d) <span class="kpi-help" onclick="event.preventDefault();event.stopPropagation();" data-bs-toggle="tooltip" title="Clientes con saldo y antigüedad de deuda que supera el umbral configurado.">?</span></div>
+              <div class="cp-stat-val">{{ n_credito_alert }} <span class="cp-stat-unit">clientes</span></div>
+            </a>
+            <div class="cp-stat" title="Cuotas con vencimiento en 7 días">
+              <div class="cp-stat-label">Cuotas próx. 7 días <span class="kpi-help" data-bs-toggle="tooltip" title="Cuotas de plan de pago con fecha de vencimiento dentro de la próxima semana.">?</span></div>
+              <div class="cp-stat-val">{{ n_cuotas_por_vencer }} <span class="cp-stat-unit">cuotas</span></div>
+            </div>
+            <div class="cp-stat cp-stat--focus" title="Suma cupo sugerido próxima fase (Customer 360, clientes activos con score &gt; 90)">
+              <div class="cp-stat-label">Proyección mercadería <span class="kpi-help" data-bs-toggle="tooltip" title="Σ cupo_sugerido_proxima_fase del motor Customer 360 en clientes activos con buen score; orienta oportunidad de venta con crédito.">?</span></div>
+              <div class="cp-stat-val">$ {{ "{:,.0f}".format(c360_proyeccion_cupo|default(0)).replace(",", ".") }}</div>
+              <div class="cp-stat-sub">Cupo sugerido Σ próx. fase</div>
+            </div>
+          </div>
+
+          <div class="cp-kpi-grid cp-kpi-grid--4 mb-2">
+            <a href="{{ url_for('modulo_creditos', vista='abonos') }}" class="text-decoration-none cp-stat" title="Historial abonos">
+              <div class="cp-stat-label">Abonos hoy <span class="kpi-help" onclick="event.preventDefault();event.stopPropagation();" data-bs-toggle="tooltip" title="Operaciones de abono registradas hoy y monto total imputado.">?</span></div>
+              <div class="cp-stat-val">{{ wd.abonos_hoy_cnt }} <span class="cp-stat-unit">ops</span></div>
+              <div class="cp-stat-sub">$ {{ "{:,.0f}".format(wd.abonos_hoy_monto).replace(",", ".") }}</div>
+            </a>
+            <div class="cp-stat">
+              <div class="cp-stat-label">Monto cuotas vencidas <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de cuotas cuya fecha de vencimiento ya pasó y siguen pendientes de pago.">?</span></div>
+              <div class="cp-stat-val {% if wd.monto_cuotas_vencidas > 0 %}cp-stat-val--warn{% endif %}">$ {{ "{:,.0f}".format(wd.monto_cuotas_vencidas).replace(",", ".") }}</div>
+            </div>
+            <div class="cp-stat">
+              <div class="cp-stat-label">Clientes cuota vencida <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de clientes distintos con al menos una cuota vencida pendiente.">?</span></div>
+              <div class="cp-stat-val {% if wd.n_clientes_cuota_vencida > 0 %}cp-stat-val--danger{% endif %}">{{ wd.n_clientes_cuota_vencida }}</div>
+            </div>
+            <div class="cp-stat">
+              <div class="cp-stat-label">Suspendidos (&gt;15 d) <span class="kpi-help" data-bs-toggle="tooltip" title="Cuentas marcadas por reglas de cobranza por atraso fuerte en cuotas (priorizar gestión).">?</span></div>
+              <div class="cp-stat-val {% if wd.ids_suspendidos|length > 0 %}cp-stat-val--danger{% endif %}">{{ wd.ids_suspendidos|length }}</div>
+            </div>
+          </div>
+
+          {% set seg = (wd.aging_al_dia + wd.aging_1_15 + wd.aging_16_30 + wd.aging_31p) %}
+          <div class="cp-aging-wrap">
+            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
+              <span class="cp-stat-label mb-0">Aging cuotas pendientes <span class="kpi-help" data-bs-toggle="tooltip" title="Distribución del monto pendiente de cuotas por tramos de días desde el vencimiento.">?</span></span>
+              <span class="cp-legend">Al día · 1–15 · 16–30 · +31</span>
+            </div>
+            {% if seg > 0 %}
+            <div class="cp-aging" role="img" aria-label="Aging">
+              <span class="aging-al" style="flex: {{ (100 * wd.aging_al_dia / seg)|round(2) }};"></span>
+              <span class="aging-15" style="flex: {{ (100 * wd.aging_1_15 / seg)|round(2) }};"></span>
+              <span class="aging-30" style="flex: {{ (100 * wd.aging_16_30 / seg)|round(2) }};"></span>
+              <span class="aging-31" style="flex: {{ (100 * wd.aging_31p / seg)|round(2) }};"></span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 gap-lg-3 mt-1 cp-legend">
+              <span>Al día ${{ "{:,.0f}".format(wd.aging_al_dia).replace(",", ".") }}</span>
+              <span>1–15 ${{ "{:,.0f}".format(wd.aging_1_15).replace(",", ".") }}</span>
+              <span>16–30 ${{ "{:,.0f}".format(wd.aging_16_30).replace(",", ".") }}</span>
+              <span>+31 ${{ "{:,.0f}".format(wd.aging_31p).replace(",", ".") }}</span>
+            </div>
+            {% else %}
+            <div class="cp-legend">Sin cuotas pendientes o sin planes generados aún.</div>
+            {% endif %}
+          </div>
+
+          {% if wd.ids_suspendidos|length > 0 %}
+          <div class="cp-alert-soft mt-2">
+            <strong>Cobranza:</strong> {{ wd.ids_suspendidos|length }} cuenta(s) con cuotas atrasadas &gt;15 días — priorizar contacto antes de nuevo fiado.
+          </div>
+          {% endif %}
         </div>
 
-        <!-- HISTORIAL DE ABONOS (filtros + resumen cartera) -->
-        <div class="col-md-7">
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-header creditos-historial-header bg-dark text-white py-2 px-3 rounded-top-4 border-bottom border-secondary">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                        <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
-                            <span class="d-none d-sm-inline text-white-50 small text-uppercase fw-semibold me-1">
-                                <i class="fas fa-history me-1"></i>Historial
-                            </span>
-                            <ul class="nav nav-pills small mb-0 flex-nowrap" role="tablist">
-                                <li class="nav-item">
-                                    <a class="nav-link py-1 px-3 rounded-pill {% if filtro_vista == 'ultimos' %}active{% endif %}"
-                                       href="{{ url_for('modulo_creditos', vista='ultimos') }}">Últimos créditos</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link py-1 px-3 rounded-pill {% if filtro_vista == 'todos' %}active{% endif %}"
-                                       href="{{ url_for('modulo_creditos', vista='todos') }}">Todos</a>
-                                </li>
-                            </ul>
-                            <span class="badge bg-secondary text-white align-middle" title="Registros mostrados en esta vista">{{ ultimos_abonos|length }}</span>
-                        </div>
-                        <div class="d-flex flex-wrap align-items-stretch gap-3 ms-md-auto small">
-                            <div class="text-md-end">
-                                <div class="text-white-50 text-uppercase" style="font-size:0.65rem;letter-spacing:.04em;">Total cartera por cobrar</div>
-                                <div class="fw-bold fs-6 text-white">$ {{ "{:,.0f}".format(total_cartera_credito).replace(",", ".") }}</div>
-                            </div>
-                            <div class="border-start border-secondary ps-3 text-md-end" title="Clientes con saldo y al menos una venta al crédito de hace más de {{ dias_alerta_credito }} días (revisar cobranza).">
-                                <div class="text-white-50 text-uppercase" style="font-size:0.65rem;letter-spacing:.04em;">Créditos en alerta</div>
-                                <div class="fw-bold">
-                                    <span class="badge bg-warning text-dark">{{ n_credito_alert }}</span>
-                                    <span class="text-white-50">clientes</span>
-                                </div>
-                                <div class="text-white-50" style="font-size:0.68rem;">&gt; {{ dias_alerta_credito }} días</div>
-                            </div>
-                            <div class="border-start border-secondary ps-3 text-md-end" title="Cuotas con vencimiento hoy o en los próximos 7 días (plan 30/60/90 días corridos desde el cobro).">
-                                <div class="text-white-50 text-uppercase" style="font-size:0.65rem;letter-spacing:.04em;">Pagos cuotas 7 días</div>
-                                <div class="fw-bold">
-                                    <span class="badge bg-info text-dark">{{ n_cuotas_por_vencer }}</span>
-                                    <span class="text-white-50">cuotas</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="ps-4">Cliente</th>
-                                <th>Fecha</th>
-                                <th>Monto</th>
-                                <th>Saldo Resultante</th>
-                                <th class="text-center">Ticket</th>
-                                <th class="text-center">Cartola</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for a in ultimos_abonos %}
-                            <tr>
-                                <td class="ps-4"><strong>{{ a.cliente.nombre }}</strong></td>
-                                <td class="small">{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td class="text-success fw-bold">$ {{ "{:,.0f}".format(a.monto_abono).replace(",", ".") }}</td>
-                                <td class="text-muted small">$ {{ "{:,.0f}".format(a.nuevo_saldo).replace(",", ".") }}</td>
-                                <td class="text-center">
-                                    <a href="{{ url_for('ver_ticket_abono', id=a.id) }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Ver / imprimir comprobante">
-                                        <i class="fas fa-print"></i>
-                                    </a>
-                                </td>
-                                <td class="text-center">
-                                    <a href="{{ url_for('estado_cuenta_credito', cliente_id=a.cliente_id) }}" class="btn btn-sm btn-outline-primary" title="Ver estado de cuenta">
-                                        <i class="fas fa-list-alt"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No hay abonos registrados en esta vista.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <ul class="nav cp-tabbar" role="tablist">
+          <li class="nav-item">
+            <a class="nav-link {% if filtro_vista == 'ultimos' %}active{% endif %}"
+               href="{{ url_for('modulo_creditos', vista='ultimos') }}"><i class="fas fa-clock me-1"></i>Últimos abonos</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if filtro_vista == 'abonos' %}active{% endif %}"
+               href="{{ url_for('modulo_creditos', vista='abonos') }}"><i class="fas fa-list me-1"></i>Historial</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if filtro_vista == 'cartera' %}active{% endif %}"
+               href="{{ url_for('modulo_creditos', vista='cartera') }}"><i class="fas fa-users me-1"></i>Deudores</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if filtro_vista == 'alerta' %}active{% endif %}"
+               href="{{ url_for('modulo_creditos', vista='alerta') }}"><i class="fas fa-triangle-exclamation me-1"></i>Alerta</a>
+          </li>
+        </ul>
+
+        <div class="cp-table-wrap">
+          {% if filtro_vista in ('ultimos', 'abonos') %}
+          <table class="table table-sm table-striped table-dark table-cp align-middle mb-0">
+            <thead>
+              <tr>
+                <th class="ps-3">Cliente</th>
+                <th>Fecha</th>
+                <th>Monto</th>
+                <th>Saldo result.</th>
+                <th class="text-center">Ticket</th>
+                <th class="text-center pe-3">Cartola</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in ultimos_abonos %}
+              <tr>
+                <td class="ps-3"><strong>{{ a.cliente.nombre if a.cliente else ('#' ~ a.cliente_id) }}</strong></td>
+                <td class="small cp-td-muted">{{ a.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td class="text-success fw-semibold">$ {{ "{:,.0f}".format(a.monto_abono).replace(",", ".") }}</td>
+                <td class="small cp-td-muted">$ {{ "{:,.0f}".format(a.nuevo_saldo).replace(",", ".") }}</td>
+                <td class="text-center">
+                  <a href="{{ url_for('ver_ticket_abono', id=a.id) }}" target="_blank" class="btn btn-sm btn-outline-light border-secondary" title="Comprobante">
+                    <i class="fas fa-print"></i>
+                  </a>
+                </td>
+                <td class="text-center pe-3">
+                  <a href="{{ url_for('estado_cuenta_credito', cliente_id=a.cliente_id) }}" class="btn btn-sm btn-warning text-dark fw-semibold">Cartola</a>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="cp-empty">
+                  <div><i class="fas fa-receipt d-block mx-auto mb-2 opacity-50"></i></div>
+                  <div class="fw-semibold text-white-50">Sin abonos en esta vista.</div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <table class="table table-sm table-striped table-dark table-cp align-middle mb-0">
+            <thead>
+              <tr>
+                <th class="ps-3">Cliente</th>
+                <th>RUT</th>
+                <th class="text-end">Saldo</th>
+                <th>Uso cupo</th>
+                <th class="text-center">Estado</th>
+                <th class="text-center pe-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in clientes_cartera %}
+              <tr>
+                <td class="ps-3"><strong>{{ c.nombre }}</strong></td>
+                <td class="small cp-td-muted">{{ ((c.rut or '')|trim) or '—' }}</td>
+                <td class="text-end fw-bold cp-td-strong">$ {{ "{:,.0f}".format(c.saldo_deudor or 0).replace(",", ".") }}</td>
+                <td>
+                  {% set lim = (c.limite_credito or 0) %}
+                  {% if lim > 0 %}
+                    {% set pct = [100, ((c.saldo_deudor or 0) / lim * 100)|round(0)|int]|min %}
+                    <div class="cp-cupo-bar"><span style="width: {{ pct }}%;"></span></div>
+                    <div class="small cp-td-muted" style="font-size:.65rem;">{{ pct }}% / ${{ "{:,.0f}".format(lim).replace(",", ".") }}</div>
+                  {% else %}
+                    <span class="small cp-td-muted">Sin límite</span>
+                  {% endif %}
+                </td>
+                <td class="text-center text-nowrap">
+                  {% if c.id in cartera_dash.ids_suspendidos %}
+                  <span class="badge bg-danger bg-opacity-75">Suspendido</span>
+                  {% elif c.id in ids_alerta_list %}
+                  <span class="badge text-dark" style="background:#fcd34d;">Alerta</span>
+                  {% else %}
+                  <span class="badge bg-secondary bg-opacity-50">Seguimiento</span>
+                  {% endif %}
+                </td>
+                <td class="text-center pe-3 text-nowrap">
+                  <a href="{{ url_for('estado_cuenta_credito', cliente_id=c.id) }}" class="btn btn-sm btn-warning text-dark fw-semibold">Cartola</a>
+                  <button type="button" class="btn btn-sm btn-outline-light border-secondary wa-reminder"
+                          data-nombre="{{ c.nombre|e }}" data-tel="{{ (c.telefono or '')|e }}"
+                          data-saldo="{{ (c.saldo_deudor or 0)|e }}" title="WhatsApp">
+                    <i class="fab fa-whatsapp text-success"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="6" class="cp-empty">
+                  <div><i class="fas fa-user-slash d-block mx-auto mb-2 opacity-50"></i></div>
+                  <div class="fw-semibold text-white-50">
+                    {% if filtro_vista == 'alerta' %}
+                      No hay clientes en alerta con el criterio actual.
+                    {% else %}
+                      No hay deudores en cartera.
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
         </div>
+      </section>
     </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 $(document).ready(function() {
-    $('#select-cliente').select2({ theme: 'bootstrap-5' });
+  const $sel = $('#select-cliente');
+  const searchUrl = $sel.data('search-url');
+  $sel.select2({
+    theme: 'bootstrap-5',
+    width: '100%',
+    placeholder: 'Escriba nombre o RUT…',
+    allowClear: true,
+    minimumInputLength: 1,
+    language: {
+      inputTooShort: function () { return 'Ingrese al menos 1 carácter…'; },
+      searching: function () { return 'Buscando…'; },
+      noResults: function () { return 'Sin coincidencias con saldo deudor.'; }
+    },
+    ajax: {
+      url: searchUrl,
+      dataType: 'json',
+      delay: 280,
+      data: function (params) {
+        return { q: params.term || '' };
+      },
+      processResults: function (data) {
+        const rows = (data && data.results) ? data.results : [];
+        return {
+          results: rows.map(function (r) {
+            return {
+              id: r.id,
+              text: r.text,
+              saldo_deudor: r.saldo_deudor,
+              rut: r.rut || ''
+            };
+          })
+        };
+      },
+      cache: true
+    }
+  });
 
-    $('#select-cliente').on('change', function() {
-        const selected = $(this).find(':selected');
-        const saldo = selected.data('saldo');
-        const id = $(this).val();
-        const btnCartola = $('#btn-cartola-cliente');
+  $(document).on('click', '.wa-reminder', function() {
+    const raw = String($(this).data('tel') || '').replace(/\D/g, '');
+    const n = raw.startsWith('56') ? raw : ('56' + raw);
+    if (n.length < 10) {
+      alert('El cliente no tiene teléfono válido para WhatsApp.');
+      return;
+    }
+    const nombre = String($(this).data('nombre') || 'cliente');
+    const saldo = Number($(this).data('saldo') || 0);
+    const saldoTxt = new Intl.NumberFormat('es-CL').format(Math.round(saldo));
+    const msg = encodeURIComponent(
+      'Estimado/a ' + nombre + ', le recordamos su saldo pendiente en ferretería por $' + saldoTxt + '. ' +
+      'Cualquier consulta, responda este mensaje. Gracias.'
+    );
+    window.open('https://wa.me/' + n + '?text=' + msg, '_blank');
+  });
 
-        if (id) {
-            $('#area-pago').removeClass('d-none');
-            $('#display-saldo').text('$ ' + new Intl.NumberFormat('es-CL').format(saldo));
-            $('#input-cliente-id').val(id);
-            btnCartola.attr('href', '/creditos/estado_cuenta/' + encodeURIComponent(id)).removeClass('d-none');
-        } else {
-            $('#area-pago').addClass('d-none');
-            btnCartola.addClass('d-none').attr('href', '#');
-        }
-    });
+  $sel.on('change', function() {
+    const id = $sel.val();
+    const btnCartola = $('#btn-cartola-cliente');
+    let saldo = 0;
+    if (id) {
+      const d = $sel.select2('data');
+      if (d && d[0] && typeof d[0].saldo_deudor !== 'undefined') {
+        saldo = Number(d[0].saldo_deudor) || 0;
+      }
+    }
+
+    if (id) {
+      $('#area-pago').removeClass('d-none');
+      $('#display-saldo').text('$ ' + new Intl.NumberFormat('es-CL').format(Math.round(saldo)));
+      $('#input-cliente-id').val(id);
+      btnCartola.attr('href', '/creditos/estado_cuenta/' + encodeURIComponent(id)).removeClass('d-none');
+    } else {
+      $('#area-pago').addClass('d-none');
+      btnCartola.addClass('d-none').attr('href', '#');
+    }
+  });
 });
 </script>
 {% endblock %}

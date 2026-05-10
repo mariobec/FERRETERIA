@@ -9,6 +9,7 @@
         Datos de contacto y crédito. El RUT <code>{{ rut_cliente_final }}</code> es el cliente genérico de vales (no eliminable).
         <a href="{{ url_for('modulo_creditos') }}">Ir a créditos y abonos</a>
         · <a href="{{ url_for('caja_saldos_favor') }}">Ver saldos a favor</a>
+        · <a href="{{ url_for('admin_c360_llamadas_hoy') }}">Llamadas C360 (hoy)</a>
       </p>
     </div>
     <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
@@ -182,6 +183,9 @@
                 <td class="text-end">{{ (c.limite_credito or 0)|round(0)|int }}</td>
                 <td class="small">{{ c.estado_credito or '—' }}</td>
                 <td class="text-end text-nowrap">
+                  {% if c.rut.strip() != rut_cliente_final %}
+                  <a href="{{ url_for('admin_cliente_c360', cliente_id=c.id) }}" class="btn btn-outline-info btn-sm py-0" title="Customer 360">360</a>
+                  {% endif %}
                   <a href="{{ url_for('admin_clientes', q=busqueda or None, edit=c.id) }}" class="btn btn-outline-primary btn-sm py-0">Editar</a>
                   {% if c.rut.strip() == rut_cliente_final %}
                   <span class="small text-muted">POS</span>

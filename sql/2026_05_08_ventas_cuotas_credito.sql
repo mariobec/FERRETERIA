@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS ventas_cuotas_credito (
     dias_plazo INTEGER NOT NULL,
     fecha_vencimiento DATE NOT NULL,
     monto DOUBLE PRECISION NOT NULL,
+    monto_pagado DOUBLE PRECISION NOT NULL DEFAULT 0,
     estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente'
 );
 
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS ventas_cuotas_credito (
 --   dias_plazo INT NOT NULL,
 --   fecha_vencimiento DATE NOT NULL,
 --   monto DOUBLE NOT NULL,
+--   monto_pagado DOUBLE NOT NULL DEFAULT 0,
 --   estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
 --   INDEX idx_venta_cuotas_venta (venta_id)
 -- );

@@ -11,3 +11,4 @@ qrcode
 Pillow
 PyMuPDF
 pdfkit
+requests

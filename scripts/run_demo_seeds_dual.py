@@ -9,6 +9,7 @@ Orden:
   1) seed_ferreteria_curado_chile_demo.py  (DEMO-CUR-*)
   2) seed_madera_chile_demo.py             (MADERA-CHL-*)
   3) seed_demo_data.py                     (DEMO-* masivo + clientes/ventas)
+  4) patch_demo_credito_cartera.py         (RUT 77%: saldos, cuotas, abonos demo coherentes)
 
 Uso (desde la raíz del proyecto):
     python scripts/run_demo_seeds_dual.py
@@ -40,6 +41,7 @@ SEEDS = [
     "scripts/seed_ferreteria_curado_chile_demo.py",
     "scripts/seed_madera_chile_demo.py",
     "scripts/seed_demo_data.py",
+    "scripts/patch_demo_credito_cartera.py",
 ]
 
 
