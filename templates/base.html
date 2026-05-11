@@ -21,7 +21,7 @@
 
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body{% if current_user.is_authenticated and usuario_tiene_permiso('bodega_operador') %} data-bodega-poll="1" data-bodega-plataforma-url="{{ url_for('bodega_plataforma') }}" data-bodega-mando-url="{{ url_for('bodega_cuadro_mando') }}" data-bodega-snapshot-url="{{ url_for('api_bodega_retiros_cola_snapshot') }}"{% endif %}>
     <div class="container-fluid app-shell">
         <div class="row">
             <!-- Menú Lateral -->
@@ -82,7 +82,7 @@
                         </div>
                     </details>
                     {% endif %}
-                    {% set ep_inv = request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos', 'kardex', 'stock_critico', 'consulta_stock_publica', 'bodega_despachos']
+                    {% set ep_inv = request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos', 'kardex', 'stock_critico', 'consulta_stock_publica', 'bodega_despachos', 'bodega_cuadro_mando', 'bodega_plataforma', 'bodega_vale_retiro']
                       or (nav_inventario_enrolamiento and request.endpoint == 'inventario_enrolamiento')
                       or (nav_inventario_salud and request.endpoint == 'inventario_salud')
                       or request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion', 'lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar', 'mostrar_proveedores', 'guardar_proveedor'] %}
@@ -101,6 +101,7 @@
                             <a href="{{ url_for('kardex') }}" class="app-nav-link {% if request.endpoint == 'kardex' %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Kardex</a>
                             <a href="{{ url_for('consulta_stock_publica') }}" class="app-nav-link {% if request.endpoint == 'consulta_stock_publica' %}active{% endif %}"><i class="fas fa-magnifying-glass-chart"></i> Consulta stock</a>
                             {% if usuario_tiene_permiso('bodega_operador') %}
+                            <a href="{{ url_for('bodega_plataforma') }}" class="app-nav-link {% if request.endpoint in ['bodega_plataforma', 'bodega_vale_retiro'] %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Plataforma retiro bodega</a>
                             <a href="{{ url_for('bodega_despachos') }}" class="app-nav-link {% if request.endpoint == 'bodega_despachos' %}active{% endif %}"><i class="fas fa-microphone"></i> Despachos bodega (voz)</a>
                             {% endif %}
                             <a href="{{ url_for('lista_recepciones') }}" class="app-nav-link {% if request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion'] %}active{% endif %}"><i class="fas fa-dolly"></i> Recepciones</a>
@@ -259,6 +260,94 @@
         setInterval(tick, 30000);
     })();
     </script>
+
+    {% if current_user.is_authenticated and usuario_tiene_permiso('bodega_operador') %}
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+      <div id="bodegaRetiroToast" class="toast text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header bg-dark text-white border-secondary">
+          <i class="fas fa-bell me-2"></i><strong class="me-auto">Bodega — nuevo retiro</strong>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+        </div>
+        <div class="toast-body" id="bodegaRetiroToastBody"></div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      var body = document.body;
+      if (!body.dataset || body.dataset.bodegaPoll !== '1') return;
+      var snapUrl = body.dataset.bodegaSnapshotUrl;
+      var platUrl = body.dataset.bodegaPlataformaUrl;
+      var mandoUrl = body.dataset.bodegaMandoUrl || platUrl;
+      var storageKey = 'lexia_bodega_cola_open_ids';
+      function beep() {
+        try {
+          var Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return;
+          var ctx = new Ctx();
+          var o = ctx.createOscillator();
+          var g = ctx.createGain();
+          o.type = 'sine';
+          o.frequency.value = 880;
+          g.gain.value = 0.12;
+          o.connect(g);
+          g.connect(ctx.destination);
+          o.start();
+          o.stop(ctx.currentTime + 0.12);
+          setTimeout(function () {
+            try {
+              var o2 = ctx.createOscillator();
+              var g2 = ctx.createGain();
+              o2.type = 'sine';
+              o2.frequency.value = 660;
+              g2.gain.value = 0.1;
+              o2.connect(g2);
+              g2.connect(ctx.destination);
+              o2.start(ctx.currentTime + 0.14);
+              o2.stop(ctx.currentTime + 0.28);
+              ctx.close();
+            } catch (e2) { try { ctx.close(); } catch (e3) {} }
+          }, 140);
+        } catch (e) {}
+      }
+      function showToast(html) {
+        var el = document.getElementById('bodegaRetiroToast');
+        var b = document.getElementById('bodegaRetiroToastBody');
+        if (!el || !b || !window.bootstrap || !bootstrap.Toast) return;
+        b.innerHTML = html;
+        var t = bootstrap.Toast.getOrCreateInstance(el, { autohide: true, delay: 14000 });
+        t.show();
+      }
+      function poll() {
+        if (document.hidden) return;
+        fetch(snapUrl, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j || !j.ok || !Array.isArray(j.open_ids)) return;
+            var curr = j.open_ids.map(Number);
+            var raw = sessionStorage.getItem(storageKey);
+            var prev = raw ? JSON.parse(raw) : null;
+            sessionStorage.setItem(storageKey, JSON.stringify(curr));
+            if (prev === null) return;
+            var prevSet = new Set(prev);
+            var nuevos = curr.filter(function (id) { return !prevSet.has(id); });
+            if (!nuevos.length) return;
+            beep();
+            var ids = nuevos.join(', ');
+            var link = '<a href="' + platUrl + '" class="alert-link fw-semibold">Plataforma retiro</a>'
+              + ' · <a href="' + mandoUrl + '" class="alert-link">Cuadro de mando</a>';
+            showToast('<p class="mb-1">Vale(s): <strong>#' + ids + '</strong></p><p class="mb-0 small">' + link + '</p>');
+            if (window.location.pathname.indexOf('/bodega/plataforma') !== -1
+                || window.location.pathname.indexOf('/bodega/cuadro-mando') !== -1) {
+              setTimeout(function () { window.location.reload(); }, 1800);
+            }
+          })
+          .catch(function () {});
+      }
+      setTimeout(poll, 2000);
+      setInterval(poll, 8000);
+    })();
+    </script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
 </body>

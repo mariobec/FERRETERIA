@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-clipboard-list text-success me-2"></i>Plataforma bodega — preparación y retiro</h3>
+      <p class="page-subtitle mb-0">
+        Vales <strong>pagados</strong> con retiro en <strong>Bodega</strong>. El stock de bodega baja cuando registrás cada entrega (puede ser en varias visitas).
+        Estados: pendiente → en preparación → listo en mesón → entrega parcial / cerrado.
+      </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('bodega_cuadro_mando') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-gauge-high me-1"></i>Cuadro de mando</a>
+      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-secondary btn-sm">Despacho voz (pre-cobro)</a>
+      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+    </div>
+  </div>
+
+  <div class="alert alert-info border-0 small mb-3">
+    <strong>Permiso:</strong> <code>bodega_operador</code>.
+    Solo aparecen vales cobrados después de activar columnas de retiro (al primer cobro con retiro Bodega se crean en base de datos).
+    <strong>Avisos:</strong> con permiso de bodega el navegador consulta la cola cada <strong>~8 s</strong> y emite <strong>pitido + aviso</strong> al cobrarse un nuevo retiro en bodega (en cualquier pantalla del ERP); en esta vista la tabla se recarga sola al detectar novedades.
+    Orden por antigüedad (los más viejos arriba). Cola: <strong>{{ cola_retiro_total }}</strong> vale(s). <kbd>F5</kbd> actualiza manual.
+  </div>
+
+  <div class="btn-group btn-group-sm flex-wrap mb-3" role="group">
+    <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-outline-primary {% if not filtro_estado %}active{% endif %}">Todos activos</a>
+    <a href="{{ url_for('bodega_plataforma', estado='PENDIENTE') }}" class="btn btn-outline-primary {% if filtro_estado == 'PENDIENTE' %}active{% endif %}">Pendiente</a>
+    <a href="{{ url_for('bodega_plataforma', estado='EN_PREPARACION') }}" class="btn btn-outline-primary {% if filtro_estado == 'EN_PREPARACION' %}active{% endif %}">En preparación</a>
+    <a href="{{ url_for('bodega_plataforma', estado='LISTO_RETIRO') }}" class="btn btn-outline-primary {% if filtro_estado == 'LISTO_RETIRO' %}active{% endif %}">Listo retiro</a>
+    <a href="{{ url_for('bodega_plataforma', estado='ENTREGA_PARCIAL') }}" class="btn btn-outline-primary {% if filtro_estado == 'ENTREGA_PARCIAL' %}active{% endif %}">Entrega parcial</a>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-hover table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Vale</th>
+            <th>Cliente</th>
+            <th>Estado prep.</th>
+            <th>Operador</th>
+            <th>Fecha</th>
+            <th class="text-end">Total</th>
+            <th>Materiales (pendiente)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vales %}
+          <tr>
+            <td class="font-monospace fw-semibold">#{{ v.id }}</td>
+            <td>{{ v.cliente.nombre if v.cliente else '—' }}</td>
+            <td><span class="badge bg-secondary">{{ v.bodega_preparacion_estado or '—' }}</span></td>
+            <td class="small">{{ v.bodega_preparacion_usuario or '—' }}</td>
+            <td class="small text-muted">{{ v.fecha.strftime('%d-%m-%Y %H:%M') if v.fecha else '—' }}</td>
+            <td class="text-end">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
+            <td class="small">
+              {% for d in (v.detalles or []) %}
+                {% set p = d.producto %}
+                {% set pend = (d.cantidad or 0) - (d.cantidad_entregada_retiro_bodega or 0) %}
+                {% if pend > 0 %}
+                <div>{{ (p.nombre if p else '?')[:40] }}{% if p and (p.nombre|length) > 40 %}…{% endif %}
+                  <span class="text-warning">pend. {{ pend }}</span> / {{ d.cantidad }}</div>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endfor %}
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-primary" href="{{ url_for('bodega_vale_retiro', vid=v.id) }}">Abrir</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No hay vales en esta cola.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

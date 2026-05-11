@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h3 class="page-title"><i class="fas fa-dolly text-success me-2"></i>Vale #{{ venta.id }} — retiro bodega</h3>
+      <p class="page-subtitle mb-0">
+        Cliente: <strong>{{ venta.cliente.nombre if venta.cliente else '—' }}</strong>
+        · Estado preparación: <span class="badge bg-secondary">{{ venta.bodega_preparacion_estado }}</span>
+        {% if venta.bodega_preparacion_usuario %}
+        · Asignado: {{ venta.bodega_preparacion_usuario }}
+        {% endif %}
+      </p>
+      <p class="small text-muted mb-0 mt-1">
+        Esta página <strong>no se actualiza sola</strong>: después de movimientos de stock en otro módulo usá <kbd>F5</kbd> o volvé a entrar al vale.
+      </p>
+    </div>
+    <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-outline-secondary btn-sm">Volver a plataforma</a>
+  </div>
+
+  {% if alertas_retiro_stock %}
+  <div class="alert alert-warning border-0">
+    <strong>Atención stock:</strong> el cobro exigió saldo en <strong>bodega</strong>; ahora hay menos disponible del que falta entregar (u. base):
+    <ul class="mb-0 mt-2 small">
+      {% for a in alertas_retiro_stock %}
+      <li>{{ a }}</li>
+      {% endfor %}
+    </ul>
+    {% if usa_multi_almacen %}
+    <p class="small mb-0 mt-2">Si el material está cargado solo en <strong>tienda</strong>, mové cantidad a <strong>bodega</strong> desde inventario antes de confirmar retiro.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if not usa_multi_almacen %}
+  <div class="alert alert-secondary border-0 small mb-3">
+    <strong>Modo un solo depósito:</strong> el sistema usa el <strong>stock maestro del producto</strong> para cobrar y retirar en bodega (no hay fila separada «bodega» en BD).
+    La columna de abajo muestra ese mismo saldo que usa el ERP al confirmar retiro.
+  </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card card-ds h-100">
+        <div class="card-header py-2 fw-semibold">Preparación (equipo bodega)</div>
+        <div class="card-body d-flex flex-wrap gap-2">
+          <form method="post" action="{{ url_for('bodega_vale_preparacion_post', vid=venta.id) }}">
+            <input type="hidden" name="accion" value="tomar" />
+            <button type="submit" class="btn btn-warning btn-sm" {% if venta.bodega_preparacion_estado == 'CERRADO' %}disabled{% endif %}>Tomar preparación</button>
+          </form>
+          <form method="post" action="{{ url_for('bodega_vale_preparacion_post', vid=venta.id) }}">
+            <input type="hidden" name="accion" value="listo" />
+            <button type="submit" class="btn btn-success btn-sm" {% if venta.bodega_preparacion_estado == 'CERRADO' %}disabled{% endif %}>Marcar listo en mesón</button>
+          </form>
+          <form method="post" action="{{ url_for('bodega_vale_preparacion_post', vid=venta.id) }}">
+            <input type="hidden" name="accion" value="pendiente" />
+            <button type="submit" class="btn btn-outline-secondary btn-sm" {% if venta.bodega_preparacion_estado == 'CERRADO' %}disabled{% endif %}>Volver a pendiente</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card card-ds h-100 border-0 bg-light">
+        <div class="card-body small">
+          <strong>Reglas:</strong> al confirmar retiro se descuenta <strong>stock en bodega</strong> (misma regla que el cobro del vale) y queda trazado en kardex y auditoría.
+          Podés registrar menos unidades que el total (cliente vuelve otro día).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header py-2 fw-semibold">Líneas — registrar retiro físico</div>
+    <div class="card-body p-0 table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Producto</th>
+            <th class="text-end">Vendido</th>
+            <th class="text-end">Ya retirado</th>
+            <th class="text-end">Pendiente</th>
+            <th class="text-end" title="Saldo que usa el ERP para retiro / cobro en bodega (u. base)">Disp. retiro</th>
+            {% if usa_multi_almacen %}
+            <th class="text-end text-muted small">Tienda</th>
+            {% endif %}
+            <th style="min-width:220px">Retirar ahora</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in (venta.detalles or []) %}
+          {% set p = d.producto %}
+          {% set pend = (d.cantidad or 0) - (d.cantidad_entregada_retiro_bodega or 0) %}
+          <tr class="{% if pend > 0 and d.retiro_falta_stock %}table-danger{% endif %}">
+            <td>{{ (p.nombre if p else '?') }}</td>
+            <td class="text-end font-monospace">{{ d.cantidad }}</td>
+            <td class="text-end font-monospace">{{ d.cantidad_entregada_retiro_bodega or 0 }}</td>
+            <td class="text-end font-monospace {% if pend > 0 %}text-warning fw-semibold{% endif %}">{{ pend }}</td>
+            <td class="text-end font-monospace small fw-semibold">
+              {% if p %}{{ d.retiro_disp_bodega }}{% else %}—{% endif %}
+              {% if pend > 0 and p %}
+              <div class="text-muted fw-normal" style="font-size:0.75rem">nec. ~{{ d.retiro_nec_base }} u.base</div>
+              {% endif %}
+            </td>
+            {% if usa_multi_almacen %}
+            <td class="text-end font-monospace small text-muted">{% if p %}{{ d.retiro_disp_tienda }}{% else %}—{% endif %}</td>
+            {% endif %}
+            <td>
+              {% if pend > 0 and venta.bodega_preparacion_estado != 'CERRADO' %}
+                {% if not p %}
+                <span class="text-muted small">Sin producto en línea.</span>
+                {% elif d.retiro_falta_stock %}
+                <span class="text-danger small">Sin saldo suficiente en bodega para este pendiente.</span>
+                {% else %}
+              <form method="post" action="{{ url_for('bodega_vale_retiro_linea_post', vid=venta.id) }}" class="d-flex flex-wrap gap-1 align-items-center">
+                <input type="hidden" name="detalle_id" value="{{ d.id }}" />
+                <input type="number" name="cantidad" min="1" max="{{ pend }}" value="{{ pend }}" class="form-control form-control-sm" style="width:88px" required />
+                <button type="submit" class="btn btn-sm btn-primary">Confirmar retiro</button>
+              </form>
+                {% endif %}
+              {% elif venta.bodega_preparacion_estado == 'CERRADO' %}
+              <span class="text-muted small">Cerrado</span>
+              {% elif pend <= 0 %}
+              <span class="text-success small"><i class="fas fa-check"></i> Completo</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 7 if usa_multi_almacen else 6 }}" class="text-center text-muted py-3">Sin líneas</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

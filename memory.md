@@ -266,19 +266,19 @@ Referencias `L####` = línea aproximada en `app.py` para ubicar la vista rápido
 | 2026-05-08 | **Plan v2 Grok:** Fase 1A revisada y cerrada técnicamente (savepoint en cobro/voz/anular; fix saldo/monto **fuera** de `transaccion_critica()` en `procesar_cobro_caja`; reversión bodega limpia **`bodega_despacho_json`** cuando map vacío en `services/stock_service.py`). Tabla verificación en **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`**. |
 | 2026-05-08 | **Fase 1B cerrada:** cron **`POST /api/ventas/alertas-despachos-pendientes`** con `dry_run_previews`, Slack opcional, audit **`cron_alertas_vales_despacho`** tras envíos OK; **`sql/README_VISTA_VALES_RIESGO.md`**; **`scripts/smoke_alertas_vales_despacho.py`**. |
 | 2026-05-08 | **Servicios / observabilidad:** `services/c360_service.py`, `services/sistema_health_service.py` (`GET /api/sistema/salud`). Blueprint **`blueprints/c360.py`** registrado al final de `app.py`. Auto-columnas **`_asegurar_columnas_ventas_bodega_despacho`** en `before_request` autenticado. |
+| 2026-05-10 | **Cierre plan v2.0 Grok:** extracción servicios (stock/kardex/whatsapp/unidades), auditoría UI stock + enrolamiento, `transaccion_critica()` extendida a venta directa / POS / finalizar vale / ajustes stock UI; doc y backlog en **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`**. |
+| 2026-05-10 | **`POST /cargar_productos`:** bucle de importación CSV/Excel envuelto en `transaccion_critica()`; `_audit_log` evento `carga_masiva_productos_archivo` antes del `commit` (mismo patrón que stock masivo UI). |
 
 ---
 
-## Continuar después (siguiente sesión)
+## Plan consolidado v2.0 — **cierre (mayo 2026)**
 
-**Pedido explícito del usuario:** retomar con extracción **Fase 2 → `services/stock_service.py`** (ampliar lógica allí y delegar desde `app.py`) cuando digan que siguen; **no** mover vistas/templates por ahora.
+El documento **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`** quedó **cerrado para alcance v2.0**. Última entrega de código alineada a fila 1.4 del plan: **`transaccion_critica()`** en `guardar_venta`, POS (`agregar_producto_venta`, `eliminar_detalle`, `actualizar_item`), `finalizar_venta`, ajustes stock desde catálogo (unitario + masivo) y **`cargar_productos`** (carga masiva catálogo).
 
-**Ya implementado y estable:**
-- Blueprints: `blueprints/bodega.py`, `caja.py`, `pos.py`, `c360.py` (+ `_app_ref.py` anti-import circular).
-- Plan operativo: **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`** y **`docs/FLUJOS_CRITICOS.md`** (actualizados).
+**Backlog post-v2:** métricas Fase 4 finas, otras rutas masivas no inventariadas, `version` optimistic locking, más blueprints — ver sección *Backlog post-v2* en el plan.
 
-**Respaldo recomendado en disco:** `git add -A` + commit con mensaje claro (o ZIP del repo) antes de más refactors.
+**Referencias:** `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`, `docs/FLUJOS_CRITICOS.md`, blueprints `bodega` / `caja` / `pos` / `c360`.
 
 ---
 
-*Última actualización del contenido estructural: 2026-05-08 (handoff plan LexIA + Fase 1B).*
+*Última actualización del contenido estructural: 2026-05-10 (cierre formal plan v2.0 Grok + carga masiva catálogo).*

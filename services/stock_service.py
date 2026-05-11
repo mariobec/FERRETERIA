@@ -1,5 +1,95 @@
-"""Stock bodega / invariantes por vale (Fase 2 — extracción desde app)."""
+"""Stock bodega / tienda / invariantes por vale (Fase 2 — extracción desde app)."""
 import json
+import os
+
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
+
+_ID_ALMACEN_TIENDA = None
+_ID_ALMACEN_BODEGA = None
+_INV_ALMACEN_TABLAS_OK = None
+
+
+def tablas_inventario_almacen_existen():
+    """True si existen tablas multi-almacén (cache por proceso)."""
+    global _INV_ALMACEN_TABLAS_OK
+
+    import app as m
+
+    if _INV_ALMACEN_TABLAS_OK is not None:
+        return _INV_ALMACEN_TABLAS_OK
+    try:
+        insp = sa_inspect(m.db.engine)
+        _INV_ALMACEN_TABLAS_OK = bool(
+            insp.has_table('almacenes') and insp.has_table('stock_por_almacen')
+        )
+    except Exception:
+        _INV_ALMACEN_TABLAS_OK = False
+    return _INV_ALMACEN_TABLAS_OK
+
+
+def codigo_almacen_tienda():
+    return (os.getenv('ALMACEN_CODIGO_TIENDA') or 'TIENDA').strip().upper() or 'TIENDA'
+
+
+def codigo_almacen_bodega():
+    return (os.getenv('ALMACEN_CODIGO_BODEGA') or 'BODEGA').strip().upper() or 'BODEGA'
+
+
+def resolver_id_almacen_por_codigo(codigo):
+    import app as m
+
+    if not codigo or not tablas_inventario_almacen_existen():
+        return None
+    try:
+        row = m.db.session.execute(
+            text(
+                'SELECT id FROM almacenes '
+                'WHERE UPPER(TRIM(codigo)) = :c AND activo IS NOT FALSE '
+                'ORDER BY id ASC LIMIT 1'
+            ),
+            {'c': codigo.strip().upper()},
+        ).scalar()
+        return int(row) if row is not None else None
+    except Exception:
+        m.db.session.rollback()
+        return None
+
+
+def id_almacen_tienda():
+    """Almacén desde el que vende el POS (por defecto TIENDA)."""
+    global _ID_ALMACEN_TIENDA
+
+    if _ID_ALMACEN_TIENDA is not None:
+        return _ID_ALMACEN_TIENDA
+    env_id = (os.getenv('ALMACEN_ID_TIENDA') or '').strip()
+    if env_id.isdigit():
+        _ID_ALMACEN_TIENDA = int(env_id)
+        return _ID_ALMACEN_TIENDA
+    _ID_ALMACEN_TIENDA = resolver_id_almacen_por_codigo(codigo_almacen_tienda())
+    return _ID_ALMACEN_TIENDA
+
+
+def id_almacen_bodega():
+    """Almacén donde ingresa mercadería por recepción (por defecto BODEGA)."""
+    global _ID_ALMACEN_BODEGA
+
+    if _ID_ALMACEN_BODEGA is not None:
+        return _ID_ALMACEN_BODEGA
+    env_id = (os.getenv('ALMACEN_ID_BODEGA') or '').strip()
+    if env_id.isdigit():
+        _ID_ALMACEN_BODEGA = int(env_id)
+        return _ID_ALMACEN_BODEGA
+    _ID_ALMACEN_BODEGA = resolver_id_almacen_por_codigo(codigo_almacen_bodega())
+    return _ID_ALMACEN_BODEGA
+
+
+def invalidar_cache_ids_almacen():
+    """Tras cambiar codigo/activo de almacenes, forzar nueva resolución TIENDA/BODEGA."""
+    global _ID_ALMACEN_TIENDA, _ID_ALMACEN_BODEGA
+
+    _ID_ALMACEN_TIENDA = None
+    _ID_ALMACEN_BODEGA = None
 
 
 def venta_bodega_despacho_map(venta):
@@ -92,6 +182,8 @@ def revertir_stock_bodega_por_anulacion(venta, usuario_nom):
     """
     import app as m
 
+    from services import kardex_service as kx
+
     Producto = m.Producto
     DetalleVenta = m.DetalleVenta
     mp = venta_bodega_despacho_map(venta)
@@ -100,8 +192,8 @@ def revertir_stock_bodega_por_anulacion(venta, usuario_nom):
         venta.bodega_despacho_estado = None
         venta.bodega_despacho_ultimo_at = None
         return
-    aid_b = m.id_almacen_bodega()
-    if not aid_b or not m._tablas_inventario_almacen_existen():
+    aid_b = id_almacen_bodega()
+    if not aid_b or not tablas_inventario_almacen_existen():
         raise ValueError('No hay almacén bodega configurado para revertir despacho.')
     usr = (usuario_nom or '')[:100] or 'Sistema'
     for det_id_str, qty_raw in list(mp.items()):
@@ -119,10 +211,10 @@ def revertir_stock_bodega_por_anulacion(venta, usuario_nom):
         producto = Producto.query.get(det.id_producto)
         if not producto:
             continue
-        _, err = m.ajustar_stock_almacen(producto.id, aid_b, int(qty))
+        _, err = ajustar_stock_almacen(producto.id, aid_b, int(qty))
         if err:
             raise ValueError(err)
-        m.registrar_movimiento_kardex(
+        kx.registrar_movimiento_kardex(
             producto.id,
             'ENTRADA',
             int(qty),
@@ -133,7 +225,300 @@ def revertir_stock_bodega_por_anulacion(venta, usuario_nom):
             referencia_id=venta.id,
             stock_saldo=None,
         )
-        m._refrescar_stock_total_producto(producto)
+        refrescar_stock_total_producto(producto)
     venta.bodega_despacho_json = None
     venta.bodega_despacho_estado = None
     venta.bodega_despacho_ultimo_at = None
+
+
+def stock_producto_en_almacen(id_producto, id_almacen):
+    import app as m
+
+    if not id_almacen or not tablas_inventario_almacen_existen():
+        return None
+    try:
+        v = m.db.session.execute(
+            text(
+                'SELECT cantidad FROM stock_por_almacen '
+                'WHERE id_producto = :p AND id_almacen = :a LIMIT 1'
+            ),
+            {'p': int(id_producto), 'a': int(id_almacen)},
+        ).scalar()
+        return None if v is None else int(v)
+    except Exception:
+        m.db.session.rollback()
+        return None
+
+
+def refrescar_stock_total_producto(producto):
+    """Mantiene productos.stock = suma por almacén cuando aplica."""
+    import app as m
+
+    if not producto or not tablas_inventario_almacen_existen():
+        return
+    try:
+        m.db.session.flush()
+        s = m.db.session.execute(
+            text('SELECT COALESCE(SUM(cantidad), 0) FROM stock_por_almacen WHERE id_producto = :p'),
+            {'p': int(producto.id)},
+        ).scalar()
+        producto.stock = int(s or 0)
+    except Exception:
+        m.db.session.rollback()
+        pass
+
+
+def stock_disponible_venta_tienda(producto):
+    import app as m
+
+    if not producto:
+        return 0
+    aid = id_almacen_tienda()
+    if aid and tablas_inventario_almacen_existen():
+        v = stock_producto_en_almacen(producto.id, aid)
+        return int(v or 0)
+    return int(producto.stock or 0)
+
+
+def stock_disponible_bodega(producto):
+    import app as m
+
+    if not producto:
+        return 0
+    aid = id_almacen_bodega()
+    if aid and tablas_inventario_almacen_existen():
+        v = stock_producto_en_almacen(producto.id, aid)
+        return int(v or 0)
+    return int(producto.stock or 0)
+
+
+def stock_tienda_por_producto_ids(ids):
+    import app as m
+
+    StockPorAlmacen = m.StockPorAlmacen
+    Producto = m.Producto
+    ids = [int(x) for x in ids if x is not None]
+    if not ids:
+        return {}
+    aid = id_almacen_tienda()
+    if aid and tablas_inventario_almacen_existen():
+        rows = (
+            m.db.session.query(StockPorAlmacen.id_producto, StockPorAlmacen.cantidad)
+            .filter(
+                StockPorAlmacen.id_almacen == aid,
+                StockPorAlmacen.id_producto.in_(ids),
+            )
+            .all()
+        )
+        por_id = {int(pid): int(cant or 0) for pid, cant in rows}
+        faltan = [i for i in ids if i not in por_id]
+        for pid in faltan:
+            por_id[int(pid)] = 0
+        return por_id
+    prods = Producto.query.filter(Producto.id.in_(ids)).all()
+    return {p.id: int(p.stock or 0) for p in prods}
+
+
+def stock_ui_producto(producto):
+    """Resumen tienda/bodega/total para UI inventario."""
+    import app as m
+
+    total_maestro = int(producto.stock or 0)
+    if not producto or not tablas_inventario_almacen_existen():
+        return {
+            'tienda': total_maestro,
+            'bodega': 0,
+            'total_almacenes': total_maestro,
+            'total_maestro': total_maestro,
+            'desajustado': False,
+        }
+    tid = id_almacen_tienda()
+    bid = id_almacen_bodega()
+    tienda = int(stock_producto_en_almacen(producto.id, tid) or 0) if tid else 0
+    bodega = int(stock_producto_en_almacen(producto.id, bid) or 0) if bid else 0
+    try:
+        total_almacenes = int(
+            m.db.session.execute(
+                text('SELECT COALESCE(SUM(cantidad), 0) FROM stock_por_almacen WHERE id_producto = :p'),
+                {'p': int(producto.id)},
+            ).scalar()
+            or 0
+        )
+    except Exception:
+        m.db.session.rollback()
+        total_almacenes = total_maestro
+    return {
+        'tienda': tienda,
+        'bodega': bodega,
+        'total_almacenes': total_almacenes,
+        'total_maestro': total_maestro,
+        'desajustado': total_almacenes != total_maestro,
+    }
+
+
+def ajustar_stock_almacen(producto_id, id_almacen, delta, allow_negative=False):
+    """
+    delta > 0 suma stock en el almacén; delta < 0 resta.
+    Devuelve (nuevo_stock_almacén|None, error_str|None).
+    """
+    import app as m
+
+    StockPorAlmacen = m.StockPorAlmacen
+    if not id_almacen or not tablas_inventario_almacen_existen():
+        return None, None
+    try:
+        d = int(delta)
+    except (TypeError, ValueError):
+        return None, 'Delta de stock inválido.'
+    pid = int(producto_id)
+    aid = int(id_almacen)
+    actual = stock_producto_en_almacen(pid, aid)
+    if actual is None:
+        actual = 0
+    nuevo = actual + d
+    if not allow_negative and nuevo < 0:
+        return actual, 'Stock insuficiente en almacén.'
+    row = StockPorAlmacen.query.filter_by(id_producto=pid, id_almacen=aid).first()
+    if row:
+        row.cantidad = int(nuevo)
+    else:
+        m.db.session.add(StockPorAlmacen(id_producto=pid, id_almacen=aid, cantidad=int(nuevo)))
+    return int(nuevo), None
+
+
+def fijar_stock_almacen(producto_id, id_almacen, cantidad):
+    """Ajuste absoluto de stock en un almacén (auditoría)."""
+    import app as m
+
+    StockPorAlmacen = m.StockPorAlmacen
+    if not id_almacen or not tablas_inventario_almacen_existen():
+        return None
+    try:
+        c = int(cantidad)
+    except (TypeError, ValueError):
+        return None
+    pid = int(producto_id)
+    aid = int(id_almacen)
+    row = StockPorAlmacen.query.filter_by(id_producto=pid, id_almacen=aid).first()
+    if row:
+        row.cantidad = c
+    else:
+        m.db.session.add(StockPorAlmacen(id_producto=pid, id_almacen=aid, cantidad=c))
+    return c
+
+
+def descontar_stock_venta_tienda(producto, consumo_stock):
+    """Descuenta TIENDA; devuelve mensaje de error o None."""
+    import app as m
+
+    if consumo_stock <= 0:
+        return 'Consumo de stock inválido.'
+    aid = id_almacen_tienda()
+    if aid and tablas_inventario_almacen_existen():
+        _, err = ajustar_stock_almacen(producto.id, aid, -int(consumo_stock))
+        if err:
+            return err
+        refrescar_stock_total_producto(producto)
+    else:
+        if (producto.stock or 0) < consumo_stock:
+            return 'Stock insuficiente.'
+        producto.stock = (producto.stock or 0) - int(consumo_stock)
+    return None
+
+
+def incrementar_stock_venta_tienda(producto, consumo_stock):
+    """Devuelve mercadería a TIENDA (reversa descuento venta)."""
+    import app as m
+
+    if consumo_stock <= 0:
+        return 'Cantidad de reversión inválida.'
+    aid = id_almacen_tienda()
+    if aid and tablas_inventario_almacen_existen():
+        _, err = ajustar_stock_almacen(producto.id, aid, int(consumo_stock))
+        if err:
+            return err
+        refrescar_stock_total_producto(producto)
+    else:
+        producto.stock = (producto.stock or 0) + int(consumo_stock)
+    return None
+
+
+def descontar_stock_venta_bodega(producto, consumo_stock):
+    """Descuenta BODEGA (almacén estándar); devuelve mensaje de error o None."""
+    import app as m
+
+    if consumo_stock <= 0:
+        return 'Consumo de stock inválido.'
+    aid = id_almacen_bodega()
+    if aid and tablas_inventario_almacen_existen():
+        _, err = ajustar_stock_almacen(producto.id, aid, -int(consumo_stock))
+        if err:
+            return err
+        refrescar_stock_total_producto(producto)
+    else:
+        if (producto.stock or 0) < consumo_stock:
+            return 'Stock insuficiente.'
+        producto.stock = (producto.stock or 0) - int(consumo_stock)
+    return None
+
+
+def incrementar_stock_venta_bodega(producto, consumo_stock):
+    """Devuelve mercadería a BODEGA (reversa retiro parcial/total)."""
+    import app as m
+
+    if consumo_stock <= 0:
+        return 'Cantidad de reversión inválida.'
+    aid = id_almacen_bodega()
+    if aid and tablas_inventario_almacen_existen():
+        _, err = ajustar_stock_almacen(producto.id, aid, int(consumo_stock))
+        if err:
+            return err
+        refrescar_stock_total_producto(producto)
+    else:
+        producto.stock = (producto.stock or 0) + int(consumo_stock)
+    return None
+
+
+def venta_validar_stock_tienda(venta):
+    """Lista de mensajes de faltantes para cobrar vale en tienda (vacía si ok)."""
+    import app as m
+
+    Producto = m.Producto
+    faltantes = []
+    if not venta:
+        return faltantes
+    try:
+        detalles = list(venta.detalles or [])
+    except Exception as ex:
+        m.db.session.rollback()
+        m.app.logger.exception(
+            'No se pudo cargar detalle de venta %s para validar stock: %s',
+            getattr(venta, 'id', None),
+            ex,
+        )
+        return ['No se pudo validar stock del vale (revise detalle).']
+    for d in detalles:
+        try:
+            producto = d.producto or Producto.query.get(d.id_producto)
+            if not producto:
+                faltantes.append('Producto no encontrado en línea de venta.')
+                continue
+            factor_venta_stock = m._factor_venta_a_stock(producto)
+            consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
+            ya_bod = venta_consumo_ya_despachado_bodega(venta, d.id)
+            consumo_tienda = max(0, consumo_stock - ya_bod)
+            if consumo_stock <= 0:
+                faltantes.append(f'{producto.nombre}: conversión inválida.')
+                continue
+            if consumo_tienda <= 0:
+                continue
+            disp = stock_disponible_venta_tienda(producto)
+            if disp < consumo_tienda:
+                faltantes.append(
+                    f'{producto.nombre} (disponible tienda: {disp}, requerido tras despacho bodega: {consumo_tienda})'
+                )
+        except Exception as ex:
+            m.db.session.rollback()
+            m.app.logger.exception('No se pudo validar stock de línea %s: %s', getattr(d, 'id', None), ex)
+            faltantes.append('No se pudo validar una línea del vale.')
+    return faltantes

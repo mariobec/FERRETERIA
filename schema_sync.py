@@ -3,6 +3,45 @@ from __future__ import annotations
 from sqlalchemy import inspect as sa_inspect, text
 
 
+def listar_diferencias_esquema(db):
+    """Compara `db.metadata` (modelos cargados) con columnas/tablas reales en la BD.
+
+    Retorna:
+      - tablas_solo_en_bd: tablas en BD sin clase modelo correspondiente en este metadata.
+      - tablas_ausentes_en_bd: tablas del modelo que no existen en BD (create_all las creará).
+      - columnas_faltantes_en_bd: lista "tabla.columna" esperadas por el modelo y no halladas.
+    """
+    insp = sa_inspect(db.engine)
+    bd_tables = set(insp.get_table_names())
+    model_tables = [t.name for t in db.metadata.sorted_tables]
+    modelo_set = set(model_tables)
+
+    solo_en_bd = sorted(bd_tables - modelo_set)
+    ausentes = sorted(modelo_set - bd_tables)
+
+    columnas_faltantes = []
+    for table in db.metadata.sorted_tables:
+        tname = table.name
+        if not insp.has_table(tname):
+            columnas_faltantes.append(f"{tname}.* (tabla completa ausente en BD)")
+            continue
+        try:
+            columnas_bd = {c["name"] for c in insp.get_columns(tname)}
+        except Exception:
+            db.session.rollback()
+            columnas_faltantes.append(f"{tname}: error inspección columnas")
+            continue
+        for col in table.columns:
+            if col.name not in columnas_bd:
+                columnas_faltantes.append(f"{tname}.{col.name}")
+
+    return {
+        "tablas_solo_en_bd": solo_en_bd,
+        "tablas_ausentes_en_bd": ausentes,
+        "columnas_faltantes_en_bd": columnas_faltantes,
+    }
+
+
 def sincronizar_esquema_modelos(app, db):
     """Sincroniza columnas faltantes desde los modelos SQLAlchemy hacia la BD.
 
@@ -63,7 +102,9 @@ def _sql_add_column(preparer, table, col, dialect):
     table_name = preparer.format_table(table)
     col_name = preparer.quote(col.name)
     col_type = col.type.compile(dialect=dialect)
-    parts = [f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"]
+    dn = (dialect.name or "").lower()
+    add_kw = " IF NOT EXISTS" if dn == "postgresql" else ""
+    parts = [f"ALTER TABLE {table_name} ADD COLUMN{add_kw} {col_name} {col_type}"]
 
     default_sql = _default_sql(col)
     if default_sql:

@@ -3,7 +3,17 @@
 **Objetivo:** Eliminar los riesgos críticos de negocio e inventario antes de cualquier refactor estructural grande. Modularizar progresivamente sin romper flujos existentes.
 
 **Versión:** 2.0 (mejorada por Grok — mayo 2026)  
-**Estado:** Listo para ejecución en Cursor
+**Estado:** **Cerrado para alcance v2.0** (mayo 2026). Lo definido en Fases 1A–3 y el núcleo acordado de Fase 4 está implementado o documentado como backlog explícito más abajo.
+
+### Cierre formal v2.0
+
+| Fase | Cierre |
+|------|--------|
+| **1A** | Cerrada: criterio de negocio + `transaccion_critica()` también en `guardar_venta`, carrito POS (`agregar_producto_venta`, `eliminar_detalle`, `actualizar_item`), `finalizar_venta`, ajustes stock UI (`editar_stock_producto`, `actualizar_stock_masivo_productos`), carga masiva catálogo (`cargar_productos` CSV/Excel + `_audit_log` `carga_masiva_productos_archivo`). **Backlog menor:** otras rutas masivas legacy si aparecen. |
+| **1B** | Cerrada. |
+| **2** | Cerrada para la lista de servicios del plan; `app.py` puede seguir reduciéndose en evoluciones posteriores. |
+| **3** | Cerrada según blueprints listados. |
+| **4** | **Cerrada para alcance v2:** salud (`/api/sistema/salud`), cron + Slack, conteos en salud. Métricas finas (latencia voice-command, errores por endpoint, email) = **backlog v3+**. |
 
 ---
 
@@ -28,7 +38,7 @@
 
 ---
 
-## Fase 1A — Estabilidad inmediata y corrección de riesgos críticos
+## Fase 1A — Estabilidad inmediata y corrección de riesgos críticos — **cerrada (alcance v2)**
 
 **Prioridad:** máxima  
 **Duración estimada:** 5–7 días
@@ -52,9 +62,9 @@
 | `transaccion_critica()` en `procesar_cobro_caja` | Cumple | Savepoint envuelve mutación venta/stock/kardex + `_audit_log`; validaciones de saldo a favor / monto recibido movidas **fuera** del savepoint (corrige `rollback`+`redirect` dentro del nested, que rompía atomicidad). |
 | `transaccion_critica()` en `_bodega_voice_ejecutar` | Cumple | Ruta `POST /api/bodega/voice-command` → `api_bodega_voice_command`. Invariante validado antes de cerrar savepoint; WhatsApp **después** de `commit`. |
 | `transaccion_critica()` en `anular_vale_caja` | Cumple | Reversión bodega + marca `Anulada` en mismo savepoint; `_audit_log` y `commit` externos al `with` pero en la misma transacción de sesión. |
-| Otros flujos stock/kardex críticos | Parcial | Venta directa `mostrar_ventas` (POST), POS carrito, ajustes masivos UI **no** usan `transaccion_critica()` (plan pedía también «ajustes stock»); recomendable envolver en siguiente refactor o al menos un único `commit` tras validación completa. |
+| Otros flujos stock/kardex críticos | **Cumple** (ext. mayo 2026) | `transaccion_critica()` en `guardar_venta` (venta directa + stock + kardex + crédito), `agregar_producto_venta`, `eliminar_detalle`, `actualizar_item`, `finalizar_venta` (cliente + vale Pendiente), `editar_stock_producto`, `actualizar_stock_masivo_productos`, `cargar_productos` (bucle de filas; incluye `aplicar_stock_desde_catalogo_a_tienda` cuando el archivo trae columna stock). |
 | `_revertir_stock_bodega_por_anulacion` | Cumple | Idempotente si map vacío: **corrige** limpieza de `bodega_despacho_json` cuando no hay cantidades (antes solo limpiaba estado/timestamp). Con datos: ENTRADA kardex por línea, refresco stock, luego `json/estado/ultimo_at` = NULL. |
-| `_audit_log` puntos clave | Parcial | Implementado en cobro caja, despacho voz y anulación (con `datos_antes`/`datos_despues` útiles). **Faltante:** pantallas de ajuste de stock (`editar_stock_producto`, masivo, transferencias) sin `_audit_log` — alinear con fila 1.1 del plan si se exige trazabilidad completa. |
+| `_audit_log` puntos clave | Cumple alcance v2 | Cobro caja, despacho voz, anulación; UI inventario (`ajuste_stock_producto_ui`, `ajuste_stock_masivo_ui`); API enrolamiento (`enrolamiento_*`); carga masiva catálogo (`carga_masiva_productos_archivo`). Otras rutas masivas no inventariadas: **backlog** v3 si aplica. |
 | `stock_validar_invariante_venta` | Cumple | Llamado en cobro caja (antes del savepoint) y en despacho voz (dentro, tras actualizar JSON). |
 | Permiso `anular_vale_con_despacho_bodega` | Cumple | Backend bloquea si hay despacho y no tiene permiso ni `gestionar_usuarios`. UI deshabilita anular salvo permiso (`caja_pendientes.html`). |
 | UI badge despacho | Cumple | Badge «Despachado en Bodega» + tooltip Bootstrap en cola de cobro (`tiene_despacho_bodega`). |
@@ -73,19 +83,20 @@
 
 ---
 
-## Fase 2 — Extracción de servicios (sin romper rutas)
+## Fase 2 — Extracción de servicios (sin romper rutas) — **cerrada (alcance v2)**
 
 **Orden recomendado:**
 
-1. `services/stock_service.py` (crítico) — **implementado** (JSON bodega, invariante, reversión, estado despacho)  
-2. `services/kardex_service.py` — **delegación mínima** (`registrar_movimiento_kardex` → `app`)  
+1. `services/stock_service.py` (crítico) — **implementado ampliado** (JSON bodega, invariante, reversión, estado despacho; `tablas_inventario_almacen_existen`, resolución TIENDA/BODEGA + códigos + invalidación cache; `stock_producto_en_almacen`, disponibilidad, mapa POS, `stock_ui_producto`, `descontar`/`incrementar`, `venta_validar_stock_tienda`, `ajustar`/`fijar`, `refrescar_stock_total_producto`; `app.py` delega con mismos nombres públicos)  
+2. `services/kardex_service.py` — **implementado** (`registrar_movimiento_kardex`, bitácoras costo/precio opcionales; `app.py` delega)  
 3. `services/venta_service.py` — **implementado** (`transaccion_critica`)  
-4. `services/whatsapp_service.py` — **delegación mínima** (`enviar_texto_cloud` → `app`)  
+4. `services/whatsapp_service.py` — **implementado** (`wa_cloud_config`, `whatsapp_cloud_send_text`, `enviar_texto_cloud`; `app.py` delega)  
 5. `services/audit_service.py` — **implementado**  
+6. `services/unidades_service.py` — **implementado** (`unidades_disponibles`, `seed_unidades_base`, `factor_compra_a_stock`, `factor_venta_a_stock`; `app.py` delega `_unidades_*` y `_factor_*`)
 
 ---
 
-## Fase 3 — Blueprints por dominio
+## Fase 3 — Blueprints por dominio — **cerrada (alcance v2)**
 
 **Orden seguro:**
 
@@ -96,11 +107,11 @@
 
 ---
 
-## Fase 4 — Observabilidad y madurez
+## Fase 4 — Observabilidad y madurez — **cerrada para alcance v2**
 
-- Métricas clave (vales en riesgo, errores de transacción, tiempo de voice-command, etc.). **Parcial:** conteo vales riesgo + auditoría 24h en salud.
+- Métricas clave (vales en riesgo, errores de transacción, tiempo de voice-command, etc.). **En v2:** conteo vales riesgo + auditoría 24h en salud. **Backlog v3+:** latencia voice-command, contadores de errores por endpoint.
 - Dashboard básico de salud del sistema. **Hecho:** `GET /api/sistema/salud` (`services/sistema_health_service.py`).
-- Alertas Slack cuando haya ≥ N vales en riesgo. **Hecho (cron):** `POST /api/ventas/alertas-despachos-pendientes` con JSON `notify_slack: true`, `SLACK_WEBHOOK_URL` o `ERP_SLACK_WEBHOOK_URL`, umbral `VALES_RIESGO_SLACK_MIN` (default 1). Email no implementado.
+- Alertas Slack cuando haya ≥ N vales en riesgo. **Hecho (cron):** `POST /api/ventas/alertas-despachos-pendientes` con JSON `notify_slack: true`, `SLACK_WEBHOOK_URL` o `ERP_SLACK_WEBHOOK_URL`, umbral `VALES_RIESGO_SLACK_MIN` (default 1). Email = backlog.
 
 ---
 
@@ -127,15 +138,15 @@
 
 ## Nota de alineación con el repo (mayo 2026)
 
-**Estado implementación (mayo 2026):**
+**Estado implementación — plan v2.0 dado por cerrado:**
 
-- **Fase 1A–1B:** cerradas en código (audit crítico, reversión bodega, transacciones, invariante, UI caja, `bodega_despacho_ultimo_at`, cron alertas con WA cliente/interno + Slack opcional, `dry_run_previews`, audit `cron_alertas_vales_despacho`; vista SQL documentada en `sql/README_VISTA_VALES_RIESGO.md`).
-- **Fase 2 (parcial):** `audit_service`, `stock_service`, `venta_service` (`transaccion_critica`), `c360_service`, `sistema_health_service`; delegación mínima en `kardex_service` / `whatsapp_service` (wrapper → `app`). Pendiente si se desea: mover cuerpo de `registrar_movimiento_kardex` y `_whatsapp_cloud_send_text` al servicio (refactor grande).
-- **Fase 3:** `blueprints/bodega.py`, `caja.py`, `pos.py`, `c360.py` registrados al final de `app.py`. Rutas muy transversales (Bi, gerencia genérica, landing) pueden seguir en `app.py`.
-- **Fase 4:** `GET /api/sistema/salud` ampliado (hora servidor, auditoría 24h, flag webhook Slack); cron despachos con `notify_slack` opcional.
-- **Documentación:** [FLUJOS_CRITICOS.md](./FLUJOS_CRITICOS.md) con diagramas Mermaid.
+- **Fase 1A–1B:** entregadas según criterios de negocio y tabla de verificación; `transaccion_critica()` alineada a fila 1.4 en venta directa, POS (líneas / total / emitir vale), ajustes stock UI y `cargar_productos`. `_audit_log` en carga masiva catálogo; otras rutas masivas no inventariadas → backlog v3 si aplica.
+- **Fase 2:** servicios del plan extraídos (`stock_service`, `kardex_service`, `whatsapp_service`, `unidades_service`, etc.) con delegación desde `app.py`.
+- **Fase 3:** blueprints `bodega`, `caja`, `pos`, `c360` registrados.
+- **Fase 4 (alcance v2):** salud `/api/sistema/salud`, cron alertas + Slack opcional.
+- **Documentación:** [FLUJOS_CRITICOS.md](./FLUJOS_CRITICOS.md).
 
-**Pendiente opcional / siguiente sprint:** ejecutar scripts SQL de vista en cada BD; métricas tiempo voice-command y contadores de errores por endpoint; columna `version` optimistic locking en `ventas`; alertas por email; mover más rutas de gerencia/BI a blueprints dedicados.
+**Backlog post-v2 (no bloquea cierre):** aplicar vista SQL en cada BD operativa; métricas voice-command / errores por endpoint; columna `version` en `ventas`; email alertas; más blueprints BI/gerencia; otras importaciones masivas fuera de `cargar_productos` si se priorizan.
 
 ---
 

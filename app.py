@@ -142,6 +142,12 @@ if os.getenv('FLASK_TEMPLATE_RELOAD', '1') != '0':
     app.config['TEMPLATES_AUTO_RELOAD'] = True
 db = SQLAlchemy(app)
 
+from services import stock_service as _stock_service
+from services import kardex_service as _kardex_service
+from services import whatsapp_service as _whatsapp_service
+from services import unidades_service as _unidades_service
+from services.venta_service import transaccion_critica
+
 
 class Almacen(db.Model):
     __tablename__ = 'almacenes'
@@ -161,24 +167,11 @@ class StockPorAlmacen(db.Model):
 
 
 # --- Inventario multi-almacén (opcional según tablas en BD) ---
-_INV_TABLAS_OK = None
 _ENROL_TABLAS_OK = None
-_ID_ALMACEN_TIENDA = None
-_ID_ALMACEN_BODEGA = None
 
 
 def _tablas_inventario_almacen_existen():
-    global _INV_TABLAS_OK
-    if _INV_TABLAS_OK is not None:
-        return _INV_TABLAS_OK
-    try:
-        insp = sa_inspect(db.engine)
-        _INV_TABLAS_OK = bool(
-            insp.has_table('almacenes') and insp.has_table('stock_por_almacen')
-        )
-    except Exception:
-        _INV_TABLAS_OK = False
-    return _INV_TABLAS_OK
+    return _stock_service.tablas_inventario_almacen_existen()
 
 
 def _tablas_enrolamiento_existen():
@@ -372,143 +365,46 @@ def _opciones_hojas_catalogo_para_select():
 
 
 def _codigo_almacen_tienda():
-    return (os.getenv('ALMACEN_CODIGO_TIENDA') or 'TIENDA').strip().upper() or 'TIENDA'
+    return _stock_service.codigo_almacen_tienda()
 
 
 def _codigo_almacen_bodega():
-    return (os.getenv('ALMACEN_CODIGO_BODEGA') or 'BODEGA').strip().upper() or 'BODEGA'
+    return _stock_service.codigo_almacen_bodega()
 
 
 def _resolver_id_almacen_por_codigo(codigo):
-    if not codigo or not _tablas_inventario_almacen_existen():
-        return None
-    try:
-        row = db.session.execute(
-            text(
-                "SELECT id FROM almacenes "
-                "WHERE UPPER(TRIM(codigo)) = :c AND activo IS NOT FALSE "
-                "ORDER BY id ASC LIMIT 1"
-            ),
-            {"c": codigo.strip().upper()},
-        ).scalar()
-        return int(row) if row is not None else None
-    except Exception:
-        db.session.rollback()
-        return None
+    return _stock_service.resolver_id_almacen_por_codigo(codigo)
 
 
 def id_almacen_tienda():
     """Almacén desde el que vende el POS (por defecto TIENDA)."""
-    global _ID_ALMACEN_TIENDA
-    if _ID_ALMACEN_TIENDA is not None:
-        return _ID_ALMACEN_TIENDA
-    env_id = (os.getenv('ALMACEN_ID_TIENDA') or '').strip()
-    if env_id.isdigit():
-        _ID_ALMACEN_TIENDA = int(env_id)
-        return _ID_ALMACEN_TIENDA
-    _ID_ALMACEN_TIENDA = _resolver_id_almacen_por_codigo(_codigo_almacen_tienda())
-    return _ID_ALMACEN_TIENDA
+    return _stock_service.id_almacen_tienda()
 
 
 def id_almacen_bodega():
     """Almacén donde ingresa mercadería por recepción (por defecto BODEGA)."""
-    global _ID_ALMACEN_BODEGA
-    if _ID_ALMACEN_BODEGA is not None:
-        return _ID_ALMACEN_BODEGA
-    env_id = (os.getenv('ALMACEN_ID_BODEGA') or '').strip()
-    if env_id.isdigit():
-        _ID_ALMACEN_BODEGA = int(env_id)
-        return _ID_ALMACEN_BODEGA
-    _ID_ALMACEN_BODEGA = _resolver_id_almacen_por_codigo(_codigo_almacen_bodega())
-    return _ID_ALMACEN_BODEGA
+    return _stock_service.id_almacen_bodega()
 
 
 def _invalidar_cache_ids_almacen():
     """Tras cambiar codigo/activo de almacenes, forzar nueva resolución TIENDA/BODEGA."""
-    global _ID_ALMACEN_TIENDA, _ID_ALMACEN_BODEGA
-    _ID_ALMACEN_TIENDA = None
-    _ID_ALMACEN_BODEGA = None
+    return _stock_service.invalidar_cache_ids_almacen()
 
 
 def stock_producto_en_almacen(id_producto, id_almacen):
-    if not id_almacen or not _tablas_inventario_almacen_existen():
-        return None
-    try:
-        v = db.session.execute(
-            text(
-                "SELECT cantidad FROM stock_por_almacen "
-                "WHERE id_producto = :p AND id_almacen = :a LIMIT 1"
-            ),
-            {"p": int(id_producto), "a": int(id_almacen)},
-        ).scalar()
-        # Diferenciar entre "sin fila en stock_por_almacen" (None) y "fila con cantidad 0".
-        # Esto permite fallback a productos.stock en POS cuando aún no existe distribución por almacén.
-        return None if v is None else int(v)
-    except Exception:
-        db.session.rollback()
-        return None
+    return _stock_service.stock_producto_en_almacen(id_producto, id_almacen)
 
 
 def _refrescar_stock_total_producto(producto):
-    """Mantiene productos.stock = suma por almacén cuando aplica."""
-    if not producto or not _tablas_inventario_almacen_existen():
-        return
-    try:
-        # Asegura que cambios pendientes en stock_por_almacen se reflejen en el SUM.
-        db.session.flush()
-        s = db.session.execute(
-            text("SELECT COALESCE(SUM(cantidad), 0) FROM stock_por_almacen WHERE id_producto = :p"),
-            {"p": int(producto.id)},
-        ).scalar()
-        producto.stock = int(s or 0)
-    except Exception:
-        db.session.rollback()
-        pass
+    return _stock_service.refrescar_stock_total_producto(producto)
 
 
 def ajustar_stock_almacen(producto_id, id_almacen, delta, allow_negative=False):
-    """
-    delta > 0 suma stock en el almacén; delta < 0 resta.
-    Devuelve (nuevo_stock_almacén|None, error_str|None).
-    """
-    if not id_almacen or not _tablas_inventario_almacen_existen():
-        return None, None
-    try:
-        d = int(delta)
-    except (TypeError, ValueError):
-        return None, "Delta de stock inválido."
-    pid = int(producto_id)
-    aid = int(id_almacen)
-    actual = stock_producto_en_almacen(pid, aid)
-    if actual is None:
-        actual = 0
-    nuevo = actual + d
-    if not allow_negative and nuevo < 0:
-        return actual, "Stock insuficiente en almacén."
-    row = StockPorAlmacen.query.filter_by(id_producto=pid, id_almacen=aid).first()
-    if row:
-        row.cantidad = int(nuevo)
-    else:
-        db.session.add(StockPorAlmacen(id_producto=pid, id_almacen=aid, cantidad=int(nuevo)))
-    return int(nuevo), None
+    return _stock_service.ajustar_stock_almacen(producto_id, id_almacen, delta, allow_negative)
 
 
 def fijar_stock_almacen(producto_id, id_almacen, cantidad):
-    """Ajuste absoluto de stock en un almacén (auditoría)."""
-    if not id_almacen or not _tablas_inventario_almacen_existen():
-        return None
-    try:
-        c = int(cantidad)
-    except (TypeError, ValueError):
-        return None
-    pid = int(producto_id)
-    aid = int(id_almacen)
-    row = StockPorAlmacen.query.filter_by(id_producto=pid, id_almacen=aid).first()
-    if row:
-        row.cantidad = c
-    else:
-        db.session.add(StockPorAlmacen(id_producto=pid, id_almacen=aid, cantidad=c))
-    return c
+    return _stock_service.fijar_stock_almacen(producto_id, id_almacen, cantidad)
 
 
 def _ruta_config_empresa():
@@ -1149,6 +1045,9 @@ def forzar_cambio_clave_si_corresponde():
     db.session.rollback()
     # Columnas despacho bodega: deben existir antes de cualquier Venta.query (p. ej. inicio/dashboard).
     _asegurar_columnas_ventas_bodega_despacho()
+    # Retiro bodega post-cobro / plataforma (modelo Venta + DetalleVenta).
+    _asegurar_columnas_bodega_retiro()
+    _asegurar_columnas_bodega_sugerido_preparar()
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
@@ -1460,6 +1359,41 @@ def stock_disponible_bodega(producto):
     return int(producto.stock or 0)
 
 
+def _venta_validar_stock_bodega_para_cobro(venta):
+    """
+    Cobro con retiro en bodega: no se descuenta tienda al pagar; debe haber stock en bodega
+    para (consumo línea − ya despachado por voz antes del cobro).
+    """
+    faltantes = []
+    if not venta:
+        return faltantes
+    for d in list(venta.detalles or []):
+        try:
+            producto = d.producto or Producto.query.get(d.id_producto)
+            if not producto:
+                faltantes.append('Producto no encontrado en una línea del vale.')
+                continue
+            factor = _factor_venta_a_stock(producto)
+            consumo = int(round((d.cantidad or 0) * factor))
+            if consumo <= 0:
+                faltantes.append(f'{producto.nombre}: conversión de cantidad inválida.')
+                continue
+            ya_bod = _venta_consumo_ya_despachado_bodega(venta, d.id)
+            necesita_bod = max(0, consumo - ya_bod)
+            if necesita_bod <= 0:
+                continue
+            disp_b = stock_disponible_bodega(producto)
+            if disp_b < necesita_bod:
+                faltantes.append(
+                    f'{producto.nombre} (disponible bodega: {disp_b}, requerido al cobrar: {necesita_bod})'
+                )
+        except Exception as ex:
+            db.session.rollback()
+            app.logger.exception('Validación stock bodega cobro línea %s: %s', getattr(d, 'id', None), ex)
+            faltantes.append('No se pudo validar stock en bodega para una línea.')
+    return faltantes
+
+
 def stock_tienda_por_producto_ids(ids):
     """Mapa id_producto -> stock en TIENDA (fuente única definitiva)."""
     ids = [int(x) for x in ids if x is not None]
@@ -1536,34 +1470,22 @@ def descontar_stock_venta_tienda(producto, consumo_stock):
     Descuenta stock de venta (almacén TIENDA). Mantiene productos.stock como suma por almacén.
     Devuelve mensaje de error o None.
     """
-    if consumo_stock <= 0:
-        return "Consumo de stock inválido."
-    aid = id_almacen_tienda()
-    if aid and _tablas_inventario_almacen_existen():
-        _, err = ajustar_stock_almacen(producto.id, aid, -int(consumo_stock))
-        if err:
-            return err
-        _refrescar_stock_total_producto(producto)
-    else:
-        if (producto.stock or 0) < consumo_stock:
-            return "Stock insuficiente."
-        producto.stock = (producto.stock or 0) - int(consumo_stock)
-    return None
+    return _stock_service.descontar_stock_venta_tienda(producto, consumo_stock)
 
 
 def incrementar_stock_venta_tienda(producto, consumo_stock):
     """Revierte un descuento de venta en TIENDA (opuesto a descontar_stock_venta_tienda)."""
-    if consumo_stock <= 0:
-        return "Cantidad de reversión inválida."
-    aid = id_almacen_tienda()
-    if aid and _tablas_inventario_almacen_existen():
-        _, err = ajustar_stock_almacen(producto.id, aid, int(consumo_stock))
-        if err:
-            return err
-        _refrescar_stock_total_producto(producto)
-    else:
-        producto.stock = (producto.stock or 0) + int(consumo_stock)
-    return None
+    return _stock_service.incrementar_stock_venta_tienda(producto, consumo_stock)
+
+
+def descontar_stock_venta_bodega(producto, consumo_stock):
+    """Descuenta stock en almacén BODEGA (retiro físico). Devuelve error str o None."""
+    return _stock_service.descontar_stock_venta_bodega(producto, consumo_stock)
+
+
+def incrementar_stock_venta_bodega(producto, consumo_stock):
+    """Revierte salida de bodega (anulación de retiro o corrección)."""
+    return _stock_service.incrementar_stock_venta_bodega(producto, consumo_stock)
 
 
 def _venta_metodo_pago_vacio(venta):
@@ -1744,6 +1666,14 @@ class Venta(db.Model):
     bodega_despacho_estado = db.Column(db.String(20), nullable=True)  # SALIDA_PARCIAL | DESPACHADO
     bodega_despacho_json = db.Column(db.Text, nullable=True)  # JSON: detalle_id -> consumo stock ya salido de bodega
     bodega_despacho_ultimo_at = db.Column(db.DateTime, nullable=True)  # último despacho voz exitoso (worker alertas)
+    # Plataforma retiro bodega (post-cobro): preparación + entregas parciales (stock bodega baja al registrar retiro).
+    bodega_preparacion_estado = db.Column(db.String(24), nullable=True)
+    bodega_preparacion_usuario = db.Column(db.String(80), nullable=True)
+    bodega_preparacion_at = db.Column(db.DateTime, nullable=True)
+    # Fase 2 — sugerido preparar (solo informativo; vale Pendiente + retiro Bodega; no reserva stock).
+    bodega_sugerido_preparar = db.Column(db.SmallInteger, nullable=False, default=0, server_default='0')
+    bodega_sugerido_preparar_at = db.Column(db.DateTime, nullable=True)
+    bodega_sugerido_preparar_usuario = db.Column(db.String(80), nullable=True)
 
     # Relaciones
     caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True)
@@ -2121,55 +2051,11 @@ def _cobranza_dispatch_cron_secret():
 
 
 def _wa_cloud_config():
-    """Credenciales WhatsApp Cloud API (Meta). None si faltan."""
-    token = (os.getenv('WHATSAPP_CLOUD_ACCESS_TOKEN') or '').strip()
-    phone_id = (os.getenv('WHATSAPP_CLOUD_PHONE_NUMBER_ID') or '').strip()
-    if not token or not phone_id:
-        return None
-    ver = (os.getenv('WHATSAPP_CLOUD_API_VERSION') or 'v21.0').strip().lstrip('/') or 'v21.0'
-    if not ver.startswith('v'):
-        ver = 'v' + ver
-    return {'token': token, 'phone_number_id': phone_id, 'version': ver}
+    return _whatsapp_service.wa_cloud_config()
 
 
 def _whatsapp_cloud_send_text(to_e164_digits, body):
-    """
-    Envía mensaje tipo texto por WhatsApp Cloud API.
-    Retorna (ok: bool, detalle: str). Meta puede rechazar si hace falta plantilla aprobada (fuera de ventana 24h).
-    """
-    cfg = _wa_cloud_config()
-    if not cfg:
-        return False, 'wa_cloud_not_configured'
-    to = ''.join(c for c in (to_e164_digits or '') if c.isdigit())
-    if len(to) < 8:
-        return False, 'invalid_to'
-    text = (body or '')[:4096]
-    if not text.strip():
-        return False, 'empty_body'
-    url = f"https://graph.facebook.com/{cfg['version']}/{cfg['phone_number_id']}/messages"
-    payload = {
-        'messaging_product': 'whatsapp',
-        'to': to,
-        'type': 'text',
-        'text': {'preview_url': False, 'body': text},
-    }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-        headers={
-            'Authorization': f'Bearer {cfg["token"]}',
-            'Content-Type': 'application/json; charset=utf-8',
-        },
-        method='POST',
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            return True, (resp.read().decode('utf-8', errors='replace') or 'ok')
-    except urllib.error.HTTPError as e:
-        err = e.read().decode('utf-8', errors='replace')
-        return False, f'http_{e.code}:{err}'
-    except Exception as e:
-        return False, str(e)
+    return _whatsapp_service.whatsapp_cloud_send_text(to_e164_digits, body)
 
 
 def _plan_cuotas_credito_valido(raw):
@@ -2201,6 +2087,8 @@ class DetalleVenta(db.Model):
     id_producto = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
 
     cantidad = db.Column(db.Integer, default=1)
+    # Unidades de venta (ej. sacos) ya retiradas en bodega; el stock se descuenta al confirmar cada retiro.
+    cantidad_entregada_retiro_bodega = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     precio_unitario = db.Column(db.Float, nullable=False, default=0.0)
     descuento = db.Column(db.Float, default=0.0)
     subtotal = db.Column(db.Float, default=0.0)
@@ -2757,81 +2645,21 @@ def registrar_movimiento_kardex(
     referencia_id=None,
     stock_saldo=None,
 ):
-    """Registra una línea de kardex. La cantidad se guarda siempre como entero positivo."""
-    try:
-        c = int(cantidad)
-    except (TypeError, ValueError):
-        return
-    if c <= 0:
-        return
-    ref_t = (referencia_tipo or '')[:40] if referencia_tipo else None
-    ref_id = int(referencia_id) if referencia_id is not None else None
-    almacen_id = None
-    if _tablas_inventario_almacen_existen():
-        try:
-            if id_almacen:
-                existe = db.session.execute(
-                    text("SELECT 1 FROM almacenes WHERE id = :id LIMIT 1"),
-                    {"id": int(id_almacen)},
-                ).scalar()
-                if existe:
-                    almacen_id = int(id_almacen)
-            if not almacen_id:
-                almacen_id = db.session.execute(
-                    text("SELECT id FROM almacenes ORDER BY id ASC LIMIT 1")
-                ).scalar()
-        except Exception:
-            almacen_id = None
-        if not almacen_id:
-            return
-    else:
-        try:
-            almacen_id = int(id_almacen) if id_almacen else 1
-        except (TypeError, ValueError):
-            almacen_id = 1
-
-    saldo = int(stock_saldo) if stock_saldo is not None else None
-    if _tablas_inventario_almacen_existen():
-        s_alm = stock_producto_en_almacen(int(id_producto), int(almacen_id))
-        if s_alm is not None:
-            saldo = s_alm
-    elif saldo is None:
-        try:
-            p = Producto.query.get(int(id_producto))
-            saldo = int(p.stock) if p and p.stock is not None else 0
-        except Exception:
-            saldo = None
-
-    mov = MovimientoInventario(
-        id_producto=id_producto,
-        id_almacen=almacen_id,
-        tipo_movimiento=(tipo_movimiento or '')[:20],
-        cantidad=c,
-        motivo=(motivo or '')[:500] if motivo else None,
-        usuario=(usuario or '')[:100] if usuario else None,
-        fecha=datetime.now(),
-        referencia_tipo=ref_t or None,
-        referencia_id=ref_id,
-        stock_saldo=saldo,
+    return _kardex_service.registrar_movimiento_kardex(
+        id_producto,
+        tipo_movimiento,
+        cantidad,
+        motivo,
+        usuario=usuario,
+        id_almacen=id_almacen,
+        referencia_tipo=referencia_tipo,
+        referencia_id=referencia_id,
+        stock_saldo=stock_saldo,
     )
-    db.session.add(mov)
 
 
 def _bitacora_costos_disponible():
-    estado = app.config.get("_BITACORA_COSTOS_OK")
-    if estado is not None:
-        return bool(estado)
-    try:
-        ok = db.session.execute(
-            text(
-                "SELECT 1 FROM information_schema.tables "
-                "WHERE table_schema = DATABASE() AND table_name = 'bitacora_costos_compra' LIMIT 1"
-            )
-        ).scalar() is not None
-    except Exception:
-        ok = False
-    app.config["_BITACORA_COSTOS_OK"] = bool(ok)
-    return bool(ok)
+    return _kardex_service.bitacora_costos_disponible()
 
 
 def registrar_bitacora_costo(
@@ -2844,183 +2672,48 @@ def registrar_bitacora_costo(
     usuario,
     observacion=None,
 ):
-    if not _bitacora_costos_disponible():
-        return
-    try:
-        ca = float(costo_anterior or 0)
-        cn = float(costo_nuevo or 0)
-        pv = float(precio_venta_referencia or 0)
-        variacion = ((cn - ca) / ca) if ca > 0 else None
-        margen_proj = ((pv - cn) / cn) if cn > 0 and pv > 0 else None
-        db.session.add(
-            BitacoraCostoCompra(
-                producto_id=producto_id,
-                proveedor_id=proveedor_id,
-                recepcion_id=recepcion_id,
-                costo_anterior=ca,
-                costo_nuevo=cn,
-                variacion_pct=variacion,
-                precio_venta_referencia=pv if pv > 0 else None,
-                margen_proyectado=margen_proj,
-                usuario=(usuario or "")[:100] if usuario else None,
-                observacion=(observacion or "")[:255] if observacion else None,
-            )
-        )
-    except Exception:
-        # Nunca bloquea la recepción por bitácora auxiliar.
-        pass
+    return _kardex_service.registrar_bitacora_costo(
+        producto_id,
+        proveedor_id,
+        recepcion_id,
+        costo_anterior,
+        costo_nuevo,
+        precio_venta_referencia,
+        usuario,
+        observacion=observacion,
+    )
 
 
 def _bitacora_precios_disponible():
-    estado = app.config.get("_BITACORA_PRECIOS_OK")
-    if estado is not None:
-        return bool(estado)
-    try:
-        ok = db.session.execute(
-            text(
-                "SELECT 1 FROM information_schema.tables "
-                "WHERE table_schema = DATABASE() AND table_name = 'bitacora_precios_venta' LIMIT 1"
-            )
-        ).scalar() is not None
-    except Exception:
-        ok = False
-    app.config["_BITACORA_PRECIOS_OK"] = bool(ok)
-    return bool(ok)
+    return _kardex_service.bitacora_precios_disponible()
 
 
 def registrar_bitacora_precio(producto_id, precio_anterior, precio_nuevo, costo_referencia, margen_objetivo, usuario, motivo):
-    if not _bitacora_precios_disponible():
-        return
-    try:
-        db.session.add(
-            BitacoraPrecioVenta(
-                producto_id=producto_id,
-                precio_anterior=float(precio_anterior or 0),
-                precio_nuevo=float(precio_nuevo or 0),
-                costo_referencia=float(costo_referencia or 0) if costo_referencia is not None else None,
-                margen_objetivo=float(margen_objetivo or 0) if margen_objetivo is not None else None,
-                usuario=(usuario or '')[:100] if usuario else None,
-                motivo=(motivo or '')[:255] if motivo else None,
-            )
-        )
-    except Exception:
-        pass
+    return _kardex_service.registrar_bitacora_precio(
+        producto_id,
+        precio_anterior,
+        precio_nuevo,
+        costo_referencia,
+        margen_objetivo,
+        usuario,
+        motivo,
+    )
 
 
 def _unidades_disponibles():
-    estado = app.config.get("_UNIDADES_OK")
-    if estado is not None:
-        return bool(estado)
-    try:
-        ok = db.session.execute(
-            text(
-                "SELECT 1 FROM information_schema.tables "
-                "WHERE table_schema = DATABASE() AND table_name = 'unidades_medida' LIMIT 1"
-            )
-        ).scalar() is not None
-    except Exception:
-        ok = False
-    app.config["_UNIDADES_OK"] = bool(ok)
-    return bool(ok)
+    return _unidades_service.unidades_disponibles()
 
 
 def _seed_unidades_base():
-    if not _unidades_disponibles():
-        return
-    base = [
-        ("UN", "Unidad", "unidad"),
-        ("KG", "Kilogramo", "peso"),
-        ("M", "Metro", "longitud"),
-        ("CJ", "Caja", "empaque"),
-        ("SC", "Saco", "empaque"),
-        ("RL", "Rollo", "empaque"),
-        ("LT", "Litro", "volumen"),
-    ]
-    cambios = False
-    for codigo, nombre, tipo in base:
-        ex = UnidadMedida.query.filter_by(codigo=codigo).first()
-        if not ex:
-            db.session.add(UnidadMedida(codigo=codigo, nombre=nombre, tipo=tipo, activo=True))
-            cambios = True
-    if cambios:
-        db.session.commit()
+    return _unidades_service.seed_unidades_base()
 
 
 def _factor_compra_a_stock(producto):
-    """
-    Define cuánto stock (unidad de venta/base) ingresa por 1 unidad de compra.
-    Prioriza tabla de conversiones; si no existe, usa factor_conversion del producto.
-    """
-    if not producto:
-        return 1.0
-
-    # Caso simple: compra y venta en la misma unidad.
-    uc = (producto.unidad_compra or '').strip().upper()
-    uv = (producto.unidad_venta or producto.unidad or '').strip().upper()
-    if uc and uv and uc == uv:
-        return 1.0
-
-    # Si existe catálogo de conversiones, intentamos resolver por código/nombre.
-    if _unidades_disponibles() and uc and uv:
-        try:
-            u_origen = UnidadMedida.query.filter(
-                (UnidadMedida.codigo == uc) | (UnidadMedida.nombre.ilike(uc))
-            ).first()
-            u_destino = UnidadMedida.query.filter(
-                (UnidadMedida.codigo == uv) | (UnidadMedida.nombre.ilike(uv))
-            ).first()
-            if u_origen and u_destino:
-                conv = ConversionUnidad.query.filter_by(
-                    unidad_origen_id=u_origen.id,
-                    unidad_destino_id=u_destino.id,
-                    activo=True,
-                ).first()
-                if conv and float(conv.factor or 0) > 0:
-                    return float(conv.factor)
-        except Exception:
-            pass
-
-    # Fallback: factor del producto (legacy).
-    try:
-        f = float(producto.factor_conversion or 1)
-    except Exception:
-        f = 1
-    return f if f > 0 else 1.0
+    return _unidades_service.factor_compra_a_stock(producto)
 
 
 def _factor_venta_a_stock(producto):
-    """
-    Cuánto stock base se descuenta por 1 unidad de venta.
-    Prioriza catálogo de conversiones (unidad_venta -> unidad base/legacy).
-    Fallback: 1 (comportamiento actual), para no romper operación existente.
-    """
-    if not producto:
-        return 1.0
-
-    uv = (producto.unidad_venta or producto.unidad or '').strip().upper()
-    ub = (producto.unidad or producto.unidad_venta or '').strip().upper()
-    if uv and ub and uv == ub:
-        return 1.0
-
-    if _unidades_disponibles() and uv and ub:
-        try:
-            u_origen = UnidadMedida.query.filter(
-                (UnidadMedida.codigo == uv) | (UnidadMedida.nombre.ilike(uv))
-            ).first()
-            u_destino = UnidadMedida.query.filter(
-                (UnidadMedida.codigo == ub) | (UnidadMedida.nombre.ilike(ub))
-            ).first()
-            if u_origen and u_destino:
-                conv = ConversionUnidad.query.filter_by(
-                    unidad_origen_id=u_origen.id,
-                    unidad_destino_id=u_destino.id,
-                    activo=True,
-                ).first()
-                if conv and float(conv.factor or 0) > 0:
-                    return float(conv.factor)
-        except Exception:
-            pass
-    return 1.0
+    return _unidades_service.factor_venta_a_stock(producto)
 
 
 # Auditoría de inventario para control de stock físico vs sistema, con opción de ajuste automático
@@ -5594,6 +5287,8 @@ def api_enrol_vincular():
     cant = max(0, cant)
     mult = _tablas_inventario_almacen_existen()
     aid = _enrol_destino_almacen(ses, data.get('id_almacen_destino'))
+    stock_m_antes = int(p.stock or 0)
+    alm_dest_antes = stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
     try:
         if mult:
             if cant and not aid:
@@ -5608,6 +5303,27 @@ def api_enrol_vincular():
             p.stock = int(p.stock or 0) + cant
         if cant:
             _enrol_linea_conteo_sumar(ses.id, p.id, cant)
+        usr_ev = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_vincular',
+            'producto',
+            p.id,
+            usuario=usr_ev,
+            datos_antes={
+                'sesion_id': ses.id,
+                'stock_maestro': stock_m_antes,
+                'stock_en_almacen_destino': alm_dest_antes,
+                'id_almacen_destino': aid,
+                'cantidad_sumada': cant,
+                'multi_almacen': mult,
+            },
+            datos_despues={
+                'stock_maestro': int(p.stock or 0),
+                'stock_en_almacen_destino': (
+                    stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
+                ),
+            },
+        )
         db.session.commit()
     except SQLAlchemyError as ex:
         db.session.rollback()
@@ -5709,6 +5425,26 @@ def api_enrol_alta_manual():
             p.stock = cantidad_inicial
         if cantidad_inicial:
             _enrol_linea_conteo_sumar(ses.id, p.id, cantidad_inicial)
+        usr_am = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_alta_manual',
+            'producto',
+            p.id,
+            usuario=usr_am,
+            datos_antes={
+                'sesion_id': ses.id,
+                'cantidad_inicial': cantidad_inicial,
+                'id_almacen_destino': aid,
+                'multi_almacen': mult,
+            },
+            datos_despues={
+                'nombre': (p.nombre or '')[:120],
+                'stock_maestro': int(p.stock or 0),
+                'stock_en_almacen_destino': (
+                    stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
+                ),
+            },
+        )
         db.session.commit()
     except SQLAlchemyError as ex:
         db.session.rollback()
@@ -5761,6 +5497,8 @@ def api_enrol_entrada_stock():
 
     mult = _tablas_inventario_almacen_existen()
     aid = _enrol_destino_almacen(ses, data.get('id_almacen_destino'))
+    stock_m_antes = int(p.stock or 0)
+    alm_dest_antes = stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
     try:
         if mult:
             if not aid:
@@ -5773,6 +5511,28 @@ def api_enrol_entrada_stock():
         else:
             p.stock = int(p.stock or 0) + cantidad
         _enrol_linea_conteo_sumar(ses.id, p.id, cantidad)
+        usr_es = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_entrada_stock',
+            'producto',
+            p.id,
+            usuario=usr_es,
+            datos_antes={
+                'sesion_id': ses.id,
+                'cantidad': cantidad,
+                'stock_maestro': stock_m_antes,
+                'stock_en_almacen_destino': alm_dest_antes,
+                'id_almacen_destino': aid,
+                'multi_almacen': mult,
+                'actualizo_precios': act_precios,
+            },
+            datos_despues={
+                'stock_maestro': int(p.stock or 0),
+                'stock_en_almacen_destino': (
+                    stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
+                ),
+            },
+        )
         db.session.commit()
     except SQLAlchemyError as ex:
         db.session.rollback()
@@ -5811,6 +5571,9 @@ def api_enrol_traslado():
     for aid in (io, idt):
         if not Almacen.query.filter_by(id=aid, activo=True).first():
             return jsonify(ok=False, mensaje='Almacén inválido.'), 400
+    sm_antes = int(p.stock or 0)
+    st_io_antes = stock_producto_en_almacen(p.id, io)
+    st_idt_antes = stock_producto_en_almacen(p.id, idt)
     try:
         _, err = ajustar_stock_almacen(p.id, io, -cantidad)
         if err:
@@ -5819,8 +5582,29 @@ def api_enrol_traslado():
         _, err2 = ajustar_stock_almacen(p.id, idt, cantidad)
         if err2:
             db.session.rollback()
-            return jsonify(ok=False, mensaje=err2), 400
+            return jsonify(ok=False, mensaje=err), 400
         _refrescar_stock_total_producto(p)
+        usr_tr = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_traslado',
+            'producto',
+            p.id,
+            usuario=usr_tr,
+            datos_antes={
+                'sesion_id': ses.id,
+                'cantidad': cantidad,
+                'id_almacen_origen': io,
+                'id_almacen_destino': idt,
+                'stock_maestro': sm_antes,
+                'stock_origen': st_io_antes,
+                'stock_destino': st_idt_antes,
+            },
+            datos_despues={
+                'stock_maestro': int(p.stock or 0),
+                'stock_origen': stock_producto_en_almacen(p.id, io),
+                'stock_destino': stock_producto_en_almacen(p.id, idt),
+            },
+        )
         db.session.commit()
     except SQLAlchemyError as ex:
         db.session.rollback()
@@ -5894,15 +5678,42 @@ def editar_stock_producto(id):
         flash("El stock no puede ser negativo.", "warning")
         return redirect(request.referrer or url_for('mostrar_productos'))
 
-    if _tablas_inventario_almacen_existen():
-        aid_tienda = id_almacen_tienda()
-        if aid_tienda:
-            fijar_stock_almacen(producto.id, aid_tienda, stock_nuevo)
-            _refrescar_stock_total_producto(producto)
+    mult_alm = _tablas_inventario_almacen_existen()
+    aid_tienda = id_almacen_tienda() if mult_alm else None
+    stock_maestro_antes = int(producto.stock or 0)
+    stock_tienda_antes = (
+        stock_producto_en_almacen(producto.id, aid_tienda) if aid_tienda is not None else None
+    )
+
+    with transaccion_critica():
+        if mult_alm:
+            if aid_tienda:
+                fijar_stock_almacen(producto.id, aid_tienda, stock_nuevo)
+                _refrescar_stock_total_producto(producto)
+            else:
+                producto.stock = stock_nuevo
         else:
             producto.stock = stock_nuevo
-    else:
-        producto.stock = stock_nuevo
+
+    usr_stock = current_user.nombre if current_user.is_authenticated else None
+    _audit_log(
+        'ajuste_stock_producto_ui',
+        'producto',
+        producto.id,
+        usuario=usr_stock,
+        datos_antes={
+            'stock_maestro': stock_maestro_antes,
+            'stock_tienda': stock_tienda_antes,
+            'id_almacen_tienda': aid_tienda,
+        },
+        datos_despues={
+            'stock_maestro': int(producto.stock or 0),
+            'stock_solicitado': stock_nuevo,
+            'stock_tienda_tras_ajuste': (
+                stock_producto_en_almacen(producto.id, aid_tienda) if aid_tienda else None
+            ),
+        },
+    )
 
     db.session.commit()
     flash(f"Stock actualizado para «{producto.nombre}»: {stock_nuevo}.", "success")
@@ -5962,10 +5773,24 @@ def actualizar_stock_masivo_productos():
         return redirect(request.referrer or url_for('mostrar_productos'))
 
     usa_almacenes = _tablas_inventario_almacen_existen()
-    for p in productos:
-        p.stock = stock_objetivo
-        if usa_almacenes:
-            aplicar_stock_desde_catalogo_a_tienda(p)
+    with transaccion_critica():
+        for p in productos:
+            p.stock = stock_objetivo
+            if usa_almacenes:
+                aplicar_stock_desde_catalogo_a_tienda(p)
+    usr_ms = current_user.nombre if current_user.is_authenticated else None
+    _audit_log(
+        'ajuste_stock_masivo_ui',
+        'producto',
+        None,
+        usuario=usr_ms,
+        datos_antes={
+            'alcance': alcance,
+            'cant_productos': len(productos),
+            'usa_almacenes': usa_almacenes,
+        },
+        datos_despues={'stock_objetivo': stock_objetivo},
+    )
     db.session.commit()
 
     msg_scope = "filtrados" if alcance == 'filtrados' else "todos"
@@ -6148,126 +5973,147 @@ def cargar_productos():
         prod_row.precio_venta = _precio_sugerido_redondeado(costo, mg, term)
         precios_sugeridos += 1
 
-    for row in filas:
-        codigo = _clip(_csv_cell(row, 'codigo_barra') or _csv_cell(row, 'codigo') or '', 50)
-        interno = _clip(_csv_cell(row, 'codigo_interno') or '', 32)
-        nombre = _clip(_csv_cell(row, 'nombre') or '', 100)
-        if not nombre:
-            omitidos += 1
-            continue
-        if not codigo and not interno:
-            omitidos += 1
-            continue
+    with transaccion_critica():
+        for row in filas:
+            codigo = _clip(_csv_cell(row, 'codigo_barra') or _csv_cell(row, 'codigo') or '', 50)
+            interno = _clip(_csv_cell(row, 'codigo_interno') or '', 32)
+            nombre = _clip(_csv_cell(row, 'nombre') or '', 100)
+            if not nombre:
+                omitidos += 1
+                continue
+            if not codigo and not interno:
+                omitidos += 1
+                continue
 
-        prod = None
-        desde_cache = False
-        if codigo and codigo in cache_por_codigo:
-            prod = cache_por_codigo[codigo]
-            desde_cache = True
-        elif interno and interno in cache_por_interno:
-            prod = cache_por_interno[interno]
-            desde_cache = True
+            prod = None
+            desde_cache = False
+            if codigo and codigo in cache_por_codigo:
+                prod = cache_por_codigo[codigo]
+                desde_cache = True
+            elif interno and interno in cache_por_interno:
+                prod = cache_por_interno[interno]
+                desde_cache = True
 
-        if prod is None:
-            with db.session.no_autoflush:
-                if codigo:
-                    prod = Producto.query.filter_by(codigo_barra=codigo).first()
-                if prod is None and interno:
-                    prod = Producto.query.filter_by(codigo_interno=interno).first()
-            es_nuevo = prod is None
-            if es_nuevo:
-                if not codigo:
-                    omitidos += 1
-                    continue
-                prod = Producto(codigo_barra=codigo, activo=True)
-                db.session.add(prod)
-        else:
-            es_nuevo = False
-            if desde_cache:
-                duplicados_archivo += 1
-
-        if codigo:
-            cache_por_codigo[codigo] = prod
-        if interno:
-            cache_por_interno[interno] = prod
-
-        prod.nombre = nombre
-
-        if _csv_has('codigo_interno'):
-            ci = _clip(_csv_cell(row, 'codigo_interno'), 32)
-            if ci:
-                prod.codigo_interno = ci
-        if _csv_has('codigo_chilemat'):
-            cm = _clip(_csv_cell(row, 'codigo_chilemat'), 80)
-            if cm:
-                prod.codigo_chilemat = cm
-
-        if _csv_has('precio_compra'):
-            prod.precio_compra = _to_float(_csv_cell(row, 'precio_compra'), 0)
-
-        pv_cell = _csv_cell(row, 'precio_venta')
-        if pv_cell is not None:
-            if str(pv_cell).strip() != '':
-                prod.precio_venta = _to_float(pv_cell, 0)
+            if prod is None:
+                with db.session.no_autoflush:
+                    if codigo:
+                        prod = Producto.query.filter_by(codigo_barra=codigo).first()
+                    if prod is None and interno:
+                        prod = Producto.query.filter_by(codigo_interno=interno).first()
+                es_nuevo = prod is None
+                if es_nuevo:
+                    if not codigo:
+                        omitidos += 1
+                        continue
+                    prod = Producto(codigo_barra=codigo, activo=True)
+                    db.session.add(prod)
             else:
-                _aplicar_precio_venta_sugerido(prod, es_nuevo, row)
-        elif es_nuevo:
-            _aplicar_precio_venta_sugerido(prod, True, row)
+                es_nuevo = False
+                if desde_cache:
+                    duplicados_archivo += 1
 
-        if _csv_has('precio_mayoreo'):
-            prod.precio_mayoreo = _to_float(_csv_cell(row, 'precio_mayoreo'), 0)
+            if codigo:
+                cache_por_codigo[codigo] = prod
+            if interno:
+                cache_por_interno[interno] = prod
 
-        if _csv_has('unidad_venta') or _csv_has('unidad') or _csv_has('unidad_compra'):
-            prod.unidad = _clip(
-                _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
-                20,
-            )
-            prod.unidad_compra = _clip(
-                _csv_cell(row, 'unidad_compra')
-                or _csv_cell(row, 'unidad_venta')
-                or _csv_cell(row, 'unidad')
-                or "Unidad",
-                20,
-            )
-            prod.unidad_venta = _clip(
-                _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
-                20,
-            )
-        elif es_nuevo:
-            prod.unidad = _clip("Unidad", 20)
-            prod.unidad_compra = _clip("Unidad", 20)
-            prod.unidad_venta = _clip("Unidad", 20)
+            prod.nombre = nombre
 
-        if _csv_has('factor_conversion'):
-            prod.factor_conversion = _to_float(_csv_cell(row, 'factor_conversion'), 1) or 1
-        elif es_nuevo:
-            prod.factor_conversion = 1.0
+            if _csv_has('codigo_interno'):
+                ci = _clip(_csv_cell(row, 'codigo_interno'), 32)
+                if ci:
+                    prod.codigo_interno = ci
+            if _csv_has('codigo_chilemat'):
+                cm = _clip(_csv_cell(row, 'codigo_chilemat'), 80)
+                if cm:
+                    prod.codigo_chilemat = cm
 
-        if _csv_has('stock'):
-            prod.stock = _to_int(_csv_cell(row, 'stock'), 0)
-            aplicar_stock_desde_catalogo_a_tienda(prod)
+            if _csv_has('precio_compra'):
+                prod.precio_compra = _to_float(_csv_cell(row, 'precio_compra'), 0)
 
-        if _csv_has('categoria'):
-            prod.categoria = _clip(_csv_cell(row, 'categoria'), 50) or None
-        elif es_nuevo:
-            prod.categoria = None
-        if _csv_has('subcategoria'):
-            prod.subcategoria = _clip(_csv_cell(row, 'subcategoria'), 50) or None
-        elif es_nuevo:
-            prod.subcategoria = None
-        if _csv_has('ubicacion_pasillo'):
-            prod.ubicacion_pasillo = _clip(_csv_cell(row, 'ubicacion_pasillo'), 12) or None
-        if _csv_has('ubicacion_estante'):
-            prod.ubicacion_estante = _clip(_csv_cell(row, 'ubicacion_estante'), 12) or None
-        if _csv_has('ubicacion_nivel'):
-            prod.ubicacion_nivel = _clip(_csv_cell(row, 'ubicacion_nivel'), 12) or None
+            pv_cell = _csv_cell(row, 'precio_venta')
+            if pv_cell is not None:
+                if str(pv_cell).strip() != '':
+                    prod.precio_venta = _to_float(pv_cell, 0)
+                else:
+                    _aplicar_precio_venta_sugerido(prod, es_nuevo, row)
+            elif es_nuevo:
+                _aplicar_precio_venta_sugerido(prod, True, row)
 
-        prod.activo = True
+            if _csv_has('precio_mayoreo'):
+                prod.precio_mayoreo = _to_float(_csv_cell(row, 'precio_mayoreo'), 0)
 
-        if es_nuevo:
-            creados += 1
-        else:
-            actualizados += 1
+            if _csv_has('unidad_venta') or _csv_has('unidad') or _csv_has('unidad_compra'):
+                prod.unidad = _clip(
+                    _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
+                    20,
+                )
+                prod.unidad_compra = _clip(
+                    _csv_cell(row, 'unidad_compra')
+                    or _csv_cell(row, 'unidad_venta')
+                    or _csv_cell(row, 'unidad')
+                    or "Unidad",
+                    20,
+                )
+                prod.unidad_venta = _clip(
+                    _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
+                    20,
+                )
+            elif es_nuevo:
+                prod.unidad = _clip("Unidad", 20)
+                prod.unidad_compra = _clip("Unidad", 20)
+                prod.unidad_venta = _clip("Unidad", 20)
+
+            if _csv_has('factor_conversion'):
+                prod.factor_conversion = _to_float(_csv_cell(row, 'factor_conversion'), 1) or 1
+            elif es_nuevo:
+                prod.factor_conversion = 1.0
+
+            if _csv_has('stock'):
+                prod.stock = _to_int(_csv_cell(row, 'stock'), 0)
+                aplicar_stock_desde_catalogo_a_tienda(prod)
+
+            if _csv_has('categoria'):
+                prod.categoria = _clip(_csv_cell(row, 'categoria'), 50) or None
+            elif es_nuevo:
+                prod.categoria = None
+            if _csv_has('subcategoria'):
+                prod.subcategoria = _clip(_csv_cell(row, 'subcategoria'), 50) or None
+            elif es_nuevo:
+                prod.subcategoria = None
+            if _csv_has('ubicacion_pasillo'):
+                prod.ubicacion_pasillo = _clip(_csv_cell(row, 'ubicacion_pasillo'), 12) or None
+            if _csv_has('ubicacion_estante'):
+                prod.ubicacion_estante = _clip(_csv_cell(row, 'ubicacion_estante'), 12) or None
+            if _csv_has('ubicacion_nivel'):
+                prod.ubicacion_nivel = _clip(_csv_cell(row, 'ubicacion_nivel'), 12) or None
+
+            prod.activo = True
+
+            if es_nuevo:
+                creados += 1
+            else:
+                actualizados += 1
+
+    usr_carga = current_user.nombre if current_user.is_authenticated else None
+    _audit_log(
+        'carga_masiva_productos_archivo',
+        'producto',
+        None,
+        usuario=usr_carga,
+        datos_antes={
+            'archivo': (archivo.filename or '')[:200],
+            'filas': len(filas),
+            'formato': 'excel' if (fn.endswith('.xlsx') or fn.endswith('.xlsm')) else 'csv',
+        },
+        datos_despues={
+            'creados': creados,
+            'actualizados': actualizados,
+            'omitidos': omitidos,
+            'duplicados_archivo': duplicados_archivo,
+            'precios_sugeridos': precios_sugeridos,
+        },
+    )
     try:
         db.session.commit()
     except Exception as e:
@@ -6540,6 +6386,15 @@ def mostrar_ventas():
                            productos=productos,
                            ventas_pagination=ventas_pagination)
 
+class _GuardarVentaAbort(Exception):
+    """Interrumpe savepoint (venta directa / emitir vale POS) con mensaje para flash."""
+
+    def __init__(self, message, category="danger"):
+        self.message = message
+        self.category = category
+        super().__init__(message)
+
+
 # proceso de guardar venta desde formulario de ventas (ruta: blueprints/pos.py)
 def guardar_venta():
     # 1. Obtenemos la caja
@@ -6597,81 +6452,71 @@ def guardar_venta():
             cupo = cliente.limite_credito - cliente.saldo_deudor
             flash(f"CRÉDITO DENEGADO: El cliente excede su límite. Cupo disponible: ${cupo:,.0f}", "warning")
             return redirect(url_for('mostrar_ventas'))
-        
-        # Aumentamos la deuda del cliente inmediatamente
-        cliente.saldo_deudor += total_proyectado
-    # ---------------------------------
 
-    nueva_venta = Venta(
-        usuario=current_user.nombre, 
-        caja_id=caja.id,
-        cliente_id=cliente_id if cliente_id else None,
-        monto_total=total_proyectado,
-        estado="Pagado" if metodo_seleccionado != "Credito" else "Pendiente",
-        metodo_pago=metodo_seleccionado
-    )
-
-    db.session.add(nueva_venta)
-    db.session.flush()
-
-    plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
-    if metodo_seleccionado == 'Credito':
-        nueva_venta.credito_plan_codigo = plan_cuotas or None
-        VentaCuotaCredito.query.filter_by(venta_id=nueva_venta.id).delete(synchronize_session=False)
-        if plan_cuotas:
-            _registrar_cuotas_credito_venta(nueva_venta, plan_cuotas, datetime.now())
-
-    # 3. Validamos stock y registramos detalles
-    for producto_id, cant, prec in lineas_validas:
-        subtotal = cant * prec
-        prod = Producto.query.get(producto_id)
-        if not prod:
-            db.session.rollback()
-            flash("Uno de los productos seleccionados no existe.", "danger")
-            return redirect(url_for('mostrar_ventas'))
-        factor_venta_stock = _factor_venta_a_stock(prod)
-        consumo_stock = int(round(cant * factor_venta_stock))
-        if consumo_stock <= 0:
-            db.session.rollback()
-            flash(f"Conversión inválida para {prod.nombre}.", "warning")
-            return redirect(url_for('mostrar_ventas'))
-        disp = stock_disponible_venta_tienda(prod)
-        if disp < consumo_stock:
-            db.session.rollback()
-            flash(
-                f"Stock insuficiente para {prod.nombre}. "
-                f"Requiere {consumo_stock} u. base en tienda y hay {disp}.",
-                "warning",
-            )
-            return redirect(url_for('mostrar_ventas'))
-        
-        detalle = DetalleVenta(
-            id_venta=nueva_venta.id, 
-            id_producto=producto_id,
-            cantidad=cant, 
-            precio_unitario=prec,
-            subtotal=subtotal
-        )
-        db.session.add(detalle)
-        err_st = descontar_stock_venta_tienda(prod, consumo_stock)
-        if err_st:
-            db.session.rollback()
-            flash(f"No se pudo descontar stock para {prod.nombre}: {err_st}", "danger")
-            return redirect(url_for('mostrar_ventas'))
-        registrar_movimiento_kardex(
-            prod.id,
-            'SALIDA',
-            consumo_stock,
-            f"Venta directa #{nueva_venta.id} ({metodo_seleccionado})"
-            f" ({cant} {prod.unidad_venta_final} -> {consumo_stock} stock)",
-            usuario=current_user.nombre,
-            id_almacen=id_almacen_tienda() or 1,
-            referencia_tipo='venta',
-            referencia_id=nueva_venta.id,
-            stock_saldo=None,
-        )
-
+    plan_cuotas = None
+    nueva_venta = None
     try:
+        with transaccion_critica():
+            if metodo_seleccionado == "Credito":
+                cliente.saldo_deudor += total_proyectado
+            nueva_venta = Venta(
+                usuario=current_user.nombre,
+                caja_id=caja.id,
+                cliente_id=cliente_id if cliente_id else None,
+                monto_total=total_proyectado,
+                estado="Pagado" if metodo_seleccionado != "Credito" else "Pendiente",
+                metodo_pago=metodo_seleccionado,
+            )
+            db.session.add(nueva_venta)
+            db.session.flush()
+            plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
+            if metodo_seleccionado == 'Credito':
+                nueva_venta.credito_plan_codigo = plan_cuotas or None
+                VentaCuotaCredito.query.filter_by(venta_id=nueva_venta.id).delete(synchronize_session=False)
+                if plan_cuotas:
+                    _registrar_cuotas_credito_venta(nueva_venta, plan_cuotas, datetime.now())
+
+            for producto_id, cant, prec in lineas_validas:
+                subtotal = cant * prec
+                prod = Producto.query.get(producto_id)
+                if not prod:
+                    raise _GuardarVentaAbort("Uno de los productos seleccionados no existe.", "danger")
+                factor_venta_stock = _factor_venta_a_stock(prod)
+                consumo_stock = int(round(cant * factor_venta_stock))
+                if consumo_stock <= 0:
+                    raise _GuardarVentaAbort(f"Conversión inválida para {prod.nombre}.", "warning")
+                disp = stock_disponible_venta_tienda(prod)
+                if disp < consumo_stock:
+                    raise _GuardarVentaAbort(
+                        f"Stock insuficiente para {prod.nombre}. "
+                        f"Requiere {consumo_stock} u. base en tienda y hay {disp}.",
+                        "warning",
+                    )
+                detalle = DetalleVenta(
+                    id_venta=nueva_venta.id,
+                    id_producto=producto_id,
+                    cantidad=cant,
+                    precio_unitario=prec,
+                    subtotal=subtotal,
+                )
+                db.session.add(detalle)
+                err_st = descontar_stock_venta_tienda(prod, consumo_stock)
+                if err_st:
+                    raise _GuardarVentaAbort(
+                        f"No se pudo descontar stock para {prod.nombre}: {err_st}", "danger"
+                    )
+                registrar_movimiento_kardex(
+                    prod.id,
+                    'SALIDA',
+                    consumo_stock,
+                    f"Venta directa #{nueva_venta.id} ({metodo_seleccionado})"
+                    f" ({cant} {prod.unidad_venta_final} -> {consumo_stock} stock)",
+                    usuario=current_user.nombre,
+                    id_almacen=id_almacen_tienda() or 1,
+                    referencia_tipo='venta',
+                    referencia_id=nueva_venta.id,
+                    stock_saldo=None,
+                )
         db.session.commit()
         msg = f"Venta #{nueva_venta.id} registrada."
         if metodo_seleccionado == "Credito":
@@ -6679,6 +6524,9 @@ def guardar_venta():
             if plan_cuotas:
                 msg += f" Plan: {_mensaje_resumen_plan_cuotas(plan_cuotas)}."
         flash(msg, "success")
+    except _GuardarVentaAbort as ab:
+        db.session.rollback()
+        flash(ab.message, ab.category)
     except Exception as e:
         db.session.rollback()
         flash(f"Error al registrar venta: {str(e)}", "danger")
@@ -6785,9 +6633,115 @@ def _asegurar_columnas_ventas_bodega_despacho():
         return False
 
 
+def _asegurar_columnas_bodega_retiro():
+    """Columnas retiro bodega post-cobro (entregas parciales + cola preparación)."""
+    if app.config.get('_BODEGA_RETIRO_COL_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        dn = (db.engine.dialect.name or '').lower()
+        if 'ventas' in set(insp.get_table_names()):
+            cambios = False
+            for col_sql_pg, col_sql_my, col_name in (
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_preparacion_estado VARCHAR(24) NULL',
+                    'ALTER TABLE ventas ADD COLUMN bodega_preparacion_estado VARCHAR(24) NULL',
+                    'bodega_preparacion_estado',
+                ),
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_preparacion_usuario VARCHAR(80) NULL',
+                    'ALTER TABLE ventas ADD COLUMN bodega_preparacion_usuario VARCHAR(80) NULL',
+                    'bodega_preparacion_usuario',
+                ),
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_preparacion_at TIMESTAMP NULL',
+                    'ALTER TABLE ventas ADD COLUMN bodega_preparacion_at DATETIME NULL',
+                    'bodega_preparacion_at',
+                ),
+            ):
+                vcols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas')}
+                if col_name in vcols:
+                    continue
+                if dn == 'postgresql':
+                    db.session.execute(text(col_sql_pg))
+                else:
+                    db.session.execute(text(col_sql_my))
+                cambios = True
+            if cambios:
+                db.session.commit()
+        insp2 = sa_inspect(db.engine)
+        if 'detalle_ventas' in set(insp2.get_table_names()):
+            dcols = {c['name'] for c in insp2.get_columns('detalle_ventas')}
+            if 'cantidad_entregada_retiro_bodega' not in dcols:
+                if dn == 'postgresql':
+                    db.session.execute(
+                        text(
+                            'ALTER TABLE detalle_ventas ADD COLUMN IF NOT EXISTS '
+                            'cantidad_entregada_retiro_bodega INTEGER NOT NULL DEFAULT 0'
+                        )
+                    )
+                else:
+                    db.session.execute(
+                        text(
+                            'ALTER TABLE detalle_ventas ADD COLUMN cantidad_entregada_retiro_bodega '
+                            'INT NOT NULL DEFAULT 0'
+                        )
+                    )
+                db.session.commit()
+        app.config['_BODEGA_RETIRO_COL_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar columnas retiro bodega: %s', ex)
+        return False
+
+
+def _asegurar_columnas_bodega_sugerido_preparar():
+    """Fase 2: marcador sugerido preparar (pendiente de pago + retiro bodega)."""
+    if app.config.get('_BODEGA_SUGERIDO_COL_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        dn = (db.engine.dialect.name or '').lower()
+        if 'ventas' not in set(insp.get_table_names()):
+            return False
+        cambios = False
+        for col_sql_pg, col_sql_my, col_name in (
+            (
+                'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_sugerido_preparar SMALLINT NOT NULL DEFAULT 0',
+                'ALTER TABLE ventas ADD COLUMN bodega_sugerido_preparar TINYINT NOT NULL DEFAULT 0',
+                'bodega_sugerido_preparar',
+            ),
+            (
+                'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_sugerido_preparar_at TIMESTAMP NULL',
+                'ALTER TABLE ventas ADD COLUMN bodega_sugerido_preparar_at DATETIME NULL',
+                'bodega_sugerido_preparar_at',
+            ),
+            (
+                'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_sugerido_preparar_usuario VARCHAR(80) NULL',
+                'ALTER TABLE ventas ADD COLUMN bodega_sugerido_preparar_usuario VARCHAR(80) NULL',
+                'bodega_sugerido_preparar_usuario',
+            ),
+        ):
+            vcols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas')}
+            if col_name in vcols:
+                continue
+            if dn == 'postgresql':
+                db.session.execute(text(col_sql_pg))
+            else:
+                db.session.execute(text(col_sql_my))
+            cambios = True
+        if cambios:
+            db.session.commit()
+        app.config['_BODEGA_SUGERIDO_COL_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar columnas bodega sugerido preparar: %s', ex)
+        return False
+
+
 from services import audit_service as _audit_service
-from services import stock_service as _stock_service
-from services.venta_service import transaccion_critica
 
 
 def _json_audit_chunk(data):
@@ -6838,40 +6792,7 @@ def _venta_validar_stock_tienda(venta):
     Revisa si una venta puede cobrarse/descontarse en TIENDA.
     Retorna lista de mensajes de faltantes (vacía si todo ok).
     """
-    faltantes = []
-    if not venta:
-        return faltantes
-    try:
-        detalles = list(venta.detalles or [])
-    except Exception as ex:
-        db.session.rollback()
-        app.logger.exception("No se pudo cargar detalle de venta %s para validar stock: %s", getattr(venta, 'id', None), ex)
-        return ["No se pudo validar stock del vale (revise detalle)."]
-    for d in detalles:
-        try:
-            producto = d.producto or Producto.query.get(d.id_producto)
-            if not producto:
-                faltantes.append("Producto no encontrado en línea de venta.")
-                continue
-            factor_venta_stock = _factor_venta_a_stock(producto)
-            consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
-            ya_bod = _venta_consumo_ya_despachado_bodega(venta, d.id)
-            consumo_tienda = max(0, consumo_stock - ya_bod)
-            if consumo_stock <= 0:
-                faltantes.append(f"{producto.nombre}: conversión inválida.")
-                continue
-            if consumo_tienda <= 0:
-                continue
-            disp = stock_disponible_venta_tienda(producto)
-            if disp < consumo_tienda:
-                faltantes.append(
-                    f"{producto.nombre} (disponible tienda: {disp}, requerido tras despacho bodega: {consumo_tienda})"
-                )
-        except Exception as ex:
-            db.session.rollback()
-            app.logger.exception("No se pudo validar stock de línea %s: %s", getattr(d, 'id', None), ex)
-            faltantes.append("No se pudo validar una línea del vale.")
-    return faltantes
+    return _stock_service.venta_validar_stock_tienda(venta)
 
 
 def _asegurar_columnas_ventas_legacy():
@@ -7933,32 +7854,33 @@ def agregar_producto_venta():
 
         vendedor_actual = _nombre_usuario_pos_actual()
         venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
-        if not venta:
-            venta = Venta(
-                usuario=vendedor_actual,
-                estado="Abierta",
-                monto_total=0,
-                caja_id=caja.id,
-                fecha=db.func.current_timestamp()
-            )
-            db.session.add(venta)
-            db.session.flush()
-        _pos_cross_sell_sync_session_scope(venta.id)
 
         cantidad = 1
         precio_unitario = pu_ef
         desc = 0.0
-        detalle = DetalleVenta(
-            id_venta=venta.id,
-            id_producto=producto.id,
-            cantidad=cantidad,
-            precio_unitario=precio_unitario,
-            descuento=desc,
-            subtotal=precio_unitario * cantidad * (1 - desc / 100.0),
-        )
-        db.session.add(detalle)
-        db.session.flush()
-        venta.recalcular_total()
+        with transaccion_critica():
+            if not venta:
+                venta = Venta(
+                    usuario=vendedor_actual,
+                    estado="Abierta",
+                    monto_total=0,
+                    caja_id=caja.id,
+                    fecha=db.func.current_timestamp(),
+                )
+                db.session.add(venta)
+                db.session.flush()
+            _pos_cross_sell_sync_session_scope(venta.id)
+            detalle = DetalleVenta(
+                id_venta=venta.id,
+                id_producto=producto.id,
+                cantidad=cantidad,
+                precio_unitario=precio_unitario,
+                descuento=desc,
+                subtotal=precio_unitario * cantidad * (1 - desc / 100.0),
+            )
+            db.session.add(detalle)
+            db.session.flush()
+            venta.recalcular_total()
         db.session.commit()
         try:
             cs = _pos_cross_sell_build_for_venta(venta.id)
@@ -7978,8 +7900,9 @@ def agregar_producto_venta():
 def eliminar_detalle(id):
     detalle = DetalleVenta.query.get_or_404(id)
     venta = detalle.venta
-    db.session.delete(detalle)
-    venta.recalcular_total()
+    with transaccion_critica():
+        db.session.delete(detalle)
+        venta.recalcular_total()
     db.session.commit()
     db.session.refresh(venta)
     if (venta.estado or '') == 'Abierta':
@@ -8080,61 +8003,72 @@ def finalizar_venta():
     ciudad = request.form.get('cliente_ciudad')
     es_cliente_final = request.form.get('cliente_final') == '1'
 
-    if es_cliente_final:
-        cliente = obtener_o_crear_cliente_final()
-    else:
-        rut = request.form.get('cliente_rut')
-        if not rut or not validar_rut(rut):
-            flash("Error: RUT inválido.", "danger")
-            return redirect(url_for('punto_venta'))
-
-        cliente = Cliente.query.filter_by(rut=rut).first()
-
-        if cliente:
-            nombre_in = (nombre or '').strip()
-            if nombre_in and nombre_in != (cliente.nombre or '').strip():
-                flash("El cliente ya existe, no puedes cambiar el nombre.", "warning")
-                return redirect(url_for('punto_venta'))
-            _aplicar_campos_contacto_cliente(
-                cliente,
-                direccion=direccion,
-                giro=giro,
-                telefono=telefono,
-                correo=correo,
-                comuna=comuna,
-                ciudad=ciudad,
-            )
-        else:
-            if not nombre:
-                flash("Error: Nombre es obligatorio para nuevo cliente.", "danger")
-                return redirect(url_for('punto_venta'))
-            nombre_n = (nombre or '').strip()[:100]
-            cliente = Cliente(
-                nombre=nombre_n,
-                rut=rut,
-                giro=_limpiar_texto_cliente_ui(giro),
-                direccion=(_limpiar_texto_cliente_ui(direccion) or '')[:200] or None,
-                telefono=(_limpiar_texto_cliente_ui(telefono) or '')[:20] or None,
-                correo=(_limpiar_texto_cliente_ui(correo) or '')[:100] or None,
-                comuna=(_limpiar_texto_cliente_ui(comuna) or '')[:80] or None,
-                ciudad=(_limpiar_texto_cliente_ui(ciudad) or '')[:80] or None,
-            )
-            db.session.add(cliente)
-
-    db.session.commit()
-
-    # Marcar la venta como pendiente y asignar prioridad
-    pendientes = Venta.query.filter_by(estado="Pendiente").count()
     punto_retiro = (request.form.get('punto_retiro') or '').strip()
     puntos_validos = {'Bodega', 'Tienda', 'Despacho'}
     if (not punto_retiro) or punto_retiro == '__PENDIENTE__' or punto_retiro not in puntos_validos:
         flash("Debe seleccionar dónde retirará el cliente (Bodega, Tienda o Despacho).", "warning")
         return redirect(url_for('punto_venta'))
-    venta.prioridad = pendientes + 1
-    venta.cliente_id = cliente.id
-    venta.estado = "Pendiente"
-    venta.punto_retiro = punto_retiro
-    db.session.commit()
+
+    try:
+        with transaccion_critica():
+            if es_cliente_final:
+                cliente = obtener_o_crear_cliente_final()
+            else:
+                rut = request.form.get('cliente_rut')
+                if not rut or not validar_rut(rut):
+                    raise _GuardarVentaAbort("Error: RUT inválido.", "danger")
+
+                cliente = Cliente.query.filter_by(rut=rut).first()
+
+                if cliente:
+                    nombre_in = (nombre or '').strip()
+                    if nombre_in and nombre_in != (cliente.nombre or '').strip():
+                        raise _GuardarVentaAbort(
+                            "El cliente ya existe, no puedes cambiar el nombre.", "warning"
+                        )
+                    _aplicar_campos_contacto_cliente(
+                        cliente,
+                        direccion=direccion,
+                        giro=giro,
+                        telefono=telefono,
+                        correo=correo,
+                        comuna=comuna,
+                        ciudad=ciudad,
+                    )
+                else:
+                    if not nombre:
+                        raise _GuardarVentaAbort(
+                            "Error: Nombre es obligatorio para nuevo cliente.", "danger"
+                        )
+                    nombre_n = (nombre or '').strip()[:100]
+                    cliente = Cliente(
+                        nombre=nombre_n,
+                        rut=rut,
+                        giro=_limpiar_texto_cliente_ui(giro),
+                        direccion=(_limpiar_texto_cliente_ui(direccion) or '')[:200] or None,
+                        telefono=(_limpiar_texto_cliente_ui(telefono) or '')[:20] or None,
+                        correo=(_limpiar_texto_cliente_ui(correo) or '')[:100] or None,
+                        comuna=(_limpiar_texto_cliente_ui(comuna) or '')[:80] or None,
+                        ciudad=(_limpiar_texto_cliente_ui(ciudad) or '')[:80] or None,
+                    )
+                    db.session.add(cliente)
+                    db.session.flush()
+
+            pendientes = Venta.query.filter_by(estado="Pendiente").count()
+            venta.prioridad = pendientes + 1
+            venta.cliente_id = cliente.id
+            venta.estado = "Pendiente"
+            venta.punto_retiro = punto_retiro
+        db.session.commit()
+    except _GuardarVentaAbort as ab:
+        db.session.rollback()
+        flash(ab.message, ab.category)
+        return redirect(url_for('punto_venta'))
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('finalizar_venta: %s', ex)
+        flash(f'No se pudo emitir el vale: {ex}', 'danger')
+        return redirect(url_for('punto_venta'))
     _pos_cross_sell_clear_session_nueva_venta_pos()
 
     # Mensaje de confirmación
@@ -8305,11 +8239,11 @@ def actualizar_item():
             flash(f"Stock insuficiente en tienda. Cantidad máxima aproximada: {max_u}.", "warning")
             return redirect(url_for('punto_venta'))
 
-    detalle.cantidad = cantidad
-    detalle.descuento = descuento
-    detalle.subtotal = (detalle.precio_unitario * cantidad) * (1 - (descuento / 100))
-    db.session.commit()
-    detalle.venta.recalcular_total()
+    with transaccion_critica():
+        detalle.cantidad = cantidad
+        detalle.descuento = descuento
+        detalle.subtotal = (detalle.precio_unitario * cantidad) * (1 - (descuento / 100))
+        detalle.venta.recalcular_total()
     db.session.commit()
 
     if desc_con_credencial_supervisor:
@@ -9135,6 +9069,7 @@ def anular_vale_caja(id):
 
 def procesar_cobro_caja(id):
     db.session.rollback()
+    _asegurar_columnas_bodega_retiro()
     venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
     caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
     metodo = request.form.get('metodo_pago')
@@ -9186,11 +9121,22 @@ def procesar_cobro_caja(id):
             if consumo_stock <= 0:
                 raise ValueError(f"Conversión inválida para {producto.nombre}.")
             ya_bod = _venta_consumo_ya_despachado_bodega(venta, d.id)
-            consumo_tienda = max(0, consumo_stock - ya_bod)
-            if consumo_tienda > 0:
-                disp = stock_disponible_venta_tienda(producto)
-                if disp < consumo_tienda:
-                    raise ValueError(f"Stock insuficiente para {producto.nombre}.")
+            pr_line = (venta.punto_retiro or '').strip()
+            if pr_line == 'Bodega':
+                consumo_tienda = 0
+                necesita_bod = max(0, consumo_stock - ya_bod)
+                if necesita_bod > 0:
+                    disp_b = stock_disponible_bodega(producto)
+                    if disp_b < necesita_bod:
+                        raise ValueError(
+                            f"Stock insuficiente en bodega para {producto.nombre} (hay {disp_b}, requiere {necesita_bod})."
+                        )
+            else:
+                consumo_tienda = max(0, consumo_stock - ya_bod)
+                if consumo_tienda > 0:
+                    disp = stock_disponible_venta_tienda(producto)
+                    if disp < consumo_tienda:
+                        raise ValueError(f"Stock insuficiente para {producto.nombre}.")
             lineas_stock.append({
                 'detalle_id': d.id,
                 'producto_id': producto.id,
@@ -9262,6 +9208,14 @@ def procesar_cobro_caja(id):
                         saldo_favor_usado,
                         f'Uso en venta #{venta.id}',
                     )
+                if _asegurar_columnas_bodega_sugerido_preparar():
+                    venta.bodega_sugerido_preparar = 0
+                    venta.bodega_sugerido_preparar_at = None
+                    venta.bodega_sugerido_preparar_usuario = None
+                if _asegurar_columnas_bodega_retiro() and (venta.punto_retiro or '').strip() == 'Bodega':
+                    venta.bodega_preparacion_estado = 'PENDIENTE'
+                    venta.bodega_preparacion_usuario = None
+                    venta.bodega_preparacion_at = None
 
             for linea in lineas_stock:
                 producto = Producto.query.get(linea['producto_id'])
@@ -9304,7 +9258,13 @@ def procesar_cobro_caja(id):
             flash(msg_cred, "success")
             return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
         else:
-            flash(f"¡Venta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}", "success")
+            msg_fin = f"¡Venta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}"
+            if (venta.punto_retiro or '').strip().lower() == 'bodega':
+                msg_fin += (
+                    " Retiro en bodega: el vale aparece en la plataforma de bodega; "
+                    "los operadores reciben aviso sonoro en pantalla (consulta cada pocos segundos)."
+                )
+            flash(msg_fin, "success")
             return redirect(
                 url_for(
                     'ver_ticket_cobro',
@@ -12613,6 +12573,433 @@ def _bodega_voice_ejecutar(parsed, usuario_nom):
     else:
         out['speak'] = f'Entendido, vale {vid} actualizado. WhatsApp no enviado al cliente.'
     return out
+
+
+def _punto_retiro_es_bodega(venta):
+    return (getattr(venta, 'punto_retiro', None) or '').strip().lower() == 'bodega'
+
+
+def _detalle_pendiente_retiro_bodega_unidades(detalle):
+    ent = int(getattr(detalle, 'cantidad_entregada_retiro_bodega', None) or 0)
+    vend = int(detalle.cantidad or 0)
+    return max(0, vend - ent)
+
+
+def _venta_actualizar_estado_plataforma_retiro(venta):
+    if not _punto_retiro_es_bodega(venta):
+        return
+    if (venta.estado or '').strip() != 'Pagado':
+        return
+    detalles = list(venta.detalles or [])
+    if not detalles:
+        return
+    if all(_detalle_pendiente_retiro_bodega_unidades(d) <= 0 for d in detalles):
+        venta.bodega_preparacion_estado = 'CERRADO'
+        return
+    if any(int(getattr(d, 'cantidad_entregada_retiro_bodega', None) or 0) > 0 for d in detalles):
+        cur = (venta.bodega_preparacion_estado or '').strip()
+        if cur != 'CERRADO':
+            venta.bodega_preparacion_estado = 'ENTREGA_PARCIAL'
+
+
+def bodega_cuadro_mando():
+    """Cuadro de mando bodega (v1): visibilidad consolidada; enlaza plataforma, despachos voz y detalle."""
+    _asegurar_columnas_bodega_retiro()
+    _asegurar_columnas_bodega_sugerido_preparar()
+    _asegurar_columnas_ventas_bodega_despacho()
+
+    post_rows = (
+        db.session.query(Venta.bodega_preparacion_estado, func.count(Venta.id))
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado.isnot(None),
+            Venta.bodega_preparacion_estado != 'CERRADO',
+        )
+        .group_by(Venta.bodega_preparacion_estado)
+        .all()
+    )
+    conteo_post = {str(r[0] or ''): int(r[1]) for r in post_rows}
+    total_post_abiertos = sum(conteo_post.values())
+
+    vales_post_recientes = (
+        Venta.query.options(joinedload(Venta.cliente))
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado.isnot(None),
+            Venta.bodega_preparacion_estado != 'CERRADO',
+        )
+        .order_by(Venta.fecha.desc())
+        .limit(15)
+        .all()
+    )
+
+    n_pre_cobro = (
+        Venta.query.filter(
+            Venta.estado == 'Pendiente',
+            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ''),
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+        ).count()
+    )
+    n_pre_cobro_sugerido = (
+        Venta.query.filter(
+            Venta.estado == 'Pendiente',
+            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ''),
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_sugerido_preparar > 0,
+        ).count()
+    )
+    vales_pre_cobro = (
+        Venta.query.options(joinedload(Venta.cliente))
+        .filter(
+            Venta.estado == 'Pendiente',
+            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ''),
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+        )
+        .order_by(Venta.bodega_sugerido_preparar.desc(), Venta.fecha.asc())
+        .limit(24)
+        .all()
+    )
+
+    pend_uv = DetalleVenta.cantidad - func.coalesce(DetalleVenta.cantidad_entregada_retiro_bodega, 0)
+    agg = (
+        db.session.query(DetalleVenta.id_producto, func.sum(pend_uv).label('pend_sum'))
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado.isnot(None),
+            Venta.bodega_preparacion_estado != 'CERRADO',
+            pend_uv > 0,
+        )
+        .group_by(DetalleVenta.id_producto)
+        .order_by(func.sum(pend_uv).desc())
+        .limit(18)
+        .all()
+    )
+    top_pendiente_retiro = []
+    if agg:
+        pids = [int(r[0]) for r in agg if r[0] is not None]
+        prods = {p.id: p for p in Producto.query.filter(Producto.id.in_(pids)).all()} if pids else {}
+        for pid, pend_sum in agg:
+            if pid is None:
+                continue
+            p = prods.get(int(pid))
+            ps = int(pend_sum or 0)
+            if not p or ps <= 0:
+                continue
+            disp = stock_disponible_bodega(p)
+            factor = _factor_venta_a_stock(p)
+            nec_base = max(1, int(round(ps * factor))) if factor else ps
+            top_pendiente_retiro.append(
+                {
+                    'producto': p,
+                    'pendiente_uv': ps,
+                    'necesita_base': nec_base,
+                    'disp_bodega': disp,
+                    'alerta': disp < nec_base,
+                }
+            )
+
+    return render_template(
+        'bodega_cuadro_mando.html',
+        conteo_post=conteo_post,
+        total_post_abiertos=total_post_abiertos,
+        vales_post_recientes=vales_post_recientes,
+        vales_pre_cobro=vales_pre_cobro,
+        n_pre_cobro=n_pre_cobro,
+        n_pre_cobro_sugerido=n_pre_cobro_sugerido,
+        top_pendiente_retiro=top_pendiente_retiro,
+    )
+
+
+def api_bodega_retiros_cola_snapshot():
+    """Polling JSON: cola de retiros bodega (Pagado + punto Bodega + no CERRADO)."""
+    if not current_user.is_authenticated:
+        return jsonify({'ok': False, 'error': 'auth'}), 401
+    if not usuario_tiene_permiso('bodega_operador'):
+        return jsonify({'ok': False, 'error': 'permiso'}), 403
+    if not _asegurar_columnas_bodega_retiro():
+        return jsonify({'ok': False, 'error': 'schema'}), 500
+    rows = (
+        db.session.query(Venta.id)
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado.isnot(None),
+            Venta.bodega_preparacion_estado != 'CERRADO',
+        )
+        .order_by(Venta.id.asc())
+        .limit(400)
+        .all()
+    )
+    open_ids = [int(r[0]) for r in rows]
+    return jsonify({
+        'ok': True,
+        'count': len(open_ids),
+        'open_ids': open_ids,
+        'max_id': max(open_ids) if open_ids else None,
+    })
+
+
+def bodega_plataforma():
+    _asegurar_columnas_bodega_retiro()
+    q_estado = (request.args.get('estado') or '').strip().upper()
+    base = (
+        Venta.query.options(
+            joinedload(Venta.cliente),
+            joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        )
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado.isnot(None),
+            Venta.bodega_preparacion_estado != 'CERRADO',
+        )
+    )
+    if q_estado in ('PENDIENTE', 'EN_PREPARACION', 'LISTO_RETIRO', 'ENTREGA_PARCIAL'):
+        base = base.filter(Venta.bodega_preparacion_estado == q_estado)
+    vales = base.order_by(Venta.fecha.asc()).limit(300).all()
+    return render_template(
+        'bodega_plataforma.html',
+        vales=vales,
+        filtro_estado=q_estado,
+        cola_retiro_total=len(vales),
+    )
+
+
+def bodega_vale_retiro(vid):
+    _asegurar_columnas_bodega_retiro()
+    venta = (
+        Venta.query.options(
+            joinedload(Venta.cliente),
+            joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        )
+        .get_or_404(vid)
+    )
+    if (venta.estado or '').strip() != 'Pagado':
+        flash('Solo documentos pagados usan retiro en bodega.', 'warning')
+        return redirect(url_for('bodega_plataforma'))
+    if not _punto_retiro_es_bodega(venta):
+        flash('Este vale no es retiro en bodega (punto de retiro distinto).', 'warning')
+        return redirect(url_for('bodega_plataforma'))
+    if getattr(venta, 'bodega_preparacion_estado', None) is None:
+        flash(
+            'Este vale no está en la plataforma de retiros (cobro anterior al módulo o sin cola). '
+            'Si corresponde, gestioná stock con inventario o despacho voz según política.',
+            'info',
+        )
+        return redirect(url_for('bodega_plataforma'))
+    prods = [d.producto for d in (venta.detalles or []) if d.producto]
+    _adjuntar_stock_ui(prods)
+    usa_multi = _tablas_inventario_almacen_existen()
+    alertas_retiro_stock = []
+    for d in venta.detalles or []:
+        p = d.producto
+        if not p:
+            setattr(d, 'retiro_disp_bodega', None)
+            setattr(d, 'retiro_disp_tienda', None)
+            setattr(d, 'retiro_nec_base', 0)
+            setattr(d, 'retiro_falta_stock', False)
+            continue
+        pend_uv = _detalle_pendiente_retiro_bodega_unidades(d)
+        disp = stock_disponible_bodega(p)
+        tienda_disp = stock_disponible_venta_tienda(p)
+        setattr(d, 'retiro_disp_bodega', disp)
+        setattr(d, 'retiro_disp_tienda', tienda_disp)
+        if pend_uv <= 0:
+            setattr(d, 'retiro_nec_base', 0)
+            setattr(d, 'retiro_falta_stock', False)
+            continue
+        factor = _factor_venta_a_stock(p)
+        nec_base = int(round(pend_uv * factor))
+        if nec_base <= 0:
+            nec_base = pend_uv
+        setattr(d, 'retiro_nec_base', nec_base)
+        falta = disp < nec_base
+        setattr(d, 'retiro_falta_stock', falta)
+        if falta:
+            alertas_retiro_stock.append(
+                f"{p.nombre}: pendiente {pend_uv} u. venta → {nec_base} u.base en bodega; hay {disp}."
+                + (f" (en tienda hay {tienda_disp})" if usa_multi and tienda_disp else "")
+            )
+    return render_template(
+        'bodega_vale_retiro.html',
+        venta=venta,
+        usa_multi_almacen=usa_multi,
+        alertas_retiro_stock=alertas_retiro_stock,
+    )
+
+
+def bodega_vale_preparacion_post(vid):
+    _asegurar_columnas_bodega_retiro()
+    venta = Venta.query.get_or_404(vid)
+    if (venta.estado or '').strip() != 'Pagado' or not _punto_retiro_es_bodega(venta):
+        flash('Operación no aplicable a este documento.', 'warning')
+        return redirect(url_for('bodega_plataforma'))
+    accion = (request.form.get('accion') or '').strip().lower()
+    usr = ((current_user.nombre or '').strip() if current_user.is_authenticated else '') or 'Bodega'
+    if accion not in ('tomar', 'listo', 'pendiente'):
+        flash('Acción de preparación no reconocida.', 'warning')
+        return redirect(url_for('bodega_vale_retiro', vid=vid))
+    try:
+        with transaccion_critica():
+            if accion == 'tomar':
+                venta.bodega_preparacion_estado = 'EN_PREPARACION'
+                venta.bodega_preparacion_usuario = usr[:80]
+                venta.bodega_preparacion_at = datetime.now()
+            elif accion == 'listo':
+                venta.bodega_preparacion_estado = 'LISTO_RETIRO'
+                venta.bodega_preparacion_at = datetime.now()
+            elif accion == 'pendiente':
+                venta.bodega_preparacion_estado = 'PENDIENTE'
+                venta.bodega_preparacion_usuario = None
+                venta.bodega_preparacion_at = None
+            _audit_log(
+                'bodega_preparacion_estado',
+                'venta',
+                venta.id,
+                usuario=usr[:120],
+                datos_antes=None,
+                datos_despues={
+                    'accion': accion,
+                    'bodega_preparacion_estado': venta.bodega_preparacion_estado,
+                    'bodega_preparacion_usuario': venta.bodega_preparacion_usuario,
+                },
+            )
+        db.session.commit()
+        flash('Estado de preparación actualizado.', 'success')
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('bodega_vale_preparacion_post: %s', ex)
+        flash(f'No se pudo actualizar: {ex}', 'danger')
+    return redirect(url_for('bodega_vale_retiro', vid=vid))
+
+
+def bodega_vale_sugerido_preparar_post(vid):
+    """Fase 2: marcar/quitar «sugerido preparar» (informativo; no reserva stock)."""
+    _asegurar_columnas_bodega_sugerido_preparar()
+    next_raw = (request.form.get('next') or '').strip()
+    if next_raw.startswith('/') and not next_raw.startswith('//'):
+        next_url = next_raw
+    else:
+        next_url = url_for('bodega_cuadro_mando')
+    venta = Venta.query.get_or_404(vid)
+    if (venta.estado or '').strip() != 'Pendiente':
+        flash('Solo vales pendientes de cobro.', 'warning')
+        return redirect(next_url)
+    if not _punto_retiro_es_bodega(venta):
+        flash('Solo para retiro en bodega.', 'warning')
+        return redirect(next_url)
+    mp = venta.metodo_pago
+    if mp is not None and str(mp).strip() != '':
+        flash('Este documento ya no está pendiente de pago en caja.', 'warning')
+        return redirect(next_url)
+    accion = (request.form.get('accion') or '').strip().lower()
+    if accion not in ('marcar', 'quitar'):
+        flash('Acción no válida.', 'warning')
+        return redirect(next_url)
+    usr = ((current_user.nombre or '').strip() if current_user.is_authenticated else '') or 'Bodega'
+    try:
+        with transaccion_critica():
+            if accion == 'marcar':
+                venta.bodega_sugerido_preparar = 1
+                venta.bodega_sugerido_preparar_at = datetime.now()
+                venta.bodega_sugerido_preparar_usuario = usr[:80]
+            else:
+                venta.bodega_sugerido_preparar = 0
+                venta.bodega_sugerido_preparar_at = None
+                venta.bodega_sugerido_preparar_usuario = None
+            _audit_log(
+                'bodega_sugerido_preparar',
+                'venta',
+                venta.id,
+                usuario=usr[:120],
+                datos_antes=None,
+                datos_despues={'accion': accion, 'bodega_sugerido_preparar': int(venta.bodega_sugerido_preparar or 0)},
+            )
+        db.session.commit()
+        flash('«Sugerido preparar» actualizado (solo referencia operativa; no reserva stock).', 'success')
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('bodega_vale_sugerido_preparar_post: %s', ex)
+        flash(str(ex), 'danger')
+    return redirect(next_url)
+
+
+def bodega_vale_retiro_linea_post(vid):
+    _asegurar_columnas_bodega_retiro()
+    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(vid)
+    if (venta.estado or '').strip() != 'Pagado' or not _punto_retiro_es_bodega(venta):
+        flash('Operación no aplicable a este documento.', 'warning')
+        return redirect(url_for('bodega_plataforma'))
+    if getattr(venta, 'bodega_preparacion_estado', None) is None:
+        flash('Vale sin cola de bodega.', 'warning')
+        return redirect(url_for('bodega_plataforma'))
+    detalle_id = request.form.get('detalle_id', type=int)
+    cant = request.form.get('cantidad', type=int)
+    if not detalle_id or cant is None or cant <= 0:
+        flash('Indique línea y cantidad a retirar (mayor a cero).', 'warning')
+        return redirect(url_for('bodega_vale_retiro', vid=vid))
+    usr = ((current_user.nombre or '').strip() if current_user.is_authenticated else '') or 'Bodega'
+    try:
+        with transaccion_critica():
+            d = DetalleVenta.query.filter_by(id=detalle_id, id_venta=venta.id).first()
+            if not d:
+                raise ValueError('Línea no pertenece a este vale.')
+            pend = _detalle_pendiente_retiro_bodega_unidades(d)
+            if cant > pend:
+                raise ValueError(f'Cantidad mayor al pendiente ({pend}).')
+            producto = Producto.query.get(d.id_producto)
+            if not producto:
+                raise ValueError('Producto no encontrado.')
+            factor = _factor_venta_a_stock(producto)
+            consumo = int(round(cant * factor))
+            if consumo <= 0:
+                raise ValueError('Conversión de unidades inválida.')
+            err_st = descontar_stock_venta_bodega(producto, consumo)
+            if err_st:
+                raise ValueError(err_st)
+            ent_antes = int(getattr(d, 'cantidad_entregada_retiro_bodega', None) or 0)
+            d.cantidad_entregada_retiro_bodega = ent_antes + int(cant)
+            _venta_actualizar_estado_plataforma_retiro(venta)
+            aid_b = id_almacen_bodega() or 1
+            registrar_movimiento_kardex(
+                producto.id,
+                'SALIDA',
+                consumo,
+                f'Retiro bodega vale #{venta.id} ({cant} {producto.unidad_venta_final} -> {consumo} u.base) por {usr}',
+                usuario=usr,
+                id_almacen=aid_b,
+                referencia_tipo='venta_retiro_bodega',
+                referencia_id=venta.id,
+                stock_saldo=None,
+            )
+            _audit_log(
+                'bodega_retiro_linea',
+                'venta',
+                venta.id,
+                usuario=usr[:120],
+                datos_antes={
+                    'detalle_id': detalle_id,
+                    'cantidad_entregada_antes': ent_antes,
+                    'pendiente_antes': pend,
+                },
+                datos_despues={
+                    'detalle_id': detalle_id,
+                    'cantidad_retiro': int(cant),
+                    'cantidad_entregada_despues': int(d.cantidad_entregada_retiro_bodega or 0),
+                    'bodega_preparacion_estado': venta.bodega_preparacion_estado,
+                },
+            )
+        db.session.commit()
+        flash(f'Se registró retiro de {cant} u. de venta en la línea.', 'success')
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('bodega_vale_retiro_linea_post: %s', ex)
+        flash(str(ex), 'danger')
+    return redirect(url_for('bodega_vale_retiro', vid=vid))
 
 
 def bodega_despachos():
