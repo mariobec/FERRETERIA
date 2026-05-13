@@ -5,6 +5,9 @@ Cubre todas las familias típicas con nombres legibles, categoría/subcategoría
 factor de conversión donde aplica, ubicación y stock por almacén. Prefijo codigo_interno
 DEMO-CUR-* para no mezclar con DEMO-* masivo ni MADERA-CHL-*.
 
+Tras cargar, el tótem /demo/ejecutivo-comercial asigna fotos según palabras clave en
+nombre+categoría (ver _get_product_image y _DEMO_* en app.py).
+
 Uso (raíz del proyecto):
     python scripts/seed_ferreteria_curado_chile_demo.py
 

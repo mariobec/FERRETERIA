@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sobre Nosotros | LhexIA ERP para retail, ferretería y operaciones intensivas en SKU</title>
+    <meta name="description" content="Conoce el origen de LhexIA, una plataforma ERP para retail, ferreterías, constructoras y operaciones con alto volumen de SKU, creada desde más de 20 años de experiencia en SAP, BI, prevención de pérdidas e Inteligencia Artificial aplicada.">
+    <link rel="canonical" href="https://www.lhexia.cl/sobre-nosotros">
+    <meta property="og:locale" content="es_CL">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="LhexIA IA ERP">
+    <meta property="og:title" content="Sobre Nosotros | LhexIA ERP para retail, ferretería y operaciones intensivas en SKU">
+    <meta property="og:description" content="Una solución creada desde experiencia real en retail, constructoras, ERP, prevención de pérdidas, sistema POS bodega, Customer 360 e Inteligencia Artificial aplicada al negocio.">
+    <meta property="og:url" content="https://www.lhexia.cl/sobre-nosotros">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Sobre Nosotros | LhexIA IA ERP">
+    <meta name="twitter:description" content="LhexIA nace desde años de experiencia real en SAP, BI, retail e IA aplicada a operaciones.">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-official.png",
+          "description": "ERP para retail, ferreterías, constructoras y operaciones intensivas en SKU con sistema POS bodega, Customer 360 e Inteligencia Artificial aplicada."
+        },
+        {
+          "@type": "Person",
+          "name": "Mario Becerra Olea",
+          "jobTitle": "CEO",
+          "worksFor": {
+            "@type": "Organization",
+            "name": "LhexIA IA ERP"
+          },
+          "description": "Ejecutivo con más de 20 años de experiencia en proyectos SAP, BI, transformación digital, retail e Inteligencia Artificial aplicada."
+        }
+      ]
+    }
+    </script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
+    <style>
+        :root {
+            --bg: #0f1318;
+            --bg-soft: #141a21;
+            --surface: #171e26;
+            --surface-soft: #1b232d;
+            --line: rgba(255, 255, 255, 0.08);
+            --text: #edf2f7;
+            --muted: #a9b4c2;
+            --accent: #f97316;
+            --accent-soft: rgba(249, 115, 22, 0.12);
+            --trust: #22c55e;
+            --trust-soft: rgba(34, 197, 94, 0.10);
+            --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.18);
+            --radius-lg: 24px;
+            --radius-md: 18px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body.about-page {
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .about-page p,
+        .about-page li {
+            color: #bcc7d3;
+            font-size: 1.08rem;
+            line-height: 1.92;
+        }
+
+        .about-page a {
+            text-decoration: none;
+        }
+
+        .about-page .landing-nav-links .btn {
+            white-space: nowrap;
+        }
+
+        .section-space {
+            padding: 6rem 0;
+        }
+
+        .hero-space {
+            padding: 8.75rem 0 6rem;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1.2rem;
+            padding: 0.45rem 0.85rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--line);
+            color: #d7dee8;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .section-kicker {
+            color: var(--accent);
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #f8fafc;
+            letter-spacing: -0.03em;
+        }
+
+        h1 {
+            font-size: clamp(2.35rem, 4.6vw, 4rem);
+            line-height: 1.08;
+            margin-bottom: 1.3rem;
+        }
+
+        h2 {
+            font-size: clamp(1.85rem, 3vw, 2.6rem);
+            line-height: 1.14;
+            margin-bottom: 1rem;
+        }
+
+        h3 {
+            font-size: 1.15rem;
+            line-height: 1.35;
+            margin-bottom: 0.7rem;
+        }
+
+        .hero-lead {
+            font-size: 1.2rem;
+            line-height: 1.92;
+            max-width: 40rem;
+            margin-bottom: 1.35rem;
+        }
+
+        .hero-origin {
+            max-width: 38rem;
+            margin-bottom: 2.25rem;
+        }
+
+        .soft-card {
+            background: rgba(23, 30, 38, 0.78);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .hero-panel {
+            padding: 2rem;
+        }
+
+        .origin-stack {
+            display: grid;
+            gap: 0.95rem;
+            margin-top: 1.5rem;
+        }
+
+        .origin-point {
+            padding: 1rem 1.05rem;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .origin-point strong {
+            display: block;
+            color: #ffffff;
+            font-size: 0.98rem;
+            margin-bottom: 0.28rem;
+        }
+
+        .origin-point span {
+            color: #b8c2cd;
+            font-size: 0.95rem;
+            line-height: 1.65;
+        }
+
+        .trust-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 2rem;
+        }
+
+        .trust-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.75rem 1rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--line);
+            color: #e2e8f0;
+            font-size: 0.95rem;
+        }
+
+        .trust-pill i {
+            color: var(--trust);
+        }
+
+        .btn-accent {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #ffffff;
+            border-radius: 999px;
+            padding: 0.95rem 1.45rem;
+            font-weight: 700;
+        }
+
+        .btn-accent:hover,
+        .btn-accent:focus {
+            background: #ea580c;
+            border-color: #ea580c;
+            color: #ffffff;
+        }
+
+        .btn-soft {
+            border-radius: 999px;
+            padding: 0.95rem 1.45rem;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .btn-soft:hover,
+        .btn-soft:focus {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        .company-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem;
+            margin-top: 1.4rem;
+            color: #d8dee8;
+            font-size: 0.94rem;
+        }
+
+        .company-strip span {
+            opacity: 0.86;
+        }
+
+        .section-intro {
+            max-width: 38rem;
+            margin-bottom: 2.25rem;
+        }
+
+        .experience-stat {
+            padding: 1.5rem;
+            height: 100%;
+        }
+
+        .experience-stat .number {
+            display: block;
+            color: #ffffff;
+            font-size: 1.55rem;
+            font-weight: 700;
+            margin-bottom: 0.45rem;
+        }
+
+        .split-card {
+            padding: 1.75rem;
+            height: 100%;
+        }
+
+        .split-card ul {
+            margin: 1rem 0 0;
+            padding-left: 1.1rem;
+        }
+
+        .split-card li + li {
+            margin-top: 0.7rem;
+        }
+
+        .difference-card {
+            padding: 1.6rem;
+            height: 100%;
+            transition: transform 0.18s ease;
+        }
+
+        .difference-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .icon-wrap {
+            width: 3rem;
+            height: 3rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .icon-wrap.trust {
+            background: var(--trust-soft);
+            color: var(--trust);
+        }
+
+        .mission-card {
+            padding: 1.7rem;
+            height: 100%;
+        }
+
+        .mission-badge {
+            color: var(--accent);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .cta-panel {
+            padding: 2.2rem;
+            text-align: center;
+        }
+
+        .cta-panel p {
+            max-width: 42rem;
+            margin: 0 auto 1.6rem;
+        }
+
+        .footer-note {
+            padding: 1.5rem 0 2.5rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .hero-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem 1.25rem;
+            margin-top: 1rem;
+        }
+
+        .hero-links a {
+            color: #d5dde7;
+            font-size: 0.96rem;
+            font-weight: 600;
+        }
+
+        .hero-links a:hover,
+        .hero-links a:focus {
+            color: #ffffff;
+        }
+
+        .footer-note a {
+            color: #e2e8f0;
+        }
+
+        @media (max-width: 991.98px) {
+            .hero-space {
+                padding-top: 7rem;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            .section-space {
+                padding: 4.1rem 0;
+            }
+
+            .hero-space {
+                padding: 6.6rem 0 4rem;
+            }
+
+            .hero-panel,
+            .split-card,
+            .difference-card,
+            .mission-card,
+            .cta-panel,
+            .experience-stat {
+                padding: 1.35rem;
+            }
+
+            .about-page p,
+            .about-page li {
+                font-size: 1rem;
+            }
+
+            .hero-lead {
+                font-size: 1.06rem;
+            }
+        }
+    </style>
+</head>
+<body class="index-body erp-landing about-page">
+    <header class="landing-nav">
+        <a class="landing-brand" href="{{ url_for('index') }}">
+            <img src="{{ url_for('static', filename='img/lhexia-brand-official.png') }}?v=lhexia20260513" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <span class="landing-brand-text">
+                <strong>LhexIA IA ERP</strong>
+                <small>www.lhexia.cl · LhexIA para ferreterías, corralones y retail especializado</small>
+            </span>
+        </a>
+        <nav class="landing-nav-links">
+            <a href="{{ url_for('index') }}#diferenciales">Por qué gana</a>
+            <a href="{{ url_for('index') }}#modulos">Agentes IA</a>
+            <a href="{{ url_for('index') }}#customer360">Ventajas</a>
+            <a href="{{ url_for('index') }}#bi">Comparativa</a>
+            <a href="{{ url_for('index') }}#predictivo">Resultados</a>
+            <a href="{{ url_for('sobre_nosotros') }}">Quiénes somos</a>
+            <a href="{{ url_for('mensaje_del_fundador') }}">Fundador</a>
+            <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-light">Acceso clientes</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero-space">
+            <div class="container">
+                <div class="row align-items-center g-5">
+                    <div class="col-lg-7">
+                        <span class="eyebrow">Sobre Nosotros · El origen de LhexIA</span>
+                        <h1>Experiencia real para modernizar operaciones complejas.</h1>
+                        <p class="hero-lead">
+                            LhexIA nace después de años participando en proyectos SAP, Business Intelligence,
+                            prevención de pérdidas y transformación digital en empresas de alta exigencia.
+                            La idea fue simple: construir una plataforma más clara, más cercana y realmente útil.
+                        </p>
+                        <p class="hero-origin">
+                            Hoy esa experiencia se traduce en una solución para <strong class="text-white">retail, ferreterías,
+                            constructoras, distribuidoras y empresas con alto volumen de SKU</strong>, con foco en operación,
+                            control, prevención de pérdidas y decisiones apoyadas por Inteligencia Artificial aplicada.
+                        </p>
+                        <div class="d-flex flex-wrap gap-3">
+                            <a href="{{ url_for('index') }}#diagnostico" class="btn btn-accent">Quiero mi Diagnóstico IA Gratis</a>
+                            <a href="{{ url_for('mensaje_del_fundador') }}" class="btn btn-soft">Leer mensaje del fundador</a>
+                        </div>
+                        <div class="hero-links">
+                            <a href="{{ url_for('index') }}">Volver al inicio</a>
+                            <a href="#experiencia">Ver experiencia</a>
+                        </div>
+
+                        <div class="trust-pills">
+                            <span class="trust-pill"><i class="bi bi-briefcase"></i> +20 años de experiencia</span>
+                            <span class="trust-pill"><i class="bi bi-shop"></i> Retail, ferretería y constructoras</span>
+                            <span class="trust-pill"><i class="bi bi-cpu"></i> IA aplicada al negocio</span>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-5">
+                        <div class="soft-card hero-panel">
+                            <div class="section-kicker">Origen en breve</div>
+                            <h2 class="mb-3" style="font-size: clamp(1.4rem, 2vw, 1.9rem);">No queríamos otro sistema pesado.</h2>
+                            <p class="mb-0">
+                                Después de ver implementaciones largas, costosas y poco aterrizadas al negocio,
+                                quedó claro que hacía falta una alternativa con más criterio operativo, más cercanía
+                                y mejor capacidad de adaptación.
+                            </p>
+
+                            <div class="origin-stack">
+                                <div class="origin-point">
+                                    <strong>Base sólida</strong>
+                                    <span>Experiencia en SAP, BI, control operativo y transformación digital.</span>
+                                </div>
+                                <div class="origin-point">
+                                    <strong>Mirada transversal</strong>
+                                    <span>Conocimiento aplicado a retail, ferretería, constructoras y operaciones intensivas en SKU.</span>
+                                </div>
+                                <div class="origin-point">
+                                    <strong>Tecnología útil</strong>
+                                    <span>IA aplicada para decidir mejor, prevenir pérdidas y operar con más claridad.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space pt-0" id="experiencia">
+            <div class="container">
+                <div class="row g-4 align-items-start">
+                    <div class="col-lg-4">
+                        <div class="section-kicker">Experiencia</div>
+                        <h2>Una trayectoria que aporta criterio, no solo antecedentes.</h2>
+                        <p class="section-intro mb-0">
+                            El valor de esta experiencia no está en los nombres por sí solos, sino en el criterio
+                            que dejan cuando se ha trabajado por años en operaciones exigentes, con foco en ejecución,
+                            analítica, control y decisiones de negocio.
+                        </p>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="soft-card split-card mb-4">
+                            <div class="section-kicker mb-2">Respaldo real</div>
+                            <p>
+                                LhexIA fue fundada por <strong class="text-white">Mario Becerra Olea</strong>, con más de 20 años de experiencia
+                                en SAP, Business Intelligence, transformación digital, prevención de pérdidas y operación de alta exigencia.
+                            </p>
+                            <p>
+                                Su trayectoria incluye proyectos en Chile y el extranjero con compañías como SMU, Coca-Cola,
+                                Cencosud, Falabella, Walmart, Codelco y Entel, además de trabajo conjunto con Accenture, Deloitte y PwC.
+                            </p>
+                            <p class="mb-0">
+                                Esa experiencia respalda el criterio detrás de LhexIA. La historia completa y la visión que dio origen
+                                a la plataforma están desarrolladas en el mensaje del fundador.
+                            </p>
+                            <div class="d-flex flex-wrap gap-3 mt-4">
+                                <a href="{{ url_for('mensaje_del_fundador') }}" class="btn btn-soft">Leer mensaje del fundador</a>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="soft-card split-card h-100">
+                                    <div class="section-kicker mb-2" style="color: var(--trust);">Criterio práctico</div>
+                                    <p>
+                                        Toda esta experiencia no se traduce solo en conocimiento técnico, sino en un
+                                        <strong class="text-white">criterio profundo y práctico</strong> adquirido al enfrentar problemas
+                                        reales de operación, control, analítica y crecimiento.
+                                    </p>
+                                    <p class="mb-0">
+                                        Es ese criterio el que marca la diferencia en LhexIA: la capacidad de diseñar soluciones
+                                        que realmente resuelven problemas concretos del negocio, con foco en resultados tangibles.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <div class="soft-card experience-stat">
+                                            <span class="number">+20 años</span>
+                                            <p class="mb-0">Transformación digital, SAP, BI y procesos de alto estándar.</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="soft-card experience-stat">
+                                            <span class="number">Retail e IA</span>
+                                            <p class="mb-0">Experiencia aplicada a operación comercial, prevención de pérdidas, fraude y decisiones de negocio.</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="soft-card experience-stat">
+                                            <span class="number">Consultoría global</span>
+                                            <p class="mb-0">Experiencia en metodologías, gobierno y ejecución en contextos empresariales de alta exigencia.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="company-strip">
+                            <span>Coca-Cola</span>
+                            <span>SMU</span>
+                            <span>Cobega</span>
+                            <span>Fanalca</span>
+                            <span>Cencosud</span>
+                            <span>Falabella</span>
+                            <span>Walmart</span>
+                            <span>Codelco</span>
+                            <span>Entel</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space" id="porque">
+            <div class="container">
+                <div class="section-kicker">Por qué LhexIA</div>
+                <h2>Vimos demasiados sistemas que ordenaban datos, pero ayudaban poco cuando el negocio necesitaba reaccionar.</h2>
+                <p class="section-intro">
+                    Por eso LhexIA se construyó con una lógica distinta: menos complejidad innecesaria y más
+                    apoyo real a la operación, la caja, la bodega y la decisión comercial.
+                </p>
+
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="soft-card split-card">
+                            <div class="section-kicker mb-2">Lo que suele doler</div>
+                            <h3>ERP tradicionales</h3>
+                            <ul>
+                                <li>Implementaciones largas, costosas y difíciles de ajustar.</li>
+                                <li>Interfaces que administran, pero no acompañan el ritmo operativo.</li>
+                                <li>Información que llega tarde o demasiado fragmentada.</li>
+                                <li>Poco foco en bodega, sistema POS y decisiones del día a día.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="soft-card split-card">
+                            <div class="section-kicker mb-2" style="color: var(--trust);">Lo que buscamos resolver</div>
+                            <h3>LhexIA</h3>
+                            <ul>
+                                <li>Una plataforma más clara, cercana y enfocada en resultado.</li>
+                                <li>Mirada real sobre retail, constructoras, ferretería, cartera, margen y operación intensiva en SKU.</li>
+                                <li>Customer 360, POS y bodega dentro de una lógica más práctica.</li>
+                                <li>Inteligencia Artificial aplicada donde realmente agrega valor.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space" id="diferencia">
+            <div class="container">
+                <div class="section-kicker">Nuestra diferencia</div>
+                <h2>Cuatro razones por las que esta experiencia sí marca una diferencia para el cliente.</h2>
+                <p class="section-intro">
+                    Lo que buscamos entregar no es solo un sistema. Es una herramienta seria, moderna y
+                    bien pensada para empresas que necesitan claridad, velocidad y confianza.
+                </p>
+
+                <div class="row g-4">
+                    <div class="col-md-6 col-xl-3">
+                        <div class="soft-card difference-card">
+                            <span class="icon-wrap"><i class="bi bi-compass"></i></span>
+                            <h3>Experiencia que se traduce en criterio</h3>
+                            <p class="mb-0">Entendemos mejor dónde se traba una operación porque ese tipo de problemas ya los hemos visto antes.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="soft-card difference-card">
+                            <span class="icon-wrap"><i class="bi bi-shop-window"></i></span>
+                            <h3>Foco real en operaciones complejas</h3>
+                            <p class="mb-0">LhexIA fue pensada para negocios donde importan la bodega, la rotación, la caja, el margen y el control sobre miles de SKU.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="soft-card difference-card">
+                            <span class="icon-wrap trust"><i class="bi bi-cpu"></i></span>
+                            <h3>IA aplicada al negocio</h3>
+                            <p class="mb-0">Usamos Inteligencia Artificial para ayudar a decidir mejor, vender con más contexto y operar con más claridad.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="soft-card difference-card">
+                            <span class="icon-wrap"><i class="bi bi-lightning-charge"></i></span>
+                            <h3>Atención cercana y evolución rápida</h3>
+                            <p class="mb-0">Creemos en acompañar bien al cliente y responder rápido cuando el negocio necesita avanzar.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space" id="mision">
+            <div class="container">
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="soft-card mission-card">
+                            <div class="mission-badge">Misión</div>
+                            <h2 style="font-size: clamp(1.55rem, 2.2vw, 2rem);">Ayudar a operar con más claridad, criterio y resultados.</h2>
+                            <p class="mb-0">
+                                Ayudar a ferreterías, retail, constructoras, distribuidoras y empresas con alta complejidad operativa
+                                a trabajar con una plataforma moderna, cercana y realmente útil para su operación diaria.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="soft-card mission-card">
+                            <div class="mission-badge" style="color: var(--trust);">Visión</div>
+                            <h2 style="font-size: clamp(1.55rem, 2.2vw, 2rem);">Ser una referencia confiable de inteligencia operativa para el rubro.</h2>
+                            <p class="mb-0">
+                                Demostrar que sí es posible tener una plataforma de inteligencia operativa más potente,
+                                más ágil y mejor aterrizada al negocio real para compañías que manejan grandes volúmenes de SKU.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space pt-0">
+            <div class="container">
+                <div class="soft-card cta-panel mb-4 text-start text-lg-center">
+                    <div class="section-kicker">Una capa más personal</div>
+                    <h2>Si quieres entender la visión detrás de LhexIA, también puedes leer el mensaje del fundador.</h2>
+                    <p>
+                        Creamos una página separada para contar, con más contexto y desde una mirada personal,
+                        por qué nació LhexIA y qué estamos intentando construir para empresas que necesitan más control,
+                        más inteligencia y menos fricción.
+                    </p>
+                    <div class="d-flex flex-wrap justify-content-center gap-3">
+                        <a href="{{ url_for('mensaje_del_fundador') }}" class="btn btn-soft">Ir al mensaje del fundador</a>
+                    </div>
+                </div>
+
+                <div class="soft-card cta-panel">
+                    <div class="section-kicker">Cierre</div>
+                    <h2>Queremos que la tecnología se sienta como una ayuda real, no como una carga más.</h2>
+                    <p>
+                        Si quieres conocer cómo LhexIA puede aterrizar esta experiencia en tu operación,
+                        conversemos. Podemos mostrarte de forma simple dónde hoy hay espacio para mejorar
+                        control, velocidad, Customer 360 y rentabilidad.
+                    </p>
+                    <div class="d-flex flex-wrap justify-content-center gap-3">
+                        <a href="{{ url_for('index') }}#diagnostico" class="btn btn-accent">Quiero mi Diagnóstico IA Gratis</a>
+                        <a href="{{ url_for('login') }}" class="btn btn-soft">Acceso clientes</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="index-footer landing-footer">
+        © 2026 LhexIA IA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para retail, ferreterías y operaciones complejas
+    </div>
+
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+</body>
+</html>

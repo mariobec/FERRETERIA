@@ -3,60 +3,264 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acceso ERP | {{ empresa_cfg.nombre_comercial }}</title>
+    <title>Acceso LhexIA ERP | {{ empresa_cfg.nombre_comercial }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
     <style>
-        body {
+        :root {
+            --login-bg: #0b0f19;
+            --login-blue: #1e3a8a;
+            --login-orange: #ea580c;
+            --login-text: #f8fafc;
+            --login-muted: rgba(248, 250, 252, 0.74);
+            --login-line: rgba(255, 255, 255, 0.12);
+            --login-panel: rgba(255, 255, 255, 0.05);
+            --login-input: rgba(255, 255, 255, 0.08);
+            --login-input-focus: rgba(255, 255, 255, 0.14);
+            --login-success: #10b981;
+        }
+
+        body.login-page {
             min-height: 100vh;
-            background: linear-gradient(135deg, #1f2937, #111827);
-        }
-        .login-card {
-            border: 0;
-            border-radius: 18px;
+            margin: 0;
+            position: relative;
             overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+            background: var(--login-bg);
+            color: var(--login-text);
+            font-family: "Segoe UI", Roboto, Arial, sans-serif;
         }
+
+        .aurora-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            background:
+                linear-gradient(135deg, rgba(11, 15, 25, 0.98), rgba(15, 23, 42, 0.96), rgba(30, 58, 138, 0.24), rgba(11, 15, 25, 0.98));
+            background-size: 220% 220%;
+            animation: auroraShift 20s ease-in-out infinite;
+        }
+
+        .aurora-blob {
+            position: absolute;
+            width: 34rem;
+            height: 34rem;
+            border-radius: 999px;
+            filter: blur(80px);
+            opacity: 0.46;
+            will-change: transform;
+            animation: auroraFloat 20s ease-in-out infinite;
+        }
+
+        .aurora-blob.blob-blue {
+            top: -8rem;
+            left: -8rem;
+            background: radial-gradient(circle, rgba(30, 58, 138, 0.9) 0%, rgba(30, 58, 138, 0.24) 52%, transparent 72%);
+        }
+
+        .aurora-blob.blob-orange {
+            right: -10rem;
+            top: 16%;
+            background: radial-gradient(circle, rgba(234, 88, 12, 0.86) 0%, rgba(234, 88, 12, 0.22) 46%, transparent 74%);
+            animation-delay: -6s;
+        }
+
+        .aurora-blob.blob-deep {
+            bottom: -12rem;
+            left: 24%;
+            background: radial-gradient(circle, rgba(11, 15, 25, 0.95) 0%, rgba(30, 58, 138, 0.28) 45%, transparent 76%);
+            animation-delay: -11s;
+        }
+
+        @keyframes auroraShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes auroraFloat {
+            0% { transform: translate3d(0, 0, 0) scale(1); }
+            33% { transform: translate3d(2rem, -1rem, 0) scale(1.05); }
+            66% { transform: translate3d(-1.5rem, 2rem, 0) scale(0.97); }
+            100% { transform: translate3d(0, 0, 0) scale(1); }
+        }
+
+        .login-shell {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+        }
+
+        .back-home-btn {
+            border-color: rgba(255, 255, 255, 0.18) !important;
+            color: var(--login-text) !important;
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(10px);
+        }
+
+        .back-home-btn:hover,
+        .back-home-btn:focus {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff !important;
+        }
+
+        .login-card {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--login-panel);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.26);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
         .login-header {
-            background: #212529;
+            background: rgba(8, 11, 17, 0.28);
             color: white;
-            padding: 1.25rem;
+            padding: 1.5rem 1.5rem 1.15rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .login-brand {
+            display: inline-block;
+            margin-bottom: 0.55rem;
+            color: #fff;
+            font-family: "Montserrat", "Segoe UI", Roboto, Arial, sans-serif;
+            font-size: 1.42rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .login-brand span {
+            color: var(--login-orange);
+        }
+
+        .login-brand-subtitle {
+            display: block;
+            margin-top: -0.18rem;
+            color: rgba(255, 255, 255, 0.56);
+            font-size: 0.74rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .login-header h5 {
+            color: #fff;
+            font-size: 1.12rem;
+        }
+
+        .login-header small {
+            color: rgba(255, 255, 255, 0.72) !important;
+        }
+
+        .login-card .card-body {
+            padding: 1.6rem !important;
+            background: transparent;
+        }
+
+        .login-card .alert {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .login-card .form-label {
+            color: #ffffff;
+            font-size: 0.95rem;
+            letter-spacing: 0.01em;
+        }
+
+        .login-card .form-control {
+            min-height: 46px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--login-input);
+            color: #ffffff;
+        }
+
+        .login-card .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .login-card .form-control:focus {
+            border-color: rgba(255, 255, 255, 0.22);
+            background: var(--login-input-focus);
+            color: #ffffff;
+            box-shadow: 0 0 0 0.2rem rgba(30, 58, 138, 0.22);
+        }
+
+        .btn-login {
+            min-height: 48px;
+            border-radius: 14px;
+            border: 0;
+            background: var(--login-success);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+        }
+
+        .btn-login:hover,
+        .btn-login:focus {
+            background: #12a876;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+            transform: translateY(-1px);
+            color: #ffffff;
+        }
+
+        @media (max-width: 575.98px) {
+            .login-card .card-body {
+                padding: 1.25rem !important;
+            }
+
+            .login-header {
+                padding: 1.3rem 1.15rem 1rem;
+            }
         }
     </style>
 </head>
-<body class="d-flex align-items-center">
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-12 col-md-6 col-lg-4">
-            <div class="text-center mb-3">
-                <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm">
-                    <i class="fas fa-arrow-left me-1"></i> Volver al Inicio
-                </a>
-            </div>
-            <div class="card login-card">
-                <div class="login-header text-center">
-                    <h5 class="m-0 fw-bold"><i class="fas fa-key me-2"></i>Acceso al ERP</h5>
-                    <small class="text-white-50">{{ empresa_cfg.nombre_comercial }}</small>
+<body class="login-page">
+<div class="aurora-bg" aria-hidden="true">
+    <div class="aurora-blob blob-blue"></div>
+    <div class="aurora-blob blob-orange"></div>
+    <div class="aurora-blob blob-deep"></div>
+</div>
+<div class="login-shell d-flex align-items-center">
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="text-center mb-3">
+                    <a href="{{ url_for('index') }}" class="btn back-home-btn btn-sm rounded-pill px-3">
+                        <i class="fas fa-arrow-left me-1"></i> Volver al Inicio
+                    </a>
                 </div>
-                <div class="card-body p-4">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} py-2">{{ message }}</div>
-                        {% endfor %}
-                    {% endif %}
-                    {% endwith %}
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label for="correo" class="form-label fw-semibold">Correo</label>
-                            <input type="email" class="form-control" id="correo" name="correo" required>
-                        </div>
-                        <div class="mb-4">
-                            <label for="password" class="form-label fw-semibold">Contraseña</label>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
-                        <button type="submit" class="btn btn-success w-100 fw-bold">Ingresar</button>
-                    </form>
+                <div class="card login-card">
+                    <div class="login-header text-center">
+                        <div class="login-brand">Lhex<span>IA</span></div>
+                        <span class="login-brand-subtitle">Inteligencia Operativa</span>
+                        <h5 class="m-0 fw-bold"><i class="fas fa-key me-2"></i>Acceso al ERP</h5>
+                        <small>{{ empresa_cfg.nombre_comercial }}</small>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} py-2">{{ message }}</div>
+                            {% endfor %}
+                        {% endif %}
+                        {% endwith %}
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label for="correo" class="form-label fw-semibold">Correo</label>
+                                <input type="email" class="form-control" id="correo" name="correo" required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="password" class="form-label fw-semibold">Contraseña</label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                            <button type="submit" class="btn btn-login w-100 text-white">Ingresar</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

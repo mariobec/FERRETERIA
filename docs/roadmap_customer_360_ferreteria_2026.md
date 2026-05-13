@@ -1,4 +1,4 @@
-# Roadmap — Módulo Clientes + Customer 360 (Ferretería LexIA ERP)
+# Roadmap — Módulo Clientes + Customer 360 (Ferretería LhexIA ERP)
 
 **Versión:** 1.0 · **Fecha referencia:** mayo 2026  
 **Stack actual del ERP:** Python / Flask / SQLAlchemy / Jinja2 / Bootstrap (no hay SPA React hoy).  

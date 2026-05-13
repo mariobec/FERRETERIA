@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-CL">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexIA IA ERP | {{ empresa_cfg.nombre_comercial }}</title>
+    <title>LhexIA ERP | {{ empresa_cfg.nombre_comercial }}</title>
        
     <!-- 1. Bootstrap (local, sin CDN) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
@@ -27,147 +27,26 @@
             <!-- Menú Lateral -->
             <nav class="col-md-2 app-sidebar d-none d-md-block">
                 <div class="app-sidebar-header app-sidebar-header--compact">
-                    <a href="{{ url_for('inicio') }}" class="app-brand-compact" title="LexIA IA ERP - Inteligencia operativa para retail y ferreterias">
-                        <img src="{{ url_for('static', filename='img/lexia-erp-logo-transparent.png') }}" alt="LexIA IA ERP">
+                    <a href="{{ url_for('inicio') }}" class="app-brand-compact" title="LhexIA ERP · www.lhexia.cl">
+                        <img src="{{ url_for('static', filename='img/lhexia-brand-official.png') }}?v=lhexia20260513" alt="LhexIA ERP · www.lhexia.cl">
                     </a>
                 </div>
                 
-                <!-- Links del Menú -->
+                <!-- Links del Menú (generado desde _NAV_MAP filtrado por permisos) -->
                 <div class="app-sidebar-nav mt-3 flex-grow-1">
                     <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-home"></i> Inicio</a>
-                    {% set puede_pos = usuario_tiene_permiso('pos_emitir_vale') %}
-                    {% set puede_cobrar_caja = usuario_tiene_permiso('caja_cobrar_vale') %}
-                    {% set puede_abrir_caja = usuario_tiene_permiso('caja_abrir') %}
-                    {% set puede_mov_caja = usuario_tiene_permiso('caja_movimientos') %}
-                    {% set puede_cerrar_caja = usuario_tiene_permiso('caja_cerrar') %}
-                    {% set ep_ventas = request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta', 'mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta', 'modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'estado_cuenta_credito_resumen_imprimible', 'cobranza_cuotas', 'api_creditos_cobranza_sugerencias', 'registrar_abono', 'ver_ticket_abono', 'cotizaciones_lista', 'cotizacion_nueva', 'cotizacion_detalle'] %}
-                    {% if modulo_activo('ventas') %}
-                    <details class="app-nav-group" {% if ep_ventas %}open{% endif %}>
-                        <summary><i class="fas fa-cart-shopping"></i> Ventas</summary>
+                    {% for grupo in nav_menu %}
+                    {% set ns = namespace(open=false) %}
+                    {% for it in grupo['items'] %}{% if request.endpoint in it.endpoints_activos %}{% set ns.open = true %}{% endif %}{% endfor %}
+                    <details class="app-nav-group" {% if ns.open %}open{% endif %}>
+                        <summary><i class="fas {{ grupo.icon }}"></i> {{ grupo.label }}</summary>
                         <div class="app-nav-group-body">
-                            {% if puede_pos %}
-                            <a href="{{ url_for('punto_venta') }}" class="app-nav-link {% if request.endpoint in ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta'] %}active{% endif %}"><i class="fas fa-cash-register"></i> Punto de venta</a>
-                            <a href="{{ url_for('cotizaciones_lista') }}" class="app-nav-link {% if request.endpoint in ['cotizaciones_lista', 'cotizacion_nueva', 'cotizacion_detalle'] %}active{% endif %}"><i class="fas fa-file-invoice-dollar"></i> Cotizaciones</a>
-                            {% endif %}
-                            <a href="{{ url_for('mostrar_ventas') }}" class="app-nav-link {% if request.endpoint in ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta'] %}active{% endif %}"><i class="fas fa-shopping-cart"></i> Historial ventas</a>
-                            <a href="{{ url_for('modulo_creditos') }}" class="app-nav-link {% if request.endpoint in ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'estado_cuenta_credito_resumen_imprimible', 'registrar_abono', 'ver_ticket_abono'] %}active{% endif %}"><i class="fas fa-hand-holding-usd"></i> Créditos y cartolas</a>
-                            <a href="{{ url_for('cobranza_cuotas') }}" class="app-nav-link {% if request.endpoint in ['cobranza_cuotas', 'api_creditos_cobranza_sugerencias'] %}active{% endif %}"><i class="fab fa-whatsapp"></i> Cobranza cuotas (WA)</a>
+                            {% for it in grupo['items'] %}
+                            <a href="{{ url_for(it.endpoint) }}" class="app-nav-link {% if request.endpoint in it.endpoints_activos %}active{% endif %}"><i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }}"></i> {{ it.label }}</a>
+                            {% endfor %}
                         </div>
                     </details>
-                    {% endif %}
-                    {% set ep_caja = request.endpoint in ['abrir_caja', 'movimiento_caja', 'cerrar_caja', 'caja_pendientes', 'procesar_cobro_caja', 'caja_historial_cierres', 'caja_cambios', 'caja_cambios_historial', 'caja_saldos_favor'] %}
-                    {% set mostrar_grupo_caja = puede_cobrar_caja or puede_abrir_caja or puede_mov_caja or puede_cerrar_caja or usuario_tiene_permiso('gestionar_usuarios') %}
-                    {% if mostrar_grupo_caja and modulo_activo('caja') %}
-                    <details class="app-nav-group" {% if ep_caja %}open{% endif %}>
-                        <summary><i class="fas fa-cash-register"></i> Caja</summary>
-                        <div class="app-nav-group-body">
-                            {% if puede_cobrar_caja %}
-                            <a href="{{ url_for('caja_pendientes') }}" class="app-nav-link {% if request.endpoint in ['caja_pendientes', 'procesar_cobro_caja'] %}active{% endif %}"><i class="fas fa-file-invoice-dollar"></i> Vales pendientes</a>
-                            <a href="{{ url_for('caja_cambios') }}" class="app-nav-link {% if request.endpoint == 'caja_cambios' %}active{% endif %}"><i class="fas fa-rotate"></i> Cambios / devoluciones</a>
-                            <a href="{{ url_for('caja_cambios_historial') }}" class="app-nav-link {% if request.endpoint == 'caja_cambios_historial' %}active{% endif %}"><i class="fas fa-clock-rotate-left"></i> Historial cambios</a>
-                            <a href="{{ url_for('caja_saldos_favor') }}" class="app-nav-link {% if request.endpoint == 'caja_saldos_favor' %}active{% endif %}"><i class="fas fa-wallet"></i> Saldos a favor</a>
-                            {% endif %}
-                            {% if puede_abrir_caja %}
-                            <a href="{{ url_for('abrir_caja') }}" class="app-nav-link {% if request.endpoint == 'abrir_caja' %}active{% endif %}"><i class="fas fa-door-open"></i> Abrir caja</a>
-                            {% endif %}
-                            {% if puede_mov_caja %}
-                            <a href="{{ url_for('movimiento_caja') }}" class="app-nav-link {% if request.endpoint == 'movimiento_caja' %}active{% endif %}"><i class="fas fa-exchange-alt"></i> Movimientos</a>
-                            {% endif %}
-                            {% if puede_cerrar_caja %}
-                            <a href="{{ url_for('cerrar_caja') }}" class="app-nav-link {% if request.endpoint == 'cerrar_caja' %}active{% endif %}"><i class="fas fa-door-closed"></i> Cerrar caja</a>
-                            {% endif %}
-                            {% if usuario_tiene_permiso('gestionar_usuarios') %}
-                            <a href="{{ url_for('caja_historial_cierres') }}" class="app-nav-link {% if request.endpoint == 'caja_historial_cierres' %}active{% endif %}"><i class="fas fa-history"></i> Historial cierres</a>
-                            {% endif %}
-                        </div>
-                    </details>
-                    {% endif %}
-                    {% set ep_inv = request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos', 'kardex', 'stock_critico', 'consulta_stock_publica', 'bodega_despachos', 'bodega_cuadro_mando', 'bodega_plataforma', 'bodega_vale_retiro']
-                      or (nav_inventario_enrolamiento and request.endpoint == 'inventario_enrolamiento')
-                      or (nav_inventario_salud and request.endpoint == 'inventario_salud')
-                      or request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion', 'lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar', 'mostrar_proveedores', 'guardar_proveedor'] %}
-                    {% if modulo_activo('inventario') %}
-                    <details class="app-nav-group" {% if ep_inv %}open{% endif %}>
-                        <summary><i class="fas fa-boxes-stacked"></i> Inventario y Abastecimiento</summary>
-                        <div class="app-nav-group-body">
-                            <a href="{{ url_for('mostrar_productos') }}" class="app-nav-link {% if request.endpoint in ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos'] %}active{% endif %}"><i class="fas fa-boxes"></i> Productos</a>
-                            {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_enrolamiento %}
-                            <a href="{{ url_for('inventario_enrolamiento') }}" class="app-nav-link {% if request.endpoint == 'inventario_enrolamiento' %}active{% endif %}"><i class="fas fa-barcode"></i> Enrolamiento inventario</a>
-                            {% endif %}
-                            {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_salud %}
-                            <a href="{{ url_for('inventario_salud') }}" class="app-nav-link {% if request.endpoint == 'inventario_salud' %}active{% endif %}"><i class="fas fa-heartbeat"></i> Salud inventario</a>
-                            {% endif %}
-                            <a href="{{ url_for('stock_critico') }}" class="app-nav-link {% if request.endpoint == 'stock_critico' %}active{% endif %}"><i class="fas fa-triangle-exclamation"></i> Stock crítico</a>
-                            <a href="{{ url_for('kardex') }}" class="app-nav-link {% if request.endpoint == 'kardex' %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Kardex</a>
-                            <a href="{{ url_for('consulta_stock_publica') }}" class="app-nav-link {% if request.endpoint == 'consulta_stock_publica' %}active{% endif %}"><i class="fas fa-magnifying-glass-chart"></i> Consulta stock</a>
-                            {% if usuario_tiene_permiso('bodega_operador') %}
-                            <a href="{{ url_for('bodega_plataforma') }}" class="app-nav-link {% if request.endpoint in ['bodega_plataforma', 'bodega_vale_retiro'] %}active{% endif %}"><i class="fas fa-clipboard-list"></i> Plataforma retiro bodega</a>
-                            <a href="{{ url_for('bodega_despachos') }}" class="app-nav-link {% if request.endpoint == 'bodega_despachos' %}active{% endif %}"><i class="fas fa-microphone"></i> Despachos bodega (voz)</a>
-                            {% endif %}
-                            <a href="{{ url_for('lista_recepciones') }}" class="app-nav-link {% if request.endpoint in ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion'] %}active{% endif %}"><i class="fas fa-dolly"></i> Recepciones</a>
-                            <a href="{{ url_for('lista_ordenes_compra') }}" class="app-nav-link {% if request.endpoint in ['lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar'] %}active{% endif %}"><i class="fas fa-file-contract"></i> Órdenes compra</a>
-                            <a href="{{ url_for('mostrar_proveedores') }}" class="app-nav-link {% if request.endpoint in ['mostrar_proveedores', 'guardar_proveedor'] %}active{% endif %}"><i class="fas fa-truck"></i> Proveedores</a>
-                            {% if modulo_activo('ia') %}
-                            <a href="{{ url_for('ia_abastecimiento') }}" class="app-nav-link {% if request.endpoint == 'ia_abastecimiento' %}active{% endif %}"><i class="fas fa-robot"></i> IA Abastecimiento</a>
-                            {% endif %}
-                        </div>
-                    </details>
-                    {% endif %}
-                    {# Gerencia: no depende de mod_bi — el dueño ve paneles aunque el módulo BI esté desactivado en empresa. #}
-                    {% set ep_gerencia = request.endpoint in ['panel_dueno', 'gerencia_c360_ia_dashboard', 'simulador_margen', 'bi_alertas_precio_premium_demo'] %}
-                    {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
-                    <details class="app-nav-group" {% if ep_gerencia %}open{% endif %}>
-                        <summary><i class="fas fa-briefcase"></i> Gerencia y dueño</summary>
-                        <div class="app-nav-group-body">
-                            <p class="app-nav-group-subtitle mb-0">Paneles ejecutivos</p>
-                            <a href="{{ url_for('panel_dueno') }}" class="app-nav-link {% if request.endpoint == 'panel_dueno' %}active{% endif %}"><i class="fas fa-chart-pie"></i> Panel ejecutivo (pitch)</a>
-                            <a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="app-nav-link {% if request.endpoint == 'gerencia_c360_ia_dashboard' %}active{% endif %}"><i class="fas fa-robot"></i> ROI IA · Customer 360</a>
-                            <p class="app-nav-group-subtitle mb-0">Simulación y alertas</p>
-                            {% if usuario_tiene_permiso('panel_gerencia') %}
-                            <a href="{{ url_for('simulador_margen') }}" class="app-nav-link {% if request.endpoint == 'simulador_margen' %}active{% endif %}"><i class="fas fa-flask"></i> Simulador de margen</a>
-                            {% endif %}
-                            <a href="{{ url_for('bi_alertas_precio_premium_demo') }}" class="app-nav-link {% if request.endpoint == 'bi_alertas_precio_premium_demo' %}active{% endif %}"><i class="fas fa-bell"></i> Alertas de precio (demo)</a>
-                        </div>
-                    </details>
-                    {% endif %}
-                    {% set ep_bi_ops = request.endpoint in ['business_intelligence', 'revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision'] %}
-                    {% if modulo_activo('bi') %}
-                    <details class="app-nav-group" {% if ep_bi_ops %}open{% endif %}>
-                        <summary><i class="fas fa-chart-line"></i> BI operativo</summary>
-                        <div class="app-nav-group-body">
-                            <p class="app-nav-group-subtitle mb-0">Histórico y listas</p>
-                            <a href="{{ url_for('business_intelligence') }}" class="app-nav-link {% if request.endpoint == 'business_intelligence' %}active{% endif %}"><i class="fas fa-chart-line"></i> BI reportes</a>
-                            {% if usuario_tiene_permiso('revision_precios') %}
-                            <p class="app-nav-group-subtitle mb-0">Rentabilidad catálogo</p>
-                            <a href="{{ url_for('revision_precios') }}" class="app-nav-link {% if request.endpoint in ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision'] %}active{% endif %}"><i class="fas fa-tags"></i> Revisión de precios</a>
-                            {% endif %}
-                        </div>
-                    </details>
-                    {% endif %}
-                    {% if usuario_tiene_permiso('gestionar_usuarios') and (current_user.correo or '')|lower == 'mariobec@gmail.com' %}
-                    {% set ep_lexia_interno = request.endpoint in ['comercial_leads', 'comercial_lead_estado'] %}
-                    <details class="app-nav-group" {% if ep_lexia_interno %}open{% endif %}>
-                        <summary><i class="fas fa-shield-halved"></i> LexIA interno</summary>
-                        <div class="app-nav-group-body">
-                            <a href="{{ url_for('comercial_leads') }}" class="app-nav-link {% if ep_lexia_interno %}active{% endif %}"><i class="fas fa-funnel-dollar"></i> Leads landing LexIA</a>
-                        </div>
-                    </details>
-                    {% endif %}
-                    {% if puede_administrar %}
-                    {% set ep_mant = request.endpoint in ['usuarios', 'editar_usuario', 'admin_empresa', 'admin_unidades', 'admin_catalogo', 'admin_almacenes', 'admin_clientes', 'admin_roles_permisos'] %}
-                    <details class="app-nav-group" {% if ep_mant %}open{% endif %}>
-                        <summary><i class="fas fa-sliders-h"></i> Mantenedores</summary>
-                        <div class="app-nav-group-body">
-                            <a href="{{ url_for('admin_catalogo') }}" class="app-nav-link {% if request.endpoint == 'admin_catalogo' %}active{% endif %}"><i class="fas fa-sitemap"></i> Catálogo categorías</a>
-                            <a href="{{ url_for('admin_unidades') }}" class="app-nav-link {% if request.endpoint == 'admin_unidades' %}active{% endif %}"><i class="fas fa-balance-scale"></i> Unidades de medida</a>
-                            <a href="{{ url_for('admin_almacenes') }}" class="app-nav-link {% if request.endpoint == 'admin_almacenes' %}active{% endif %}"><i class="fas fa-warehouse"></i> Almacenes</a>
-                            <a href="{{ url_for('admin_clientes') }}" class="app-nav-link {% if request.endpoint == 'admin_clientes' %}active{% endif %}"><i class="fas fa-address-book"></i> Clientes</a>
-                            <a href="{{ url_for('admin_roles_permisos') }}" class="app-nav-link {% if request.endpoint == 'admin_roles_permisos' %}active{% endif %}"><i class="fas fa-user-shield"></i> Roles y permisos</a>
-                            <a href="{{ url_for('admin_empresa') }}" class="app-nav-link {% if request.endpoint == 'admin_empresa' %}active{% endif %}"><i class="fas fa-building"></i> Datos de empresa</a>
-                            <a href="{{ url_for('usuarios') }}" class="app-nav-link {% if request.endpoint in ['usuarios', 'editar_usuario'] %}active{% endif %}"><i class="fas fa-users-cog"></i> Usuarios y roles</a>
-                        </div>
-                    </details>
-                    {% endif %}
+                    {% endfor %}
                     <a href="{{ url_for('centro_ayuda') }}" class="app-nav-link {% if request.endpoint == 'centro_ayuda' %}active{% endif %}"><i class="fas fa-circle-question"></i> Ayuda</a>
                 </div>
 
@@ -184,7 +63,8 @@
             <main class="col-md-10 app-main">
                 <div class="app-topbar d-flex justify-content-between align-items-center">
                     <div class="app-topbar-title">
-                        <span class="app-topbar-product">LexIA IA ERP</span>
+                        <span class="app-topbar-product">LhexIA ERP</span>
+                        <a class="app-topbar-domain" href="https://www.lhexia.cl" target="_blank" rel="noopener noreferrer">www.lhexia.cl</a>
                         <span class="app-topbar-separator">·</span>
                         <span class="app-topbar-client">{{ empresa_cfg.nombre_comercial }}</span>
                     </div>
@@ -278,7 +158,7 @@
       var snapUrl = body.dataset.bodegaSnapshotUrl;
       var platUrl = body.dataset.bodegaPlataformaUrl;
       var mandoUrl = body.dataset.bodegaMandoUrl || platUrl;
-      var storageKey = 'lexia_bodega_cola_open_ids';
+      var storageKey = 'lhexia_bodega_cola_open_ids';
       function beep() {
         try {
           var Ctx = window.AudioContext || window.webkitAudioContext;

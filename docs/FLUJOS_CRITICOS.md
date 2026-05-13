@@ -1,4 +1,4 @@
-# Flujos críticos — stock, caja y bodega (ERP LexIA)
+# Flujos críticos — stock, caja y bodega (ERP LhexIA)
 
 Documento vivo alineado al [plan v2.0 Grok](./PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md). Describe secuencias que **no deben romperse** al refactorizar.
 

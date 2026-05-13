@@ -57,6 +57,12 @@ def register_pos_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/api/pos/cross-sell-toggle',
+        'api_pos_cross_sell_toggle',
+        _wrap_pos_api_emitir(m.api_pos_cross_sell_toggle),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/api/pos/cross-sell-reject',
         'api_pos_cross_sell_reject',
         _wrap_pos_api_emitir(m.api_pos_cross_sell_reject),

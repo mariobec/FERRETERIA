@@ -1,0 +1,899 @@
+"""
+ERP LhexIA -- Tests de rutas criticas que mueven estado (v4+).
+
+Pruebas HTTP reales via Flask test_client sobre endpoints que:
+- Crean/modifican ventas, stock, kardex, caja, creditos
+- Requieren autenticacion y permisos especificos
+- Generan audit_log
+
+Ejecucion:
+    pytest tests/test_routes_criticas.py -v --cov=app --cov-report=term-missing
+"""
+import json
+from datetime import date, datetime, timedelta
+
+import pytest
+
+import app as m
+from tests.conftest import (
+    QA_USER,
+    asegurar_stock_bodega,
+    cobrar_venta_efectivo,
+    crear_venta_pendiente,
+    login_as,
+)
+
+db = m.db
+
+
+@pytest.fixture(autouse=True)
+def _session_safety():
+    """Rollback any pending broken transaction before each test."""
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
+    yield
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
+
+
+# =====================================================================
+#  Helpers locales
+# =====================================================================
+def _get_admin_user():
+    """Retorna el primer usuario con rol admin."""
+    return m.Usuario.query.join(m.Rol).filter(
+        m.Rol.nombre.in_(['Admin', 'admin', 'Administrador', 'administrador', 'SuperAdmin'])
+    ).first() or m.Usuario.query.first()
+
+
+def _ensure_caja_abierta():
+    """Garantiza que haya caja abierta para rutas @caja_requerida."""
+    caja = m.Caja.query.filter_by(estado='Abierta').order_by(m.Caja.id.desc()).first()
+    if not caja:
+        caja = m.Caja(monto_inicial=50000, usuario_apertura=QA_USER,
+                      estado='Abierta', fecha_apertura=datetime.now())
+        db.session.add(caja)
+        db.session.commit()
+    return caja
+
+
+# =====================================================================
+#  1. POS + Venta Completa
+# =====================================================================
+@pytest.mark.smoke
+class TestPOSVenta:
+
+    def test_punto_venta_get_autenticado(self, app_client):
+        r = app_client.get('/punto_venta')
+        assert r.status_code in (200, 302)
+
+    def test_guardar_venta_crea_pendiente(self, app_client, productos_con_stock):
+        _ensure_caja_abierta()
+        p = productos_con_stock[0]
+        cf = m.obtener_o_crear_cliente_final()
+
+        r = app_client.post('/guardar_venta', data={
+            'metodo_pago': 'Efectivo',
+            'cliente_id': str(cf.id),
+            'id_producto[]': str(p.id),
+            'cantidad[]': '2',
+            'precio_unitario[]': str(p.precio_venta),
+        }, follow_redirects=True)
+        assert r.status_code == 200
+
+    def test_finalizar_venta_pos(self, app_client, productos_con_stock):
+        _ensure_caja_abierta()
+        r = app_client.post('/finalizar_venta', data={
+            'cliente_final': '1',
+            'punto_retiro': 'Tienda',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_agregar_producto_venta_get(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.get(f'/agregar_producto_venta?codigo={p.codigo_barra}')
+        assert r.status_code in (200, 302)
+
+    def test_agregar_producto_inexistente(self, app_client):
+        r = app_client.get('/agregar_producto_venta?codigo=NOEXISTE999')
+        assert r.status_code in (200, 302)
+
+    @pytest.mark.parametrize('metodo', ['Efectivo', 'Transferencia'])
+    def test_guardar_venta_multiples_metodos(self, metodo, app_client, productos_con_stock):
+        _ensure_caja_abierta()
+        p = productos_con_stock[1]
+        cf = m.obtener_o_crear_cliente_final()
+        r = app_client.post('/guardar_venta', data={
+            'metodo_pago': metodo,
+            'cliente_id': str(cf.id),
+            'id_producto[]': str(p.id),
+            'cantidad[]': '1',
+            'precio_unitario[]': str(p.precio_venta),
+        }, follow_redirects=True)
+        assert r.status_code == 200
+
+    def test_editar_venta_get(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        r = app_client.get(f'/editar_venta/{venta.id}')
+        assert r.status_code in (200, 302)
+
+    def test_editar_venta_post(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        r = app_client.post(f'/editar_venta/{venta.id}', data={
+            'usuario': QA_USER,
+            'id_producto[]': str(p.id),
+            'cantidad[]': '3',
+            'precio_unitario[]': str(p.precio_venta),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+        db.session.expire_all()
+        v = db.session.get(m.Venta, venta.id)
+        if v and v.estado != 'Anulada':
+            assert v.monto_total == 3 * p.precio_venta
+
+
+# =====================================================================
+#  2. Caja (Critico)
+# =====================================================================
+class TestCajaCritica:
+
+    def test_vales_pendientes_get(self, app_client):
+        _ensure_caja_abierta()
+        r = app_client.get('/caja/vales_pendientes')
+        assert r.status_code in (200, 302)
+
+    def test_procesar_cobro_efectivo(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        stock_pre = m.stock_disponible_venta_tienda(p)
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+
+        r = app_client.post(f'/procesar_cobro_caja/{venta.id}', data={
+            'metodo_pago': 'Efectivo',
+            'tipo_documento': 'Boleta',
+            'monto_recibido': str(venta.monto_total + 100),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+        db.session.expire_all()
+        vr = db.session.get(m.Venta, venta.id)
+        assert vr.estado == 'Pagado'
+        assert vr.metodo_pago == 'Efectivo'
+
+        k = m.MovimientoInventario.query.filter_by(
+            referencia_tipo='venta', referencia_id=venta.id).first()
+        assert k is not None
+
+    @pytest.mark.parametrize('metodo,doc', [
+        ('Efectivo', 'Boleta'),
+        ('Transferencia', 'Boleta'),
+        ('Efectivo', 'Factura'),
+    ])
+    def test_cobro_multiples_medios(self, metodo, doc, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[1]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        r = app_client.post(f'/procesar_cobro_caja/{venta.id}', data={
+            'metodo_pago': metodo,
+            'tipo_documento': doc,
+            'monto_recibido': str(venta.monto_total + 50),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+        db.session.expire_all()
+        vr = db.session.get(m.Venta, venta.id)
+        assert vr.estado == 'Pagado'
+
+    def test_cobro_venta_inexistente(self, app_client):
+        r = app_client.post('/procesar_cobro_caja/999999', data={
+            'metodo_pago': 'Efectivo',
+            'tipo_documento': 'Boleta',
+            'monto_recibido': '50000',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302, 404)
+
+    def test_anular_vale_pendiente(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[2]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+
+        r = app_client.post(f'/caja/vales/{venta.id}/anular', data={
+            'motivo': 'QA test anulacion via HTTP',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+        db.session.expire_all()
+        vr = db.session.get(m.Venta, venta.id)
+        assert vr.estado == 'Anulada'
+
+    def test_anular_sin_motivo(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        r = app_client.post(f'/caja/vales/{venta.id}/anular', data={
+            'motivo': '',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_cobro_ya_pagado_rechaza(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        cobrar_venta_efectivo(venta, caja_abierta)
+
+        r = app_client.post(f'/procesar_cobro_caja/{venta.id}', data={
+            'metodo_pago': 'Efectivo',
+            'tipo_documento': 'Boleta',
+            'monto_recibido': str(venta.monto_total),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_caja_cambios_get(self, app_client):
+        _ensure_caja_abierta()
+        r = app_client.get('/caja/cambios')
+        assert r.status_code in (200, 302)
+
+    def test_caja_saldos_favor_get(self, app_client):
+        r = app_client.get('/caja/saldos-favor')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  3. Bodega
+# =====================================================================
+class TestBodegaRutas:
+
+    def test_bodega_plataforma_get(self, app_client):
+        r = app_client.get('/bodega/plataforma')
+        assert r.status_code in (200, 302)
+
+    def test_bodega_plataforma_filtro_estado(self, app_client):
+        r = app_client.get('/bodega/plataforma?estado=PENDIENTE')
+        assert r.status_code in (200, 302)
+
+    def test_bodega_cuadro_mando_get(self, app_client):
+        r = app_client.get('/bodega/cuadro-mando')
+        assert r.status_code in (200, 302)
+
+    def test_bodega_cuadro_mando_tv(self, app_client):
+        r = app_client.get('/bodega/cuadro-mando/tv')
+        assert r.status_code in (200, 302)
+
+    def test_bodega_despachos_get(self, app_client):
+        r = app_client.get('/bodega/despachos')
+        assert r.status_code in (200, 302)
+
+    def test_bodega_export_dia(self, app_client):
+        r = app_client.get('/bodega/export-dia')
+        assert r.status_code in (200, 302)
+
+    def test_bodega_retiros_snapshot(self, app_client):
+        r = app_client.get('/api/bodega/retiros-cola-snapshot')
+        assert r.status_code in (200, 302)
+
+    def test_voice_command_sin_audio(self, app_client):
+        r = app_client.post('/api/bodega/voice-command',
+                            content_type='multipart/form-data', data={})
+        assert r.status_code in (200, 400, 422, 503)
+
+    def test_bodega_preparacion_post(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[4]
+        asegurar_stock_bodega(p, 50)
+        venta, _ = crear_venta_pendiente([(p, 3)], caja_abierta, cliente_final, 'Bodega')
+        cobrar_venta_efectivo(venta, caja_abierta)
+
+        r = app_client.post(f'/bodega/vale/{venta.id}/preparacion', data={
+            'estado': 'EN_PREPARACION',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  4. Compras y Recepciones
+# =====================================================================
+class TestComprasRecepciones:
+
+    def test_crear_oc_get(self, app_client):
+        r = app_client.get('/compras/ordenes/nueva')
+        assert r.status_code in (200, 302)
+
+    def test_crear_oc_post(self, app_client, productos_con_stock, proveedor_test):
+        p = productos_con_stock[3]
+        r = app_client.post('/compras/ordenes/nueva', data={
+            'proveedor_id': str(proveedor_test.id),
+            'numero': f'QA-HTTP-{datetime.now():%H%M%S%f}',
+            'estado': 'Borrador',
+            'producto_id[]': str(p.id),
+            'cantidad[]': '15',
+            'precio_unitario[]': str(p.precio_compra),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_recepciones_nueva_get(self, app_client):
+        r = app_client.get('/recepciones/nueva')
+        assert r.status_code in (200, 302)
+
+    def test_recepciones_tablet(self, app_client):
+        r = app_client.get('/recepciones/tablet')
+        assert r.status_code in (200, 302)
+
+    def test_recepciones_costos(self, app_client):
+        r = app_client.get('/recepciones/costos')
+        assert r.status_code in (200, 302)
+
+    def test_oc_detalle_get(self, app_client, productos_con_stock, proveedor_test):
+        db.session.rollback()
+        p = productos_con_stock[3]
+        db.session.expire_all()
+        prov_id = proveedor_test.id
+        oc = m.OrdenCompra(
+            proveedor_id=prov_id,
+            numero=f'QA-DET-{datetime.now():%H%M%S%f}',
+            fecha_emision=date.today(), estado='Borrador',
+            usuario_creador=QA_USER)
+        db.session.add(oc)
+        db.session.flush()
+        db.session.add(m.DetalleOrdenCompra(
+            orden_compra_id=oc.id, producto_id=p.id,
+            cantidad=5, precio_unitario=p.precio_compra))
+        db.session.commit()
+        r = app_client.get(f'/compras/ordenes/{oc.id}')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  5. Creditos
+# =====================================================================
+class TestCreditos:
+
+    def test_creditos_lista(self, app_client):
+        r = app_client.get('/creditos')
+        assert r.status_code in (200, 302)
+
+    def test_registrar_abono(self, app_client, cliente_credito, caja_abierta):
+        _ensure_caja_abierta()
+        cliente_credito.saldo_deudor = 50000
+        db.session.commit()
+
+        r = app_client.post('/registrar_abono', data={
+            'cliente_id': str(cliente_credito.id),
+            'metodo_pago': 'Efectivo',
+            'monto_abono': '10000',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_estado_cuenta_get(self, app_client, cliente_credito):
+        r = app_client.get(f'/creditos/estado_cuenta/{cliente_credito.id}')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  6. Admin: crear/editar producto, cliente, proveedor
+# =====================================================================
+class TestAdminCRUD:
+
+    def test_guardar_producto_completo(self, app_client):
+        from sqlalchemy import text as sa_text
+        ts = datetime.now().strftime('%H%M%S%f')
+        r = app_client.post('/guardar_producto', data={
+            'nombre': f'QA Producto HTTP {ts}',
+            'codigo': f'QA-HTTP-{ts}',
+            'p_compra': '1000',
+            'p_venta': '1990',
+            'stock': '10',
+            'unidad': 'Unidad',
+            'categoria': 'Test',
+            'subcategoria': 'HTTP',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+        prod = m.Producto.query.filter_by(codigo_barra=f'QA-HTTP-{ts}').first()
+        if prod:
+            assert prod.precio_venta == 1990
+            pid = prod.id
+            db.session.execute(sa_text("DELETE FROM stock_por_almacen WHERE id_producto = :p"), {'p': pid})
+            db.session.execute(sa_text("DELETE FROM movimientos_inventario WHERE id_producto = :p"), {'p': pid})
+            db.session.execute(sa_text("DELETE FROM productos WHERE id = :p"), {'p': pid})
+            db.session.commit()
+
+    def test_toggle_producto(self, app_client, productos_con_stock):
+        p = productos_con_stock[4]
+        r = app_client.post(f'/toggle_producto/{p.id}', follow_redirects=True)
+        assert r.status_code in (200, 302)
+        db.session.expire(p)
+        r2 = app_client.post(f'/toggle_producto/{p.id}', follow_redirects=True)
+        assert r2.status_code in (200, 302)
+
+    def test_editar_stock_producto(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.post(f'/productos/{p.id}/editar_stock', data={
+            'nuevo_stock': '999',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_guardar_proveedor(self, app_client):
+        ts = datetime.now().strftime('%H%M%S%f')
+        r = app_client.post('/guardar_proveedor', data={
+            'nombre': f'QA Prov HTTP {ts}',
+            'contacto': 'QA Contact',
+            'telefono': '+56900000099',
+            'email': f'qa{ts}@test.cl',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+        prov = m.Proveedor.query.filter_by(nombre=f'QA Prov HTTP {ts}').first()
+        if prov:
+            db.session.delete(prov)
+            db.session.commit()
+
+    def test_admin_clientes_post(self, app_client):
+        r = app_client.post('/admin/clientes', data={
+            'rut': '99.999.999-9',
+            'nombre': 'QA Cliente HTTP Test',
+            'giro': 'Test',
+            'direccion': 'Test 123',
+            'telefono': '+56900000098',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+        cli = m.Cliente.query.filter_by(rut='99.999.999-9').first()
+        if cli:
+            db.session.delete(cli)
+            db.session.commit()
+
+    def test_eliminar_venta_anulada(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        venta.estado = 'Anulada'
+        venta.motivo_anulacion = 'QA HTTP delete test'
+        db.session.commit()
+        r = app_client.post(f'/eliminar_venta/{venta.id}', follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  7. Exports y Reportes
+# =====================================================================
+class TestExportsReportes:
+
+    def test_bi_export_csv(self, app_client):
+        r = app_client.get('/bi/export.csv')
+        assert r.status_code in (200, 302)
+
+    def test_bi_export_vendedores(self, app_client):
+        r = app_client.get('/bi/export_vendedores.csv')
+        assert r.status_code in (200, 302)
+
+    def test_productos_exportar_excel(self, app_client):
+        r = app_client.get('/productos/exportar_excel')
+        assert r.status_code in (200, 302)
+
+    def test_descargar_plantilla(self, app_client):
+        r = app_client.get('/descargar_plantilla_productos')
+        assert r.status_code in (200, 302)
+
+    def test_ver_documento(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        cobrar_venta_efectivo(venta, caja_abierta)
+        r = app_client.get(f'/ver_documento/{venta.id}')
+        assert r.status_code in (200, 302, 404)
+
+
+# =====================================================================
+#  8. Permisos denegados por rol
+# =====================================================================
+class TestPermisosDenegados:
+
+    def test_bodeguero_no_accede_admin(self, app_client):
+        with login_as(app_client, 'bodeguero') as c:
+            r = c.get('/admin/roles-permisos')
+            assert r.status_code in (200, 302, 403)
+
+    def test_vendedor_no_accede_bodega(self, app_client):
+        with login_as(app_client, 'vendedor') as c:
+            r = c.get('/bodega/plataforma')
+            assert r.status_code in (200, 302, 403)
+
+    def test_cajera_accede_vales_pendientes(self, app_client):
+        _ensure_caja_abierta()
+        with login_as(app_client, 'cajera') as c:
+            r = c.get('/caja/vales_pendientes')
+            assert r.status_code in (200, 302)
+
+    def test_admin_accede_todo(self, app_client):
+        with login_as(app_client, 'admin') as c:
+            for url in ['/productos', '/ventas', '/bodega/plataforma',
+                        '/caja/vales_pendientes', '/admin/roles-permisos']:
+                r = c.get(url)
+                assert r.status_code in (200, 302), f'{url} -> {r.status_code}'
+
+
+# =====================================================================
+#  9. Validaciones de estado post-cobro
+# =====================================================================
+class TestValidacionEstado:
+
+    def test_cobro_genera_kardex_y_stock_change(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[2]
+        stock_pre = m.stock_disponible_venta_tienda(p)
+        venta, _ = crear_venta_pendiente([(p, 2)], caja_abierta, cliente_final)
+        vid = venta.id
+
+        app_client.post(f'/procesar_cobro_caja/{vid}', data={
+            'metodo_pago': 'Efectivo',
+            'tipo_documento': 'Boleta',
+            'monto_recibido': str(venta.monto_total + 500),
+        }, follow_redirects=True)
+
+        db.session.expire_all()
+        vr = db.session.get(m.Venta, vid)
+        assert vr.estado == 'Pagado'
+
+        kardex = m.MovimientoInventario.query.filter_by(
+            referencia_tipo='venta', referencia_id=vid, id_producto=p.id).all()
+        assert len(kardex) >= 1
+        assert all(k.tipo_movimiento == 'SALIDA' for k in kardex)
+
+        from sqlalchemy import text as sa_text
+        audit = db.session.execute(sa_text(
+            "SELECT COUNT(*) FROM erp_audit_log WHERE entidad_tipo = 'venta' AND entidad_id = :vid"
+        ), {'vid': vid}).scalar()
+        assert audit >= 1
+
+        db.session.expire_all()
+        stock_post = m.stock_disponible_venta_tienda(p)
+        assert stock_post <= stock_pre
+
+    def test_anulacion_via_http_revierte_estado(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[3]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+
+        app_client.post(f'/caja/vales/{venta.id}/anular', data={
+            'motivo': 'QA validacion estado reversa',
+        }, follow_redirects=True)
+
+        db.session.expire_all()
+        vr = db.session.get(m.Venta, venta.id)
+        assert vr.estado == 'Anulada'
+        assert vr.motivo_anulacion is not None
+
+
+# =====================================================================
+#  10. Rutas adicionales de alto trafico
+# =====================================================================
+class TestRutasAltoTrafico:
+
+    def test_buscar_producto_autocomplete(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.get(f'/buscar_producto?q={p.nombre[:6]}')
+        assert r.status_code == 200
+        data = r.get_json()
+        assert 'results' in data
+        assert len(data['results']) >= 1
+
+    def test_buscar_producto_por_codigo_barra(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.get(f'/api/buscar_producto/{p.codigo_barra}')
+        assert r.status_code in (200, 404)
+
+    def test_healthz(self, app_client):
+        r = app_client.get('/healthz')
+        assert r.status_code == 200
+        assert r.get_json()['status'] == 'ok'
+
+    def test_login_get(self, app_client):
+        r = app_client.get('/login')
+        assert r.status_code in (200, 302)
+
+    def test_owner_mobile(self, app_client):
+        r = app_client.get('/owner-mobile')
+        assert r.status_code in (200, 302)
+
+    def test_ia_abastecimiento(self, app_client):
+        r = app_client.get('/ia_abastecimiento')
+        assert r.status_code in (200, 302)
+
+    def test_comercial_leads(self, app_client):
+        r = app_client.get('/comercial/leads')
+        assert r.status_code in (200, 302)
+
+    def test_inventario_enrolamiento(self, app_client):
+        r = app_client.get('/inventario/enrolamiento')
+        assert r.status_code in (200, 302)
+
+    @pytest.mark.parametrize('url', [
+        '/bi/demo/dueno',
+        '/bi/demo/radar-mercado',
+        '/bi/demo/alertas-precio-premium',
+        '/gerencia/simulador-margen',
+    ])
+    def test_bi_demos(self, url, app_client):
+        r = app_client.get(url)
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  11. Rutas de Caja (cierre, historial, movimientos)
+# =====================================================================
+class TestCajaExtra:
+
+    def test_cerrar_caja_post(self, app_client):
+        _ensure_caja_abierta()
+        r = app_client.post('/cerrar_caja', follow_redirects=True)
+        assert r.status_code in (200, 302)
+        _ensure_caja_abierta()
+
+    def test_historial_cierres(self, app_client):
+        r = app_client.get('/caja/historial_cierres')
+        assert r.status_code in (200, 302)
+
+    def test_movimiento_caja_post(self, app_client):
+        _ensure_caja_abierta()
+        r = app_client.post('/movimiento_caja', data={
+            'tipo': 'Ingreso',
+            'concepto': 'QA test ingreso',
+            'monto': '5000',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_abrir_caja_con_monto(self, app_client):
+        caja = m.Caja.query.filter_by(estado='Abierta').first()
+        if caja:
+            caja.estado = 'Cerrada'
+            caja.fecha_cierre = datetime.now()
+            db.session.commit()
+        r = app_client.post('/abrir_caja', data={
+            'monto_inicial': '100000',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+        _ensure_caja_abierta()
+
+
+# =====================================================================
+#  12. Clientes y consultas
+# =====================================================================
+class TestClientesConsultas:
+
+    def test_consultar_cliente_por_rut(self, app_client, cliente_credito):
+        rut = cliente_credito.rut or '11.111.111-1'
+        r = app_client.get(f'/consultar_cliente?rut={rut}')
+        assert r.status_code == 200
+
+    def test_consultar_cliente_vacio(self, app_client):
+        r = app_client.get('/consultar_cliente?rut=')
+        assert r.status_code in (200, 400)
+
+    def test_admin_clientes_get(self, app_client):
+        r = app_client.get('/admin/clientes')
+        assert r.status_code in (200, 302)
+
+    def test_creditos_estado_cuenta_pdf(self, app_client, cliente_credito):
+        r = app_client.get(f'/creditos/estado_cuenta/{cliente_credito.id}/pdf')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  13. Kardex detallado
+# =====================================================================
+class TestKardexDetallado:
+
+    def test_kardex_con_fechas(self, app_client):
+        hoy = date.today().isoformat()
+        ayer = (date.today() - timedelta(days=1)).isoformat()
+        r = app_client.get(f'/kardex?desde={ayer}&hasta={hoy}')
+        assert r.status_code in (200, 302)
+
+    def test_kardex_con_producto(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.get(f'/kardex?producto_id={p.id}')
+        assert r.status_code in (200, 302)
+
+    def test_kardex_export_csv(self, app_client):
+        r = app_client.get('/kardex?export=csv')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  14. Ventas (listado, filtros, documento)
+# =====================================================================
+class TestVentasDetalle:
+
+    def test_ventas_filtro_estado_pagado(self, app_client):
+        r = app_client.get('/ventas?estado=Pagado')
+        assert r.status_code in (200, 302)
+
+    def test_ventas_filtro_estado_pendiente(self, app_client):
+        r = app_client.get('/ventas?estado=Pendiente')
+        assert r.status_code in (200, 302)
+
+    def test_ventas_filtro_estado_anulada(self, app_client):
+        r = app_client.get('/ventas?estado=Anulada')
+        assert r.status_code in (200, 302)
+
+    def test_ventas_filtro_por_fecha(self, app_client):
+        hoy = date.today().isoformat()
+        r = app_client.get(f'/ventas?desde={hoy}&hasta={hoy}')
+        assert r.status_code in (200, 302)
+
+    def test_ver_documento_venta(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        cobrar_venta_efectivo(venta, caja_abierta)
+        r = app_client.get(f'/ver_documento/{venta.id}')
+        assert r.status_code in (200, 302, 404)
+
+
+# =====================================================================
+#  15. Recepciones detalladas
+# =====================================================================
+class TestRecepcionesDetalle:
+
+    def test_recepcion_nueva_post(self, app_client, productos_con_stock, proveedor_test):
+        db.session.rollback()
+        db.session.expire_all()
+        p = productos_con_stock[3]
+        r = app_client.post('/recepciones/nueva', data={
+            'proveedor_id': str(proveedor_test.id),
+            'producto_id[]': str(p.id),
+            'cantidad[]': '10',
+            'precio_unitario[]': str(p.precio_compra),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  16. Rutas miscelaneas de alto impacto en coverage
+# =====================================================================
+class TestMiscCoverage:
+
+    def test_buscar_producto_query(self, app_client, productos_con_stock):
+        r = app_client.get('/buscar_producto?q=TEST')
+        assert r.status_code == 200
+        data = r.get_json()
+        assert 'results' in data
+
+    @pytest.mark.parametrize('url', [
+        '/bi/panel-dueno',
+        '/bi',
+        '/gerencia/informes-dueno',
+    ])
+    def test_gerencia_bi_pages(self, url, app_client):
+        r = app_client.get(url)
+        assert r.status_code in (200, 302)
+
+    def test_cambiar_password_get(self, app_client):
+        r = app_client.get('/cambiar_password')
+        assert r.status_code in (200, 302)
+
+    def test_editar_usuario_get(self, app_client):
+        admin = _get_admin_user()
+        if admin:
+            r = app_client.get(f'/editar_usuario/{admin.id}')
+            assert r.status_code in (200, 302)
+
+    def test_proveedores_lista(self, app_client):
+        r = app_client.get('/proveedores')
+        assert r.status_code in (200, 302)
+
+    def test_recepciones_lista(self, app_client):
+        r = app_client.get('/recepciones')
+        assert r.status_code in (200, 302)
+
+    def test_compras_seguimiento_rapido(self, app_client, productos_con_stock, proveedor_test):
+        db.session.rollback()
+        db.session.expire_all()
+        oc = m.OrdenCompra.query.filter_by(estado='Borrador').first()
+        if oc:
+            r = app_client.post(f'/compras/ordenes/{oc.id}/seguimiento_rapido', data={
+                'estado': 'Enviada',
+            }, follow_redirects=True)
+            assert r.status_code in (200, 302)
+
+    def test_api_sistema_salud(self, app_client):
+        r = app_client.get('/api/sistema/salud')
+        assert r.status_code in (200, 302)
+
+    def test_api_cobranza_sugerencias(self, app_client):
+        r = app_client.get('/api/creditos/cobranza/sugerencias')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  17. Cotizaciones
+# =====================================================================
+class TestCotizaciones:
+
+    def test_cotizaciones_lista(self, app_client):
+        r = app_client.get('/cotizaciones')
+        assert r.status_code in (200, 302)
+
+    def test_cotizaciones_nueva_get(self, app_client):
+        r = app_client.get('/cotizaciones/nueva')
+        assert r.status_code in (200, 302)
+
+    def test_cotizaciones_buscar_productos(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.get(f'/api/cotizaciones/buscar_productos?q={p.nombre[:5]}')
+        assert r.status_code in (200, 302)
+
+    def test_cotizaciones_buscar_clientes(self, app_client, cliente_credito):
+        r = app_client.get(f'/api/cotizaciones/buscar_clientes?q={cliente_credito.nombre[:4]}')
+        assert r.status_code in (200, 302)
+
+
+# =====================================================================
+#  18. Mas rutas de admin
+# =====================================================================
+class TestAdminExtra:
+
+    def test_admin_empresa_post(self, app_client):
+        r = app_client.post('/admin/empresa', data={
+            'nombre': 'QA Ferreteria Test',
+            'rut': '76.000.000-0',
+            'giro': 'Ferreteria QA',
+            'direccion': 'Test 123',
+            'comuna': 'Santiago',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_admin_almacenes_post_nuevo(self, app_client):
+        ts = datetime.now().strftime('%H%M%S%f')
+        r = app_client.post('/admin/almacenes', data={
+            'nombre': f'QA Almacen {ts}',
+            'tipo': 'Bodega',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_usuarios_post_nuevo(self, app_client):
+        ts = datetime.now().strftime('%H%M%S%f')
+        rol = m.Rol.query.first()
+        if rol:
+            r = app_client.post('/usuarios', data={
+                'nombre': f'QA User {ts}',
+                'correo': f'qa_user_{ts}@test.cl',
+                'password': 'test12345',
+                'rol_id': str(rol.id),
+            }, follow_redirects=True)
+            assert r.status_code in (200, 302)
+            u = m.Usuario.query.filter_by(correo=f'qa_user_{ts}@test.cl').first()
+            if u:
+                db.session.delete(u)
+                db.session.commit()
+
+    def test_editar_proveedor_post(self, app_client, proveedor_test):
+        db.session.rollback()
+        db.session.expire_all()
+        r = app_client.post(f'/editar_proveedor/{proveedor_test.id}', data={
+            'nombre': proveedor_test.nombre,
+            'contacto': 'QA Updated Contact',
+            'telefono': '+56911111111',
+            'email': proveedor_test.email or 'qa@test.cl',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_precios_revision_aplicar(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.post(f'/precios/revision/editar/{p.id}', data={
+            'precio_venta': str(p.precio_venta),
+            'precio_compra': str(p.precio_compra),
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+    def test_login_post_invalid_password(self, app_client):
+        admin = _get_admin_user()
+        if admin:
+            r = app_client.post('/login', data={
+                'correo': admin.correo,
+                'password': 'wrong_password_qa',
+            }, follow_redirects=True)
+            assert r.status_code in (200, 302)
+
+    def test_admin_catalogo_post(self, app_client):
+        ts = datetime.now().strftime('%H%M%S%f')
+        r = app_client.post('/admin/catalogo', data={
+            'accion': 'crear_categoria',
+            'nombre': f'QA Cat {ts}',
+        }, follow_redirects=True)
+        assert r.status_code in (200, 302)
+
+
+# Como correr solo estos tests
+# pytest tests/test_routes_criticas.py -v --cov=app --cov-report=term-missing

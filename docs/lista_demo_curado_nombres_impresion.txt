@@ -1,0 +1,90 @@
+FERRETERIA SANTO DOMINGO — Lista demo curada (solo nombres)
+Codigo interno en sistema: DEMO-CUR-* | Script: scripts/seed_ferreteria_curado_chile_demo.py
+Total: 81 articulos referenciales
+
+================================================================================
+
+ 1. Martillo carpintero mango fibra 27 oz referencial demo
+ 2. Martillo de bola cabeza 450 g mango madera demo
+ 3. Alicate universal 8" cromado mango doble material demo
+ 4. Alicate punta larga 6" electricista demo
+ 5. Destornillador estrella PH2 x 100 mm punta imantada demo
+ 6. Juego destornilladores 6 piezas punta mixta demo
+ 7. Llave ajustable 12" mandíbula cromada demo
+ 8. Llave combinada 17 mm forjada demo
+ 9. Serrucho costilla 22" dientes templados demo
+10. Taladro percutor 13 mm 750 W cable demo
+11. Taladro atornillador 12 V 2 baterías Li demo
+12. Esmeril angular 4½" 850 W referencial demo
+13. Sierra circular 7¼" 185 mm 1400 W demo
+14. Lijadora orbital 240 W base 125 mm demo
+15. Rotomartillo SDS Plus 800 W demo
+16. Tornillo drywall negro 6x1" bolsa 500 u demo
+17. Tornillo madera Tirafondo 6x60 mm bolsa 50 u demo
+18. Clavo acero común 2" bolsa 1 kg demo
+19. Tarugo nylon 8 mm bolsa 50 u demo
+20. Perno galvanizado ⅜" x 4" tuerca arandela demo
+21. Abrazadera manguera inox ½" 2 u blister demo
+22. Arandela plana zinc surtido estuche 200 u demo
+23. Tornillo autoroscante punta broca hexagonal bolsa 100 u demo
+24. Clavo para concreto acero 3" bolsa 500 g demo
+25. Látex interior blanco 20 L cubeta demo
+26. Látex exterior premium blanco 10 L demo
+27. Esmalte sintético negro brillante ¼ galón demo
+28. Barniz marino brillante 1 L demo
+29. Brocha cerda natural 3" mango madera demo
+30. Rodillo felpa 9" mango plástico demo
+31. Enduido pasta interior 25 kg bolsa demo
+32. Sellador acrílico 5 L demo
+33. Tubo PVC sanitario 110 mm x 3 m SN4 demo
+34. Tubo PVC presión ¾" x 5 m clase 10 demo
+35. Codo PVC 90° 110 mm demo
+36. Llave de paso compresión ½" demo
+37. Flexible lavamanos 40 cm acero demo
+38. Sifón botella lavaplato plástico demo
+39. Teflón gas rojo rollo 12 mm x 10 m demo
+40. Masilla plástica epóxica tubo bicomponente demo
+41. Unión PVC con reducción 110 a 90 mm demo
+42. Te PVC sanitario 110 mm demo
+43. Cable THHN 2.5 mm² rollo 100 m negro demo
+44. Cable subterráneo 3x2.5 mm² metro demo
+45. Interruptor simple 10 A embutir demo
+46. Interruptor doble 10 A embutir demo
+47. Enchufe polarizado embutir 10 A demo
+48. Canaleta PVC adherente 25x16 mm rollo 2 m demo
+49. Ampolleta LED fría 9 W E27 demo
+50. Pack ampolletas LED 10 W cálida blister 4 u demo
+51. Breaker monofásico 16 A curva C demo
+52. Zapatilla 6 tomas sobretensión demo
+53. Cemento Polpaço 25 kg bolsa demo
+54. Yeso saco 25 kg demo
+55. Adhesivo cerámico interior 25 kg demo
+56. Autonivelante saco 20 kg demo
+57. Lana mineral rollo 50 mm x 9 m² demo
+58. Espuma poliuretano PU750 ml pistola demo
+59. Melamina blanca 15 mm 1,22x2,44 m lámina demo
+60. MDF crudo 12 mm 1,22x2,44 m lámina demo
+61. Clavo acero arpillera 1½" bolsa 500 g demo
+62. Gas guantes nitrilo negro par talla M demo
+63. Guantes vaqueta refuerzo palma demo
+64. Lentes seguridad anti-rayado demo
+65. Casco seguridad blanco arnés ratchet demo
+66. Mascarilla respirador válvula FFP2 blister demo
+67. Zapatilla seguridad puntera acero talla 42 demo
+68. Manguera jardín ½" 25 m capas verde demo
+69. Pala construcción mango fibra demo
+70. Rastrillo metálico 14 dientes mango demo
+71. Regador plástico 10 L verde demo
+72. Tijeras podar bypass 8" demo
+73. Azadón forjado mango madera demo
+74. Bisagra hierro 3" par zincado demo
+75. Candado laminado 50 mm 2 llaves demo
+76. Cerradura sobreponer 60 mm latón demo
+77. Riel cajón telescópico 35 cm par demo
+78. Soporte estantería L 250 mm par demo
+79. Pasador pestillo 4" acero demo
+80. Picaporte aluminio plateado demo
+81. Escuadra refuerzo estantería zincada demo
+
+================================================================================
+Fin de lista

@@ -1,0 +1,119 @@
+---
+description: Contexto completo del ERP Lhexa (lhexa.cl) Ferreteria - arquitectura, tests, estado actual
+globs:
+alwaysApply: true
+---
+
+# ERP Lhexa (www.lhexa.cl) Ferreteria - Contexto del Proyecto
+
+## Arquitectura General
+- **Framework**: Flask monolitico (~16,000 lineas en `app.py`) + blueprints (`blueprints/pos.py`, `blueprints/caja.py`, `blueprints/bodega.py`)
+- **BD**: PostgreSQL via Flask-SQLAlchemy (produccion en Neon/Render, local para QA)
+- **Auth**: Flask-Login + RBAC custom (`Rol`, `Permiso`, `RolPermiso`, `permisos_required` decorator)
+- **Transacciones**: `transaccion_critica()` context manager con savepoints (en `services/venta_service.py`)
+- **Stock**: Modelo dual `Producto.stock` (total) + `StockPorAlmacen` (por almacen: tienda/bodega)
+- **IVA Chile**: 19% incluido, funciones `desglosar_iva()` y `recalcular_total()`
+
+## Modelos Principales (en app.py)
+- `Usuario`, `Rol`, `Permiso`, `RolPermiso` - RBAC
+- `Producto`, `StockPorAlmacen`, `MovimientoInventario` (kardex)
+- `Venta`, `DetalleVenta`, `VentaCuotaCredito` - ventas
+- `Caja`, `MovimientoCaja` - caja registradora
+- `Cliente`, `Proveedor`
+- `OrdenCompra`, `DetalleOrdenCompra`, `RecepcionCompra`, `DetalleRecepcion`
+- `ErpAuditLog` - auditoria
+- `Almacen` - tienda y bodega
+- `Cotizacion`, `DetalleCotizacion` - cotizaciones
+
+## Services (carpeta services/)
+- `venta_service.py` - `transaccion_critica()` context manager
+- `stock_service.py` - `descontar_stock_venta_tienda()`, `incrementar_stock_venta_tienda()`, `refrescar_stock_total_producto()`
+- `audit_service.py` - `audit_log()` para erp_audit_log
+- `kardex_service.py` - `registrar_movimiento_kardex()`
+- `c360_service.py` - Construccion 360
+- `unidades_service.py` - unidades de medida
+- `whatsapp_service.py` - notificaciones WhatsApp
+
+## Rutas Criticas
+- **POS**: `/punto_venta` (GET), `/guardar_venta` (POST), `/finalizar_venta` (POST), `/agregar_producto_venta` (GET/POST), `/editar_venta/<id>` (GET/POST)
+- **Caja**: `/caja/vales_pendientes` (GET), `/procesar_cobro_caja/<id>` (POST), `/caja/vales/<id>/anular` (POST), `/cerrar_caja` (GET/POST), `/abrir_caja` (GET/POST), `/movimiento_caja` (GET/POST)
+- **Bodega**: `/bodega/plataforma` (GET), `/bodega/cuadro-mando` (GET), `/api/bodega/voice-command` (POST audio), `/bodega/vale/<vid>/preparacion` (POST)
+- **Compras**: `/compras/ordenes/nueva` (GET/POST), `/recepciones/nueva` (GET/POST)
+- **Creditos**: `/creditos` (GET), `/registrar_abono` (POST), `/creditos/estado_cuenta/<id>` (GET)
+- **Cotizaciones**: `/cotizaciones` (GET), `/cotizaciones/nueva` (GET/POST)
+
+## Decoradores de Permisos
+- `@login_required` - Flask-Login
+- `@caja_requerida` - requiere caja abierta (solo para endpoints en `_ENDPOINTS_CAJA_ESTRICTA`)
+- `@permisos_required('nombre_permiso')` - verifica RBAC (admin/superadmin bypassa todo)
+- Roles admin: nombres 'Admin', 'admin', 'Administrador', 'administrador', 'SuperAdmin'
+
+## Suite de Tests (estado: 200 tests, 41% coverage)
+
+### Archivos de test
+1. `tests/conftest.py` - fixtures y helpers compartidos
+2. `tests/test_end_to_end.py` - 43 tests E2E (T1-T18)
+3. `tests/test_routes.py` - 51 tests GET/POST basicos
+4. `tests/test_routes_criticas.py` - 106 tests rutas criticas con validacion de estado
+
+### Fixtures principales (conftest.py)
+- `app_ctx` (session) - contexto de app Flask
+- `limpieza_qa` (session) - limpia datos TEST-* antes/despues
+- `productos_con_stock` (session) - 5 productos TEST-A..E con stock
+- `cliente_credito` (session) - cliente QA con cupo credito
+- `proveedor_test` (session) - proveedor TEST
+- `caja_abierta` (session) - caja abierta para QA
+- `cliente_final` (function) - cliente final del sistema
+- `app_client` (session) - Flask test_client autenticado como admin
+- `audit_snapshot` (function) - snapshot de erp_audit_log
+
+### Helpers criticos (conftest.py)
+- `crear_venta_pendiente(items, caja, cliente, punto_retiro)` - crea venta en estado Pendiente
+- `cobrar_venta_efectivo(venta, caja)` - cobra y cambia a Pagado
+- `asegurar_stock_bodega(producto, cantidad)` - fuerza stock exacto en bodega
+- `trasladar_stock(producto, origen, destino, cantidad)` - usa SQL directo
+- `login_as(client, role_name)` - context manager para cambiar rol en test client
+- `_borrar_cliente_test()` - limpieza FK-safe del cliente de test
+
+### Constantes QA
+- `QA_USER = '__qa_runner__'`
+- `CLIENTE_TEST = {'rut': '99.888.777-6', 'nombre': 'QA Test Client', ...}`
+- Productos: codigo_barra `TEST-A` a `TEST-E`, precios 1990-9990
+
+### Proteccion BD produccion
+- `_verificar_no_es_produccion()` en conftest.py bloquea tests si DATABASE_URL contiene hosts cloud (neon.tech, render.com, railway.app, etc.)
+- Override: `ALLOW_TESTS_ON_REMOTE=1`
+
+## CI/CD
+- `.github/workflows/tests.yml` - GitHub Actions (smoke en PR, full en main)
+- `pytest.ini` - markers: smoke, happy_path, anulacion, edge_case, concurrency, etc.
+
+## Documentacion
+- `docs/ERP_MAESTRO.md` - documento maestro del ERP (17 secciones)
+- `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` - plan de trabajo
+
+## Demo Data
+- `scripts/seed_demo_data.py` - genera datos demo realistas (prefijo DEMO_SEED)
+- `scripts/seed_test_data.py` - script legacy v2 (deprecated, reemplazado por pytest)
+
+## Problemas Conocidos / Cuidados
+- SQLAlchemy identity map puede dar valores stale en tests concurrentes -> usar `db.session.expire_all()` o SQL directo
+- `@caja_requerida` redirige si no hay caja abierta -> fixtures deben asegurar caja
+- Cleanup de tests debe respetar FK order: cuotas > detalle_ventas > ventas > abonos_credito > clientes
+- Voice command (`/api/bodega/voice-command`) requiere Whisper API key -> retorna 503 en QA sin key
+- Productos TEST-* generan detalle_ventas via HTTP -> cleanup debe borrar detalle_ventas referenciando TEST-* antes de borrar productos
+
+## Comandos Utiles
+```bash
+# Suite completa con coverage
+pytest tests/ --cov=app --cov=services --cov-report=term
+
+# Solo smoke (rapido, CI)
+pytest tests/ -m smoke -q --tb=no
+
+# Solo rutas criticas
+pytest tests/test_routes_criticas.py -v --cov=app --cov-report=term-missing
+
+# Demo data
+python scripts/seed_demo_data.py
+```

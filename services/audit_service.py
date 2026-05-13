@@ -20,7 +20,7 @@ def audit_log(evento, entidad_tipo, entidad_id=None, usuario=None, datos_antes=N
     import app as app_module
 
     try:
-        if not app_module._asegurar_tabla_erp_audit_log():
+        if not app_module.app.config.get('_ERP_AUDIT_LOG_TABLE_OK'):
             return
         nom = (
             usuario

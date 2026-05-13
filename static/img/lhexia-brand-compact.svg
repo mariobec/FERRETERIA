@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 92" fill="none" role="img" aria-labelledby="lhexiaTitle">
+  <title id="lhexiaTitle">LhexIA - Inteligencia operativa ERP</title>
+  <defs>
+    <linearGradient id="lxOrange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFB347"/>
+      <stop offset="55%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#EA580C"/>
+    </linearGradient>
+  </defs>
+  <!-- Fallback vector: L en icono; wordmark oficial es hex + IA (ver lhexia-brand-official.png) -->
+  <g transform="translate(2,4)">
+    <path fill="#F8FAFC" d="M0 0v84h72V56H28V0z"/>
+    <path fill="url(#lxOrange)" d="M34 14 86 6l12 46-48 18z" opacity="0.98"/>
+    <circle cx="88" cy="8" r="5.5" fill="#F97316"/>
+    <circle cx="98" cy="38" r="5.5" fill="#EA580C"/>
+  </g>
+  <text x="118" y="40" font-family="Segoe UI, system-ui, sans-serif" font-size="26" font-weight="800" letter-spacing="-0.02em">
+    <tspan fill="#F8FAFC">hex</tspan><tspan fill="url(#lxOrange)">IA</tspan>
+  </text>
+  <text x="118" y="58" fill="#94A3B8" font-family="Segoe UI, system-ui, sans-serif" font-size="10.5" font-weight="600" letter-spacing="0.08em">
+    INTELIGENCIA OPERATIVA
+  </text>
+  <text x="118" y="78" fill="#E2E8F0" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="700" letter-spacing="0.14em">
+    ERP
+  </text>
+</svg>

@@ -85,7 +85,7 @@ def texto_resumen_vales_riesgo_slack(horas_umbral: int, items: list) -> str:
         for it in items[:35]
     ]
     body = (
-        f'*ERP LexIA* Vales con despacho bodega sin cobro (≥{horas_umbral} h): *{len(items)}* caso(s)\n'
+        f'*Lhexa ERP* Vales con despacho bodega sin cobro (≥{horas_umbral} h): *{len(items)}* caso(s)\n'
         + '\n'.join(lineas)
     )
     if len(body) > 3900:

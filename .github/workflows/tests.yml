@@ -1,0 +1,86 @@
+name: ERP LhexIA Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt 2>/dev/null || true
+          pip install pytest pytest-html pytest-cov
+
+      - name: Run smoke tests
+        run: |
+          python -m pytest tests/ -m smoke -v \
+            --tb=short \
+            --cov=app \
+            --cov-report=term-missing \
+            --html=docs/test_report_ci.html \
+            --self-contained-html \
+            --junitxml=docs/test_results.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            docs/test_report_ci.html
+            docs/test_results.xml
+          retention-days: 30
+
+  test-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt 2>/dev/null || true
+          pip install pytest pytest-html pytest-cov
+
+      - name: Run full test suite
+        run: |
+          python -m pytest tests/ -v \
+            --tb=short \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=html:docs/coverage_html \
+            --html=docs/test_report_full.html \
+            --self-contained-html
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: docs/coverage_html/
+          retention-days: 30

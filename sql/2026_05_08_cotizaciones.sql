@@ -1,4 +1,4 @@
--- Modulo de cotizaciones rapidas (LexIA IA ERP).
+-- Modulo de cotizaciones rapidas (LhexIA IA ERP).
 -- PostgreSQL. Idempotente.
 
 -- ============================================================

@@ -8,6 +8,165 @@
       top: 92px;
     }
   }
+  .pos-page-header {
+    padding: 1rem 1.15rem;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #f8fafc 0%, #eef4ff 100%);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  }
+  .pos-page-header .page-subtitle {
+    max-width: 62ch;
+  }
+  .pos-switch-btn {
+    border-radius: 999px;
+    font-weight: 800;
+    padding-inline: 1rem;
+    min-height: 42px;
+  }
+  .pos-switch-btn.is-on {
+    background: linear-gradient(135deg, #14532d, #16a34a);
+    border-color: #166534;
+    color: #fff;
+  }
+  .pos-switch-btn.is-off {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #475569;
+  }
+  .pos-command-card,
+  .pos-sale-card,
+  .pos-customer-card {
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  }
+  .pos-command-card .card-body,
+  .pos-sale-card .card-body,
+  .pos-customer-card .card-body {
+    padding: 1.35rem;
+  }
+  .pos-sale-card .card-header,
+  .pos-customer-card .card-header {
+    background: #fff;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+    padding: 1rem 1.35rem;
+  }
+  .pos-sale-card .table thead th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+  }
+  .pos-total-box {
+    margin-top: 1rem;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #f8fafc;
+    padding: 1rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.24);
+  }
+  .pos-total-box small {
+    display: block;
+    color: #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+  }
+  .pos-total-box strong {
+    font-size: clamp(1.5rem, 3vw, 2.35rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+  }
+  .pos-cockpit-card {
+    border: 0;
+    border-radius: 24px;
+    color: #e2e8f0;
+    background:
+      radial-gradient(circle at top right, rgba(56, 189, 248, 0.18), transparent 28%),
+      linear-gradient(160deg, #0f172a 0%, #172554 45%, #1e293b 100%);
+    box-shadow: 0 24px 50px rgba(15, 23, 42, 0.28);
+  }
+  .pos-cockpit-card .card-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-weight: 800;
+    padding: 1rem 1.2rem;
+  }
+  .pos-cockpit-card .card-body {
+    padding: 1.2rem;
+  }
+  .pos-cockpit-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px dashed rgba(203, 213, 225, 0.16);
+  }
+  .pos-cockpit-stat:last-of-type {
+    border-bottom: 0;
+  }
+  .pos-cockpit-stat span {
+    color: #cbd5e1;
+  }
+  .pos-cockpit-total {
+    margin: 0.9rem 0 1rem;
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.34);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    padding: 1rem 1.1rem;
+  }
+  .pos-cockpit-total-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #fbbf24;
+    font-weight: 700;
+  }
+  .pos-cockpit-total-amount {
+    display: block;
+    font-size: clamp(1.35rem, 3vw, 2rem);
+    font-weight: 900;
+    color: #fff;
+    margin-top: 0.25rem;
+  }
+  .pos-help-inline {
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 0.85rem 0.95rem;
+  }
+  .pos-cross-sell-card {
+    margin-top: 1rem;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    padding: 1rem;
+  }
+  .pos-cross-sell-card h6 {
+    margin: 0;
+    color: #fff;
+    font-weight: 800;
+  }
+  .pos-cross-sell-card .small {
+    color: #cbd5e1;
+  }
+  .pos-cross-sell-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: 0.75rem;
+  }
+  .pos-cross-sell-actions .btn {
+    border-radius: 999px;
+    font-weight: 700;
+  }
   .table-ds tbody tr.pos-row-active {
     box-shadow: inset 0 0 0 2px var(--bs-primary);
     background-color: rgba(13, 110, 253, 0.06);
@@ -21,12 +180,15 @@
 
 {% block content %}
 <div class="container-fluid px-0">
-  <div class="page-header">
+  <div class="page-header pos-page-header">
     <div>
       <h3 class="page-title"><i class="fas fa-cash-register text-success me-2"></i>Punto de Venta</h3>
-      <p class="page-subtitle">Armado rápido de pedido y emisión de vale para cobro en caja.</p>
+      <p class="page-subtitle">Armado rápido de pedido, sugerencias comerciales opcionales y emisión de vale para cobro en caja.</p>
     </div>
     <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm pos-switch-btn {% if pos_cross_sell_enabled %}is-on{% else %}is-off{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
+        <i class="fas fa-wand-magic-sparkles me-1"></i><span id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias ON{% else %}Sugerencias OFF{% endif %}</span>
+      </button>
       <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">
         <i class="fas fa-home me-1"></i> Inicio
       </a>
@@ -52,7 +214,7 @@
   {% endif %}
 
   <!-- Buscador de productos con Select2 -->
-  <div class="card card-ds mb-4">
+  <div class="card card-ds mb-4 pos-command-card">
     <div class="card-body">
       <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="row g-2 align-items-center">
         <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
@@ -98,9 +260,10 @@
   </div>
 
   <!-- Tabla de productos en la venta -->
-  <div class="card card-ds mb-4">
-    <div class="card-header bg-white">
+  <div class="card card-ds mb-4 pos-sale-card">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2">
         <h5 class="mb-0 fw-bold">Productos en la Venta</h5>
+        <span class="badge rounded-pill text-bg-warning">Vale en armado</span>
     </div>
     <div class="card-body">
       <div class="table-responsive">
@@ -183,25 +346,38 @@
         </table>
       </div>
       <hr>
-      <h3 class="fw-bold text-end text-primary">TOTAL: <span id="monto_total">{{ venta.total }}</span></h3>
+      <div class="pos-total-box">
+        <div>
+          <small>Total a emitir</small>
+          <div class="text-white-50">Se cobra luego en caja</div>
+        </div>
+        <strong id="monto_total">{{ venta.total }}</strong>
+      </div>
     </div>
   </div>
 <!-- CIERRE OPERATIVO POS: resumen + cliente -->
 <div class="row g-3 mt-2">
-  <div class="col-lg-4">
-    <div class="card card-ds h-100 pos-summary-sticky">
-      <div class="card-header">Resumen Operacional</div>
+  <div class="col-xl-4 col-lg-5">
+    <div class="card card-ds h-100 pos-summary-sticky pos-cockpit-card">
+      <div class="card-header d-flex justify-content-between align-items-center gap-2">
+        <span>Cabina de caja</span>
+        <span class="badge rounded-pill text-bg-light">Vista rápida</span>
+      </div>
       <div class="card-body">
-        <div class="d-flex justify-content-between mb-2">
-          <span class="text-muted">Items en venta</span>
+        <div class="pos-cockpit-total">
+          <span class="pos-cockpit-total-label">Total venta actual</span>
+          <strong class="pos-cockpit-total-amount" id="monto_total_cockpit">{{ venta.total }}</strong>
+        </div>
+        <div class="pos-cockpit-stat">
+          <span>Items en venta</span>
           <strong>{{ detalles|length }}</strong>
         </div>
-        <div class="d-flex justify-content-between mb-2">
-          <span class="text-muted">Vendedor</span>
+        <div class="pos-cockpit-stat">
+          <span>Vendedor</span>
           <strong>{{ current_user.nombre }}</strong>
         </div>
-        <div class="d-flex justify-content-between mb-3">
-          <span class="text-muted">Estado de salida</span>
+        <div class="pos-cockpit-stat">
+          <span>Estado de salida</span>
           <span class="badge bg-warning text-dark">Vale Pendiente</span>
         </div>
         <div class="alert alert-info small mb-2">
@@ -211,16 +387,42 @@
           Hay items con consumo mayor al stock disponible. Ajusta cantidades antes de emitir el vale.
         </div>
         {% if usuario_tiene_permiso('autorizar_descuento_pos') %}
-        <p class="small text-muted mb-0">La <strong>cantidad</strong> se guarda sola al editar. El <strong>descuento</strong> se aplica en pantalla al instante, pero debe pulsar <strong>Actualizar</strong> para guardarlo en el servidor. Con su permiso de supervisor <strong>no</strong> se pide otra credencial al subir el descuento. Para probar el flujo de autorización, use un usuario sin el permiso «autorizar descuento POS» en Mantenedores → Roles.</p>
+        <p class="small mb-0 pos-help-inline">La <strong>cantidad</strong> se guarda sola al editar. El <strong>descuento</strong> se aplica en pantalla al instante, pero debe pulsar <strong>Actualizar</strong> para guardarlo en el servidor. Con su permiso de supervisor <strong>no</strong> se pide otra credencial al subir el descuento.</p>
         {% else %}
-        <p class="small text-muted mb-0">La <strong>cantidad</strong> se guarda sola al editar. Para <strong>aumentar</strong> el descuento, pulse <strong>Actualizar</strong>: se listan supervisores desde el sistema; elige o escribe y luego la contraseña. Bajar o quitar descuento no requiere autorización.</p>
+        <p class="small mb-0 pos-help-inline">La <strong>cantidad</strong> se guarda sola al editar. Para <strong>aumentar</strong> el descuento, pulse <strong>Actualizar</strong>: se listan supervisores desde el sistema; elige o escribe y luego la contraseña.</p>
         {% endif %}
+
+        <div class="pos-cross-sell-card" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div>
+              <h6><i class="fas fa-bolt me-1 text-warning"></i>Ventas sugeridas</h6>
+              <div class="small" id="posCrossSellStateText">{% if pos_cross_sell_enabled %}Activas para esta sesión de caja{% else %}Desactivadas para esta sesión de caja{% endif %}</div>
+            </div>
+            <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span>
+          </div>
+          <div id="posCrossSellContent" class="mt-2">
+            {% if not pos_cross_sell_enabled %}
+            <p class="small mb-0">Las sugerencias están apagadas. Puedes reactivarlas con el botón superior.</p>
+            {% elif pos_cross_sell_panel and pos_cross_sell_panel['items'] %}
+            <p class="small mb-2">{{ pos_cross_sell_panel.mensaje or 'Complementos sugeridos para aumentar ticket y ayudar al cajero.' }}</p>
+            <div class="pos-cross-sell-actions">
+              {% for it in pos_cross_sell_panel['items'] %}
+              <a class="btn btn-sm btn-outline-light" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}">
+                <i class="fas fa-plus me-1"></i>{{ it.nombre }}
+              </a>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="small mb-0">Aún no hay sugerencias para los productos del vale actual.</p>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-8">
-    <div class="card card-ds">
+  <div class="col-xl-8 col-lg-7">
+    <div class="card card-ds pos-customer-card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0 fw-bold"><i class="fas fa-user-check me-2"></i>Cliente para el Vale</h5>
         <small class="text-muted">F2: buscar producto | F3: cliente final | F4: emitir vale</small>
@@ -414,6 +616,8 @@
 {% block extra_js %}
 <script id="pos-config" type="application/json">{{ {
   'descuento_libre': usuario_tiene_permiso('autorizar_descuento_pos'),
+  'cross_sell_enabled': pos_cross_sell_enabled,
+  'producto_ids': pids,
   'urls': {
     'buscar_producto': url_for('buscar_producto'),
     'agregar_producto': url_for('agregar_producto_venta'),
@@ -421,6 +625,7 @@
     'consultar_cliente': url_for('consultar_cliente'),
     'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento'),
     'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
+    'cross_sell_toggle': url_for('api_pos_cross_sell_toggle'),
     'cross_sell_reject': url_for('api_pos_cross_sell_reject')
   }
 } | tojson }}</script>

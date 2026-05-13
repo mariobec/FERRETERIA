@@ -32,3 +32,20 @@ backups/
 # Temporales Office / editor en raíz del repo
 ~$*
 ~WRL*.tmp
+
+# DTE de laboratorio certificación SII (generados por emitir-prueba)
+storage/dtes/pruebas_sii/*.xml
+storage/dtes/pruebas_sii/*.zip
+!storage/dtes/pruebas_sii/.gitkeep
+
+# Artefactos locales / reportes generados
+.coverage
+docs/test_report_*.txt
+docs/test_report_*.html
+docs/test_report_ci.html
+docs/test_report_full.html
+docs/test_results.xml
+docs/coverage_html/
+Generated_image.png
+Logos/
+liz/

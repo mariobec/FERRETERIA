@@ -2,7 +2,7 @@
    1. CONFIGURACIÓN GENERAL Y VARIABLES
    ============================================================ */
 :root {
-    --primary-corp: #f37021;    /* Naranja corporativo LexIA */
+    --primary-corp: #f37021;    /* Naranja corporativo LhexIA */
     --dark-corp: #212529;       /* Negro Sobrio ERP */
     --bg-light: #f4f7f6;        /* Gris claro para fondo POS */
 }
@@ -97,10 +97,10 @@ body:not(.index-body) {
 
 .landing-brand-logo {
     display: block;
-    height: clamp(56px, 7.5vw, 76px);
+    height: clamp(80px, 11vw, 120px);
     width: auto;
-    max-width: min(560px, 88vw);
-    max-height: 76px;
+    max-width: min(640px, 92vw);
+    max-height: 120px;
     object-fit: contain;
     object-position: left center;
     filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.38));
@@ -519,6 +519,37 @@ body:not(.index-body) {
     font-size: 0.94rem;
 }
 
+.agent-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.agent-card {
+    position: relative;
+}
+
+.agent-badge {
+    display: inline-flex;
+    margin-bottom: 14px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    color: #111827;
+    background: #ffb36f;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.agent-impact {
+    display: block;
+    margin-top: 16px;
+    color: #ffd9bd;
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
 .contrast-section .section-heading {
     max-width: 920px;
 }
@@ -788,6 +819,52 @@ body:not(.index-body) {
     font-size: 0.92rem;
 }
 
+.comparison-table-wrap {
+    overflow-x: auto;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.06));
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(20px);
+}
+
+.comparison-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+.comparison-table th,
+.comparison-table td {
+    padding: 18px 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: left;
+    vertical-align: top;
+}
+
+.comparison-table th {
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.comparison-table td {
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 0.95rem;
+    line-height: 1.65;
+}
+
+.comparison-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.comparison-table tbody tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.03);
+}
+
 .predictive-section {
     position: relative;
 }
@@ -990,6 +1067,43 @@ body:not(.index-body) {
 
 .scenario-list p {
     margin: 5px 0 0;
+    font-size: 0.92rem;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.results-card {
+    border-radius: 24px;
+    padding: 24px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(20px);
+}
+
+.results-card small {
+    display: block;
+    color: rgba(255, 255, 255, 0.58);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.74rem;
+}
+
+.results-card strong {
+    display: block;
+    margin: 10px 0 8px;
+    color: #fff;
+    font-size: 2rem;
+    line-height: 1.05;
+}
+
+.results-card p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.72);
     font-size: 0.92rem;
 }
 
@@ -1217,6 +1331,33 @@ body:not(.index-body) {
     padding: 30px;
 }
 
+.faq-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.faq-card {
+    border-radius: 24px;
+    padding: 24px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(20px);
+}
+
+.faq-card h3 {
+    color: #fff;
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+}
+
+.faq-card p {
+    margin-bottom: 0;
+    color: rgba(255, 255, 255, 0.74);
+    font-size: 0.95rem;
+}
+
 .landing-cta {
     text-align: center;
     padding: 70px 24px;
@@ -1247,7 +1388,10 @@ body:not(.index-body) {
     }
 
     .module-grid,
-    .decision-grid {
+    .decision-grid,
+    .agent-grid,
+    .results-grid,
+    .faq-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
@@ -1271,9 +1415,9 @@ body:not(.index-body) {
     }
 
     .landing-brand-logo {
-        height: clamp(50px, 14vw, 68px);
-        max-width: min(100%, 520px);
-        max-height: 68px;
+        height: clamp(64px, 18vw, 96px);
+        max-width: min(100%, 560px);
+        max-height: 96px;
     }
 
     .landing-nav-links {
@@ -1293,6 +1437,9 @@ body:not(.index-body) {
 
     .module-grid,
     .decision-grid,
+    .agent-grid,
+    .faq-grid,
+    .results-grid,
     .bi-kpis,
     .scenario-main,
     .scenario-kpis {
@@ -1629,11 +1776,11 @@ body .card-header {
     border: none !important;
 }
 
-body table {
+body table:not(.comparison-table) {
     background-color: white;
 }
 
-body table thead th {
+body table:not(.comparison-table) thead th {
     background-color: #f8f9fa !important;
     color: #6c757d !important;
     font-size: 0.75rem !important;
@@ -1643,7 +1790,7 @@ body table thead th {
     border: none !important;
 }
 
-body table tbody td {
+body table:not(.comparison-table) tbody td {
     font-size: 0.85rem !important;
     padding: 12px !important;
     vertical-align: middle !important;

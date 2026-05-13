@@ -46,10 +46,9 @@ html, body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Header compacto enterprise: marca LexIA IA ERP, sin logo de cliente.
-   El cliente (Ferreteria Santo Domingo) ya se muestra en la topbar superior. */
+/* Sidebar: logo amplio (marca lhexa.cl). El comercio va en la topbar. */
 .app-sidebar-header--compact {
-    padding: 14px 16px;
+    padding: 20px 14px 22px;
 }
 
 .app-brand-compact {
@@ -58,6 +57,7 @@ html, body {
     justify-content: flex-start;
     text-decoration: none;
     transition: opacity 0.2s ease;
+    width: 100%;
 }
 
 .app-brand-compact:hover {
@@ -66,12 +66,14 @@ html, body {
 
 .app-brand-compact img {
     display: block;
-    height: 56px;
-    width: auto;
-    max-width: min(300px, 100%);
-    max-height: 56px;
+    width: 100%;
+    height: auto;
+    min-height: 84px;
+    max-height: 120px;
+    max-width: 100%;
     object-fit: contain;
     object-position: left center;
+    filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.35));
 }
 
 .app-sidebar-nav {
@@ -287,6 +289,19 @@ html, body {
 
 .app-topbar-client {
     color: #fdba74;
+}
+
+.app-topbar-domain {
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #fb923c;
+    border-bottom: 1px solid transparent;
+}
+
+.app-topbar-domain:hover {
+    color: #ffedd5;
+    border-bottom-color: rgba(251, 146, 60, 0.55);
 }
 
 .app-topbar-user {

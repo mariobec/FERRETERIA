@@ -12,3 +12,7 @@ Pillow
 PyMuPDF
 pdfkit
 requests
+lxml
+cryptography
+signxml
+zeep

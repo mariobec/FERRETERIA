@@ -56,7 +56,7 @@ def ensure_oc(proveedor_id, numero, estado, dias_atras, lineas, observacion):
         fecha_emision=(datetime.now() - timedelta(days=dias_atras)).date(),
         estado=estado,
         observacion=observacion,
-        usuario_creador="Seed LexIA",
+        usuario_creador="Seed LhexIA",
     )
     db.session.add(oc)
     db.session.flush()

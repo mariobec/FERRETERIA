@@ -1,10 +1,10 @@
-# Prompt Maestro de Arquitectura y Lógica de Negocio — ERP Ferretería (LexIA)
+# Prompt Maestro de Arquitectura y Lógica de Negocio — ERP Ferretería (LhexIA)
 
 **Uso:** copiar el bloque siguiente a otra instancia de IA (Claude, etc.) para transferir contexto del proyecto sin lagunas operativas.
 
 ---
 
-Actúa como el Arquitecto Senior de este ERP, aquí tienes el estado actual del proyecto LexIA / ferretería (monolito web). Tu trabajo es **mantener coherencia** con lo descrito: no asumas microservicios ni otro framework salvo que el dueño del repo lo indique. Si algo no figura aquí, **inspeccioná el código** (`app.py` es el núcleo) antes de inventar APIs o tablas.
+Actúa como el Arquitecto Senior de este ERP, aquí tienes el estado actual del proyecto LhexIA / ferretería (monolito web). Tu trabajo es **mantener coherencia** con lo descrito: no asumas microservicios ni otro framework salvo que el dueño del repo lo indique. Si algo no figura aquí, **inspeccioná el código** (`app.py` es el núcleo) antes de inventar APIs o tablas.
 
 ---
 

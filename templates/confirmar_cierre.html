@@ -146,18 +146,24 @@
                 Ingrese el efectivo contado para realizar la cuadratura de caja.
             </div>
             <div class="mb-3">
-                <label for="monto_contado" class="form-label fw-bold">Efectivo contado en gaveta</label>
-                <input
-                    type="number"
-                    class="form-control form-control-lg"
-                    id="monto_contado"
-                    name="monto_contado"
-                    min="0"
-                    step="0.01"
-                    required
-                    placeholder="Ej: 150000"
-                >
-                <div class="form-text">El sistema comparará este valor con el efectivo esperado.</div>
+                <label for="monto_contado" class="form-label fw-bold">Efectivo contado en gaveta (CLP)</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light">$</span>
+                    <input
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        class="form-control form-control-lg"
+                        id="monto_contado"
+                        name="monto_contado"
+                        required
+                        placeholder="Ej: 340000 o 340.000"
+                    >
+                </div>
+                <div class="form-text">
+                    Pesos chilenos. Puede escribir solo dígitos o usar punto como <strong>miles</strong> (340.000 = trescientos cuarenta mil).
+                    No use formato de dólares: el punto <em>no</em> es decimal salvo que lleve 1 o 2 cifras (ej. 12,50 con coma).
+                </div>
             </div>
             <div class="mb-3">
                 <label for="observacion_cierre" class="form-label fw-bold">Observación de cierre (opcional)</label>
@@ -171,10 +177,15 @@
                 ></textarea>
             </div>
             <div id="alerta-diferencia" class="alert alert-danger small d-none" role="alert">
-                Diferencia sobre umbral: se requiere autorización de supervisor.
+                Diferencia sobre umbral: se requiere autorización de supervisor (usuario real del ERP con rol admin,
+                permiso «gestionar usuarios» o «ver gerencia»).
             </div>
             <div id="bloque-supervisor" class="border rounded p-3 bg-light d-none">
                 <p class="fw-bold mb-2">Autorización supervisor</p>
+                <p class="small text-muted mb-2">
+                    Ingrese el <strong>mismo usuario y contraseña</strong> que usa el responsable para iniciar sesión
+                    (no use texto de prueba). Ej.: correo o nombre exacto del administrador o gerente.
+                </p>
                 <div class="mb-2">
                     <label for="supervisor_identificador" class="form-label">Usuario o correo supervisor</label>
                     <input type="text" class="form-control" id="supervisor_identificador" name="supervisor_identificador">
@@ -209,8 +220,46 @@
     const teorico = Number({{ monto_teorico|default(0)|tojson }});
     const umbral = Number({{ umbral_diferencia|default(2000)|tojson }});
 
+    function parseClpInput(s) {
+        s = (s || '').trim().replace(/\$/g, '').replace(/\s/g, '');
+        if (!s) return null;
+        if (s.includes(',') && s.includes('.')) {
+            if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+            else s = s.replace(/,/g, '');
+        } else if (s.includes(',')) {
+            const parts = s.split(',');
+            if (parts.length === 2 && parts[1].length <= 2 && /^\d+$/.test(parts[1]))
+                s = parts[0].replace(/\./g, '') + '.' + parts[1];
+            else s = s.replace(/,/g, '');
+        } else {
+            const dots = (s.match(/\./g) || []).length;
+            if (dots >= 2) s = s.replace(/\./g, '');
+            else if (dots === 1) {
+                const [a, b] = s.split('.');
+                if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
+                    if (b.length === 3) s = a + b;
+                    else if (b.length <= 2) s = a + '.' + b;
+                    else s = a + b;
+                } else return null;
+            }
+        }
+        const v = parseFloat(s);
+        return Number.isFinite(v) ? v : null;
+    }
+
     const evaluar = () => {
-        const contado = Number(inputContado.value || 0);
+        const raw = (inputContado.value || '').trim();
+        if (!raw) {
+            bloque.classList.add('d-none');
+            alerta.classList.add('d-none');
+            inputSup.required = false;
+            inputClave.required = false;
+            return;
+        }
+        const contado = parseClpInput(raw);
+        if (contado === null) {
+            return;
+        }
         const dif = contado - teorico;
         const requiere = Math.abs(dif) >= umbral;
         bloque.classList.toggle('d-none', !requiere);

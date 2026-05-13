@@ -17,6 +17,14 @@
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(valor);
   }
 
+  function actualizarTotalesVisuales(total) {
+    const totalFmt = formatoCLP(total || 0);
+    const main = document.getElementById("monto_total");
+    const cockpit = document.getElementById("monto_total_cockpit");
+    if (main) main.innerText = totalFmt;
+    if (cockpit) cockpit.innerText = totalFmt;
+  }
+
   function actualizarSubtotal(detalleId, precioUnitario) {
     const cantidad = parseFloat(document.getElementById("cantidad_" + detalleId).value) || 0;
     const descuento = parseFloat(document.getElementById("descuento_" + detalleId).value) || 0;
@@ -33,7 +41,7 @@
       const valor = cell.innerText.replace(/[^0-9]/g, "");
       total += parseFloat(valor) || 0;
     });
-    document.getElementById("monto_total").innerText = formatoCLP(total);
+    actualizarTotalesVisuales(total);
     document.getElementById("precio_unitario_" + detalleId).innerText = formatoCLP(precioUnitario);
   }
 
@@ -358,13 +366,123 @@
     if (!cfg || !cfg.urls) return;
     const u = cfg.urls;
     const descLibre = !!cfg.descuento_libre;
+    let crossSellEnabled = cfg.cross_sell_enabled !== false;
+    const crossSellProductoIds = Array.isArray(cfg.producto_ids) ? cfg.producto_ids : [];
     let posAutorizadoresCache = [];
+
+    const crossSellPanel = document.getElementById("posCrossSellPanel");
+    const crossSellStateText = document.getElementById("posCrossSellStateText");
+    const crossSellStateBadge = document.getElementById("posCrossSellStateBadge");
+    const crossSellContent = document.getElementById("posCrossSellContent");
+    const crossSellToggleBtn = document.getElementById("posToggleCrossSellBtn");
+    const crossSellToggleText = document.getElementById("posToggleCrossSellText");
 
     function escapeHtmlPos(str) {
       if (str == null || str === "") return "";
       const d = document.createElement("div");
       d.textContent = str;
       return d.innerHTML;
+    }
+
+    function posSetCrossSellUi(enabled) {
+      crossSellEnabled = !!enabled;
+      if (crossSellToggleBtn) {
+        crossSellToggleBtn.dataset.enabled = crossSellEnabled ? "1" : "0";
+        crossSellToggleBtn.classList.toggle("is-on", crossSellEnabled);
+        crossSellToggleBtn.classList.toggle("is-off", !crossSellEnabled);
+      }
+      if (crossSellToggleText) {
+        crossSellToggleText.textContent = crossSellEnabled ? "Sugerencias ON" : "Sugerencias OFF";
+      }
+      if (crossSellStateText) {
+        crossSellStateText.textContent = crossSellEnabled
+          ? "Activas para esta sesión de caja"
+          : "Desactivadas para esta sesión de caja";
+      }
+      if (crossSellStateBadge) {
+        crossSellStateBadge.textContent = crossSellEnabled ? "ON" : "OFF";
+        crossSellStateBadge.classList.toggle("text-bg-success", crossSellEnabled);
+        crossSellStateBadge.classList.toggle("text-bg-secondary", !crossSellEnabled);
+      }
+      if (crossSellPanel) {
+        crossSellPanel.dataset.enabled = crossSellEnabled ? "1" : "0";
+      }
+    }
+
+    function posRenderCrossSellPanel(sugerencia) {
+      if (!crossSellContent) return;
+      if (!crossSellEnabled) {
+        crossSellContent.innerHTML =
+          '<p class="small mb-0">Las sugerencias están apagadas. Puedes reactivarlas con el botón superior.</p>';
+        return;
+      }
+      if (!sugerencia || !Array.isArray(sugerencia.items) || sugerencia.items.length === 0) {
+        crossSellContent.innerHTML =
+          '<p class="small mb-0">Aún no hay sugerencias para los productos del vale actual.</p>';
+        return;
+      }
+      const mensaje = escapeHtmlPos(sugerencia.mensaje || "Complementos sugeridos para aumentar ticket y ayudar al cajero.");
+      const botones = sugerencia.items
+        .map(function (it) {
+          const nombre = escapeHtmlPos(it.nombre || "Producto");
+          const href = u.agregar_producto + "?producto_id=" + encodeURIComponent(String(it.id || ""));
+          return '<a class="btn btn-sm btn-outline-light" href="' + href + '"><i class="fas fa-plus me-1"></i>' + nombre + "</a>";
+        })
+        .join("");
+      crossSellContent.innerHTML =
+        '<p class="small mb-2">' + mensaje + '</p><div class="pos-cross-sell-actions">' + botones + "</div>";
+    }
+
+    async function posRefreshCrossSellPanel() {
+      if (!crossSellContent) return;
+      if (!crossSellEnabled) {
+        posRenderCrossSellPanel(null);
+        return;
+      }
+      if (!u.cross_sell || !crossSellProductoIds.length) {
+        posRenderCrossSellPanel(null);
+        return;
+      }
+      try {
+        const res = await fetch(
+          u.cross_sell + "?producto_ids=" + encodeURIComponent(crossSellProductoIds.join(",")),
+          {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+          }
+        );
+        const data = await res.json();
+        posSetCrossSellUi(data.enabled !== false);
+        posRenderCrossSellPanel(data.sugerencia || null);
+      } catch (_err) {
+        crossSellContent.innerHTML =
+          '<p class="small mb-0">No se pudieron cargar sugerencias en este momento.</p>';
+      }
+    }
+
+    async function posToggleCrossSell() {
+      if (!u.cross_sell_toggle || !crossSellToggleBtn) return;
+      const nextEnabled = !crossSellEnabled;
+      crossSellToggleBtn.disabled = true;
+      try {
+        const res = await fetch(u.cross_sell_toggle, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ enabled: nextEnabled }),
+        });
+        const data = await res.json();
+        posSetCrossSellUi(data.enabled !== false);
+        mostrarPosToast(data.enabled ? "Sugerencias activadas." : "Sugerencias desactivadas.");
+        await posRefreshCrossSellPanel();
+      } catch (_err) {
+        mostrarPosToast("No se pudo cambiar el estado de sugerencias.");
+      } finally {
+        crossSellToggleBtn.disabled = false;
+      }
     }
 
     function posFiltrarMostrarSugerenciasSupervisor() {
@@ -488,6 +606,11 @@
     if (supInputPos) {
       supInputPos.addEventListener("input", posFiltrarMostrarSugerenciasSupervisor);
       supInputPos.addEventListener("focus", posFiltrarMostrarSugerenciasSupervisor);
+    }
+
+    if (crossSellToggleBtn) {
+      posSetCrossSellUi(crossSellEnabled);
+      crossSellToggleBtn.addEventListener("click", posToggleCrossSell);
     }
 
     const rutEl = document.getElementById("cliente_rut");
@@ -692,8 +815,10 @@
     const mt = document.getElementById("monto_total");
     if (mt) {
       const totalInicial = parseFloat(mt.innerText.replace(/[^0-9.-]/g, "")) || 0;
-      mt.innerText = formatoCLP(totalInicial);
+      actualizarTotalesVisuales(totalInicial);
     }
+
+    posRefreshCrossSellPanel();
 
     $("#buscarClienteBtn").on("click", function () {
       buscarClientePorRut(u.consultar_cliente);

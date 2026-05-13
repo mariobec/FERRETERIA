@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mensaje del Fundador | LhexIA IA ERP</title>
+    <meta name="description" content="Conoce la visión de Mario Becerra Olea, fundador de LhexIA IA ERP, sobre el futuro del retail, las ferreterías, constructoras y las operaciones intensivas en SKU.">
+    <link rel="canonical" href="https://www.lhexia.cl/mensaje-del-fundador">
+    <meta property="og:locale" content="es_CL">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="LhexIA IA ERP">
+    <meta property="og:title" content="Mensaje del Fundador | LhexIA IA ERP">
+    <meta property="og:description" content="Una visión sobre tecnología útil, inteligencia operativa y crecimiento real para retail, ferreterías, constructoras y empresas con alto volumen de SKU.">
+    <meta property="og:url" content="https://www.lhexia.cl/mensaje-del-fundador">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Mensaje del Fundador | LhexIA IA ERP">
+    <meta name="twitter:description" content="La visión detrás de LhexIA: una plataforma moderna, poderosa y accesible para operaciones complejas.">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-official.png"
+        },
+        {
+          "@type": "Person",
+          "name": "Mario Becerra Olea",
+          "jobTitle": "CEO y Fundador",
+          "worksFor": {
+            "@type": "Organization",
+            "name": "LhexIA IA ERP"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
+    <style>
+        :root {
+            --bg: #101419;
+            --bg-soft: #151b22;
+            --surface: rgba(23, 30, 38, 0.78);
+            --line: rgba(255, 255, 255, 0.08);
+            --text: #eef2f7;
+            --muted: #aab5c3;
+            --accent: #f97316;
+            --accent-soft: rgba(249, 115, 22, 0.12);
+            --trust: #22c55e;
+            --trust-soft: rgba(34, 197, 94, 0.10);
+            --radius-lg: 24px;
+            --radius-md: 18px;
+            --shadow-soft: 0 20px 46px rgba(0, 0, 0, 0.18);
+        }
+
+        body.founder-page {
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body.founder-page::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at top left, rgba(249, 115, 22, 0.06), transparent 28rem),
+                radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.05), transparent 24rem),
+                linear-gradient(180deg, rgba(15, 19, 24, 0.98), rgba(17, 23, 31, 0.98));
+            filter: none;
+            transform: none;
+            pointer-events: none;
+        }
+
+        .founder-page p,
+        .founder-page li {
+            color: var(--muted);
+            font-size: 1.06rem;
+            line-height: 1.88;
+        }
+
+        .founder-page a {
+            text-decoration: none;
+        }
+
+        .founder-page .landing-nav-links .btn {
+            white-space: nowrap;
+        }
+
+        .section-space {
+            padding: 5rem 0;
+        }
+
+        .hero-space {
+            padding: 8rem 0 4.75rem;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+            padding: 0.46rem 0.86rem;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.03);
+            color: #d9e2ec;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .section-kicker {
+            margin-bottom: 1rem;
+            color: var(--accent);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        h1, h2, h3 {
+            color: #ffffff;
+            letter-spacing: -0.03em;
+        }
+
+        h1 {
+            font-size: clamp(2.2rem, 4.5vw, 3.7rem);
+            line-height: 1.08;
+            margin-bottom: 1.2rem;
+        }
+
+        h2 {
+            font-size: clamp(1.75rem, 2.8vw, 2.45rem);
+            line-height: 1.14;
+            margin-bottom: 1rem;
+        }
+
+        h3 {
+            font-size: 1.12rem;
+            line-height: 1.35;
+            margin-bottom: 0.7rem;
+        }
+
+        .hero-lead {
+            max-width: 44rem;
+            font-size: 1.16rem;
+            line-height: 1.86;
+            margin-bottom: 1.5rem;
+        }
+
+        .surface {
+            background: rgba(18, 23, 30, 0.9);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .hero-copy-card {
+            padding: 2rem 2rem 1.8rem;
+        }
+
+        .hero-copy-card p {
+            color: #c5cfda;
+        }
+
+        .hero-photo {
+            padding: 1rem;
+        }
+
+        .hero-photo img {
+            width: 100%;
+            border-radius: 18px;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .caption {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .caption strong {
+            display: block;
+            color: #ffffff;
+        }
+
+        .btn-accent {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #ffffff;
+            border-radius: 999px;
+            padding: 0.95rem 1.45rem;
+            font-weight: 700;
+        }
+
+        .btn-accent:hover,
+        .btn-accent:focus {
+            background: #ea580c;
+            border-color: #ea580c;
+            color: #ffffff;
+        }
+
+        .btn-soft {
+            border-radius: 999px;
+            padding: 0.95rem 1.45rem;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .btn-soft:hover,
+        .btn-soft:focus {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        .signal-list {
+            display: grid;
+            gap: 0.8rem;
+            margin-top: 1.5rem;
+        }
+
+        .signal-list span {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.7rem;
+            color: #e2e8f0;
+            font-size: 0.98rem;
+        }
+
+        .signal-list i {
+            color: var(--trust);
+        }
+
+        .message-card {
+            padding: 2rem;
+        }
+
+        .message-card blockquote {
+            margin: 0;
+            padding-left: 1.35rem;
+            border-left: 3px solid var(--accent);
+        }
+
+        .quote-break {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .insight-card,
+        .future-card {
+            padding: 1.45rem;
+            height: 100%;
+        }
+
+        .icon-wrap {
+            width: 3rem;
+            height: 3rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            border-radius: 14px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 1.2rem;
+        }
+
+        .icon-wrap.trust {
+            background: var(--trust-soft);
+            color: var(--trust);
+        }
+
+        .signature-card {
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .signature-name {
+            margin-top: 1.3rem;
+            color: #ffffff;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .signature-role {
+            color: var(--muted);
+        }
+
+        .footer-note {
+            padding: 1.5rem 0 2.3rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .footer-note a {
+            color: #e2e8f0;
+        }
+
+        @media (max-width: 767.98px) {
+            .section-space {
+                padding: 4rem 0;
+            }
+
+            .hero-space {
+                padding: 6.8rem 0 4rem;
+            }
+
+            .message-card,
+            .insight-card,
+            .future-card,
+            .signature-card,
+            .hero-copy-card {
+                padding: 1.35rem;
+            }
+
+            .founder-page p,
+            .founder-page li {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="index-body erp-landing founder-page">
+    <header class="landing-nav">
+        <a class="landing-brand" href="{{ url_for('index') }}">
+            <img src="{{ url_for('static', filename='img/lhexia-brand-official.png') }}?v=lhexia20260513" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <span class="landing-brand-text">
+                <strong>LhexIA IA ERP</strong>
+                <small>www.lhexia.cl · LhexIA para ferreterías, corralones y retail especializado</small>
+            </span>
+        </a>
+        <nav class="landing-nav-links">
+            <a href="{{ url_for('index') }}#diferenciales">Por qué gana</a>
+            <a href="{{ url_for('index') }}#modulos">Agentes IA</a>
+            <a href="{{ url_for('index') }}#customer360">Ventajas</a>
+            <a href="{{ url_for('index') }}#bi">Comparativa</a>
+            <a href="{{ url_for('index') }}#predictivo">Resultados</a>
+            <a href="{{ url_for('sobre_nosotros') }}">Quiénes somos</a>
+            <a href="{{ url_for('mensaje_del_fundador') }}">Fundador</a>
+            <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-light">Acceso clientes</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero-space">
+            <div class="container">
+                <div class="row align-items-start g-5">
+                    <div class="col-lg-7">
+                        <div class="surface hero-copy-card">
+                            <span class="eyebrow">Mensaje del fundador</span>
+                            <h1>La tecnología que siempre debió estar del lado del negocio.</h1>
+                            <p class="hero-lead">
+                                Después de años en SAP, BI, prevención de pérdidas, transformación digital y operaciones
+                                de alta exigencia, hubo una idea que se volvió imposible de ignorar: muchas empresas
+                                necesitaban una plataforma más poderosa, sí, pero también más útil, más cercana y más
+                                accesible para el negocio real.
+                            </p>
+                            <p class="mb-0">
+                                Esa convicción es la que hoy mueve a LhexIA: ayudar a ferreterías, retail, constructoras,
+                                distribuidoras y compañías con alto volumen de SKU a operar con más claridad, proteger más
+                                margen, prevenir mejor pérdidas y usar Inteligencia Artificial donde sí cambia resultados.
+                            </p>
+                            <div class="signal-list">
+                                <span><i class="bi bi-check2-circle"></i> Tecnología de punta sin costo de multinacional</span>
+                                <span><i class="bi bi-check2-circle"></i> IA aplicada a ventas, Customer 360, bodega y control</span>
+                                <span><i class="bi bi-check2-circle"></i> Visión real sobre fraude, pérdidas y operación intensiva en SKU</span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-3 mt-4">
+                                <a href="#mensaje" class="btn btn-accent">Leer mensaje completo</a>
+                                <a href="{{ url_for('sobre_nosotros') }}" class="btn btn-soft">Volver a Quiénes somos</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-5">
+                        <div class="surface hero-photo">
+                            <img src="{{ url_for('static', filename='img/mario-becerra-olea-founder.png') }}" alt="Mario Becerra Olea, CEO y fundador de LhexIA IA ERP">
+                            <div class="caption">
+                                <strong>Mario Becerra Olea</strong>
+                                <p class="mb-0">CEO y fundador de LhexIA IA ERP. Más de 20 años en SAP, BI, retail, prevención de pérdidas y transformación digital.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space pt-0" id="mensaje">
+            <div class="container">
+                <div class="section-kicker">Carta abierta</div>
+                <div class="surface message-card">
+                    <blockquote>
+                        <p>
+                            <span class="quote-break">Si tú estás todos los días en el negocio, sabes que el problema rara vez es solo vender.</span>
+                            El problema es vender bien, cobrar a tiempo, no perder dinero en errores operativos, no inmovilizar capital
+                            en inventario mal gestionado y no depender de sistemas lentos cuando el mercado exige reacción.
+                        </p>
+                        <p>
+                            Durante años vi empresas pagar como multinacionales por herramientas que en el papel prometían control, pero
+                            en la práctica seguían siendo complejas, lentas de adaptar y muchas veces distantes de la realidad diaria de la operación.
+                            Vi también algo más importante: cuánto valor se pierde cuando un sistema no entiende el negocio de verdad.
+                        </p>
+                        <p>
+                            Por eso construimos LhexIA. No como otro ERP pesado, sino como una plataforma de inteligencia operativa pensada
+                            para negocios que manejan miles de SKU, múltiples puntos de decisión y presión constante por margen, velocidad,
+                            trazabilidad y prevención de pérdidas.
+                        </p>
+                        <p>
+                            Nuestra visión combina <strong class="text-white">Agentes IA 24/7, despacho por voz, Customer 360 predictivo,
+                            control operativo, foco comercial y decisiones con contexto</strong>. No para llenar una presentación de promesas,
+                            sino para ayudar a que una empresa venda mejor, proteja margen, libere capital y opere con más inteligencia.
+                        </p>
+                        <p>
+                            Creo profundamente que la mejor tecnología no es la más cara ni la más compleja. Es la que logra algo mucho más
+                            difícil: hacer que el negocio avance. La que acompaña al equipo. La que previene errores. La que deja menos espacio
+                            para el fraude, la pérdida y la improvisación. La que permite crecer sin perder el control.
+                        </p>
+                        <p class="mb-0">
+                            Esa es la apuesta de LhexIA. Poner al alcance de empresas chilenas y latinoamericanas una plataforma moderna,
+                            poderosa y razonable en precio. Lo mejor sin tener que pagar ni sufrir como si cada proyecto fuera una implementación eterna.
+                        </p>
+                    </blockquote>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space" id="vision">
+            <div class="container">
+                <div class="section-kicker">Lo que estamos construyendo</div>
+                <h2>Una plataforma para empresas que necesitan crecer sin perder control.</h2>
+                <p class="mb-4" style="max-width: 46rem;">
+                    LhexIA no se piensa solo para un rubro. Se piensa para operaciones donde la complejidad existe de verdad:
+                    retail, ferreterías, constructoras, distribuidoras y cualquier empresa donde importan el inventario, la
+                    prevención de pérdidas, la velocidad comercial y el criterio para decidir.
+                </p>
+
+                <div class="row g-4">
+                    <div class="col-md-6 col-xl-4">
+                        <div class="surface insight-card">
+                            <span class="icon-wrap"><i class="bi bi-cpu"></i></span>
+                            <h3>Innovación que sí aterriza</h3>
+                            <p class="mb-0">Agentes IA, Customer 360, despacho por voz y automatización real puestos al servicio de la operación diaria.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-4">
+                        <div class="surface insight-card">
+                            <span class="icon-wrap trust"><i class="bi bi-shield-check"></i></span>
+                            <h3>Control y prevención</h3>
+                            <p class="mb-0">Mirada fuerte sobre pérdidas, fraude, inventario, trazabilidad y decisiones que no pueden depender de intuición.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 col-xl-4">
+                        <div class="surface insight-card">
+                            <span class="icon-wrap"><i class="bi bi-graph-up-arrow"></i></span>
+                            <h3>Crecimiento real</h3>
+                            <p class="mb-0">Más ventas, mejor margen, capital liberado y una operación más inteligente sin pagar como una corporación global.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-space pt-0">
+            <div class="container">
+                <div class="surface signature-card">
+                    <div class="section-kicker">Cierre</div>
+                    <h2>Quiero que cuando una empresa conozca LhexIA sienta algo muy simple: por fin apareció una herramienta hecha para ayudar de verdad.</h2>
+                    <p class="mb-0">
+                        Si tu operación necesita más claridad, más control y una plataforma capaz de acompañar crecimiento real,
+                        conversemos. Estamos construyendo tecnología para quienes quieren competir en serio, sin resignarse a sistemas
+                        viejos ni a proyectos eternos.
+                    </p>
+                    <div class="signature-name">Mario Becerra Olea</div>
+                    <div class="signature-role">CEO y Fundador · LhexIA IA ERP</div>
+                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                        <a href="{{ url_for('index') }}#diagnostico" class="btn btn-accent">Quiero mi Diagnóstico IA Gratis</a>
+                        <a href="{{ url_for('sobre_nosotros') }}" class="btn btn-soft">Volver a Quiénes somos</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="index-footer landing-footer">
+        © 2026 LhexIA IA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para retail, ferreterías y operaciones complejas
+    </div>
+
+    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+</body>
+</html>

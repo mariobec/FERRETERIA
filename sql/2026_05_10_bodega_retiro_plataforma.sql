@@ -1,4 +1,4 @@
--- Retiro bodega post-cobro + cola de preparación (ERP LexIA)
+-- Retiro bodega post-cobro + cola de preparación (ERP LhexIA)
 -- Nota: la app también intenta crear estas columnas al arrancar (_asegurar_columnas_bodega_retiro en app.py).
 -- Ejecutar manualmente si preferís DDL explícito en MySQL / Postgres.
 

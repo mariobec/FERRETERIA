@@ -36,12 +36,13 @@
 
             <form action="{{ url_for('abrir_caja') }}" method="post">
                 <div class="mb-4">
-                    <label for="monto_inicial" class="form-label fw-bold text-secondary small">SALDO INICIAL DISPONIBLE</label>
+                    <label for="monto_inicial" class="form-label fw-bold text-secondary small">SALDO INICIAL (CLP)</label>
                     <div class="input-group">
                         <span class="input-group-text bg-white border-end-0 text-muted fw-bold">$</span>
-                        <input type="number" step="0.01" class="form-control border-start-0 form-control-lg" 
-                               id="monto_inicial" name="monto_inicial" placeholder="0.00" required autofocus>
+                        <input type="text" inputmode="decimal" autocomplete="off" class="form-control border-start-0 form-control-lg"
+                               id="monto_inicial" name="monto_inicial" placeholder="Ej: 100000 o 100.000" required autofocus>
                     </div>
+                    <div class="form-text">Pesos chilenos. Puede usar punto como separador de miles (ej. 350.000).</div>
                 </div>
 
                 <button type="submit" class="btn btn-ds-primary w-100 shadow-sm py-3 fw-bold">

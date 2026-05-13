@@ -51,3 +51,9 @@ def register_bodega_routes(app):
 
     view_voice = login_required(m.api_bodega_voice_command)
     app.add_url_rule('/api/bodega/voice-command', 'api_bodega_voice_command', view_voice, methods=['POST'])
+
+    view_export = login_required(permisos_required('bodega_operador')(m.bodega_export_dia))
+    app.add_url_rule('/bodega/export-dia', 'bodega_export_dia', view_export, methods=['GET'])
+
+    view_fs = login_required(permisos_required('bodega_operador')(m.bodega_cuadro_mando_fullscreen))
+    app.add_url_rule('/bodega/cuadro-mando/tv', 'bodega_cuadro_mando_fullscreen', view_fs, methods=['GET'])

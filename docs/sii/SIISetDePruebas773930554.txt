@@ -1,0 +1,132 @@
+INDICACIONES GENERALES:
+
+Se debe adjuntar ejemplar tributario y cedible de los documentos: Factura Electrónica, Factura No Afecta o Exenta Electrónica, Guía de Despacho Electrónica y Factura de Compra Electrónica.
+
+Para consultar los datos del contribuyente, como el giro, razón social, direcciones y sucursales, Dirección Regional o Unidad debe ingresar en la opción "Mi SII" de la página del SII.
+
+Además se les recomienda no utilizar abreviaciones en los giros y no agregar textos que informen arreglos de contrato con los clientes.
+
+
+SET BASICO - NUMERO DE ATENCION: 4823321
+
+IMPORTANTE: Considerar que los descuentos por línea o globales deben ser indicados en las representaciones impresas. Además, señalar las cifras con separador de miles con ".".
+
+
+CASO 4823321-1
+==============
+DOCUMENTO	FACTURA ELECTRONICA
+
+ITEM			CANTIDAD	PRECIO UNITARIO
+Cajón AFECTO		    137		   1683
+Relleno AFECTO		     58		   2758
+
+
+CASO 4823321-2
+==============
+DOCUMENTO	FACTURA ELECTRONICA
+
+ITEM			CANTIDAD	PRECIO UNITARIO		DESCUENTO ITEM
+Pañuelo AFECTO		    390		   3094			      6%
+ITEM 2 AFECTO		    322		   2154			     10%
+
+
+CASO 4823321-3
+==============
+DOCUMENTO	FACTURA ELECTRONICA
+
+ITEM			CANTIDAD	PRECIO UNITARIO
+Pintura B&W AFECTO	     30		   3510
+ITEM 2 AFECTO		    175		   3204
+ITEM 3 SERVICIO EXENTO	      1		  34878
+
+
+CASO 4823321-4
+==============
+DOCUMENTO	FACTURA ELECTRONICA
+
+ITEM			CANTIDAD	PRECIO UNITARIO
+ITEM 1 AFECTO		    180		   2928
+ITEM 2 AFECTO		     76		   3121
+ITEM 3 SERVICIO EXENTO	      2		   6787
+
+DESCUENTO GLOBAL ITEMES AFECTOS		     11%
+
+
+CASO 4823321-5
+==============
+DOCUMENTO		NOTA DE CREDITO ELECTRONICA
+REFERENCIA		FACTURA ELECTRONICA CORRESPONDIENTE A CASO 4823321-1
+RAZON REFERENCIA	CORRIGE GIRO DEL RECEPTOR
+
+
+CASO 4823321-6
+==============
+DOCUMENTO		NOTA DE CREDITO ELECTRONICA
+REFERENCIA		FACTURA  ELECTRONICA CORRESPONDIENTE A CASO 4823321-2
+RAZON REFERENCIA	DEVOLUCION DE MERCADERIAS
+
+ITEM			CANTIDAD
+Pañuelo AFECTO		    143
+ITEM 2 AFECTO		    218
+
+
+CASO 4823321-7
+==============
+DOCUMENTO		NOTA DE CREDITO ELECTRONICA
+REFERENCIA		FACTURA ELECTRONICA CORRESPONDIENTE A CASO 4823321-3
+RAZON REFERENCIA	ANULA FACTURA
+
+
+CASO 4823321-8
+==============
+DOCUMENTO		NOTA DE DEBITO ELECTRONICA
+REFERENCIA		NOTA DE CREDITO ELECTRONICA CORRESPONDIENTE A CASO 4823321-5
+RAZON REFERENCIA	ANULA NOTA DE CREDITO ELECTRONICA
+--------------------------------------------------------------------------------
+SET LIBRO DE VENTAS - NUMERO DE ATENCION: 4823322
+
+CONSTRUYA EL LIBRO DE VENTAS CON LOS DOCUMENTOS CON QUE GENERO
+EL SET BASICO O EL SET DE FACTURA EXENTA, SEGUN CORRESPONDA.
+SI OBTUVO AMBOS SET, UTILICE LOS DOCUMENTOS DEL SET BASICO PARA
+CONSTRUIR EL LIBRO DE VENTAS.
+--------------------------------------------------------------------------------
+SET LIBRO DE COMPRAS - NUMERO DE ATENCION: 4823323
+ 
+==========================================================================
+TIPO DOCUMENTO				FOLIO
+OBSERVACIONES
+MONTO EXENTO	MONTO AFECTO
+==========================================================================
+FACTURA					234
+FACTURA DEL GIRO CON DERECHO A CREDITO
+		  12280
+
+FACTURA ELECTRONICA 			 32
+FACTURA DEL GIRO CON DERECHO A CREDITO
+   8339		   5132
+
+FACTURA					781
+FACTURA CON IVA USO COMUN
+		  29677
+
+NOTA DE CREDITO				451
+NOTA DE CREDITO POR DESCUENTO A FACTURA 234
+		   2660
+
+FACTURA ELECTRONICA			 67
+ENTREGA GRATUITA DEL PROVEEDOR
+		   9431
+
+FACTURA DE COMPRA ELECTRONICA		  9
+COMPRA CON RETENCION TOTAL DEL IVA
+		   9276
+
+NOTA DE CREDITO				211
+NOTA DE CREDITO POR DESCUENTO FACTURA ELECTRONICA 32
+		   3171
+==========================================================================
+
+OBSERVACIONES GENERALES
+-----------------------
+EN FACTURA CON IVA USO COMUN CONSIDERE QUE EL FACTOR DE PROPORCIONALIDAD 
+DEL IVA ES DE 0.60

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="30">
+  <title>{% block title %}Bodega{% endblock %} — TV</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
+  {% block extra_css %}{% endblock %}
+  <style>body{background:var(--ds-bg);padding:24px 32px;}</style>
+</head>
+<body>
+  {% block content %}{% endblock %}
+  <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

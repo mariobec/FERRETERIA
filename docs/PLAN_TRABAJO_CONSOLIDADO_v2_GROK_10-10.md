@@ -1,4 +1,4 @@
-# Plan de trabajo consolidado v2.0 — ERP LexIA (10/10)
+# Plan de trabajo consolidado v2.0 — ERP LhexIA (10/10)
 
 **Objetivo:** Eliminar los riesgos críticos de negocio e inventario antes de cualquier refactor estructural grande. Modularizar progresivamente sin romper flujos existentes.
 

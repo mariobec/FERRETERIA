@@ -1,4 +1,4 @@
-# Manual de operación — Customer 360 (LexIA IA ERP)
+# Manual de operación — Customer 360 (LhexIA IA ERP)
 
 Documento para **supervisores, gerencia, ventas y administración**. Describe qué hace el módulo, cómo usarlo día a día y qué revisar si algo no cuadra.
 
@@ -244,4 +244,4 @@ No; está excluido del motor y fichas C360.
 
 ---
 
-*Documento alineado al código del ERP LexIA IA. Si cambian rutas o reglas en una versión nueva, actualizar este manual junto al despliegue.*
+*Documento alineado al código del ERP LhexIA IA. Si cambian rutas o reglas en una versión nueva, actualizar este manual junto al despliegue.*

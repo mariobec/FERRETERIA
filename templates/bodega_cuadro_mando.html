@@ -1,74 +1,255 @@
-{% extends 'base.html' %}
+{% extends _base_template|default('base.html') %}
+{% block extra_css %}
+<style>
+  .bodega-kpi {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+  }
+  .bodega-kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+  .bodega-kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .bodega-kpi-label {
+    font-size: 0.78rem;
+    color: var(--ds-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .bodega-estado-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--ds-radius-sm);
+    text-decoration: none;
+    color: var(--ds-text);
+    transition: background 0.15s;
+  }
+  .bodega-estado-bar:hover {
+    background: var(--ds-surface-muted);
+    color: var(--ds-text);
+  }
+  .bodega-estado-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .bodega-estado-count {
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .sla-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sla-pill .sla-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sla-ok       { background: rgba(22,163,74,0.10); color: #16a34a; }
+  .sla-ok .sla-dot { background: #16a34a; }
+  .sla-attention { background: rgba(234,179,8,0.14); color: #a16207; }
+  .sla-attention .sla-dot { background: #eab308; }
+  .sla-delayed  { background: rgba(249,115,22,0.14); color: #c2410c; }
+  .sla-delayed .sla-dot { background: #f97316; }
+  .sla-critical { background: rgba(220,38,38,0.14); color: #dc2626; }
+  .sla-critical .sla-dot { background: #dc2626; animation: sla-pulse 1.2s ease-in-out infinite; }
+  .sla-none     { background: rgba(148,163,184,0.12); color: #64748b; }
+  .sla-none .sla-dot { background: #94a3b8; }
+  @keyframes sla-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.6); opacity: 0.5; }
+  }
+  .bodega-rank-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--ds-primary);
+    opacity: 0.7;
+    transition: width 0.4s ease;
+  }
+</style>
+{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
     <div>
-      <h3 class="page-title"><i class="fas fa-gauge-high text-success me-2"></i>Cuadro de mando — Bodega</h3>
-      <p class="page-subtitle mb-0">
-        Visibilidad operativa en una pantalla. Las acciones siguen en <strong>Plataforma retiro</strong>, <strong>Despacho voz</strong> y <strong>detalle por vale</strong> (vistas enlazadas, no unificadas).
-      </p>
+      <h3 class="page-title"><i class="fas fa-gauge-high me-2" style="color:var(--ds-primary)"></i>Cuadro de mando — Bodega</h3>
+      <p class="page-subtitle mb-0">Visibilidad operativa y SLA. Las acciones siguen en las vistas enlazadas.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
       <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-primary btn-sm"><i class="fas fa-clipboard-list me-1"></i>Plataforma retiro</a>
-      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-microphone me-1"></i>Despacho voz (pre-cobro)</a>
-      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-cash-register me-1"></i>Caja — vales</a>
-      <a href="{{ url_for('inventario_salud') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-heartbeat me-1"></i>Salud inventario</a>
+      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-microphone me-1"></i>Despacho voz</a>
+      <a href="{{ url_for('bodega_export_dia') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-csv me-1"></i>Export día</a>
+      <a href="{{ url_for('bodega_cuadro_mando_fullscreen') }}" class="btn btn-outline-secondary btn-sm" title="Pantalla completa (TV/kiosk)"><i class="fas fa-expand me-1"></i>TV</a>
     </div>
   </div>
 
+  {# ── KPIs ── #}
   <div class="row g-3 mb-3">
     <div class="col-md-3 col-6">
-      <div class="card card-ds border-0 h-100 bg-dark text-white">
-        <div class="card-body py-3">
-          <div class="small text-white-50 text-uppercase">Retiros post-cobro abiertos</div>
-          <div class="display-6 fw-bold">{{ total_post_abiertos }}</div>
+      <div class="card card-ds border-0 h-100">
+        <div class="bodega-kpi">
+          <div class="bodega-kpi-icon" style="background:rgba(243,112,33,0.12);color:var(--ds-primary)">
+            <i class="fas fa-dolly"></i>
+          </div>
+          <div>
+            <div class="bodega-kpi-value">{{ total_post_abiertos }}</div>
+            <div class="bodega-kpi-label">Retiros abiertos</div>
+          </div>
         </div>
       </div>
     </div>
     <div class="col-md-3 col-6">
-      <div class="card card-ds border-0 h-100 bg-warning bg-opacity-25">
-        <div class="card-body py-3">
-          <div class="small text-muted text-uppercase">Vales bodega sin pagar</div>
-          <div class="display-6 fw-bold text-dark">{{ n_pre_cobro }}</div>
-          <div class="small text-muted">Pendiente caja; preparación opcional (voz / cola visual «sugerido»).</div>
-          <div class="small mt-2"><span class="badge bg-dark text-white">Sugerido preparar</span> <strong>{{ n_pre_cobro_sugerido }}</strong> <span class="text-muted">(solo prioridad; no reserva stock)</span></div>
+      <div class="card card-ds border-0 h-100">
+        <div class="bodega-kpi">
+          <div class="bodega-kpi-icon" style="background:rgba(217,119,6,0.12);color:var(--ds-warning)">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div>
+            <div class="bodega-kpi-value">{{ n_pre_cobro }}</div>
+            <div class="bodega-kpi-label">Sin pagar (bodega)</div>
+            {% if n_pre_cobro_sugerido > 0 %}
+            <div class="mt-1"><span class="badge text-bg-warning" style="font-size:0.7rem">{{ n_pre_cobro_sugerido }} sugerido</span></div>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
-    <div class="col-md-6">
-      <div class="card card-ds h-100">
-        <div class="card-header py-2 small fw-semibold">Cola post-cobro por estado de preparación</div>
-        <div class="card-body py-2 d-flex flex-wrap gap-2">
-          {% for k, v in (conteo_post or {}).items() %}
-          <a class="badge rounded-pill bg-secondary text-decoration-none" href="{{ url_for('bodega_plataforma', estado=k) }}">{{ k }}: {{ v }}</a>
-          {% else %}
-          <span class="text-muted small">Sin vales abiertos en cola.</span>
-          {% endfor %}
+    <div class="col-md-3 col-6">
+      <div class="card card-ds border-0 h-100">
+        <div class="bodega-kpi">
+          <div class="bodega-kpi-icon" style="background:rgba(22,163,74,0.12);color:var(--ds-success)">
+            <i class="fas fa-check-double"></i>
+          </div>
+          <div>
+            <div class="bodega-kpi-value">{{ cerrados_hoy_count }}</div>
+            <div class="bodega-kpi-label">Cerrados hoy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-6">
+      <div class="card card-ds border-0 h-100">
+        <div class="bodega-kpi">
+          <div class="bodega-kpi-icon" style="background:rgba(99,102,241,0.12);color:#6366f1">
+            <i class="fas fa-stopwatch"></i>
+          </div>
+          <div>
+            {% if sla_promedio_hoy is not none %}
+            <div class="bodega-kpi-value">{{ sla_promedio_hoy }}<span style="font-size:0.9rem;font-weight:400"> min</span></div>
+            <div class="bodega-kpi-label">SLA promedio hoy</div>
+            <div class="mt-1 small text-muted" style="font-size:0.72rem">Máx: {{ sla_max_hoy }} min</div>
+            {% else %}
+            <div class="bodega-kpi-value text-muted">—</div>
+            <div class="bodega-kpi-label">SLA promedio hoy</div>
+            <div class="mt-1 small text-muted" style="font-size:0.72rem">Sin datos (completa un retiro para medir)</div>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
   </div>
 
+  {# ── Cola por estado + Ranking ── #}
+  <div class="row g-3 mb-3">
+    <div class="col-lg-5">
+      <div class="card card-ds border-0 h-100">
+        <div class="card-body py-3">
+          <div class="bodega-kpi-label mb-2">Cola por estado de preparación</div>
+          {% if conteo_post %}
+            {% for k, v in (conteo_post or {}).items() %}
+            <a class="bodega-estado-bar" href="{{ url_for('bodega_plataforma', estado=k) }}">
+              <span class="bodega-estado-dot" style="background:{% if k == 'PENDIENTE' %}var(--ds-warning){% elif k == 'EN_PREPARACION' %}var(--ds-primary){% elif k == 'LISTO_RETIRO' %}var(--ds-success){% elif k == 'ENTREGA_PARCIAL' %}#6366f1{% else %}var(--ds-text-muted){% endif %}"></span>
+              <span class="small">{{ k | replace('_', ' ') | capitalize }}</span>
+              <span class="bodega-estado-count">{{ v }}</span>
+            </a>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted small">Sin vales abiertos en cola.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card card-ds border-0 h-100">
+        <div class="card-body py-3">
+          <div class="bodega-kpi-label mb-2"><i class="fas fa-trophy me-1"></i>Ranking operadores (7 días)</div>
+          {% if ranking_operadores %}
+            {% set max_cerr = ranking_operadores[0].cerrados if ranking_operadores else 1 %}
+            {% for op in ranking_operadores %}
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="fw-semibold small" style="min-width:110px">{{ op.nombre }}</span>
+              <div class="flex-grow-1">
+                <div class="bodega-rank-bar" style="width:{{ (op.cerrados / max_cerr * 100)|int }}%"></div>
+              </div>
+              <span class="small fw-bold" style="min-width:36px;text-align:right;font-variant-numeric:tabular-nums">{{ op.cerrados }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <span class="text-muted small">Sin datos. Se registra al cerrar retiros con operador asignado.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# ── Tablas ── #}
   <div class="row g-3">
     <div class="col-lg-6">
       <div class="card card-ds h-100">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
-          <span class="fw-semibold">Últimos retiros en curso (post-cobro)</span>
+          <span class="fw-semibold"><i class="fas fa-arrow-right-from-bracket me-1 text-muted"></i>Retiros en curso</span>
           <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-sm btn-outline-primary">Ver todo</a>
         </div>
         <div class="card-body p-0 table-responsive">
           <table class="table table-sm table-hover mb-0 align-middle">
-            <thead class="table-light"><tr><th>Vale</th><th>Cliente</th><th>Estado</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>Vale</th><th>Cliente</th><th>Estado</th><th>SLA</th><th></th></tr></thead>
             <tbody>
               {% for v in vales_post_recientes %}
               <tr>
-                <td class="font-monospace">#{{ v.id }}</td>
+                <td class="font-monospace fw-semibold">#{{ v.id }}</td>
                 <td class="small">{{ v.cliente.nombre if v.cliente else '—' }}</td>
-                <td><span class="badge bg-secondary">{{ v.bodega_preparacion_estado }}</span></td>
+                <td>
+                  {% set est = v.bodega_preparacion_estado %}
+                  <span class="badge rounded-pill {% if est == 'PENDIENTE' %}text-bg-warning{% elif est == 'EN_PREPARACION' %}text-bg-primary{% elif est == 'LISTO_RETIRO' %}text-bg-success{% elif est == 'ENTREGA_PARCIAL' %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                    {{ est | replace('_', ' ') | capitalize }}
+                  </span>
+                </td>
+                <td>
+                  {% if v.sla_min is not none %}
+                  <span class="sla-pill {{ v.sla_css }}"><span class="sla-dot"></span>{{ v.sla_min }} min</span>
+                  {% else %}
+                  <span class="sla-pill sla-none"><span class="sla-dot"></span>—</span>
+                  {% endif %}
+                </td>
                 <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('bodega_vale_retiro', vid=v.id) }}">Abrir</a></td>
               </tr>
               {% else %}
-              <tr><td colspan="4" class="text-center text-muted py-3">Sin vales en cola.</td></tr>
+              <tr><td colspan="5" class="text-center text-muted py-3">Sin vales en cola.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -78,7 +259,7 @@
     <div class="col-lg-6">
       <div class="card card-ds h-100">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
-          <span class="fw-semibold">Vales retiro bodega — pendiente de pago</span>
+          <span class="fw-semibold"><i class="fas fa-hourglass-half me-1 text-muted"></i>Pendiente de pago</span>
           <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-secondary">Ir a caja</a>
         </div>
         <div class="card-body p-0 table-responsive">
@@ -87,13 +268,12 @@
             <tbody>
               {% for v in vales_pre_cobro %}
               <tr>
-                <td class="font-monospace">#{{ v.id }}</td>
+                <td class="font-monospace fw-semibold">#{{ v.id }}</td>
                 <td class="small">{{ v.cliente.nombre if v.cliente else '—' }}</td>
                 <td class="small text-muted">{{ v.fecha.strftime('%d-%m %H:%M') if v.fecha else '—' }}</td>
                 <td class="small">
                   {% if (v.bodega_sugerido_preparar or 0) > 0 %}
-                  <span class="badge bg-warning text-dark">Sí</span>
-                  {% if v.bodega_sugerido_preparar_at %}<span class="text-muted d-block" style="font-size:0.75rem;">{{ v.bodega_sugerido_preparar_at.strftime('%d-%m %H:%M') }}</span>{% endif %}
+                  <span class="badge text-bg-warning">Sí</span>
                   {% else %}
                   <span class="text-muted">—</span>
                   {% endif %}
@@ -109,10 +289,9 @@
                   <form method="post" action="{{ url_for('bodega_vale_sugerido_preparar_post', vid=v.id) }}" class="d-inline">
                     <input type="hidden" name="next" value="{{ request.path }}">
                     <input type="hidden" name="accion" value="marcar">
-                    <button type="submit" class="btn btn-sm btn-outline-warning">Marcar</button>
+                    <button type="submit" class="btn btn-sm btn-outline-warning">Sugerir</button>
                   </form>
                   {% endif %}
-                  <a class="btn btn-sm btn-outline-secondary ms-1" href="{{ url_for('bodega_despachos') }}">Voz</a>
                 </td>
               </tr>
               {% else %}
@@ -125,17 +304,13 @@
     </div>
   </div>
 
+  {# ── Top SKU pendiente ── #}
   <div class="card card-ds mt-3">
-    <div class="card-header py-2 fw-semibold">SKU con mayor cantidad pendiente de retirar (post-cobro, u. venta)</div>
+    <div class="card-header py-2 fw-semibold"><i class="fas fa-boxes-stacked me-1 text-muted"></i>SKU con mayor pendiente de retiro</div>
     <div class="card-body p-0 table-responsive">
       <table class="table table-sm mb-0 align-middle">
         <thead class="table-light">
-          <tr>
-            <th>Producto</th>
-            <th class="text-end">Pend. u. venta</th>
-            <th class="text-end">~Nec. u. base</th>
-            <th class="text-end">Disp. retiro bodega</th>
-          </tr>
+          <tr><th>Producto</th><th class="text-end">Pend. u. venta</th><th class="text-end">~Nec. u. base</th><th class="text-end">Disp. bodega</th></tr>
         </thead>
         <tbody>
           {% for row in top_pendiente_retiro %}
@@ -143,16 +318,13 @@
             <td class="small">{{ row.producto.nombre or '—' }}</td>
             <td class="text-end font-monospace">{{ row.pendiente_uv }}</td>
             <td class="text-end font-monospace text-muted">{{ row.necesita_base }}</td>
-            <td class="text-end font-monospace">{{ row.disp_bodega }}{% if row.alerta %} <i class="fas fa-triangle-exclamation text-danger" title="Saldo insuficiente vs pendiente"></i>{% endif %}</td>
+            <td class="text-end font-monospace">{{ row.disp_bodega }}{% if row.alerta %} <i class="fas fa-triangle-exclamation text-danger" title="Saldo insuficiente"></i>{% endif %}</td>
           </tr>
           {% else %}
           <tr><td colspan="4" class="text-center text-muted py-3">Sin líneas pendientes.</td></tr>
           {% endfor %}
         </tbody>
       </table>
-    </div>
-    <div class="card-footer small text-muted border-0 bg-transparent">
-      Documentación del modelo «ultra premium» y decisiones de vistas: <code>docs/BODEGA_ULTRA_PREMIUM.md</code>
     </div>
   </div>
 </div>

@@ -72,7 +72,7 @@ def ensure_oc(proveedor, numero, estado, fecha_emision, lineas, observacion="See
             fecha_emision=fecha_emision.date(),
             estado=estado,
             observacion=observacion,
-            usuario_creador="Seed LexIA",
+            usuario_creador="Seed LhexIA",
         )
         db.session.add(oc)
         db.session.flush()

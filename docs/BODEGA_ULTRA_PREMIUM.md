@@ -1,4 +1,4 @@
-# Bodega «ultra premium» — modelo consolidado (LexIA ERP)
+# Bodega «ultra premium» — modelo consolidado (LhexIA ERP)
 
 Documento de **producto + arquitectura** alineado al código existente (mayo 2026). No sustituye la lectura de `app.py` para detalle de rutas.
 
@@ -48,11 +48,13 @@ Unificar todo en una sola página suele **empeorar UX en tablet / PC de bodega**
 - Columnas en `ventas`: `bodega_sugerido_preparar` (0/1), `bodega_sugerido_preparar_at`, `bodega_sugerido_preparar_usuario`. Al pasar a **Pagado** en caja se limpian (el marcador aplica solo mientras está pendiente).
 - Integración opcional con **recepciones** (qué ingresó hoy y desbloquea faltantes en el mando): pendiente de producto.
 
-### Fase 3 (premium fuerte)
+### Fase 3 (premium fuerte) — implementada
 
-- **SLA** (minutos desde pago / desde listo), ranking por operador, export del día.
-- **Segunda pantalla** o URL dedicada solo mando (sin menú lateral).
-- **WebSocket / SSE** si el negocio exige sub-segundo (hoy: polling ~8 s).
+- **SLA**: columnas `bodega_preparacion_cobrado_at` y `bodega_preparacion_cerrado_at` en `ventas`. KPI de SLA promedio/max del día en cuadro de mando. Chip de SLA por vale en tabla de retiros en curso (coloreado: verde ≤30 min, amarillo ≤90 min, rojo >90 min).
+- **Ranking operador** (últimos 7 días): gráfico de barras horizontales en cuadro de mando con conteo de vales cerrados por operador.
+- **Export del día**: `GET /bodega/export-dia` genera CSV con columnas Vale, Cliente, Estado, Operador, Cobrado, Cerrado, SLA (min). Incluye vales del día + abiertos pendientes.
+- **Modo TV/kiosk**: `GET /bodega/cuadro-mando/tv` — mismo cuadro sin menú lateral, auto-refresh 30 s. Usa `base_tv.html`.
+- **WebSocket / SSE**: se mantiene como backlog (el polling de ~8 s es suficiente por ahora).
 
 ### Fase 4 (opcional industrial)
 
@@ -62,6 +64,7 @@ Unificar todo en una sola página suele **empeorar UX en tablet / PC de bodega**
 
 ## Referencias en código
 
-- Rutas bodega: `blueprints/bodega.py` (incluye `bodega_vale_sugerido_preparar_post`)
-- Lógica principal: `app.py` (`bodega_cuadro_mando`, `bodega_plataforma`, `bodega_vale_retiro`, `bodega_vale_sugerido_preparar_post`, `procesar_cobro_caja`, `api_bodega_retiros_cola_snapshot`)
+- Rutas bodega: `blueprints/bodega.py` (incluye `bodega_vale_sugerido_preparar_post`, `bodega_export_dia`, `bodega_cuadro_mando_fullscreen`)
+- Lógica principal: `app.py` (`bodega_cuadro_mando`, `bodega_cuadro_mando_fullscreen`, `bodega_export_dia`, `bodega_plataforma`, `bodega_vale_retiro`, `bodega_vale_sugerido_preparar_post`, `procesar_cobro_caja`, `api_bodega_retiros_cola_snapshot`, `_bodega_sla_minutos`)
 - Stock: `services/stock_service.py`
+- Template TV: `templates/base_tv.html` (wrapper mínimo con auto-refresh 30 s)

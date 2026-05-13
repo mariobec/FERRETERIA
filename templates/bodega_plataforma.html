@@ -1,26 +1,77 @@
 {% extends 'base.html' %}
+{% block extra_css %}
+<style>
+  /* ── SLA Priority System ── */
+  .sla-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+  .sla-pill .sla-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .sla-ok       { background: rgba(22,163,74,0.10); color: #16a34a; }
+  .sla-ok .sla-dot { background: #16a34a; }
+  .sla-attention { background: rgba(234,179,8,0.14); color: #a16207; }
+  .sla-attention .sla-dot { background: #eab308; }
+  .sla-delayed  { background: rgba(249,115,22,0.14); color: #c2410c; }
+  .sla-delayed .sla-dot { background: #f97316; }
+  .sla-critical { background: rgba(220,38,38,0.14); color: #dc2626; }
+  .sla-critical .sla-dot { background: #dc2626; animation: sla-pulse 1.2s ease-in-out infinite; }
+  .sla-none     { background: rgba(148,163,184,0.12); color: #64748b; }
+  .sla-none .sla-dot { background: #94a3b8; }
+
+  @keyframes sla-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.6); opacity: 0.5; }
+  }
+
+  /* Row highlight for critical */
+  tr.sla-row-critical { background: rgba(220,38,38,0.04) !important; }
+  tr.sla-row-delayed  { background: rgba(249,115,22,0.03) !important; }
+
+  .sla-timer-label {
+    font-size: 0.68rem;
+    color: var(--ds-text-muted);
+    margin-top: 1px;
+  }
+
+  /* Estado badges mejorados */
+  .estado-prep {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+</style>
+{% endblock %}
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
     <div>
       <h3 class="page-title"><i class="fas fa-clipboard-list text-success me-2"></i>Plataforma bodega — preparación y retiro</h3>
       <p class="page-subtitle mb-0">
-        Vales <strong>pagados</strong> con retiro en <strong>Bodega</strong>. El stock de bodega baja cuando registrás cada entrega (puede ser en varias visitas).
-        Estados: pendiente → en preparación → listo en mesón → entrega parcial / cerrado.
+        Cola: <strong>{{ cola_retiro_total }}</strong> vale(s) activo(s).
+        Los colores del reloj reflejan la urgencia real: <span class="sla-pill sla-ok" style="font-size:.65rem"><span class="sla-dot"></span>OK</span>
+        <span class="sla-pill sla-attention" style="font-size:.65rem"><span class="sla-dot"></span>Atención</span>
+        <span class="sla-pill sla-delayed" style="font-size:.65rem"><span class="sla-dot"></span>Demorado</span>
+        <span class="sla-pill sla-critical" style="font-size:.65rem"><span class="sla-dot"></span>Urgente</span>
       </p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
       <a href="{{ url_for('bodega_cuadro_mando') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-gauge-high me-1"></i>Cuadro de mando</a>
-      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-secondary btn-sm">Despacho voz (pre-cobro)</a>
-      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-secondary btn-sm">Despacho voz</a>
     </div>
-  </div>
-
-  <div class="alert alert-info border-0 small mb-3">
-    <strong>Permiso:</strong> <code>bodega_operador</code>.
-    Solo aparecen vales cobrados después de activar columnas de retiro (al primer cobro con retiro Bodega se crean en base de datos).
-    <strong>Avisos:</strong> con permiso de bodega el navegador consulta la cola cada <strong>~8 s</strong> y emite <strong>pitido + aviso</strong> al cobrarse un nuevo retiro en bodega (en cualquier pantalla del ERP); en esta vista la tabla se recarga sola al detectar novedades.
-    Orden por antigüedad (los más viejos arriba). Cola: <strong>{{ cola_retiro_total }}</strong> vale(s). <kbd>F5</kbd> actualiza manual.
   </div>
 
   <div class="btn-group btn-group-sm flex-wrap mb-3" role="group">
@@ -33,35 +84,51 @@
 
   <div class="card card-ds">
     <div class="card-body p-0 table-responsive">
-      <table class="table table-hover table-sm align-middle mb-0">
+      <table class="table table-hover table-sm align-middle mb-0" id="tblPlataforma">
         <thead class="table-light">
           <tr>
-            <th>Vale</th>
+            <th style="width:70px">Vale</th>
             <th>Cliente</th>
-            <th>Estado prep.</th>
+            <th style="width:110px">Tiempo</th>
+            <th style="width:120px">Estado</th>
             <th>Operador</th>
-            <th>Fecha</th>
-            <th class="text-end">Total</th>
+            <th class="text-end" style="width:90px">Total</th>
             <th>Materiales (pendiente)</th>
-            <th></th>
+            <th style="width:70px"></th>
           </tr>
         </thead>
         <tbody>
           {% for v in vales %}
-          <tr>
+          <tr class="{% if v.sla_tier >= 3 %}sla-row-critical{% elif v.sla_tier >= 2 %}sla-row-delayed{% endif %}"
+              data-cobrado="{{ v.sla_cobrado_iso }}" data-estado="{{ v.bodega_preparacion_estado }}">
             <td class="font-monospace fw-semibold">#{{ v.id }}</td>
-            <td>{{ v.cliente.nombre if v.cliente else '—' }}</td>
-            <td><span class="badge bg-secondary">{{ v.bodega_preparacion_estado or '—' }}</span></td>
+            <td class="small">{{ v.cliente.nombre if v.cliente else '—' }}</td>
+            <td>
+              {% if v.sla_min is not none %}
+              <span class="sla-pill {{ v.sla_css }}">
+                <span class="sla-dot"></span>
+                <span class="sla-time">{{ v.sla_min }}</span> min
+              </span>
+              <div class="sla-timer-label">{{ v.sla_label }}</div>
+              {% else %}
+              <span class="sla-pill sla-none"><span class="sla-dot"></span>—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set est = v.bodega_preparacion_estado %}
+              <span class="estado-prep badge {% if est == 'PENDIENTE' %}text-bg-warning{% elif est == 'EN_PREPARACION' %}text-bg-primary{% elif est == 'LISTO_RETIRO' %}text-bg-success{% elif est == 'ENTREGA_PARCIAL' %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                {{ est | replace('_', ' ') | capitalize }}
+              </span>
+            </td>
             <td class="small">{{ v.bodega_preparacion_usuario or '—' }}</td>
-            <td class="small text-muted">{{ v.fecha.strftime('%d-%m-%Y %H:%M') if v.fecha else '—' }}</td>
-            <td class="text-end">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
+            <td class="text-end font-monospace small">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
             <td class="small">
               {% for d in (v.detalles or []) %}
                 {% set p = d.producto %}
                 {% set pend = (d.cantidad or 0) - (d.cantidad_entregada_retiro_bodega or 0) %}
                 {% if pend > 0 %}
                 <div>{{ (p.nombre if p else '?')[:40] }}{% if p and (p.nombre|length) > 40 %}…{% endif %}
-                  <span class="text-warning">pend. {{ pend }}</span> / {{ d.cantidad }}</div>
+                  <span class="text-warning fw-semibold">{{ pend }}</span><span class="text-muted">/{{ d.cantidad }}</span></div>
                 {% endif %}
               {% else %}
                 <span class="text-muted">—</span>
@@ -81,3 +148,54 @@
 </div>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function(){
+  const TIERS = {
+    PENDIENTE:       [5, 10, 20],
+    EN_PREPARACION:  [10, 20, 40],
+    ENTREGA_PARCIAL: [8, 15, 30],
+    LISTO_RETIRO:    [15, 30, 60],
+  };
+  const CSS  = ['sla-ok','sla-attention','sla-delayed','sla-critical'];
+  const LABELS = ['En tiempo','Atención','Demorado','Urgente'];
+  const ROW_CSS = ['','','sla-row-delayed','sla-row-critical'];
+
+  function tier(mins, estado){
+    const u = TIERS[estado] || [15,40,80];
+    if(mins >= u[2]) return 3;
+    if(mins >= u[1]) return 2;
+    if(mins >= u[0]) return 1;
+    return 0;
+  }
+
+  function updateTimers(){
+    const now = Date.now();
+    document.querySelectorAll('#tblPlataforma tbody tr[data-cobrado]').forEach(function(tr){
+      const iso = tr.getAttribute('data-cobrado');
+      if(!iso) return;
+      const estado = tr.getAttribute('data-estado') || '';
+      const ms = now - new Date(iso).getTime();
+      const mins = Math.max(0, Math.floor(ms / 60000));
+      const t = tier(mins, estado);
+
+      const pill = tr.querySelector('.sla-pill');
+      if(pill){
+        CSS.forEach(function(c){ pill.classList.remove(c); });
+        pill.classList.add(CSS[t]);
+        const sp = pill.querySelector('.sla-time');
+        if(sp) sp.textContent = mins;
+      }
+      const lbl = tr.querySelector('.sla-timer-label');
+      if(lbl) lbl.textContent = LABELS[t];
+
+      ROW_CSS.forEach(function(c){ if(c) tr.classList.remove(c); });
+      if(ROW_CSS[t]) tr.classList.add(ROW_CSS[t]);
+    });
+  }
+
+  updateTimers();
+  setInterval(updateTimers, 30000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Ferretería Santo Domingo — Totem Liz</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/liz_totem_premium.css') }}">
+<style>
+/* Overrides mínimos + compatibilidad con JS existente */
+.panel-title i { color: var(--gold-light); }
+
+/* ========== Totem: pago + vale digital post-cobro (80mm / accesible) ========== */
+#ckStep3 { display: none; }
+.ck-step3-title { font-size: 1.75rem; font-weight: 900; color: #fff; margin-bottom: 0.75rem; text-align: center; }
+.ck-pay-methods { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 1rem 0; }
+.ck-pay-btn {
+  min-height: 72px; min-width: 140px; padding: 0.75rem 1.25rem; font-size: 1.2rem; font-weight: 800;
+  border-radius: 16px; border: 3px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.08);
+  color: #fff; cursor: pointer;
+}
+.ck-pay-btn.selected { border-color: #34D399; background: rgba(52,211,153,0.25); box-shadow: 0 0 0 3px rgba(52,211,153,0.35); }
+.ck-pay-monto { width: 100%; max-width: 420px; margin: 0.5rem auto; display: block; font-size: 2rem; font-weight: 800;
+  text-align: center; padding: 0.75rem; border-radius: 14px; border: 2px solid rgba(255,255,255,0.3); background: #111827; color: #fff; }
+.ck-doc-toggle { display: flex; gap: 10px; justify-content: center; margin: 0.75rem 0; }
+.ck-doc-btn { min-height: 56px; padding: 0 1.25rem; font-size: 1.05rem; font-weight: 800; border-radius: 12px;
+  border: 2px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; }
+.ck-doc-btn.selected { border-color: #FBBF24; background: rgba(251,191,36,0.2); }
+
+/* Overlay pantalla completa post-cobro */
+.vale-digital-overlay {
+  position: fixed; inset: 0; z-index: 12000;
+  background: rgba(2, 6, 23, 0.94);
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  padding: 1.25rem; box-sizing: border-box;
+}
+.vale-digital-overlay.visible { display: flex; }
+.vale-digital-print-zone {
+  width: 100%; max-width: min(720px, 100vw);
+  background: #0f172a; color: #f8fafc;
+  border-radius: 20px; padding: 1.5rem 1.25rem 2rem;
+  border: 3px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+}
+.vale-digital-print-zone:focus { outline: 3px solid #38bdf8; outline-offset: 4px; }
+.vd-success-h1 { font-size: clamp(1.5rem, 4vw, 2.25rem); font-weight: 900; text-align: center; margin: 0 0 0.5rem; color: #ecfdf5; }
+.vd-turno-wrap { text-align: center; margin: 1rem 0 1.25rem; }
+.vd-turno-label { font-size: 1.1rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; }
+.vd-turno-num {
+  display: inline-block; margin-top: 0.35rem;
+  font-size: 80px; line-height: 1.05; font-weight: 900;
+  color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,0.45);
+  padding: 0.15em 0.35em; border-radius: 16px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 4px solid rgba(251, 191, 36, 0.55);
+}
+.vd-vuelto-line {
+  text-align: center; font-size: 36px; font-weight: 900; color: #34D399;
+  margin: 0.5rem 0 1rem; text-shadow: 0 0 20px rgba(52, 211, 153, 0.35);
+}
+.vd-dte-pendiente {
+  border: 4px solid #F59E0B; border-radius: 16px; padding: 1rem 1.1rem; margin: 0.75rem 0;
+  background: rgba(245, 158, 11, 0.12); color: #fef3c7;
+  font-size: 20px; font-weight: 700; line-height: 1.35; text-align: center;
+}
+.vd-dte-ok {
+  border: 4px solid #10B981; border-radius: 16px; padding: 1rem 1.1rem; margin: 0.75rem 0;
+  background: rgba(16, 185, 129, 0.15); color: #d1fae5;
+  font-size: 22px; font-weight: 800; text-align: center;
+}
+.vd-foot { text-align: center; font-size: 1rem; color: #94a3b8; margin-top: 0.75rem; }
+.vd-close-btn {
+  margin-top: 1rem; min-height: 56px; padding: 0 1.5rem; font-size: 1.1rem; font-weight: 800;
+  border-radius: 14px; border: none; cursor: pointer; background: #334155; color: #e2e8f0;
+}
+.vd-close-btn:focus-visible { outline: 3px solid #fbbf24; outline-offset: 3px; }
+
+@media print {
+  @page { size: 80mm auto; margin: 4mm; }
+  html, body { background: #fff !important; height: auto !important; }
+  body * { visibility: hidden !important; }
+  #valeDigitalOverlay,
+  #valeDigitalOverlay * { visibility: visible !important; }
+  #valeDigitalOverlay {
+    position: static !important; inset: auto !important; display: block !important;
+    background: #fff !important; padding: 0 !important;
+  }
+  .vale-digital-print-zone {
+    max-width: 80mm !important; width: 80mm !important;
+    background: #fff !important; color: #000 !important;
+    border: none !important; box-shadow: none !important; border-radius: 0 !important;
+    padding: 4mm !important;
+  }
+  .vd-success-h1 { color: #000 !important; }
+  .vd-turno-label { color: #333 !important; }
+  .vd-turno-num {
+    font-size: 64pt !important; color: #000 !important; border-color: #000 !important;
+    background: #fff !important; text-shadow: none !important;
+  }
+  .vd-vuelto-line { color: #047857 !important; text-shadow: none !important; }
+  .vd-dte-pendiente { color: #000 !important; background: #fff8e6 !important; border-color: #d97706 !important; }
+  .vd-dte-ok { color: #000 !important; background: #ecfdf5 !important; border-color: #059669 !important; }
+  .vd-foot { color: #333 !important; }
+  .no-print { display: none !important; visibility: hidden !important; }
+  .app, .checkout-overlay, .welcome, footer.touch-dock, .print-overlay { display: none !important; }
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+#prodNav button {
+  min-height: 72px;
+  padding: 0 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  border-radius: 16px;
+  border: 2px solid rgba(212, 175, 106, 0.4);
+  background: rgba(212, 175, 106, 0.12);
+  color: var(--gold-light);
+  cursor: pointer;
+}
+</style>
+</head>
+<body>
+<div class="app" style="position:relative">
+
+<!-- ===== WELCOME SCREEN ===== -->
+<div class="welcome" id="welcomeScreen">
+  <div class="welcome-brand">
+    <p style="font-size:0.85rem;letter-spacing:0.25em;text-transform:uppercase;color:var(--gold-light);font-weight:800;margin-bottom:0.5rem">Ferretería Santo Domingo</p>
+    <h1>Bienvenido</h1>
+    <p class="welcome-rut-call">Digite su <strong>RUN o RUT</strong> en el cuadro de abajo (con o sin puntos), o escanee el <strong>carnet</strong>.</p>
+    <p>Soy <strong>Liz</strong>, su asistente. También puede continuar como invitado.</p>
+  </div>
+  <div class="welcome-logo"><img src="{{ url_for('static', filename='img/liz_avatar.png') }}" alt="Liz"></div>
+  <input class="welcome-input" id="welcomeInput" type="text" placeholder="Ej: 12.345.678-9 o lectura del carnet" autocomplete="off" spellcheck="false" inputmode="text" aria-label="RUN o RUT">
+  <div class="welcome-hint"><i class="bi bi-upc-scan"></i> Lector: enfoque aquí y escanee. El micrófono <strong>Hablar con Liz</strong> está al lado de Liz en pantalla.</div>
+  <button type="button" class="welcome-skip" onclick="skipWelcome()">Continuar como invitado</button>
+</div>
+
+<!-- ===== HEADER ===== -->
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-logo" aria-hidden="true">SD</div>
+    <div>
+      <div class="hdr-title">Ferretería Santo Domingo</div>
+      <div class="hdr-sub">Tótem de venta · {{ empresa.nombre_comercial or 'LhexIA' }}</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-time" id="clock"></div>
+    <div class="badge-ia"><div class="badge-ia-dot"></div><div class="badge-ia-txt">Liz lista</div></div>
+  </div>
+</header>
+
+<div class="main-body">
+  <!-- LEFT: LIZ -->
+  <div class="panel-liz">
+    <div class="liz-avatar-mic-row">
+      <div class="liz-avatar-col-stack">
+        <div class="avatar-zone liz-avatar-enter" id="lizAvatarZone">
+          <div class="avatar-ring" id="avatarRing">
+            <div class="avatar-glow"></div>
+            <div class="avatar-inner" id="avatarFace">
+              <img src="{{ url_for('static', filename='img/liz_avatar.png') }}" class="avatar-photo active" id="lizIdle" alt="Liz">
+              <img src="{{ url_for('static', filename='img/liz_speaking.png') }}" class="avatar-photo hidden" id="lizSpeaking" alt="Liz hablando">
+              <img src="{{ url_for('static', filename='img/liz_thinking.png') }}" class="avatar-photo hidden" id="lizThinking" alt="Liz pensando">
+            </div>
+          </div>
+          <div class="avatar-name">Liz</div>
+          <div class="avatar-status" id="avatarStatus">Lista para ayudarte</div>
+        </div>
+      </div>
+      <div class="liz-mic-col">
+        <button type="button" class="btn-mic-premium btn-mic-beside-liz" id="micBtn" title="Hablar con Liz">
+          <span class="btn-mic-ring"><i class="bi bi-mic-fill" id="micBtnIcon"></i></span>
+          <span class="btn-mic-text"><strong>Hablar con Liz</strong><small>Voz y dictado</small></span>
+        </button>
+      </div>
+    </div>
+    <button type="button" class="voice-toggle" id="voiceToggle" onclick="toggleVoicePanel()" style="margin-top:6px"><i class="bi bi-sliders"></i> Ajustar voz</button>
+    <div class="voice-controls" id="voicePanel" style="display:none">
+      <select id="voicePicker"></select>
+      <div class="vc-row"><label>Velocidad</label><input type="range" id="vcRate" min="0.5" max="1.5" step="0.05" value="1.0"><span class="vc-val" id="vcRateVal">1.0</span></div>
+      <div class="vc-row"><label>Tono</label><input type="range" id="vcPitch" min="0.7" max="1.5" step="0.05" value="1.05"><span class="vc-val" id="vcPitchVal">1.05</span></div>
+      <div class="vc-row"><label>Volumen</label><input type="range" id="vcVol" min="0.3" max="1.0" step="0.05" value="1.0"><span class="vc-val" id="vcVolVal">1.0</span></div>
+      <button type="button" class="voice-toggle" onclick="speak('Hola! Soy Liz, tu asistente favorita!')"><i class="bi bi-play-fill"></i> Probar</button>
+      <button type="button" class="voice-toggle voice-toggle--save" id="btnSaveVoice" onclick="saveVoiceConfig()"><i class="bi bi-save"></i> Guardar</button>
+    </div>
+
+    <div class="liz-bubble-wrap">
+      <div class="liz-bubble" id="lizBubble"><span class="highlight">Hola, bienvenido.</span> Soy <strong>Liz</strong>. <strong>Digite su RUN o RUT</strong> en la pantalla de bienvenida o escanee el carnet. Use <strong>Hablar con Liz</strong> aquí al lado para hablar por voz.</div>
+    </div>
+
+    <div class="options" id="optionsZone"></div>
+  </div>
+
+  <!-- CENTER: PRODUCTS -->
+  <div class="panel-products" id="panelProducts" style="position:relative">
+    <!-- Client bar (compact) -->
+    <div class="client-bar" id="clientCard">
+      <div class="cb-avatar" id="ccAvatar">?</div>
+      <div class="cb-info">
+        <div class="cb-name" id="ccName">-</div>
+        <div class="cb-detail" id="ccRut">-</div>
+      </div>
+      <div class="cb-stats">
+        <div class="cb-stat"><div class="cb-stat-val" id="ccCompras">0</div><div class="cb-stat-lbl">Compras</div></div>
+        <div class="cb-stat"><div class="cb-stat-val" id="ccTotal">$0</div><div class="cb-stat-lbl">Total</div></div>
+        <div class="cb-stat"><div class="cb-stat-val" id="ccCredito">-</div><div class="cb-stat-lbl">Credito</div></div>
+      </div>
+      <button class="cb-btn" onclick="toggleHistory()"><i class="bi bi-clock-history"></i> Historial</button>
+    </div>
+
+    <!-- History overlay -->
+    <div class="history-overlay" id="historyOverlay">
+      <button class="hist-close" onclick="toggleHistory()"><i class="bi bi-x-lg"></i></button>
+      <div class="panel-title"><i class="bi bi-clock-history"></i> Historial de compras</div>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-wrap">
+      <i class="bi bi-search search-icon"></i>
+      <input class="search-input" id="searchInput" placeholder="Buscar producto..." autocomplete="off">
+    </div>
+
+    <!-- SECTION 1: Ofertas del dia (top) -->
+    <div class="section-offers" id="offersSection">
+      <div class="section-label"><i class="bi bi-fire label-offers"></i> <span class="label-offers">OFERTAS DEL DIA</span></div>
+      <div class="offers-grid" id="offersGrid"></div>
+    </div>
+
+    <!-- SECTION 2: Resultados de busqueda (bottom) -->
+    <div class="section-results" id="resultsSection">
+      <div class="section-label" id="prodTitle"><i class="bi bi-box-seam label-search"></i> <span class="label-search">PRODUCTOS</span></div>
+      <div class="products" id="productsGrid"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: CART -->
+  <div class="panel-cart" id="cartPanel">
+    <div class="cart-header">
+      <div class="cart-title"><i class="bi bi-cart3"></i> Mi carrito <span class="cart-count" id="cartCount">0</span></div>
+      <button type="button" class="cart-clear" id="cartClearBtn" onclick="clearCart()"><i class="bi bi-trash3"></i> Vaciar</button>
+    </div>
+    <div class="cart-items" id="cartItems"></div>
+    <div class="cart-footer">
+      <div class="cart-summary-line"><span>Artículos</span><strong id="cartLineQty">0</strong></div>
+      <div class="cart-subtotal"><span>Subtotal</span><span id="cartSubtotal">$0</span></div>
+      <div class="cart-total"><span>Total a pagar</span><span class="cart-total-val" id="cartTotal">$0</span></div>
+      <p class="cart-footer-hint" style="font-size:0.95rem;color:var(--text3);margin-bottom:0.75rem;text-align:center">Revise su carrito y pulse el botón verde para ir a caja.</p>
+      <button type="button" class="btn-checkout" id="btnCheckout" onclick="processCheckout()" disabled>
+        <i class="bi bi-receipt-cutoff"></i> Confirmar venta · Emitir vale
+      </button>
+    </div>
+  </div>
+</div>
+
+<footer class="touch-dock" id="touchDock" role="contentinfo">
+  <div class="touch-dock-inner touch-dock-inner--solo">
+    <div class="dock-search-wrap dock-search-wrap--full">
+      <i class="bi bi-chat-left-text search-icon"></i>
+      <input class="input-field" id="userInput" type="text" placeholder="Escriba producto o consulta para Liz..." autocomplete="off">
+    </div>
+  </div>
+  <div class="mic-debug" id="micDebug" aria-live="polite"></div>
+</footer>
+
+</div>
+
+<!-- ===== CHECKOUT OVERLAY ===== -->
+<div class="checkout-overlay" id="checkoutOverlay">
+  <div class="checkout-card" id="checkoutCard">
+    <!-- Step 1: Confirmar productos y emitir vale -->
+    <div id="ckStep1">
+      <div class="ck-header">
+        <h2><i class="bi bi-receipt-cutoff"></i> Emitir Vale de Compra</h2>
+        <div class="ck-step-indicator">Revisa tus productos antes de generar el vale</div>
+      </div>
+      <div class="ck-body">
+        <div class="ck-items" id="ckItems"></div>
+        <div class="ck-totals" id="ckTotals"></div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700">Punto de retiro</div>
+        <div class="ck-retiro">
+          <button class="ck-retiro-btn selected" data-retiro="Tienda" onclick="selectRetiro(this)"><i class="bi bi-shop"></i>Tienda</button>
+          <button class="ck-retiro-btn" data-retiro="Bodega" onclick="selectRetiro(this)"><i class="bi bi-box-seam"></i>Bodega</button>
+          <button type="button" class="ck-retiro-btn" data-retiro="Despacho" onclick="selectRetiro(this)"><i class="bi bi-truck"></i>Despacho</button>
+        </div>
+        <div class="ck-confirm-premium">
+          <label class="ck-confirm-label" for="ckConfirmCheck">
+            <input type="checkbox" id="ckConfirmCheck" autocomplete="off" onchange="syncCkConfirm()">
+            <span>Confirmo que revisé productos, cantidades y el total antes de generar el vale.</span>
+          </label>
+        </div>
+      </div>
+      <div class="ck-actions">
+        <button type="button" class="ck-btn ck-btn-cancel" onclick="closeCheckout()"><i class="bi bi-x-lg"></i> Cancelar</button>
+        <button type="button" class="ck-btn ck-btn-confirm" id="ckBtnConfirm" onclick="emitirVale()" disabled><i class="bi bi-receipt"></i> Generar Vale</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Vale emitido con turno -->
+    <div id="ckStep2" style="display:none">
+      <div class="ck-header">
+        <h2 class="ck-vale-success-title"><i class="bi bi-check-circle-fill"></i> Vale Emitido</h2>
+        <div class="ck-step-indicator">Presentalo en caja para pagar</div>
+      </div>
+      <div class="ck-body vale-card" id="valeContent"></div>
+      <div class="ck-actions" style="justify-content:center">
+        <div class="vale-btns">
+          <button type="button" class="vale-btn vale-btn-print" onclick="printVale()"><i class="bi bi-printer"></i> Imprimir Vale</button>
+          <button type="button" class="vale-btn vale-btn-nueva" onclick="nuevaCompra()"><i class="bi bi-plus-circle"></i> Nueva Compra</button>
+        </div>
+        <button type="button" class="ck-btn ck-btn-confirm" style="margin-top:14px;width:100%;max-width:520px" onclick="openTotemPagoStep()">
+          <i class="bi bi-cash-coin"></i> Pagar aquí en tótem
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 3: Pago tótem (requiere sesión caja abierta) -->
+    <div id="ckStep3" style="display:none">
+      <div class="ck-header">
+        <h2><i class="bi bi-cash-stack"></i> Pago en tótem</h2>
+        <div class="ck-step-indicator">Seleccione método y confirme el monto recibido</div>
+      </div>
+      <div class="ck-body">
+        <p class="ck-step3-title" id="ckPagoResumen">Total: <span id="ckPagoTotalFmt">$0</span></p>
+        <div class="ck-pay-methods" role="group" aria-label="Método de pago">
+          <button type="button" class="ck-pay-btn selected" data-metodo="Efectivo" onclick="selectMetodoPagoTotem(this)"><i class="bi bi-cash"></i> Efectivo</button>
+          <button type="button" class="ck-pay-btn" data-metodo="Tarjeta" onclick="selectMetodoPagoTotem(this)"><i class="bi bi-credit-card"></i> Tarjeta</button>
+          <button type="button" class="ck-pay-btn" data-metodo="Transferencia" onclick="selectMetodoPagoTotem(this)"><i class="bi bi-bank"></i> Transferencia</button>
+        </div>
+        <div class="ck-doc-toggle" role="group" aria-label="Tipo documento">
+          <button type="button" class="ck-doc-btn selected" data-doc="Boleta" onclick="selectTipoDocTotem(this)">Boleta</button>
+          <button type="button" class="ck-doc-btn" data-doc="Factura" onclick="selectTipoDocTotem(this)">Factura</button>
+        </div>
+        <label for="ckMontoRecibido" class="sr-only">Monto recibido</label>
+        <input type="number" class="ck-pay-monto" id="ckMontoRecibido" inputmode="numeric" min="0" step="1" aria-label="Monto recibido en pesos chilenos">
+        <p style="text-align:center;color:var(--text3);font-size:0.95rem;margin:0.25rem 0 0">Ajuste si el cliente paga con billetes (debe ser ≥ total).</p>
+      </div>
+      <div class="ck-actions">
+        <button type="button" class="ck-btn ck-btn-cancel" onclick="volverDesdePagoTotem()"><i class="bi bi-arrow-left"></i> Volver al vale</button>
+        <button type="button" class="ck-btn ck-btn-confirm" id="ckBtnPagarTotem" onclick="confirmarCobroTotem()"><i class="bi bi-check2-circle"></i> Confirmar cobro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Post-cobro: vale digital pantalla completa + impresión térmica -->
+<div id="valeDigitalOverlay" class="vale-digital-overlay" role="dialog" aria-modal="true" aria-labelledby="vdSuccessTitle" aria-live="assertive">
+  <div id="valeDigitalPrintZone" class="vale-digital-print-zone" tabindex="-1">
+    <h2 id="vdSuccessTitle" class="vd-success-h1">Compra procesada</h2>
+    <div class="vd-turno-wrap">
+      <div class="vd-turno-label">Su número de turno</div>
+      <div class="vd-turno-num" id="vdTurnoNum" aria-label="Número de turno">—</div>
+    </div>
+    <div id="vdVueltoBlock" style="display:none"></div>
+    <div id="vdDteBlock"></div>
+    <p class="vd-foot">Retire su comprobante de la ticketera. Conserve su turno para retiro de productos.</p>
+  </div>
+  <button type="button" class="vd-close-btn no-print" onclick="closeValeDigitalOverlay()">Cerrar</button>
+</div>
+
+<div class="print-overlay" id="printOverlay" aria-hidden="true">
+  <div class="print-spinner" aria-hidden="true"></div>
+  <div class="print-msg">Imprimiendo boleta…</div>
+  <div class="print-sub">Espere un momento. Si no se imprime, use «Imprimir vale» en pantalla.</div>
+</div>
+
+<script>
+/* ========== STATE ========== */
+let cliente = null;
+let cart = [];
+let allProducts = [];
+let isSpeaking = false;
+const synth = window.speechSynthesis;
+let preferredVoice = null;
+const SESSION_ID = 'liz-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
+let searchOffset = 0;
+let lastSearchQuery = '';
+const fmtCLP = new Intl.NumberFormat('es-CL', {style:'currency', currency:'CLP', minimumFractionDigits:0});
+
+/* ========== UI SOUNDS (Web Audio API) ========== */
+const _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+document.addEventListener('click', ()=>{ if(_audioCtx.state==='suspended') _audioCtx.resume(); }, {once:true});
+document.addEventListener('keydown', ()=>{ if(_audioCtx.state==='suspended') _audioCtx.resume(); }, {once:true});
+function playSound(type){
+  try{
+    if(_audioCtx.state==='suspended') _audioCtx.resume();
+    const osc = _audioCtx.createOscillator();
+    const gain = _audioCtx.createGain();
+    osc.connect(gain); gain.connect(_audioCtx.destination);
+    gain.gain.value = 0.12;
+    if(type==='add'){osc.frequency.value=880;gain.gain.exponentialRampToValueAtTime(0.001,_audioCtx.currentTime+0.15);osc.start();osc.stop(_audioCtx.currentTime+0.15);}
+    else if(type==='remove'){osc.frequency.value=330;gain.gain.exponentialRampToValueAtTime(0.001,_audioCtx.currentTime+0.12);osc.start();osc.stop(_audioCtx.currentTime+0.12);}
+    else if(type==='checkout'){osc.frequency.value=660;gain.gain.exponentialRampToValueAtTime(0.001,_audioCtx.currentTime+0.3);osc.start();osc.stop(_audioCtx.currentTime+0.3);}
+    else if(type==='error'){osc.type='square';osc.frequency.value=200;gain.gain.exponentialRampToValueAtTime(0.001,_audioCtx.currentTime+0.2);osc.start();osc.stop(_audioCtx.currentTime+0.2);}
+  }catch(e){}
+}
+
+function setLizFace(state){
+  const idle = document.getElementById('lizIdle');
+  const speaking = document.getElementById('lizSpeaking');
+  const thinking = document.getElementById('lizThinking');
+  if(!idle) return;
+  idle.className = 'avatar-photo ' + (state === 'idle' ? 'active' : 'hidden');
+  speaking.className = 'avatar-photo ' + (state === 'speaking' ? 'active' : 'hidden');
+  thinking.className = 'avatar-photo ' + (state === 'thinking' ? 'active' : 'hidden');
+}
+
+/* ========== GEMINI (Function Calling + Fallback) ========== */
+function _visibleProducts(){
+  const all = [...offerProducts, ...allProducts];
+  return all.map((p,i) => ({id:p.id, nombre:p.nombre, codigo:p.codigo||'', precio:p.precio, stock:p.stock, categoria:p.categoria||'', num_visible:i+1}));
+}
+
+async function askLiz(userMsg){
+  try {
+    const r = await fetch('/api/demo/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+      message: userMsg, session_id: SESSION_ID,
+      cliente: cliente ? cliente.cliente : null,
+      cart: cart.map(c => ({nombre: c.nombre, precio: c.precio, qty: c.qty})),
+      productos_pantalla: _visibleProducts(),
+    })});
+    const d = await r.json();
+    if(d.modo==='fallback') console.warn('Liz: modo fallback activado (fallback_postgresql)');
+
+    if(d.accion==='buscar' && d.busqueda_activa && d.productos?.length){
+      allProducts = mergeCartIntoProductList(d.productos);
+      renderProducts();
+      document.getElementById('prodTitle').innerHTML = '<i class="bi bi-box-seam label-search"></i> <span class="label-search">LIZ ENCONTRO ' + d.productos.length + ' PRODUCTOS</span>';
+      showNavButtons(d.productos.length >= 10);
+      scrollResultsIntoView();
+      syncOffersCompactMode();
+    }
+    else if(d.accion==='agregar_carrito' && d.producto_carrito?.id){
+      addToCartDirect(d.producto_carrito, d.cantidad || 1);
+    }
+    else if(d.accion==='checkout'){
+      const ov = document.getElementById('checkoutOverlay');
+      if(!ov || !ov.classList.contains('visible')) processCheckout();
+    }
+    else if(d.busqueda_activa && d.productos?.length){
+      allProducts = mergeCartIntoProductList(d.productos);
+      renderProducts();
+      scrollResultsIntoView();
+      syncOffersCompactMode();
+    }
+    return d.response || null;
+  } catch(e){ console.error('askLiz error:',e); return null; }
+}
+
+async function lizRespond(userMsg, fallback, optionsAfter){
+  showBubbleTyping();
+  const ai = await askLiz(userMsg);
+  showBubble(ai || fallback || 'Dejame ver...');
+  if(optionsAfter) setTimeout(()=> showOptions(optionsAfter), 800);
+}
+
+/* ========== VOICE SETUP ========== */
+function setupVoice(){
+  const voices = synth.getVoices();
+  const esVoices = voices.filter(v => v.lang.startsWith('es'));
+  if(savedVoiceName) preferredVoice = esVoices.find(v => v.name === savedVoiceName) || voices.find(v => v.name === savedVoiceName);
+  if(!preferredVoice) preferredVoice = esVoices.find(v => /online|natural|neural/i.test(v.name))
+    || esVoices.find(v => /google/i.test(v.name))
+    || esVoices.find(v => /ximena|dalia|paulina|helena|sabina|conchita|elvira|lucia/i.test(v.name))
+    || esVoices.find(v => v.lang === 'es-MX') || esVoices.find(v => v.lang === 'es-CL')
+    || esVoices[0] || voices[0];
+  console.log('Voz:', preferredVoice?.name, preferredVoice?.lang);
+  if(esVoices.length > 1){
+    const picker = document.getElementById('voicePicker');
+    if(picker){
+      picker.innerHTML = '<option value="">Auto</option>' + esVoices.map((v,i) => {
+        const tag = /online|natural|neural/i.test(v.name) ? ' HD' : '';
+        return `<option value="${i}"${v.name===preferredVoice?.name?' selected':''}>${v.name} [${v.lang}]${tag}</option>`;
+      }).join('');
+      picker.style.display = 'block';
+      picker.onchange = function(){ if(this.value==='') setupVoice(); else { preferredVoice = esVoices[parseInt(this.value)]; speak('Hola, esta es mi nueva voz.'); }};
+    }
+  }
+}
+if(synth.onvoiceschanged !== undefined) synth.onvoiceschanged = setupVoice;
+setTimeout(setupVoice, 500);
+
+const _svc = {{ voice_config | tojson }};
+const _lvc = JSON.parse(localStorage.getItem('liz_voice_config') || '{}');
+const savedVoiceConfig = Object.keys(_lvc).length ? _lvc : _svc;
+const voiceSettings = { rate: savedVoiceConfig.rate || 1.0, pitch: savedVoiceConfig.pitch || 1.05, volume: savedVoiceConfig.volume || 1.0 };
+const savedVoiceName = savedVoiceConfig.voice_name || '';
+
+function toggleVoicePanel(){ const p=document.getElementById('voicePanel'); p.style.display=p.style.display==='none'?'flex':'none'; }
+document.getElementById('vcRate').value=voiceSettings.rate; document.getElementById('vcRateVal').textContent=voiceSettings.rate;
+document.getElementById('vcPitch').value=voiceSettings.pitch; document.getElementById('vcPitchVal').textContent=voiceSettings.pitch;
+document.getElementById('vcVol').value=voiceSettings.volume; document.getElementById('vcVolVal').textContent=voiceSettings.volume;
+document.getElementById('vcRate').oninput=function(){voiceSettings.rate=parseFloat(this.value);document.getElementById('vcRateVal').textContent=this.value;};
+document.getElementById('vcPitch').oninput=function(){voiceSettings.pitch=parseFloat(this.value);document.getElementById('vcPitchVal').textContent=this.value;};
+document.getElementById('vcVol').oninput=function(){voiceSettings.volume=parseFloat(this.value);document.getElementById('vcVolVal').textContent=this.value;};
+
+async function saveVoiceConfig(){
+  const btn=document.getElementById('btnSaveVoice');
+  btn.textContent='...';
+  const body={voice_name:preferredVoice?.name||'',rate:voiceSettings.rate,pitch:voiceSettings.pitch,volume:voiceSettings.volume};
+  localStorage.setItem('liz_voice_config',JSON.stringify(body));
+  try{ await fetch('/api/demo/voice-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }catch(e){}
+  btn.innerHTML='<i class="bi bi-check"></i> OK';
+  setTimeout(()=>{btn.innerHTML='<i class="bi bi-save"></i> Guardar';},2000);
+}
+
+/* ========== SPEAK ========== */
+let _speakQueue=[];let _speakBusy=false;
+setInterval(()=>{if(!synth.speaking&&!_speakBusy){const w=new SpeechSynthesisUtterance('');w.volume=0;synth.speak(w);}},5000);
+
+function expandirMontosPesosChilenosParaVoz(t){
+  if(t==null||t==='') return t;
+  let s = String(t).replace(/\u00a0/g, ' ');
+  return s.replace(/\$\s*([\d\.]+)(?![\d\.])/g, (_, grup) => {
+    const n = parseInt(String(grup).replace(/\./g, ''), 10);
+    if(!Number.isFinite(n) || n < 0) return '$' + grup;
+    return n.toLocaleString('es-CL') + ' pesos chilenos';
+  });
+}
+
+function speak(text, callback){
+  // ANTI-LOOP: detener mic antes de hablar para evitar que capture la voz de Liz
+  if(rec && listening){ try{rec.stop();}catch(e){} stopListening(); }
+
+  synth.cancel(); isSpeaking=false; _speakBusy=false;
+  const plain = text.replace(/<[^>]*>/g,' ').replace(/&[^;]+;/g,' ');
+  const clean = expandirMontosPesosChilenosParaVoz(plain).replace(/\s+/g,' ').trim();
+  if(!clean){if(callback)callback();return;}
+  const chunks=clean.match(/[^.!?;,]+[.!?;,]*/g)||[clean];
+  let idx=0;
+  isSpeaking=true; _speakBusy=true;
+  document.getElementById('avatarRing').classList.add('speaking');
+  setLizFace('speaking');
+  document.getElementById('avatarStatus').textContent='Hablando...';
+
+  function endSpeaking(){
+    isSpeaking=false; _speakBusy=false;
+    document.getElementById('avatarRing').classList.remove('speaking');
+    setLizFace('idle');
+    document.getElementById('avatarStatus').textContent='Lista para ayudarte';
+    if(callback) callback();
+  }
+
+  function next(){
+    if(idx>=chunks.length){ endSpeaking(); return; }
+    const part=chunks[idx].trim();
+    idx++;
+    if(!part){ next(); return; }
+    const utt=new SpeechSynthesisUtterance(part);
+    if(preferredVoice) utt.voice=preferredVoice;
+    utt.lang=preferredVoice?.lang||'es-CL';
+    utt.rate=voiceSettings.rate; utt.pitch=voiceSettings.pitch; utt.volume=voiceSettings.volume;
+    const safety=setTimeout(()=>{console.warn('TTS timeout, skipping chunk');synth.cancel();next();},8000);
+    const keepAlive=setInterval(()=>{if(synth.speaking&&!synth.paused){synth.pause();synth.resume();}},4000);
+    utt.onend=()=>{clearTimeout(safety);clearInterval(keepAlive);setTimeout(next,60);};
+    utt.onerror=(e)=>{clearTimeout(safety);clearInterval(keepAlive);console.warn('TTS error:',e.error);setTimeout(next,40);};
+    synth.speak(utt);
+  }
+  next();
+}
+
+/* ========== CLOCK ========== */
+function clock(){const d=new Date();document.getElementById('clock').textContent=d.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'})+' — '+d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});}
+setInterval(clock,10000);clock();
+
+/* ========== BUBBLE (replaces chat) ========== */
+function showBubble(html, skipSpeak){
+  const b=document.getElementById('lizBubble');
+  b.innerHTML=html; b.style.display='block'; b.style.animation='none';
+  void b.offsetWidth; b.style.animation='fadeIn .5s ease';
+  hideBubbleTyping();
+  if(!skipSpeak) speak(html);
+}
+function showBubbleTyping(){
+  const b=document.getElementById('lizBubble');
+  b.innerHTML='<div class="typing-dots"><span></span><span></span><span></span></div>';
+  b.style.display='block';
+  setLizFace('thinking'); document.getElementById('avatarStatus').textContent='Pensando...';
+}
+function hideBubbleTyping(){
+  setLizFace('idle');
+  const st = document.getElementById('avatarStatus');
+  if(st) st.textContent = 'Lista para ayudarte';
+}
+
+/* ========== OPTIONS ========== */
+function showOptions(opts){
+  document.getElementById('optionsZone').innerHTML=opts.map(o=>
+    `<button class="opt-btn" onclick="handleOption('${o.id}')"><i class="bi ${o.icon}"></i> ${o.label}</button>`
+  ).join('');
+}
+function clearOptions(){document.getElementById('optionsZone').innerHTML='';}
+
+function handleOption(id){
+  clearOptions();
+  if(id==='ver_historial') toggleHistory();
+  else if(id==='recomendaciones') showRecomendaciones();
+  else if(id==='buscar') focusSearch();
+  else if(id==='cotizar') showCotizar();
+  else if(id==='credito') showCredito();
+  else if(id==='otra_cosa') showOtraCosa();
+}
+
+/* ========== WELCOME ========== */
+document.getElementById('welcomeInput').addEventListener('keydown',function(e){
+  if(e.key!=='Enter') return;
+  const v=this.value.trim();
+  if(v.length<2 && !_looksLikeCarnetBlob(v)) return;
+  this.value='';
+  identifyClient(v);
+});
+
+function _looksLikeCarnetBlob(s){
+  const t=(s||'').trim();
+  return t.length>=24 || t.includes('@') || /[\x1d\x1e\x1f]/.test(t);
+}
+
+async function skipWelcome(){
+  document.getElementById('welcomeScreen').classList.add('hidden');
+  loadProducts();
+  const instant = 'Bienvenido a <strong>Ferretería Santo Domingo</strong>. <span class="highlight">Digite su RUN o RUT</span> arriba o escanee el carnet. Soy <strong>Liz</strong>. Al lado de mi foto está <strong>Hablar con Liz</strong>; abajo puede escribir para buscar productos.';
+  showBubble(instant, true);
+  speak('Bienvenido a Ferretería Santo Domingo. Soy Liz, lista para ayudarle. Digite su R U T en pantalla o use el botón Hablar con Liz al lado de mi foto.');
+  showOptions([
+    {id:'buscar',icon:'bi-search',label:'Buscar un producto'},
+    {id:'recomendaciones',icon:'bi-stars',label:'Ver recomendaciones'},
+    {id:'cotizar',icon:'bi-file-earmark-text',label:'Hacer una cotización'},
+  ]);
+  try{
+    const ai = await askLiz('Un saludo muy breve (max 2 frases) al cliente del totem Ferretería Santo Domingo. Presentate como Liz. Sin markdown.');
+    if(ai) showBubble(ai.replace(/\n/g,'<br>'), true);
+  }catch(e){}
+}
+
+async function identifyClient(query){
+  document.getElementById('welcomeScreen').classList.add('hidden');
+  const wi = document.getElementById('welcomeInput');
+  const raw = String(query||'').trim();
+  if(wi && _looksLikeCarnetBlob(raw)) wi.value = '';
+  const safe = raw.replace(/</g,'').replace(/>/g,'').trim();
+  if(safe.length>=2 || _looksLikeCarnetBlob(safe)){
+    const preview = safe.length>36 ? safe.slice(0,36)+'…' : safe;
+    showBubble(`<span class="highlight">Gracias.</span> Revisando <strong>${preview}</strong>…`, true);
+    speak('Gracias, reviso su información.');
+    setLizFace('thinking');
+    const st = document.getElementById('avatarStatus');
+    if(st) st.textContent = 'Buscando…';
+  } else {
+    showBubbleTyping();
+  }
+  try{
+    const r=await fetch('/api/demo/cliente?q='+encodeURIComponent(safe));
+    const d=await r.json();
+    if(d.found&&d.cliente){
+      cliente=d; const c=d.cliente;
+      document.getElementById('ccAvatar').textContent=c.primera[0].toUpperCase();
+      document.getElementById('ccName').textContent=c.nombre;
+      document.getElementById('ccRut').textContent=c.rut;
+      document.getElementById('ccCompras').textContent=c.total_compras;
+      document.getElementById('ccTotal').textContent=c.total_historico_fmt;
+      document.getElementById('ccCredito').textContent=c.estado_credito;
+      document.getElementById('clientCard').classList.add('visible');
+      if(d.historial?.length) fillHistory(d);
+
+      const histInfo=d.historial?.length?` Ultima compra: ${d.historial[0].fecha}, items: ${d.historial[0].items.map(i=>i.nombre).slice(0,3).join(', ')} por ${d.historial[0].total_fmt}.`:'';
+      showBubble(`Hola <strong>${c.primera}</strong> — RUN <strong>${c.rut}</strong>.`, true);
+      speak(`Hola ${c.primera}, bienvenido.`);
+      const ai=await askLiz(`El cliente ${c.nombre} (${c.primera}) ya fue saludado con su nombre y RUT en pantalla.${histInfo} Agrega UNA frase cortisima (max 12 palabras) sin repetir hola ni el rut.`);
+      if(ai) showBubble(`Hola <strong>${c.primera}</strong> — <strong>${c.rut}</strong>.<br><span class="highlight">${ai.replace(/\n/g,'<br>')}</span>`, true);
+      loadProducts('',d.categorias_favoritas?.[0]||'');
+      setTimeout(()=>showOptions([
+        {id:'recomendaciones',icon:'bi-stars',label:'Que me recomiendas?'},
+        {id:'buscar',icon:'bi-search',label:'Buscar un producto'},
+        {id:'ver_historial',icon:'bi-clock-history',label:'Ver mi historial'},
+        {id:'credito',icon:'bi-credit-card',label:'Mi credito'},
+      ]),2000);
+    } else {
+      if(d.rut_leido_carnet){
+        const ai=await askLiz(`Se leyo el carnet con RUN ${d.rut_leido_carnet} pero no existe cliente con ese RUT en el sistema. Saluda y ofrece seguir como invitado.`);
+        showBubble(ai||`Lei su carnet (<strong>${d.rut_leido_carnet}</strong>) pero no esta registrado aqui. Puede seguir como invitado y comprar con normalidad.`, true);
+      } else {
+        const ai=await askLiz(`Alguien busco "${query}" pero no esta registrado. Presentate como Liz.`);
+        showBubble(ai||`No te encontre, pero soy Liz y estoy para ayudarte!`);
+      }
+      showOptions([
+        {id:'buscar',icon:'bi-search',label:'Buscar un producto'},
+        {id:'recomendaciones',icon:'bi-stars',label:'Ver lo mas vendido'},
+      ]);
+      loadProducts();
+    }
+  }catch(e){
+    showBubble('Hubo un problema, pero puedo ayudarte igual!');
+    loadProducts();
+  }
+}
+
+/* ========== HISTORY ========== */
+function fillHistory(d){
+  if(!d.historial?.length) return;
+  document.getElementById('historyList').innerHTML=d.historial.map(h=>
+    `<div class="hist-item"><div class="hist-prod">${h.items.map(i=>i.nombre).slice(0,2).join(', ')}</div><div class="hist-qty">${h.fecha}</div><div class="hist-price">${h.total_fmt}</div></div>`
+  ).join('');
+}
+function toggleHistory(){
+  const o=document.getElementById('historyOverlay');
+  o.classList.toggle('visible');
+}
+
+/* ========== OPTION HANDLERS ========== */
+async function showRecomendaciones(){
+  const cat=cliente?.categorias_favoritas?.[0]||'';
+  loadProducts('',cat);
+  await lizRespond(cat?`Recomienda productos de ${cat}.`:'Recomienda productos populares.',
+    'Mira las recomendaciones a la derecha!',[
+    {id:'buscar',icon:'bi-search',label:'Buscar algo especifico'},
+    {id:'cotizar',icon:'bi-file-earmark-text',label:'Armar cotizacion'},
+  ]);
+}
+function focusSearch(){
+  showBubble('Escribe en la barra de busqueda o dimelo por voz!');
+  document.getElementById('searchInput').focus();
+}
+function showCotizar(){
+  if(!cart.length){
+    lizRespond('Carrito vacio. Invita a agregar productos.','Agrega productos haciendo click en Agregar!',[{id:'buscar',icon:'bi-search',label:'Buscar productos'}]);
+  } else {
+    const total=cart.reduce((s,c)=>s+c.precio*c.qty,0);
+    showBubble(`Tienes ${cart.length} productos en el carrito. Total: ${fmtCLP.format(total)}. Puedes procesar la venta desde el panel derecho.`);
+  }
+}
+function showCredito(){
+  if(!cliente) return showBubble('Necesito identificarte primero.');
+  const c=cliente.cliente,disp=Math.max(0,c.limite_credito-c.saldo_deudor);
+  lizRespond(`Credito: limite ${fmtCLP.format(c.limite_credito)}, deuda ${fmtCLP.format(c.saldo_deudor)}, disponible ${fmtCLP.format(disp)}. Comenta.`,
+    `Disponible: ${fmtCLP.format(disp)}`,[
+    {id:'recomendaciones',icon:'bi-stars',label:'Ver productos'},
+    {id:'buscar',icon:'bi-search',label:'Buscar producto'},
+  ]);
+}
+function showOtraCosa(){
+  lizRespond('El cliente quiere algo diferente. Pregunta amablemente.','Dime, en que te ayudo?',[
+    {id:'recomendaciones',icon:'bi-stars',label:'Recomendaciones'},
+    {id:'buscar',icon:'bi-search',label:'Buscar'},
+    {id:'credito',icon:'bi-credit-card',label:'Mi credito'},
+  ]);
+}
+
+/* ========== OFFERS (top section) ========== */
+let offerProducts = [];
+async function loadOffers(){
+  try{
+    const r=await fetch('/api/demo/ofertas');
+    const d=await r.json();
+    offerProducts=d.ofertas||[];
+    renderOffers();
+  }catch(e){ console.warn('Offers load error:',e); }
+}
+function renderOffers(){
+  const grid=document.getElementById('offersGrid');
+  if(!offerProducts.length){grid.innerHTML='<p class="no-results">Cargando ofertas...</p>';return;}
+  grid.innerHTML=offerProducts.map((p,i)=>`
+    <div class="offer-card">
+      <div class="offer-badge">-${p.descuento}%</div>
+      <div class="offer-number">${i+1}</div>
+      <img class="offer-img" src="${p.imagen_url}" alt="${p.nombre}" onerror="this.src='/static/img/product_placeholder.svg';this.onerror=null">
+      <div class="offer-body">
+        <div class="offer-name">${p.nombre}</div>
+        <div class="offer-prices">
+          <span class="offer-old">${p.precio_original_fmt}</span>
+          <span class="offer-new">${p.precio_fmt}</span>
+        </div>
+        <button class="offer-add" onclick="event.stopPropagation();addToCart(${p.id})"><i class="bi bi-cart-plus"></i> #${i+1} Agregar</button>
+      </div>
+    </div>`).join('');
+  offerProducts.forEach(o=>{ if(!allProducts.find(p=>p.id===o.id)) allProducts.push(o); });
+}
+loadOffers();
+
+function mergeCartIntoProductList(list){
+  const arr = [...(list||[])];
+  const seen = new Set(arr.map(p => String(p.id)));
+  for(const c of cart){
+    const id = String(c.id);
+    if(seen.has(id)) continue;
+    seen.add(id);
+    arr.unshift({
+      id: c.id,
+      nombre: c.nombre,
+      codigo: c.codigo||'',
+      precio: Number(c.precio)||0,
+      stock: c.stock!=null ? c.stock : 999,
+      categoria: c.categoria||'Tu selección',
+      imagen_url: c.imagen_url||'',
+      precio_fmt: c.precio_fmt || fmtCLP.format(Number(c.precio)||0),
+    });
+  }
+  return arr;
+}
+
+function scrollResultsIntoView(){
+  requestAnimationFrame(()=>{
+    const el = document.getElementById('resultsSection');
+    if(el) el.scrollIntoView({block:'nearest',behavior:'smooth'});
+  });
+}
+
+/* ========== PRODUCTS (search results — bottom section) ========== */
+async function loadProducts(q,cat){
+  const grid=document.getElementById('productsGrid');
+  grid.innerHTML=Array(4).fill('<div class="shimmer"></div>').join('');
+  let url=q&&q.length>=2?'/api/demo/productos-enriquecidos?q='+encodeURIComponent(q):'/api/demo/recomendaciones?'+(q?'q='+encodeURIComponent(q)+'&':'')+(cat?'categoria='+encodeURIComponent(cat):'');
+  try{
+    const r=await fetch(url);
+    const d=await r.json();
+    allProducts = mergeCartIntoProductList(d.productos||[]);
+    renderProducts();
+    scrollResultsIntoView();
+    syncOffersCompactMode();
+  }catch(e){grid.innerHTML='<p class="no-results">Error cargando</p>';}
+}
+
+const _catIcons={'ferreteria':'🔩','tornillo':'🔩','clavo':'📌','pintura':'🎨','electri':'⚡','ilumina':'💡','plomeria':'🚿','jardin':'🌿','seguridad':'🔒','herramienta':'🔧','construc':'🏗️','adhesivo':'🧴','cinta':'📏','tubo':'🔧','cable':'⚡'};
+
+function renderProducts(){
+  const grid=document.getElementById('productsGrid');
+  if(!allProducts.length){grid.innerHTML='<p class="no-results"><i class="bi bi-box-seam" style="font-size:24px;display:block;margin-bottom:6px"></i>Pide un producto por voz o busca arriba</p>';return;}
+  const freqIds=new Set((cliente?.frecuentes||[]).map(f=>f.id));
+  const numOffset = offerProducts.length;
+  grid.innerHTML=allProducts.map((p,i)=>{
+    const num = numOffset + i + 1;
+    const stk=p.stock>10?'ok':p.stock>0?'low':'out';
+    const stkTxt=p.stock>10?'En stock':p.stock>0?'Quedan '+p.stock:'Agotado';
+    const badge=freqIds.has(p.id)?'<div class="prod-badge">Favorito</div>':'';
+    const catLow=(p.categoria||'').toLowerCase()+' '+(p.nombre||'').toLowerCase();
+    const icon=Object.entries(_catIcons).find(([k])=>catLow.includes(k))?.[1]||'🔧';
+    const imgHtml=p.imagen_url?`<img class="prod-img" src="${p.imagen_url}" alt="${p.nombre}" onerror="this.src='/static/img/product_placeholder.svg';this.onerror=null">`:`<img class="prod-img" src="/static/img/product_placeholder.svg" alt="${p.nombre}">`;
+    return `<div class="prod-card"><div class="prod-number">${num}</div>${badge}${imgHtml}<div class="prod-body"><div class="prod-cat">${p.categoria||'General'}</div><div class="prod-name">${p.nombre}</div><div class="prod-footer"><div class="prod-price">${p.precio_fmt}</div><div class="prod-stock ${stk}">${stkTxt}</div></div><button class="prod-add-btn" onclick="event.stopPropagation();addToCart(${p.id})"><i class="bi bi-cart-plus"></i> #${num} Agregar</button></div></div>`;
+  }).join('');
+}
+
+function showNavButtons(hasMore){
+  let nav=document.getElementById('prodNav');
+  if(!nav){
+    nav=document.createElement('div');nav.id='prodNav';
+    nav.style.cssText='display:flex;gap:10px;justify-content:center;padding:10px 0;';
+    document.getElementById('productsGrid').insertAdjacentElement('afterend',nav);
+  }
+  nav.innerHTML = hasMore
+    ? '<button onclick="voiceNav(\'siguiente\')" style="padding:8px 24px;border-radius:8px;border:1px solid var(--primary);background:rgba(59,130,246,.12);color:var(--primary);cursor:pointer;font-size:14px"><i class="bi bi-arrow-down-circle"></i> Mas opciones</button>'
+    : '<span style="color:var(--text3);font-size:13px">Fin de resultados</span>';
+}
+async function voiceNav(dir){
+  showBubbleTyping();
+  const ai = await askLiz(dir==='anterior'?'pagina anterior':'mas opciones');
+  showBubble(ai || 'Listo!');
+}
+
+function syncOffersCompactMode(){
+  const panel=document.getElementById('panelProducts');
+  if(!panel) return;
+  const q=(document.getElementById('searchInput')?.value||'').trim();
+  panel.classList.toggle('offers-compact',q.length>=2);
+}
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input',function(){
+  clearTimeout(searchTimer);
+  syncOffersCompactMode();
+  const q=this.value.trim();
+  searchTimer=setTimeout(()=>loadProducts(q),400);
+});
+
+/* ========== CART SYSTEM ========== */
+function _cartFind(id){ return cart.find(c => String(c.id) === String(id)); }
+
+function flashCartPanel(){
+  const panel = document.getElementById('cartPanel');
+  if(!panel) return;
+  panel.classList.remove('cart-add-flash');
+  void panel.offsetWidth;
+  panel.classList.add('cart-add-flash');
+  clearTimeout(panel._cartFlashT);
+  panel._cartFlashT = setTimeout(() => panel.classList.remove('cart-add-flash'), 800);
+}
+
+function addToCartDirect(product, qty){
+  try {
+    const q = qty || 1;
+    const pid = String(product.id);
+    const ex = cart.find(c => String(c.id) === pid);
+    if(ex){ ex.qty += q; }
+    else { cart.push({...product, id: product.id, qty: q}); }
+    renderCart();
+    flashCartPanel();
+  } catch(e) {
+    console.error('addToCartDirect render error:', e);
+  }
+  playSound('add');
+  showBubble(`${product.nombre} x${qty||1} agregado.`, true);
+  speak('Listo, agregado');
+}
+
+async function addToCart(id){
+  const sid = String(id);
+  const p = allProducts.find(x => String(x.id) === sid)
+         || offerProducts.find(x => String(x.id) === sid);
+  if(!p){ console.warn('addToCart: product not found', id); return; }
+  addToCartDirect(p, 1);
+}
+
+function addByVisibleNumber(num, qty){
+  const n = parseInt(num);
+  if(isNaN(n) || n < 1) return false;
+  const oLen = offerProducts.length;
+  let product = null;
+  if(n <= oLen){
+    product = offerProducts[n - 1];
+  } else if(n - oLen - 1 < allProducts.length){
+    product = allProducts[n - oLen - 1];
+  }
+  if(!product) return false;
+  addToCartDirect(product, qty || 1);
+  return true;
+}
+
+function removeFromCart(id){
+  const sid = String(id);
+  cart = cart.filter(c => String(c.id) !== sid);
+  renderCart();
+  playSound('remove');
+}
+
+function changeQty(id, delta){
+  const sid = String(id);
+  const item = cart.find(c => String(c.id) === sid);
+  if(!item) return;
+  item.qty += delta;
+  if(item.qty <= 0) cart = cart.filter(c => String(c.id) !== sid);
+  renderCart();
+  playSound(delta > 0 ? 'add' : 'remove');
+}
+
+function clearCart(){
+  cart = [];
+  renderCart();
+  playSound('remove');
+  speak('Carrito vacio');
+}
+
+function renderCart(){
+  const container = document.getElementById('cartItems');
+  const countEl = document.getElementById('cartCount');
+  const subtotalEl = document.getElementById('cartSubtotal');
+  const totalEl = document.getElementById('cartTotal');
+  const checkBtn = document.getElementById('btnCheckout');
+
+  container.innerHTML = '';
+
+  const totalQty = cart.reduce((s,c) => s + c.qty, 0);
+  const totalPrice = cart.reduce((s,c) => s + (Number(c.precio) || 0) * c.qty, 0);
+  countEl.textContent = totalQty;
+  const lineQty = document.getElementById('cartLineQty');
+  if(lineQty) lineQty.textContent = totalQty === 0 ? '0' : (totalQty === 1 ? '1 artículo' : totalQty + ' artículos');
+  subtotalEl.textContent = fmtCLP.format(totalPrice);
+  totalEl.textContent = fmtCLP.format(totalPrice);
+  checkBtn.disabled = cart.length === 0;
+
+  if(!cart.length){
+    container.innerHTML = '<div class="cart-empty" id="cartEmpty"><i class="bi bi-cart3"></i><p>Agrega productos por voz o haciendo click</p></div>';
+    return;
+  }
+
+  const html = cart.map(c => {
+    const precio = Number(c.precio) || 0;
+    const subtotal = precio * c.qty;
+    const cid = Number(c.id);
+    return `<div class="cart-item">
+      <div class="cart-item-info">
+        <div class="cart-item-name">${c.nombre || 'Producto'}</div>
+        <div class="cart-item-price">${fmtCLP.format(precio)} c/u</div>
+        <div style="font-size:10px;color:var(--text3)">${c.descripcion || c.categoria || ''} ${c.codigo ? '| '+c.codigo : ''}</div>
+      </div>
+      <div class="cart-item-qty">
+        <button onclick="changeQty(${cid},-1)">-</button>
+        <span>${c.qty}</span>
+        <button onclick="changeQty(${cid},1)">+</button>
+      </div>
+      <div class="cart-item-line-total">${fmtCLP.format(subtotal)}</div>
+      <button class="cart-item-del" onclick="removeFromCart(${cid})"><i class="bi bi-x-lg"></i></button>
+    </div>`;
+  }).join('');
+  container.innerHTML = html;
+}
+
+let _ckTotal = 0;
+let _ckRetiro = 'Tienda';
+let _emitirValeBloqueado = false;
+/** Datos del último vale emitido (para paso pago tótem → procesar_cobro_caja JSON). */
+let __pendingTotemVenta = null;
+let __totemMetodoPago = 'Efectivo';
+let __totemTipoDocumento = 'Boleta';
+
+function processCheckout(){
+  if(!cart.length){playSound('error');showBubble('Carrito vacio!');return;}
+  _ckTotal = cart.reduce((s,c) => s + (Number(c.precio)||0)*c.qty, 0);
+  _ckRetiro = 'Tienda';
+  document.getElementById('ckStep3').style.display = 'none';
+
+  const itemsHtml = cart.map(c => {
+    const sub = (Number(c.precio)||0)*c.qty;
+    return `<div class="ck-item"><span class="ck-item-name">${c.nombre||'Producto'}</span><span class="ck-item-qty">x${c.qty}</span><span class="ck-item-price">${fmtCLP.format(sub)}</span></div>`;
+  }).join('');
+  document.getElementById('ckItems').innerHTML = itemsHtml;
+
+  const neto = Math.round(_ckTotal / 1.19);
+  const iva = _ckTotal - neto;
+  document.getElementById('ckTotals').innerHTML = `
+    <div class="ck-row"><span>Neto</span><span>${fmtCLP.format(neto)}</span></div>
+    <div class="ck-row"><span>IVA (19%)</span><span>${fmtCLP.format(iva)}</span></div>
+    <div class="ck-row total"><span>Total a pagar en caja</span><span>${fmtCLP.format(_ckTotal)}</span></div>`;
+
+  document.querySelectorAll('.ck-retiro-btn').forEach(b => b.classList.toggle('selected', b.dataset.retiro==='Tienda'));
+  document.getElementById('ckStep1').style.display = '';
+  document.getElementById('ckStep2').style.display = 'none';
+  document.getElementById('checkoutOverlay').classList.add('visible');
+
+  const ck = document.getElementById('ckConfirmCheck');
+  if(ck){ ck.checked = false; }
+  const ckBtn = document.getElementById('ckBtnConfirm');
+  if(ckBtn){
+    ckBtn.innerHTML = '<i class="bi bi-receipt"></i> Generar Vale';
+    ckBtn.removeAttribute('data-busy');
+  }
+  syncCkConfirm();
+
+  playSound('checkout');
+  const count = cart.reduce((s,c)=>s+c.qty,0);
+  speak(`Tiene ${count} producto${count>1?'s':''} por un total de ${fmtCLP.format(_ckTotal)}. Los montos son en pesos chilenos. Al confirmar recibira un vale: dirijase a caja a pagar o espere ser llamado con el numero de turno del vale.`);
+}
+
+function syncCkConfirm(){
+  const ck = document.getElementById('ckConfirmCheck');
+  const btn = document.getElementById('ckBtnConfirm');
+  if(!btn) return;
+  if(!ck){ btn.disabled = false; return; }
+  const busy = btn.getAttribute('data-busy') === '1';
+  btn.disabled = busy || !ck.checked;
+}
+
+function selectRetiro(el){
+  document.querySelectorAll('.ck-retiro-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  _ckRetiro = el.dataset.retiro;
+  playSound('add');
+}
+
+async function emitirVale(){
+  if(_emitirValeBloqueado) return;
+  const ck = document.getElementById('ckConfirmCheck');
+  if(ck && !ck.checked){
+    playSound('error');
+    speak('Marque la casilla de confirmación para continuar.');
+    showBubble('Marque la casilla grande de confirmación para generar el vale.', true);
+    return;
+  }
+  _emitirValeBloqueado = true;
+  const btn = document.getElementById('ckBtnConfirm');
+  btn.setAttribute('data-busy','1');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Generando vale...';
+
+  const payload = {
+    items: cart.map(c => ({id: c.id, cantidad: c.qty, descuento: 0})),
+    cliente_id: cliente?.cliente?.id || null,
+    punto_retiro: _ckRetiro,
+  };
+
+  try {
+    const resp = await fetch('/api/demo/checkout', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+
+    if(!data.ok){
+      _emitirValeBloqueado = false;
+      playSound('error');
+      btn.innerHTML = '<i class="bi bi-receipt"></i> Generar Vale';
+      btn.removeAttribute('data-busy');
+      syncCkConfirm();
+      showBubble(`Error: ${data.error || 'No se pudo generar el vale'}. ${data.detalles ? data.detalles.join(', ') : ''}`);
+      speak(`Hubo un problema. ${data.error || 'Intenta de nuevo.'}`);
+      return;
+    }
+
+    showValeEmitido(data);
+    playSound('checkout');
+
+  } catch(e){
+    console.error('Checkout error:', e);
+    _emitirValeBloqueado = false;
+    playSound('error');
+    btn.innerHTML = '<i class="bi bi-receipt"></i> Generar Vale';
+    btn.removeAttribute('data-busy');
+    syncCkConfirm();
+    showBubble('Error de conexion. Intenta de nuevo.');
+    speak('Hubo un error de conexion.');
+  }
+}
+
+function showValeEmitido(data){
+  __pendingTotemVenta = {
+    venta_id: data.venta_id,
+    total: Number(data.total) || 0,
+    total_fmt: data.total_fmt || '',
+    turno: data.turno,
+  };
+  __totemMetodoPago = 'Efectivo';
+  __totemTipoDocumento = 'Boleta';
+
+  document.getElementById('ckStep1').style.display = 'none';
+  document.getElementById('ckStep3').style.display = 'none';
+  document.getElementById('ckStep2').style.display = '';
+
+  const itemsHtml = (data.items||[]).map(it =>
+    `<div class="vale-info-row"><span class="label">${it.nombre} x${it.cantidad}</span><span class="value">${fmtCLP.format(it.subtotal)}</span></div>`
+  ).join('');
+
+  const itemsThermal = (data.items||[]).map(it =>
+    `<div class="vt80-row"><span class="vt80-name">${String(it.nombre||'').replace(/</g,'')}</span><span class="vt80-qty">x${it.cantidad}</span><span class="vt80-price">${fmtCLP.format(it.subtotal)}</span></div>`
+  ).join('');
+
+  const retiroIcons = {Tienda:'bi-shop',Bodega:'bi-box-seam',Despacho:'bi-truck'};
+  const qrImg = data.qr_data_url
+    ? `<div class="vt80-qr-wrap"><img class="vt80-qr" src="${data.qr_data_url}" width="168" height="168" alt="QR vale" /><div class="vt80-qr-cap">Cajera: escanear QR</div></div>`
+    : '';
+
+  document.getElementById('valeContent').innerHTML = `
+    <div class="vale-screen-only">
+    <div class="vale-icon"><i class="bi bi-receipt-cutoff"></i></div>
+    <div class="vale-title">Vale N° ${data.venta_id}</div>
+    <div class="vale-subtitle">${data.fecha} — ${data.tipo_documento}</div>
+
+    <div class="vale-turno-box">
+      <div class="vale-turno-label">Tu numero de turno</div>
+      <div class="vale-turno"><i class="bi bi-people-fill"></i> ${data.turno}</div>
+    </div>
+
+    <div class="vale-info">
+      <div class="vale-info-row"><span class="label">Cliente</span><span class="value">${data.cliente}</span></div>
+      <div class="vale-info-row"><span class="label">Retiro</span><span class="value"><i class="bi ${retiroIcons[data.punto_retiro]||'bi-shop'}"></i> ${data.punto_retiro}</span></div>
+      <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+      ${itemsHtml}
+      <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+      <div class="vale-info-row"><span class="label">Neto</span><span class="value">${data.neto_fmt}</span></div>
+      <div class="vale-info-row"><span class="label">IVA (19%)</span><span class="value">${data.iva_fmt}</span></div>
+      <div class="vale-info-row highlight"><span class="label">Total (CLP)</span><span class="value">${data.total_fmt}</span></div>
+    </div>
+
+    <div class="vale-stamp">PENDIENTE DE COBRO EN CAJA</div>
+
+    <div class="vale-instruccion">Dirijase a <strong>caja</strong> con su vale. Espere ser <strong>llamado con el turno N° ${data.turno}</strong> o muestre esta pantalla en caja.</div>
+    <div class="vale-instruccion-sub">Montos en pesos chilenos. El cajero cobrara y le entregara la boleta.</div>
+    </div>
+
+    <div class="vale-thermal-80">
+      <div class="vt80-brand">FERRETERIA SANTO DOMINGO</div>
+      <div class="vt80-tag">VALE PENDIENTE — PESOS CHILENOS</div>
+      <div class="vt80-line-big">Vale N ${data.venta_id}</div>
+      <div class="vt80-line">Turno: <strong>${data.turno}</strong></div>
+      <div class="vt80-line">${data.fecha}</div>
+      <div class="vt80-sep"></div>
+      <div class="vt80-line">Cliente: ${String(data.cliente||'').replace(/</g,'')}</div>
+      <div class="vt80-line">Retiro: ${data.punto_retiro||''}</div>
+      <div class="vt80-sep"></div>
+      ${itemsThermal}
+      <div class="vt80-sep"></div>
+      <div class="vt80-line">Neto ${data.neto_fmt}</div>
+      <div class="vt80-line">IVA ${data.iva_fmt}</div>
+      <div class="vt80-line-big vt80-total">TOTAL ${data.total_fmt}</div>
+      <div class="vt80-sep"></div>
+      <div class="vt80-instr">CAJA: cobrar vale. Cliente: ir a caja o esperar llamado con turno <strong>${data.turno}</strong>.</div>
+      ${qrImg}
+      <div class="vt80-mono">${String(data.qr_payload||'').replace(/</g,'')}</div>
+    </div>`;
+
+  cart = [];
+  renderCart();
+
+  const lizMsg = `Vale emitido. Su numero de turno asignado a este vale es el ${data.turno}. ` +
+    `Debe dirigirse a caja a pagar un total de ${data.total_fmt}. ` +
+    `En caja le llamaran por su turno, o muestre el codigo Q R de la pantalla. ` +
+    `Todos los montos estan en pesos chilenos. Gracias por su compra.`;
+  showBubble(lizMsg, true);
+  speak(lizMsg);
+
+  const btn = document.getElementById('ckBtnConfirm');
+  if(btn){
+    btn.innerHTML = '<i class="bi bi-receipt"></i> Generar Vale';
+    btn.removeAttribute('data-busy');
+  }
+  _emitirValeBloqueado = false;
+}
+
+function openTotemPagoStep(){
+  if(!__pendingTotemVenta){
+    playSound('error');
+    speak('Primero debe generar el vale.');
+    return;
+  }
+  document.getElementById('ckStep2').style.display = 'none';
+  document.getElementById('ckStep3').style.display = '';
+  document.querySelectorAll('.ck-pay-btn').forEach(b => {
+    b.classList.toggle('selected', (b.getAttribute('data-metodo') || '') === __totemMetodoPago);
+  });
+  document.querySelectorAll('.ck-doc-btn').forEach(b => {
+    b.classList.toggle('selected', (b.getAttribute('data-doc') || '') === __totemTipoDocumento);
+  });
+  const v = __pendingTotemVenta;
+  document.getElementById('ckPagoTotalFmt').textContent = v.total_fmt || fmtCLP.format(v.total || 0);
+  const inp = document.getElementById('ckMontoRecibido');
+  const ceil = Math.ceil(Number(v.total) || 0);
+  inp.value = String(Math.max(ceil, 0));
+  playSound('add');
+  speak('Seleccione metodo de pago. Ajuste el monto si paga en efectivo y pulse confirmar cobro.');
+}
+
+function volverDesdePagoTotem(){
+  document.getElementById('ckStep3').style.display = 'none';
+  document.getElementById('ckStep2').style.display = '';
+}
+
+function selectMetodoPagoTotem(el){
+  document.querySelectorAll('.ck-pay-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  __totemMetodoPago = el.getAttribute('data-metodo') || 'Efectivo';
+  playSound('add');
+}
+
+function selectTipoDocTotem(el){
+  document.querySelectorAll('.ck-doc-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  __totemTipoDocumento = el.getAttribute('data-doc') || 'Boleta';
+  playSound('add');
+}
+
+async function confirmarCobroTotem(){
+  const v = __pendingTotemVenta;
+  const btn = document.getElementById('ckBtnPagarTotem');
+  if(!v || !btn) return;
+  const monto = parseFloat(String(document.getElementById('ckMontoRecibido').value || '0'));
+  if(!Number.isFinite(monto) || monto < 0){
+    playSound('error');
+    speak('Monto invalido.');
+    return;
+  }
+  const total = Number(v.total) || 0;
+  if(monto + 1e-6 < total){
+    playSound('error');
+    speak('El monto recibido no puede ser menor al total.');
+    return;
+  }
+  btn.disabled = true;
+  const prevHtml = btn.innerHTML;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Procesando…';
+  try{
+    const fd = new FormData();
+    fd.append('metodo_pago', __totemMetodoPago);
+    fd.append('tipo_documento', __totemTipoDocumento);
+    fd.append('monto_recibido', String(monto));
+    fd.append('usar_saldo_favor', '0');
+    const r = await fetch(`/procesar_cobro_caja/${encodeURIComponent(v.venta_id)}?formato=json`, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd,
+      credentials: 'same-origin',
+    });
+    let data = null;
+    const ct = (r.headers.get('Content-Type') || '').toLowerCase();
+    if(ct.includes('application/json')){
+      data = await r.json();
+    } else {
+      const txt = await r.text();
+      throw new Error(txt && txt.length < 200 ? txt : 'Respuesta no JSON (¿sesión caja?)');
+    }
+    if(!r.ok){
+      const err = (data && (data.error || data.message)) || ('HTTP ' + r.status);
+      throw new Error(err);
+    }
+    if(data.exito !== true){
+      throw new Error((data && data.error) || 'Cobro no confirmado');
+    }
+    document.getElementById('checkoutOverlay').classList.remove('visible');
+    document.getElementById('ckStep3').style.display = 'none';
+    document.getElementById('ckStep2').style.display = 'none';
+    document.getElementById('ckStep1').style.display = '';
+    showValeDigitalSuccess(data);
+  } catch(err){
+    console.error('confirmarCobroTotem', err);
+    playSound('error');
+    speak('No se pudo completar el cobro. Verifique que haya caja abierta y permisos de cajero.');
+    showBubble('No se pudo cobrar: ' + (err && err.message ? err.message : String(err)) + '. Si es un tótem sin sesión de caja, cobre desde el panel de caja.', true);
+  } finally{
+    btn.disabled = false;
+    btn.innerHTML = prevHtml;
+  }
+}
+
+function showValeDigitalSuccess(data){
+  const overlay = document.getElementById('valeDigitalOverlay');
+  const turnoEl = document.getElementById('vdTurnoNum');
+  const vueltoWrap = document.getElementById('vdVueltoBlock');
+  const dteBlock = document.getElementById('vdDteBlock');
+  const turno = data.turno != null ? String(data.turno) : '—';
+  turnoEl.textContent = turno;
+
+  const mp = (data.metodo_pago || '').trim();
+  if(mp === 'Efectivo' && data.vuelto_fmt){
+    vueltoWrap.style.display = 'block';
+    vueltoWrap.innerHTML = '<div class="vd-vuelto-line" role="status">Su Vuelto: ' + String(data.vuelto_fmt).replace(/</g,'') + '</div>';
+  } else {
+    vueltoWrap.style.display = 'none';
+    vueltoWrap.innerHTML = '';
+  }
+
+  const st = (data.dte_estado || '').trim();
+  if(st === 'PENDIENTE_ENVIO'){
+    dteBlock.innerHTML = '<div class="vd-dte-pendiente" role="alert">⚠️ COMPROBANTE EN COLA. Tu compra está asegurada. Dirígete a entrega de productos con tu número de turno</div>';
+  } else if(st === 'ENVIADO'){
+    dteBlock.innerHTML = '<div class="vd-dte-ok" role="status">📄 BOLETA ELECTRÓNICA EMITIDA</div>';
+  } else if(st){
+    dteBlock.innerHTML = '<div class="vd-dte-pendiente" role="status">Estado DTE: ' + String(st).replace(/</g,'') + '</div>';
+  } else {
+    dteBlock.innerHTML = '';
+  }
+
+  overlay.classList.add('visible');
+  document.getElementById('valeDigitalPrintZone').focus({ preventScroll: true });
+
+  playSound('checkout');
+  showBubble('<span class="highlight">Listo.</span> Retire su ticket con el <strong>turno ' + turno + '</strong>.', true);
+  speak('Listo. Tu compra está procesada. Retira tu ticket impreso con el turno número ' + turno + '.');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try{ window.print(); } catch(e){}
+      }, 180);
+    });
+  });
+}
+
+function closeValeDigitalOverlay(){
+  const o = document.getElementById('valeDigitalOverlay');
+  if(o) o.classList.remove('visible');
+}
+
+let _lastPrintAt = 0;
+function startAutoPrint(){
+  const now = Date.now();
+  if(now - _lastPrintAt < 4000) return;
+  _lastPrintAt = now;
+  const ov = document.getElementById('printOverlay');
+  if(!ov){ window.print(); return; }
+  ov.classList.add('visible');
+  ov.setAttribute('aria-hidden','false');
+  setTimeout(()=>{
+    try{ window.print(); }catch(e){}
+    setTimeout(()=>{
+      ov.classList.remove('visible');
+      ov.setAttribute('aria-hidden','true');
+    }, 900);
+  }, 700);
+}
+
+function _voiceConfirmaVale(t){
+  const frase = /confirmar|confirmo|acepto|finalizar|procesar(\s+(la\s+)?compra)?|generar(\s+el)?\s+vale|emitir(\s+el)?\s+vale|pagar(\s+en\s+caja)?|listo\s+para\s+pagar/;
+  const corto = /^\s*(si|sí|dale|ok|listo|de\s+acuerdo)\s*$/;
+  return frase.test(t) || corto.test(t);
+}
+
+function handleCheckoutVoice(text){
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(/cancelar|volver|atras|no quiero/.test(t)){ closeCheckout(); return; }
+  if(/imprimir|imprime|print/.test(t)){ printVale(); return; }
+  if(/nueva|otro|siguiente/.test(t)){ nuevaCompra(); return; }
+
+  const step2 = document.getElementById('ckStep2');
+  const yaEmitido = step2 && step2.style.display !== 'none' && step2.style.display !== '';
+
+  if(_voiceConfirmaVale(t)){
+    if(yaEmitido){
+      speak('Tu vale ya fue emitido. Dirigete a caja con tu numero de turno.');
+      return;
+    }
+    if(isSpeaking) return;
+    emitirVale();
+    return;
+  }
+  const retiros = [{re:/tienda/, r:'Tienda'},{re:/bodega/, r:'Bodega'},{re:/despacho/, r:'Despacho'}];
+  for(const {re,r} of retiros){
+    if(re.test(t)){
+      const el = document.querySelector(`.ck-retiro-btn[data-retiro="${r}"]`);
+      if(el) selectRetiro(el);
+      speak(`Retiro en ${r}.`);
+      return;
+    }
+  }
+  speak('Puedes decir confirmar, cancelar o imprimir.');
+}
+
+function closeCheckout(){
+  document.getElementById('checkoutOverlay').classList.remove('visible');
+  document.getElementById('ckStep3').style.display = 'none';
+  closeValeDigitalOverlay();
+  _emitirValeBloqueado = false;
+  const ck = document.getElementById('ckConfirmCheck');
+  if(ck) ck.checked = false;
+  const ckBtn = document.getElementById('ckBtnConfirm');
+  if(ckBtn){
+    ckBtn.innerHTML = '<i class="bi bi-receipt"></i> Generar Vale';
+    ckBtn.removeAttribute('data-busy');
+  }
+  syncCkConfirm();
+  speak('Vale cancelado. Puedes seguir agregando productos.');
+}
+
+function printVale(){
+  const now = Date.now();
+  if(now - _lastPrintAt < 4000) return;
+  _lastPrintAt = now;
+  window.print();
+}
+
+function nuevaCompra(){
+  document.getElementById('checkoutOverlay').classList.remove('visible');
+  document.getElementById('ckStep3').style.display = 'none';
+  closeValeDigitalOverlay();
+  _emitirValeBloqueado = false;
+  __pendingTotemVenta = null;
+  cart = [];
+  renderCart();
+  speak('Listo! Estoy lista para una nueva compra. Que necesitas?');
+  showBubble('Estoy lista para una nueva compra! Que producto buscas?');
+}
+
+renderCart();
+
+/* ========== KEYWORD EXTRACTION ========== */
+const _stopWords=new Set(['hola','liz','necesito','quiero','busco','dame','dime','buscar','tengo','tiene','tienen',
+  'hay','ver','mostrar','muestra','me','el','la','los','las','un','una','unos','unas','de','del','en','por',
+  'para','con','que','como','donde','si','no','y','o','a','al','lo','le','se','es','son','ser','estar',
+  'puedo','puede','puedes','favor','gracias','bueno','bien','ok','oye','oiga','mira','porfavor','por favor',
+  'quisiera','podria','podrias','necesitamos','queremos','buscamos']);
+
+function extractKeywords(text){
+  const words=text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,'').split(/\s+/).filter(w=>w.length>1&&!_stopWords.has(w));
+  return words.join(' ');
+}
+
+/* ========== USER INPUT ========== */
+document.getElementById('userInput').addEventListener('keydown',function(e){
+  if(e.key!=='Enter'||!this.value.trim()) return;
+  const text=this.value.trim();
+  this.value='';
+  const welcome=document.getElementById('welcomeScreen');
+  if(welcome && !welcome.classList.contains('hidden')){
+    clearOptions();
+    const wi = document.getElementById('welcomeInput');
+    if(wi && _looksLikeCarnetBlob(text)) wi.value = '';
+    identifyClient(text);
+    return;
+  }
+  clearOptions();
+  handleUserMessage(text);
+});
+
+function _tryLocalNumberAdd(text){
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const m = t.match(/(?:agrega|agregame|ponme|dame|quiero|el|la|numero|num|n[uú]mero|producto)\s*#?\s*(\d+)/);
+  if(!m) return false;
+  const num = parseInt(m[1]);
+  if(num < 1 || num > 50) return false;
+  const qtyMatch = t.match(/(\d+)\s*(?:unidad|unidades|piezas|kilos|metros)/);
+  const qty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+  return addByVisibleNumber(num, qty);
+}
+
+async function handleUserMessage(text){
+  if(_tryLocalNumberAdd(text)){
+    return;
+  }
+  await lizRespond(text, 'Dejame buscar eso para ti!', [
+    {id:'cotizar',icon:'bi-file-earmark-text',label:'Cotizar'},
+    {id:'buscar',icon:'bi-search',label:'Buscar otro'},
+    {id:'otra_cosa',icon:'bi-chat-dots',label:'Otra consulta'},
+  ]);
+}
+
+/* ========== VOICE INPUT (Premium — Web Speech API) ========== */
+const micBtn=document.getElementById('micBtn');
+const statusEl=document.getElementById('avatarStatus');
+const micDebug=document.getElementById('micDebug');
+let listening=false, rec=null, micTimeout=null;
+
+function startListening(){
+  if(!rec||listening) return;
+  try{
+    rec.start();
+    listening=true;
+    micBtn.classList.add('rec','listening-pulse');
+    statusEl.textContent='Escuchando...';
+    micDebug.textContent='Habla ahora...';
+    setLizFace('thinking');
+    micTimeout=setTimeout(()=>{
+      if(listening){
+        rec.stop();
+        statusEl.textContent='No te escuche. Intenta de nuevo.';
+        micDebug.textContent='Timeout — toca el mic para reintentar';
+        setTimeout(()=>{statusEl.textContent='Lista para ayudarte';micDebug.textContent='';},4000);
+      }
+    },10000);
+  } catch(e){
+    listening=false;
+    console.warn('Mic start error:',e);
+    if(e.message?.includes('already started')){rec.stop();setTimeout(startListening,300);}
+  }
+}
+
+function stopListening(){
+  clearTimeout(micTimeout);
+  listening=false;
+  micBtn.classList.remove('rec','listening-pulse');
+}
+
+if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  rec=new SR();
+  rec.lang='es-CL';
+  rec.continuous=false;
+  rec.interimResults=true;
+  rec.maxAlternatives=3;
+
+  rec.onaudiostart=()=>{
+    console.log('Mic: audio capture started');
+    micBtn.classList.add('listening-pulse');
+    micDebug.textContent='Audio capturado, habla...';
+  };
+  rec.onspeechstart=()=>{
+    statusEl.textContent='Te escucho, habla...';
+    micDebug.textContent='Detectando voz...';
+  };
+  rec.onspeechend=()=>{
+    statusEl.textContent='Procesando tu voz...';
+    micDebug.textContent='Procesando...';
+  };
+
+  rec.onresult=(e)=>{
+    let interim='', final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal) final+=t;
+      else interim+=t;
+    }
+    if(interim){
+      statusEl.textContent='Escuchando...';
+      micDebug.textContent='Escuchando: "'+interim+'"';
+      document.getElementById('userInput').value=interim;
+    }
+    if(final){
+      stopListening();
+      const text=final.trim();
+      micDebug.textContent='Reconocido: "'+text+'"';
+      statusEl.textContent='Procesando...';
+      document.getElementById('userInput').value=text;
+      if(!text) return;
+      setTimeout(()=>{micDebug.textContent='';},3000);
+      if(!cliente&&!document.getElementById('welcomeScreen').classList.contains('hidden')){
+        identifyClient(text);
+      } else if(document.getElementById('checkoutOverlay').classList.contains('visible')){
+        if(isSpeaking) return;
+        handleCheckoutVoice(text);
+      } else {
+        clearOptions();
+        handleUserMessage(text);
+      }
+    }
+  };
+
+  rec.onend=()=>{
+    stopListening();
+    setLizFace('idle');
+  };
+
+  rec.onerror=(e)=>{
+    stopListening();
+    setLizFace('idle');
+    console.warn('Mic error:',e.error);
+    const msgs={
+      'no-speech':'No detecte voz. Toca el mic e intenta de nuevo.',
+      'audio-capture':'No se encontro microfono. Verifica permisos.',
+      'not-allowed':'Permiso de microfono denegado. Habilita en el navegador.',
+      'network':'Error de red en reconocimiento de voz.',
+      'aborted':'Reconocimiento cancelado.',
+    };
+    const msg=msgs[e.error]||'Error de microfono ('+e.error+')';
+    statusEl.textContent=msg;
+    micDebug.textContent=msg;
+    setTimeout(()=>{statusEl.textContent='Lista para ayudarte';micDebug.textContent='';},5000);
+  };
+}
+
+micBtn.onclick=()=>{
+  if(isSpeaking){
+    synth.cancel();isSpeaking=false;_speakBusy=false;
+    setLizFace('idle');
+    document.getElementById('avatarRing').classList.remove('speaking');
+    micDebug.textContent='Voz cancelada. Escuchando...';
+    setTimeout(startListening,400);
+    return;
+  }
+  if(!rec){showBubble('Tu navegador no soporta voz. Usa Chrome o Edge.');return;}
+  if(listening){rec.stop();micDebug.textContent='';return;}
+  startListening();
+};
+
+/* ========== DIAGNOSTICO DE PRUEBAS ========== */
+window.lizTest = {
+  getSessionId: () => SESSION_ID,
+  getCart: () => JSON.parse(JSON.stringify(cart)),
+  getProducts: () => allProducts.map(p => ({id:p.id, nombre:p.nombre, codigo:p.codigo})),
+  forceFallback: (active=true) => fetch('/api/demo/test/force-fallback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({active})}).then(r=>r.json()).then(d=>{console.log('Force fallback:',d);return d;}),
+  simulateVoice: (text) => { handleUserMessage(text); },
+  status: () => ({session: SESSION_ID, cart: cart.length, products: allProducts.length, listening, isSpeaking}),
+};
+console.log('%c[Liz Test] Herramientas de prueba disponibles en window.lizTest','color:#10b981;font-weight:bold');
+console.log('  lizTest.forceFallback(true)  — Simular error 429');
+console.log('  lizTest.forceFallback(false) — Desactivar fallback');
+console.log('  lizTest.simulateVoice("agregame el segundo")');
+console.log('  lizTest.status()  — Estado actual');
+console.log('  lizTest.getSessionId()  — Ver SESSION_ID unico');
+
+document.addEventListener('keydown', (ev) => {
+  if(ev.key !== 'Escape') return;
+  const o = document.getElementById('valeDigitalOverlay');
+  if(o && o.classList.contains('visible')) {
+    ev.preventDefault();
+    closeValeDigitalOverlay();
+  }
+});
+
+/* ========== INIT ========== */
+document.getElementById('welcomeInput').focus();
+</script>
+</body>
+</html>

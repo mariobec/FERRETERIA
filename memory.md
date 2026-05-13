@@ -268,6 +268,8 @@ Referencias `L####` = línea aproximada en `app.py` para ubicar la vista rápido
 | 2026-05-08 | **Servicios / observabilidad:** `services/c360_service.py`, `services/sistema_health_service.py` (`GET /api/sistema/salud`). Blueprint **`blueprints/c360.py`** registrado al final de `app.py`. Auto-columnas **`_asegurar_columnas_ventas_bodega_despacho`** en `before_request` autenticado. |
 | 2026-05-10 | **Cierre plan v2.0 Grok:** extracción servicios (stock/kardex/whatsapp/unidades), auditoría UI stock + enrolamiento, `transaccion_critica()` extendida a venta directa / POS / finalizar vale / ajustes stock UI; doc y backlog en **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`**. |
 | 2026-05-10 | **`POST /cargar_productos`:** bucle de importación CSV/Excel envuelto en `transaccion_critica()`; `_audit_log` evento `carga_masiva_productos_archivo` antes del `commit` (mismo patrón que stock masivo UI). |
+| 2026-05-11 | **Bodega Fase 3 completada:** SLA (columnas `bodega_preparacion_cobrado_at` / `bodega_preparacion_cerrado_at`; KPI promedio+max en cuadro de mando; chip SLA por vale), ranking operador (7 días, barras), export CSV del día (`GET /bodega/export-dia`), modo TV/kiosk (`GET /bodega/cuadro-mando/tv` con `base_tv.html`, auto-refresh 30 s). Rediseño estético previo del cuadro de mando. |
+| 2026-05-11 | **RBAC v2 — Navegación centralizada por permisos.** `_NAV_MAP` en `app.py`: mapa declarativo de menú (grupos, ítems, permisos, endpoints activos). `_construir_nav_usuario()` filtra por permisos del usuario autenticado; `nav_menu` inyectado vía context_processor. Sidebar de `base.html` reescrito para iterar `nav_menu` (≈15 líneas Jinja vs ~180 anteriores). Nuevos permisos: `ver_inventario`, `ver_gerencia`, `gestionar_compras`. Perfiles: `gerente`, `dueno` en `mapa_por_rol`. Rutas protegidas: `mostrar_productos`, `stock_critico`, `kardex`, `business_intelligence`, `mostrar_proveedores`, `lista_ordenes_compra`, `lista_recepciones`, `editar_stock_producto`, `actualizar_stock_masivo_productos`, `cargar_productos` ahora usan `@permisos_required`. |
 
 ---
 
@@ -281,4 +283,4 @@ El documento **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`** quedó **cerra
 
 ---
 
-*Última actualización del contenido estructural: 2026-05-10 (cierre formal plan v2.0 Grok + carga masiva catálogo).*
+*Última actualización del contenido estructural: 2026-05-11 (RBAC v2: navegación centralizada por permisos + protección de rutas).*

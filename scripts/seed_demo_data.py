@@ -1,298 +1,299 @@
 """
-Datos de DEMOSTRACIÓN únicamente: precios y SKUs son referenciales (no cotización de mercado).
+ERP LhexIA -- Generador de datos realistas de demostracion.
 
-Objetivo: poblar el ERP con volumen (1500 ítems DEMO-*) y cubrir familia/categoría/subcategoría,
-precios, stock por almacén, ubicación y variaciones típicas de unidad_compra / unidad_venta /
-factor_conversion para pruebas de POS, inventario y export Excel.
+Crea un set coherente de datos para demos, screenshots y capacitacion:
+  - 8 clientes frecuentes con credito
+  - 25 ventas (efectivo, credito, anuladas, con despacho bodega)
+  - 5 ordenes de compra con recepciones
+  - Movimientos de caja y kardex consistentes
 
-Ejecutar desde la raíz del proyecto: python scripts/seed_demo_data.py
+Uso:
+    python scripts/seed_demo_data.py              # genera datos
+    python scripts/seed_demo_data.py --clean      # limpia datos DEMO previos
 
-Opcional — después del seed, alinear cartera demo (mismo parche que run_demo_seeds_dual):
-  PATCH_DEMO_CARTERA=1 python scripts/seed_demo_data.py
+NO interfiere con datos de produccion (todos los registros usan prefijo DEMO).
 """
+import json
 import os
 import random
-import subprocess
 import sys
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import date, datetime, timedelta
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from app import (
-    Almacen,
-    Caja,
-    Cliente,
-    ClienteSaldoFavor,
-    DetalleVenta,
-    MovimientoInventario,
-    MovimientoSaldoFavor,
-    Producto,
-    StockPorAlmacen,
-    Venta,
-    app,
-    db,
-)
+import app as m
 
+db = m.db
+flask_app = m.app
+DEMO_USER = 'DEMO_SEED'
 
-random.seed(20260507)
+# ── Catalogo demo ──────────────────────────────────────────────────
+CLIENTES_DEMO = [
+    dict(rut='12.345.678-9', nombre='DEMO Constructora Acme SpA', giro='Construccion',
+         direccion='Av. Industrial 500, Santiago', telefono='+56911111111',
+         correo='acme@demo.cl', limite_credito=2_000_000),
+    dict(rut='13.456.789-0', nombre='DEMO Electro Sur Ltda', giro='Electricidad',
+         direccion='Los Electricistas 120, Temuco', telefono='+56922222222',
+         correo='electrosur@demo.cl', limite_credito=1_500_000),
+    dict(rut='14.567.890-1', nombre='DEMO Pinturas del Centro', giro='Pinturas',
+         direccion='Calle Color 45, Rancagua', telefono='+56933333333',
+         correo='pinturas@demo.cl', limite_credito=800_000),
+    dict(rut='15.678.901-2', nombre='DEMO Instalaciones Norte', giro='Gasfiteria',
+         direccion='Av. Agua 789, Antofagasta', telefono='+56944444444',
+         correo='inorte@demo.cl', limite_credito=1_200_000),
+    dict(rut='16.789.012-3', nombre='DEMO Muebles Artesanos EIRL', giro='Muebles',
+         direccion='Calle Madera 33, Valdivia', telefono='+56955555555',
+         correo='artesanos@demo.cl', limite_credito=600_000),
+    dict(rut='17.890.123-4', nombre='DEMO Inmobiliaria Los Robles', giro='Inmobiliaria',
+         direccion='Av. Construccion 1200, Vina del Mar', telefono='+56966666666',
+         correo='robles@demo.cl', limite_credito=5_000_000),
+    dict(rut='18.901.234-5', nombre='DEMO Taller Mecanico Express', giro='Mecanica',
+         direccion='Calle Motor 88, Concepcion', telefono='+56977777777',
+         correo='express@demo.cl', limite_credito=400_000),
+    dict(rut='19.012.345-6', nombre='DEMO Municipalidad Demo', giro='Gobierno',
+         direccion='Plaza Principal s/n, Demo City', telefono='+56988888888',
+         correo='muni@demo.cl', limite_credito=10_000_000),
+]
 
-CATEGORIAS = {
-    "Herramientas Manuales": ["Martillos", "Alicates", "Destornilladores", "Llaves", "Serruchos"],
-    "Herramientas Electricas": ["Taladros", "Esmeriles", "Sierras", "Lijadoras", "Rotomartillos"],
-    "Fijaciones": ["Tornillos", "Clavos", "Tarugos", "Pernos", "Abrazaderas"],
-    "Pinturas": ["Latex", "Esmaltes", "Barnices", "Brochas", "Rodillos"],
-    "Gasfiteria": ["PVC", "Llaves de paso", "Flexibles", "Sifones", "Sellos"],
-    "Electricidad": ["Cables", "Interruptores", "Enchufes", "Canaletas", "Ampolletas"],
-    "Construccion": ["Cemento", "Yeso", "Adhesivos", "Niveladores", "Aislantes", "Maderas y tableros"],
-    "Seguridad": ["Guantes", "Lentes", "Cascos", "Mascarillas", "Calzado"],
-    "Jardin": ["Mangueras", "Palas", "Rastrillos", "Regadores", "Tijeras"],
-    "Quincalleria": ["Bisagras", "Candados", "Cerraduras", "Rieles", "Soportes"],
-}
-
-# Costo neto aproximado por familia (CLP). Evita que tornillos queden al precio de un taladro.
-CATEGORY_COST_BAND_CLP = {
-    "Fijaciones": (35, 2800),
-    "Electricidad": (260, 13200),
-    "Gasfiteria": (390, 10500),
-    "Pinturas": (890, 17500),
-    "Herramientas Manuales": (2100, 36900),
-    "Herramientas Electricas": (27900, 148000),
-    "Construccion": (2800, 52900),
-    "Seguridad": (690, 28900),
-    "Jardin": (2300, 36900),
-    "Quincalleria": (520, 24800),
-}
-ADJETIVOS = ["Profesional", "Reforzado", "Industrial", "Premium", "Estandar", "Heavy Duty", "Compacto", "Galvanizado", "Alta Resistencia", "Multiuso"]
-MARCAS = ["Santo Domingo", "Forte", "Maestro", "Kraft", "Andes", "Bauker Pro", "MetalTec", "HogarFix", "Nordic", "TotalPro"]
-COMUNAS = ["Santiago", "Providencia", "La Florida", "Maipu", "Puente Alto", "San Miguel", "Recoleta", "Quilicura", "Pudahuel", "Nunoa"]
-NOMBRES = ["Comercial Los Aromos", "Constructora El Roble", "Ferreteria San Jose", "Maestranza Central", "Servicios Integrales Norte", "Inversiones Santa Clara", "Muebles y Obras SPA", "Instalaciones del Sur", "Mantenciones Express", "Hogar y Obra Ltda"]
+PROVEEDORES_DEMO = [
+    dict(nombre='DEMO Sodimac Distribucion', contacto='Carlos Proveedor',
+         telefono='+56900000001', email='dist@sodimac-demo.cl'),
+    dict(nombre='DEMO Ferreteria Mayorista Central', contacto='Ana Mayorista',
+         telefono='+56900000002', email='central@fmc-demo.cl'),
+]
 
 
-def rut_demo(n):
-    cuerpo = 77000000 + n
-    suma = 0
-    multiplicador = 2
-    for digito in reversed(str(cuerpo)):
-        suma += int(digito) * multiplicador
-        multiplicador = 2 if multiplicador == 7 else multiplicador + 1
-    resto = 11 - (suma % 11)
-    dv = "0" if resto == 11 else "K" if resto == 10 else str(resto)
-    return f"{cuerpo}-{dv}"
+def limpiar_demo():
+    """Borra datos con prefijo DEMO."""
+    from sqlalchemy import text as sa_text
+    db.session.rollback()
+    print('[DEMO] Limpiando datos previos...')
+    try:
+        vids = [r[0] for r in db.session.execute(
+            sa_text("SELECT id FROM ventas WHERE usuario = :u"), {'u': DEMO_USER}).fetchall()]
+        if vids:
+            vt = tuple(vids)
+            db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': vt})
+            db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': vt})
+            db.session.execute(sa_text("DELETE FROM movimiento_caja WHERE concepto LIKE :p"), {'p': '%DEMO%'})
+            db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
+
+        prov_ids = [r[0] for r in db.session.execute(
+            sa_text("SELECT id FROM proveedores WHERE nombre LIKE 'DEMO %'")).fetchall()]
+        if prov_ids:
+            pt = tuple(prov_ids)
+            db.session.execute(sa_text("DELETE FROM detalle_recepcion WHERE recepcion_id IN (SELECT id FROM recepciones_compra WHERE proveedor_id IN :i)"), {'i': pt})
+            db.session.execute(sa_text("DELETE FROM recepciones_compra WHERE proveedor_id IN :i"), {'i': pt})
+            db.session.execute(sa_text("DELETE FROM detalle_orden_compra WHERE orden_compra_id IN (SELECT id FROM ordenes_compra WHERE proveedor_id IN :i)"), {'i': pt})
+            db.session.execute(sa_text("DELETE FROM ordenes_compra WHERE proveedor_id IN :i"), {'i': pt})
+            db.session.execute(sa_text("DELETE FROM proveedores WHERE id IN :i"), {'i': pt})
+
+        db.session.execute(sa_text("DELETE FROM clientes WHERE nombre LIKE 'DEMO %'"))
+
+        try:
+            db.session.execute(sa_text("DELETE FROM erp_audit_log WHERE usuario = :u"), {'u': DEMO_USER})
+        except Exception:
+            pass
+
+        demo_caja = m.Caja.query.filter_by(usuario_apertura=DEMO_USER, estado='Abierta').first()
+        if demo_caja:
+            m.MovimientoCaja.query.filter_by(caja_id=demo_caja.id).delete(synchronize_session=False)
+            demo_caja.estado = 'Cerrada'
+            demo_caja.fecha_cierre = datetime.now()
+
+        db.session.commit()
+        print('[DEMO] Limpieza OK')
+    except Exception as ex:
+        db.session.rollback()
+        print(f'[DEMO] Error limpieza: {ex}')
 
 
-def money(valor):
-    return float(int(round(valor / 10.0) * 10))
+def seed_demo():
+    """Genera datos realistas de demo."""
+    random.seed(42)
+    print('\n' + '=' * 50)
+    print('  SEED DEMO DATA -- ERP LhexIA')
+    print('=' * 50)
 
+    limpiar_demo()
 
-def pick_unit_profile(categoria, subcategoria):
-    """Perfiles demo para ejercitar conversiones (1 compra = N ventas)."""
-    r = random.random()
-    if categoria == "Electricidad" and subcategoria == "Cables" and r < 0.62:
-        factor = float(random.choice([25, 50, 100]))
-        return ("Metro", "Rollo", "Metro", factor)
-    if categoria == "Fijaciones" and r < 0.38:
-        factor = float(random.choice([50, 100, 200, 500, 1000]))
-        return ("Unidad", "Caja", "Unidad", factor)
-    if categoria == "Pinturas" and subcategoria in ("Latex", "Esmaltes", "Barnices") and r < 0.28:
-        factor = float(random.choice([4, 10, 20]))
-        return ("Litro", "Cubeta", "Litro", factor)
-    if categoria == "Gasfiteria" and subcategoria == "PVC" and r < 0.22:
-        factor = float(random.choice([5, 6]))
-        return ("Metro", "Barra", "Metro", factor)
-    if categoria == "Jardin" and subcategoria == "Mangueras" and r < 0.35:
-        factor = float(random.choice([15, 20, 25]))
-        return ("Metro", "Rollo", "Metro", factor)
-    return ("Unidad", "Unidad", "Unidad", 1.0)
-
-
-def get_or_create_almacen(codigo, nombre):
-    almacen = Almacen.query.filter_by(codigo=codigo).first()
-    if almacen:
-        return almacen
-    almacen = Almacen(codigo=codigo, nombre=nombre, activo=True)
-    db.session.add(almacen)
-    db.session.flush()
-    return almacen
-
-
-def cargar_productos(tienda, bodega):
-    productos_creados = 0
-    existentes = {
-        p.codigo_interno
-        for p in Producto.query.filter(Producto.codigo_interno.like("DEMO-%")).all()
-        if p.codigo_interno
-    }
-    for i in range(1, 1501):
-        codigo = f"DEMO-{i:05d}"
-        if codigo in existentes:
-            continue
-        categoria = random.choice(list(CATEGORIAS.keys()))
-        subcategoria = random.choice(CATEGORIAS[categoria])
-        lo, hi = CATEGORY_COST_BAND_CLP.get(categoria, (400, 11000))
-        compra = money(random.randint(lo, hi))
-        venta = money(compra * random.uniform(1.22, 1.52))
-        unidad, u_compra, u_venta, factor = pick_unit_profile(categoria, subcategoria)
-        stock_tienda = random.randint(3, 48)
-        stock_bodega = random.randint(8, 140)
-        producto = Producto(
-            nombre=f"{subcategoria} {random.choice(ADJETIVOS)} {random.choice(MARCAS)} {i}",
-            codigo_barra=f"7809{200000000 + i}",
-            codigo_interno=codigo,
-            codigo_chilemat=f"CHM-{i:06d}",
-            precio_compra=compra,
-            precio_venta=venta,
-            precio_mayoreo=money(venta * 0.9),
-            unidad=unidad,
-            unidad_compra=u_compra,
-            unidad_venta=u_venta,
-            factor_conversion=factor,
-            stock=stock_tienda + stock_bodega,
-            categoria=categoria,
-            subcategoria=subcategoria,
-            ubicacion_pasillo=f"P{random.randint(1, 18):02d}",
-            ubicacion_estante=f"E{random.randint(1, 12):02d}",
-            ubicacion_nivel=f"N{random.randint(1, 5):02d}",
-            activo=True,
-        )
-        db.session.add(producto)
-        db.session.flush()
-        db.session.merge(StockPorAlmacen(id_producto=producto.id, id_almacen=tienda.id, cantidad=stock_tienda))
-        db.session.merge(StockPorAlmacen(id_producto=producto.id, id_almacen=bodega.id, cantidad=stock_bodega))
-        db.session.add(MovimientoInventario(id_producto=producto.id, id_almacen=tienda.id, tipo_movimiento="ENTRADA", cantidad=stock_tienda, motivo="Carga inicial demo tienda", usuario="Demo ERP", referencia_tipo="demo", stock_saldo=stock_tienda))
-        db.session.add(MovimientoInventario(id_producto=producto.id, id_almacen=bodega.id, tipo_movimiento="ENTRADA", cantidad=stock_bodega, motivo="Carga inicial demo bodega", usuario="Demo ERP", referencia_tipo="demo", stock_saldo=stock_bodega))
-        productos_creados += 1
-        if productos_creados % 250 == 0:
-            db.session.commit()
+    # 1. Clientes
+    clientes = []
+    for data in CLIENTES_DEMO:
+        cli = m.Cliente.query.filter_by(rut=data['rut']).first()
+        if not cli:
+            cli = m.Cliente(**data)
+            db.session.add(cli)
+        clientes.append(cli)
     db.session.commit()
-    return productos_creados
+    print(f'[DEMO] {len(clientes)} clientes creados')
 
-
-def cargar_clientes():
-    clientes_creados = 0
-    ruts = {c.rut for c in Cliente.query.filter(Cliente.rut.like("77%")).all()}
-    for i in range(1, 201):
-        rut = rut_demo(i)
-        if rut in ruts:
-            continue
-        comuna = random.choice(COMUNAS)
-        cliente = Cliente(
-            rut=rut,
-            nombre=f"{random.choice(NOMBRES)} Demo {i:03d}",
-            giro=random.choice(["Ferreteria", "Construccion", "Mantencion", "Retail", "Servicios tecnicos"]),
-            direccion=f"Av. Demo {random.randint(100, 9900)}",
-            telefono=f"+569{random.randint(40000000, 99999999)}",
-            correo=f"cliente.demo{i:03d}@example.com",
-            comuna=comuna,
-            ciudad="Santiago",
-            saldo_deudor=money(random.choice([0, 0, 0, random.randint(5000, 165000)])),
-            limite_credito=money(random.randint(250000, 1600000)),
-            estado_credito="Activo",
-        )
-        db.session.add(cliente)
-        clientes_creados += 1
+    # 2. Proveedores
+    proveedores = []
+    for data in PROVEEDORES_DEMO:
+        prov = m.Proveedor.query.filter(m.Proveedor.nombre == data['nombre']).first()
+        if not prov:
+            prov = m.Proveedor(**data)
+            db.session.add(prov)
+        proveedores.append(prov)
     db.session.commit()
-    return clientes_creados
+    print(f'[DEMO] {len(proveedores)} proveedores creados')
 
+    # 3. Caja demo
+    caja = m.Caja.query.filter_by(estado='Abierta').order_by(m.Caja.id.desc()).first()
+    if not caja:
+        caja = m.Caja(monto_inicial=100000, usuario_apertura=DEMO_USER,
+                      estado='Abierta', fecha_apertura=datetime.now())
+        db.session.add(caja)
+        db.session.commit()
+    print(f'[DEMO] Caja ID={caja.id}')
 
-def cargar_ventas(caja):
-    productos = Producto.query.filter(Producto.codigo_interno.like("DEMO-%")).all()
-    clientes = Cliente.query.filter(Cliente.rut.like("77%")).all()
-    ventas_existentes = Venta.query.filter_by(usuario="Demo ERP").count()
+    # 4. Productos existentes
+    productos = m.Producto.query.filter_by(activo=True).limit(20).all()
+    if not productos:
+        print('[DEMO] No hay productos activos en BD. Saltando ventas.')
+        return
+
+    cf = m.obtener_o_crear_cliente_final()
+    aid_t = m.id_almacen_tienda() or 1
+
+    # 5. Ventas demo (25 variadas)
+    metodos = ['Efectivo'] * 15 + ['Credito'] * 5 + ['Transferencia'] * 5
+    random.shuffle(metodos)
+
     ventas_creadas = 0
-    for i in range(ventas_existentes + 1, 501):
-        fecha = datetime.now() - timedelta(days=random.randint(0, 89), hours=random.randint(0, 10), minutes=random.randint(0, 59))
-        cliente = random.choice(clientes) if random.random() < 0.72 else None
-        metodo = random.choices(["Efectivo", "Debito", "Credito"], weights=[55, 32, 13])[0]
-        # Crédito tienda = deuda pendiente (coherente con caja al cobrar Credito).
-        estado = "Pendiente" if metodo == "Credito" else "Pagado"
-        venta = Venta(
-            fecha=fecha,
-            usuario="Demo ERP",
-            estado=estado,
-            tipo_documento=random.choice(["Boleta", "Boleta", "Factura"]),
-            metodo_pago=metodo,
-            caja_id=caja.id,
-            cliente_id=cliente.id if cliente else None,
-            punto_retiro=random.choice(["Tienda", "Bodega"]),
-        )
-        db.session.add(venta)
-        db.session.flush()
-        total = 0
-        for producto in random.sample(productos, random.randint(1, 5)):
-            cantidad = random.randint(1, 6)
-            descuento = random.choice([0, 0, 0, 5, 10, 15])
-            subtotal = money(cantidad * float(producto.precio_venta or 0) * (1 - descuento / 100))
-            db.session.add(DetalleVenta(id_venta=venta.id, id_producto=producto.id, cantidad=cantidad, precio_unitario=float(producto.precio_venta or 0), descuento=descuento, subtotal=subtotal))
-            total += subtotal
-        venta.monto_total = float(round(total))
-        venta.desglosar_iva()
-        if estado == "Pagado":
-            venta.monto_recibido = venta.monto_total + random.choice([0, 0, 0, 1000, 5000, 10000])
-            venta.vuelto = max(0, venta.monto_recibido - venta.monto_total)
-        else:
-            venta.monto_recibido = 0
-            venta.vuelto = 0
-        ventas_creadas += 1
-        if ventas_creadas % 100 == 0:
-            db.session.commit()
-    db.session.commit()
-    return ventas_creadas
+    for i in range(25):
+        try:
+            n_items = random.randint(1, min(4, len(productos)))
+            items = random.sample(productos, n_items)
+            cliente = random.choice(clientes + [cf, cf, cf])
 
-
-def cargar_saldos_favor():
-    clientes = Cliente.query.filter(Cliente.rut.like("77%")).all()
-    saldos_creados = 0
-    for cliente in random.sample(clientes, min(35, len(clientes))):
-        existente = ClienteSaldoFavor.query.get(cliente.id)
-        if existente and existente.saldo > 0:
-            continue
-        saldo = money(random.randint(1200, 38000))
-        if existente:
-            existente.saldo = saldo
-        else:
-            db.session.add(ClienteSaldoFavor(cliente_id=cliente.id, saldo=saldo))
-        db.session.add(MovimientoSaldoFavor(cliente_id=cliente.id, cambio_id=None, tipo="CREDITO", monto=saldo, saldo_resultante=saldo, observacion="Saldo demo por devolucion comercial"))
-        saldos_creados += 1
-    db.session.commit()
-    return saldos_creados
-
-
-def main():
-    with app.app_context():
-        tienda = get_or_create_almacen("TIENDA", "Tienda")
-        bodega = get_or_create_almacen("BODEGA", "Bodega")
-        caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
-        if not caja:
-            caja = Caja(fecha_apertura=datetime.now() - timedelta(days=1), monto_inicial=420000, estado="Abierta", usuario_apertura="Demo ERP")
-            db.session.add(caja)
+            venta = m.Venta(
+                fecha=datetime.now() - timedelta(days=random.randint(0, 30), hours=random.randint(0, 12)),
+                monto_total=0, usuario=DEMO_USER, estado='Abierta',
+                caja_id=caja.id, cliente_id=cliente.id, punto_retiro='Tienda')
+            db.session.add(venta)
             db.session.flush()
 
-        resumen = {
-            "productos_creados": cargar_productos(tienda, bodega),
-            "clientes_creados": cargar_clientes(),
-            "ventas_creadas": cargar_ventas(caja),
-            "saldos_creados": cargar_saldos_favor(),
-            "productos_demo_total": Producto.query.filter(Producto.codigo_interno.like("DEMO-%")).count(),
-            "clientes_demo_total": Cliente.query.filter(Cliente.rut.like("77%")).count(),
-            "ventas_demo_total": Venta.query.filter_by(usuario="Demo ERP").count(),
-            "clientes_saldo_favor_total": ClienteSaldoFavor.query.filter(ClienteSaldoFavor.saldo > 0).count(),
-        }
-        print(resumen)
+            for prod in items:
+                qty = random.randint(1, 5)
+                db.session.add(m.DetalleVenta(
+                    id_venta=venta.id, id_producto=prod.id,
+                    cantidad=qty, precio_unitario=prod.precio_venta,
+                    subtotal=qty * prod.precio_venta))
+            venta.recalcular_total()
+            venta.estado = 'Pendiente'
+            db.session.commit()
 
-        flag = (os.environ.get("PATCH_DEMO_CARTERA") or "").strip().lower()
-        if flag in ("1", "true", "yes", "on", "si"):
-            root = Path(__file__).resolve().parents[1]
-            patch_py = root / "scripts" / "patch_demo_credito_cartera.py"
-            print(f"PATCH_DEMO_CARTERA={flag!r} -> ejecutando {patch_py.name} ...", flush=True)
-            r = subprocess.run(
-                [sys.executable, str(patch_py)],
-                cwd=str(root),
-                env=os.environ.copy(),
-            )
-            if r.returncode != 0:
-                print(f"ADVERTENCIA: {patch_py.name} terminó con código {r.returncode}", flush=True)
+            metodo = metodos[i % len(metodos)]
+
+            if metodo == 'Credito' and hasattr(cliente, 'cupo_disponible') and cliente != cf:
+                if venta.monto_total <= (cliente.cupo_disponible or 0):
+                    venta.metodo_pago = 'Credito'
+                    venta.credito_plan_codigo = '30_60_90'
+                    cliente.saldo_deudor = float(cliente.saldo_deudor or 0) + venta.monto_total
+                    dias = m.PLANES_CUOTA_CREDITO_DIAS.get('30_60_90', (30, 60, 90))
+                    mc = round(venta.monto_total / len(dias))
+                    for ci, d in enumerate(dias, 1):
+                        db.session.add(m.VentaCuotaCredito(
+                            venta_id=venta.id, nro_cuota=ci, dias_plazo=d,
+                            fecha_vencimiento=date.today() + timedelta(days=d), monto=mc))
+                    db.session.commit()
+                    ventas_creadas += 1
+                    continue
+                metodo = 'Efectivo'
+
+            venta.estado = 'Pagado'
+            venta.metodo_pago = metodo
+            venta.tipo_documento = 'Boleta'
+            venta.monto_recibido = venta.monto_total + random.choice([0, 10, 50, 100, 500])
+            venta.vuelto = max(0, (venta.monto_recibido or 0) - venta.monto_total)
+
+            for det in venta.detalles:
+                prod = db.session.get(m.Producto, det.id_producto)
+                if not prod:
+                    continue
+                factor = m._factor_venta_a_stock(prod)
+                consumo = int(det.cantidad * factor)
+                m.descontar_stock_venta_tienda(prod, consumo)
+                m.registrar_movimiento_kardex(
+                    id_producto=prod.id, tipo_movimiento='SALIDA', cantidad=consumo,
+                    motivo=f'Venta DEMO #{venta.id}', usuario=DEMO_USER,
+                    id_almacen=aid_t, referencia_tipo='venta', referencia_id=venta.id)
+
+            db.session.add(m.MovimientoCaja(
+                caja_id=caja.id, tipo='Ingreso',
+                concepto=f'Cobro DEMO vale #{venta.id}',
+                monto=venta.monto_total, usuario_registro=DEMO_USER))
+            db.session.commit()
+            ventas_creadas += 1
+        except Exception as ex:
+            db.session.rollback()
+            print(f'  [WARN] Venta {i+1}: {ex}')
+
+    print(f'[DEMO] {ventas_creadas}/25 ventas creadas')
+
+    # 6. Ordenes de compra y recepciones
+    aid_b = m.id_almacen_bodega()
+    oc_count = 0
+    for prov in proveedores:
+        try:
+            prods_oc = random.sample(productos, min(3, len(productos)))
+            num = f'DEMO-OC-{prov.id}-{datetime.now():%H%M%S}'
+            oc = m.OrdenCompra(
+                proveedor_id=prov.id, numero=num,
+                fecha_emision=date.today() - timedelta(days=random.randint(1, 15)),
+                estado='Borrador', usuario_creador=DEMO_USER)
+            db.session.add(oc)
+            db.session.flush()
+            for p in prods_oc:
+                db.session.add(m.DetalleOrdenCompra(
+                    orden_compra_id=oc.id, producto_id=p.id,
+                    cantidad=random.randint(10, 50),
+                    precio_unitario=p.precio_compra))
+            oc.estado = 'Enviada'
+            db.session.commit()
+
+            recep = m.RecepcionCompra(
+                proveedor_id=prov.id, orden_compra_id=oc.id,
+                documento_tipo='Factura', documento_numero=f'F-{num}',
+                usuario_bodega=DEMO_USER, estado='Pendiente')
+            db.session.add(recep)
+            db.session.flush()
+            for p in prods_oc:
+                qty = random.randint(5, 20)
+                db.session.add(m.DetalleRecepcion(
+                    recepcion_id=recep.id, producto_id=p.id,
+                    cantidad_documento=qty, cantidad_recibida=qty))
+                if aid_b:
+                    spa = m.StockPorAlmacen.query.filter_by(id_producto=p.id, id_almacen=aid_b).first()
+                    if spa:
+                        spa.cantidad = (spa.cantidad or 0) + qty
+                    else:
+                        db.session.add(m.StockPorAlmacen(id_producto=p.id, id_almacen=aid_b, cantidad=qty))
+                    m.registrar_movimiento_kardex(
+                        id_producto=p.id, tipo_movimiento='ENTRADA', cantidad=qty,
+                        motivo=f'Recepcion DEMO #{recep.id}', usuario=DEMO_USER,
+                        id_almacen=aid_b, referencia_tipo='recepcion', referencia_id=recep.id)
+            recep.estado = 'Finalizada'
+            db.session.commit()
+            oc_count += 1
+        except Exception as ex:
+            db.session.rollback()
+            print(f'  [WARN] OC prov {prov.nombre}: {ex}')
+
+    print(f'[DEMO] {oc_count} OC + recepciones')
+
+    print('\n' + '=' * 50)
+    print('  SEED DEMO COMPLETADO')
+    print(f'  Clientes: {len(clientes)} | Ventas: {ventas_creadas}')
+    print(f'  OC: {oc_count} | Proveedores: {len(proveedores)}')
+    print('=' * 50 + '\n')
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    with flask_app.app_context():
+        if '--clean' in sys.argv:
+            limpiar_demo()
+        else:
+            seed_demo()

@@ -19,18 +19,22 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import date, datetime, timedelta
 import csv
 import os
+import threading
+import time
 import json
 import hmac
 import html
 import uuid
 import secrets
 from collections import defaultdict
+from dataclasses import dataclass, field, asdict
 from functools import wraps
+from typing import Optional
 from flask_login import current_user, login_required, UserMixin, login_user, logout_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import inspect as sa_inspect, and_, exists, func, or_, text, UniqueConstraint
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError, TimeoutError as SATimeoutError
 from sqlalchemy.orm import joinedload, aliased
 import qrcode
 import io
@@ -44,10 +48,15 @@ import requests
 from flask import make_response, render_template
 
 
-def _load_env_archivos():
+def _load_env_archivos(force_local_overwrite=False):
     """Carga variables desde archivos en la carpeta del proyecto (sin dependencia python-dotenv).
     Orden: env_qa.txt (visible en el Explorador) solo rellena claves no definidas en el sistema;
-    .env.qa puede sobrescribir claves ya cargadas desde env_qa.txt."""
+    .env.qa puede sobrescribir claves ya cargadas desde env_qa.txt.
+
+    Si force_local_overwrite=True (p. ej. tras ?reload_env=1 en rutas admin o ERP_RELOAD_ENV_FILES=1),
+    vuelve a aplicar .env.qa y .env.local sobrescribiendo cada clave definida en esos archivos
+    (env_qa.txt sigue solo con setdefault para no pisar variables del sistema).
+    """
     root = os.path.dirname(os.path.abspath(__file__))
 
     def _parse_line(line):
@@ -76,14 +85,17 @@ def _load_env_archivos():
                     os.environ[k] = v
 
     # .env.local: credenciales locales (ej: DATABASE_URL apuntando a Postgres local).
-    # No sobrescribe variables del sistema operativo (p. ej. en Render/Neon).
+    # Por defecto no pisa variables ya definidas (p. ej. en Render/Neon). Con force_local_overwrite, sí.
     path_local = os.path.join(root, '.env.local')
     if os.path.isfile(path_local):
         with open(path_local, encoding='utf-8-sig', errors='replace') as f:
             for raw in f:
                 k, v = _parse_line(raw.strip())
                 if k:
-                    os.environ.setdefault(k, v)
+                    if force_local_overwrite:
+                        os.environ[k] = v
+                    else:
+                        os.environ.setdefault(k, v)
 
 
 try:
@@ -92,6 +104,11 @@ except Exception:
     pass
 # --- CONFIGURACIÓN DE LA APP ---
 app = Flask(__name__)
+# Evita doble import: cuando se ejecuta `python app.py`, __name__ es "__main__"
+# pero los servicios hacen `import app as m`. Sin esto, Python re-importa app.py
+# como modulo "app", creando una segunda Flask/SQLAlchemy que rompe las sessions.
+import sys as _sys
+_sys.modules.setdefault('app', _sys.modules[__name__])
 
 
 def _resolver_database_uri():
@@ -120,6 +137,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300,
+    # Evita agotar el pool cuando muchas peticiones disparan migraciones idempotentes en before_request.
+    'pool_size': int(os.getenv('DB_POOL_SIZE', '10')),
+    'max_overflow': int(os.getenv('DB_MAX_OVERFLOW', '24')),
+    'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '60')),
 }
 if db_uri.startswith('postgresql'):
     app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args'] = {
@@ -141,6 +162,8 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
 if os.getenv('FLASK_TEMPLATE_RELOAD', '1') != '0':
     app.config['TEMPLATES_AUTO_RELOAD'] = True
 db = SQLAlchemy(app)
+# Una sola petición a la vez ejecuta el bloque de auto-migración (before_request autenticado).
+_SCHEMA_ENSURE_LOCK = threading.Lock()
 
 from services import stock_service as _stock_service
 from services import kardex_service as _kardex_service
@@ -575,7 +598,7 @@ def cargar_landing_leads_gestion(limit=800):
     return out
 
 
-def _usuario_autorizado_lexia_interno():
+def _usuario_autorizado_lhexia_interno():
     correo = (getattr(current_user, 'correo', None) or '').strip().lower()
     return correo == 'mariobec@gmail.com'
 
@@ -668,6 +691,17 @@ def usuario_obj_tiene_permiso(usuario, nombre_permiso):
     )
 
 
+def usuario_puede_autorizar_diferencia_cierre_caja(usuario):
+    """
+    Quién puede validar un cierre cuando |contado - teórico| >= umbral:
+    administradores de rol, o permiso gestionar_usuarios, o visión de gerencia (ver_gerencia).
+    """
+    if not usuario_obj_tiene_permiso(usuario, 'gestionar_usuarios'):
+        if not usuario_obj_tiene_permiso(usuario, 'ver_gerencia'):
+            return False
+    return usuario_esta_activo(usuario)
+
+
 def usuario_esta_activo(usuario):
     """Compatibilidad: usamos 'perfil' como estado ACTIVO/INACTIVO."""
     return (getattr(usuario, 'perfil', None) or 'ACTIVO').strip().upper() != 'INACTIVO'
@@ -706,25 +740,200 @@ def usuario_requiere_cambio_clave(usuario):
     return perfil in ('FORZAR_CLAVE', 'ACTIVO_FORZAR_CLAVE')
 
 
+_NAV_MAP = [
+    {
+        'id': 'ventas', 'label': 'Ventas', 'icon': 'fa-cart-shopping', 'modulo': 'ventas',
+        'items': [
+            {'label': 'Punto de venta', 'icon': 'fa-cash-register', 'endpoint': 'punto_venta',
+             'permisos': ['pos_emitir_vale'],
+             'endpoints_activos': ['punto_venta', 'agregar_producto_venta', 'actualizar_item', 'eliminar_detalle', 'finalizar_venta']},
+            {'label': 'Cotizaciones', 'icon': 'fa-file-invoice-dollar', 'endpoint': 'cotizaciones_lista',
+             'permisos': ['pos_emitir_vale'],
+             'endpoints_activos': ['cotizaciones_lista', 'cotizacion_nueva', 'cotizacion_detalle']},
+            {'label': 'Historial ventas', 'icon': 'fa-shopping-cart', 'endpoint': 'mostrar_ventas',
+             'permisos': [],
+             'endpoints_activos': ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta']},
+            {'label': 'Créditos y cartolas', 'icon': 'fa-hand-holding-usd', 'endpoint': 'modulo_creditos',
+             'permisos': [],
+             'endpoints_activos': ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'estado_cuenta_credito_resumen_imprimible', 'registrar_abono', 'ver_ticket_abono']},
+            {'label': 'Cobranza cuotas (WA)', 'icon': 'fa-whatsapp fa-brands', 'endpoint': 'cobranza_cuotas',
+             'permisos': [],
+             'endpoints_activos': ['cobranza_cuotas', 'api_creditos_cobranza_sugerencias']},
+        ],
+    },
+    {
+        'id': 'caja', 'label': 'Caja', 'icon': 'fa-cash-register', 'modulo': 'caja',
+        'permisos_grupo': ['caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar', 'gestionar_usuarios'],
+        'items': [
+            {'label': 'Vales pendientes', 'icon': 'fa-file-invoice-dollar', 'endpoint': 'caja_pendientes',
+             'permisos': ['caja_cobrar_vale'],
+             'endpoints_activos': ['caja_pendientes', 'procesar_cobro_caja']},
+            {'label': 'Cambios / devoluciones', 'icon': 'fa-rotate', 'endpoint': 'caja_cambios',
+             'permisos': ['caja_cobrar_vale'], 'endpoints_activos': ['caja_cambios']},
+            {'label': 'Historial cambios', 'icon': 'fa-clock-rotate-left', 'endpoint': 'caja_cambios_historial',
+             'permisos': ['caja_cobrar_vale'], 'endpoints_activos': ['caja_cambios_historial']},
+            {'label': 'Saldos a favor', 'icon': 'fa-wallet', 'endpoint': 'caja_saldos_favor',
+             'permisos': ['caja_cobrar_vale'], 'endpoints_activos': ['caja_saldos_favor']},
+            {'label': 'Abrir caja', 'icon': 'fa-door-open', 'endpoint': 'abrir_caja',
+             'permisos': ['caja_abrir'], 'endpoints_activos': ['abrir_caja']},
+            {'label': 'Movimientos', 'icon': 'fa-exchange-alt', 'endpoint': 'movimiento_caja',
+             'permisos': ['caja_movimientos'], 'endpoints_activos': ['movimiento_caja']},
+            {'label': 'Cerrar caja', 'icon': 'fa-door-closed', 'endpoint': 'cerrar_caja',
+             'permisos': ['caja_cerrar'], 'endpoints_activos': ['cerrar_caja']},
+            {'label': 'Historial cierres', 'icon': 'fa-history', 'endpoint': 'caja_historial_cierres',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['caja_historial_cierres']},
+        ],
+    },
+    {
+        'id': 'inventario', 'label': 'Inventario y Abastecimiento', 'icon': 'fa-boxes-stacked', 'modulo': 'inventario',
+        'permisos_grupo': ['ver_inventario', 'admin_inventario', 'bodega_operador', 'gestionar_compras', 'gestionar_usuarios'],
+        'items': [
+            {'label': 'Productos', 'icon': 'fa-boxes', 'endpoint': 'mostrar_productos',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos']},
+            {'label': 'Enrolamiento inventario', 'icon': 'fa-barcode', 'endpoint': 'inventario_enrolamiento',
+             'permisos': ['enrolamiento_inventario', 'admin_inventario'],
+             'endpoints_activos': ['inventario_enrolamiento'], 'requiere_endpoint': 'inventario_enrolamiento'},
+            {'label': 'Salud inventario', 'icon': 'fa-heartbeat', 'endpoint': 'inventario_salud',
+             'permisos': ['enrolamiento_inventario', 'admin_inventario'],
+             'endpoints_activos': ['inventario_salud'], 'requiere_endpoint': 'inventario_salud'},
+            {'label': 'Stock crítico', 'icon': 'fa-triangle-exclamation', 'endpoint': 'stock_critico',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['stock_critico']},
+            {'label': 'Kardex', 'icon': 'fa-clipboard-list', 'endpoint': 'kardex',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['kardex']},
+            {'label': 'Consulta stock', 'icon': 'fa-magnifying-glass-chart', 'endpoint': 'consulta_stock_publica',
+             'permisos': [], 'endpoints_activos': ['consulta_stock_publica']},
+            {'label': 'Cuadro de mando bodega', 'icon': 'fa-gauge-high', 'endpoint': 'bodega_cuadro_mando',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_cuadro_mando']},
+            {'label': 'Plataforma retiro bodega', 'icon': 'fa-clipboard-list', 'endpoint': 'bodega_plataforma',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_plataforma', 'bodega_vale_retiro']},
+            {'label': 'Despachos bodega (voz)', 'icon': 'fa-microphone', 'endpoint': 'bodega_despachos',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_despachos']},
+            {'label': 'Recepciones', 'icon': 'fa-dolly', 'endpoint': 'lista_recepciones',
+             'permisos': ['gestionar_compras', 'ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion']},
+            {'label': 'Órdenes compra', 'icon': 'fa-file-contract', 'endpoint': 'lista_ordenes_compra',
+             'permisos': ['gestionar_compras', 'admin_inventario'],
+             'endpoints_activos': ['lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar']},
+            {'label': 'Proveedores', 'icon': 'fa-truck', 'endpoint': 'mostrar_proveedores',
+             'permisos': ['gestionar_compras', 'admin_inventario'],
+             'endpoints_activos': ['mostrar_proveedores', 'guardar_proveedor']},
+            {'label': 'IA Abastecimiento', 'icon': 'fa-robot', 'endpoint': 'ia_abastecimiento',
+             'permisos': ['gestionar_compras', 'admin_inventario'],
+             'endpoints_activos': ['ia_abastecimiento'], 'modulo_item': 'ia'},
+        ],
+    },
+    {
+        'id': 'gerencia', 'label': 'Gerencia y dueño', 'icon': 'fa-briefcase',
+        'permisos_grupo': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+        'items': [
+            {'label': 'Panel ejecutivo', 'icon': 'fa-chart-pie', 'endpoint': 'panel_dueno',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['panel_dueno']},
+            {'label': 'ROI IA · Customer 360', 'icon': 'fa-robot', 'endpoint': 'gerencia_c360_ia_dashboard',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['gerencia_c360_ia_dashboard']},
+            {'label': 'Simulador de margen', 'icon': 'fa-flask', 'endpoint': 'simulador_margen',
+             'permisos': ['panel_gerencia'],
+             'endpoints_activos': ['simulador_margen']},
+            {'label': 'Alertas de precio', 'icon': 'fa-bell', 'endpoint': 'bi_alertas_precio_premium_demo',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['bi_alertas_precio_premium_demo']},
+        ],
+    },
+    {
+        'id': 'bi', 'label': 'BI operativo', 'icon': 'fa-chart-line', 'modulo': 'bi',
+        'items': [
+            {'label': 'BI reportes', 'icon': 'fa-chart-line', 'endpoint': 'business_intelligence',
+             'permisos': [],
+             'endpoints_activos': ['business_intelligence']},
+            {'label': 'Revisión de precios', 'icon': 'fa-tags', 'endpoint': 'revision_precios',
+             'permisos': ['revision_precios'],
+             'endpoints_activos': ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision']},
+        ],
+    },
+    {
+        'id': 'admin', 'label': 'Mantenedores', 'icon': 'fa-sliders-h',
+        'permisos_grupo': ['gestionar_usuarios'],
+        'items': [
+            {'label': 'Catálogo categorías', 'icon': 'fa-sitemap', 'endpoint': 'admin_catalogo',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_catalogo']},
+            {'label': 'Unidades de medida', 'icon': 'fa-balance-scale', 'endpoint': 'admin_unidades',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_unidades']},
+            {'label': 'Almacenes', 'icon': 'fa-warehouse', 'endpoint': 'admin_almacenes',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_almacenes']},
+            {'label': 'Clientes', 'icon': 'fa-address-book', 'endpoint': 'admin_clientes',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_clientes']},
+            {'label': 'Roles y permisos', 'icon': 'fa-user-shield', 'endpoint': 'admin_roles_permisos',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_roles_permisos']},
+            {'label': 'Datos de empresa', 'icon': 'fa-building', 'endpoint': 'admin_empresa',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_empresa']},
+            {'label': 'Usuarios y roles', 'icon': 'fa-users-cog', 'endpoint': 'usuarios',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['usuarios', 'editar_usuario']},
+        ],
+    },
+]
+
+
+def _construir_nav_usuario():
+    """Filtra _NAV_MAP segun permisos del usuario actual. Retorna lista de grupos visibles."""
+    from flask import current_app
+    es_admin = _rol_es_administrador_por_nombre(getattr(current_user, 'rol', None)) if current_user.is_authenticated else False
+    ep_reg = set()
+    try:
+        ep_reg = set(current_app.view_functions.keys())
+    except Exception:
+        pass
+
+    def _tiene_alguno(perms):
+        if not perms:
+            return True
+        if es_admin:
+            return True
+        return any(usuario_tiene_permiso(p) for p in perms)
+
+    nav = []
+    for grupo in _NAV_MAP:
+        mod = grupo.get('modulo')
+        if mod and not modulo_activo(mod):
+            continue
+        perms_grupo = grupo.get('permisos_grupo')
+        if perms_grupo and not _tiene_alguno(perms_grupo):
+            continue
+        items_vis = []
+        for it in grupo.get('items', []):
+            req_ep = it.get('requiere_endpoint')
+            if req_ep and req_ep not in ep_reg:
+                continue
+            mod_item = it.get('modulo_item')
+            if mod_item and not modulo_activo(mod_item):
+                continue
+            if not _tiene_alguno(it.get('permisos', [])):
+                continue
+            items_vis.append(it)
+        if items_vis:
+            nav.append({**grupo, 'items': items_vis})
+    return nav
+
+
 @app.context_processor
 def inject_company_context():
-    from flask import current_app
-
     try:
-        ep = set(current_app.view_functions.keys())
+        nav = _construir_nav_usuario() if current_user.is_authenticated else []
     except Exception:
-        ep = set()
-    nav_flags = {
-        'nav_inventario_enrolamiento': 'inventario_enrolamiento' in ep,
-        'nav_inventario_salud': 'inventario_salud' in ep,
-    }
+        nav = []
     try:
         return {
             'empresa_cfg': obtener_config_empresa(),
             'puede_administrar': usuario_tiene_permiso('gestionar_usuarios'),
             'usuario_tiene_permiso': usuario_tiene_permiso,
             'modulo_activo': modulo_activo,
-            **nav_flags,
+            'nav_menu': nav,
         }
     except Exception:
         return {
@@ -732,7 +941,7 @@ def inject_company_context():
             'puede_administrar': False,
             'usuario_tiene_permiso': lambda _nombre: False,
             'modulo_activo': lambda _nombre: True,
-            **nav_flags,
+            'nav_menu': [],
         }
 
 
@@ -803,7 +1012,8 @@ def permisos_required(*permisos):
     # --- FUNCIÓN DE VALIDACIÓN DE RUT ---............................................................
 def validar_rut(rut: str) -> bool:
     rut = rut.replace(".", "").replace("-", "").upper()
-    if len(rut) < 9 or len(rut) > 10:
+    # Chile: cuerpo 7 u 8 digitos + DV => 8 o 9 caracteres (antes se rechazaban 7-digit body).
+    if len(rut) < 8 or len(rut) > 10:
         return False
     cuerpo, dv = rut[:-1], rut[-1]
     try:
@@ -938,6 +1148,10 @@ _PERMISOS_SISTEMA_INICIAL = (
     'caja_movimientos',
     'caja_cerrar',
     'bodega_operador',
+    'ver_inventario',
+    'ver_gerencia',
+    'gestionar_compras',
+    'ver_auditoria',
 )
 
 
@@ -964,36 +1178,32 @@ def _seed_permisos_roles_operativos():
         if not permisos:
             return
 
+        _PERMISOS_CAJERA = {
+            'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir',
+            'caja_movimientos', 'caja_cerrar',
+        }
+        _PERMISOS_SUPERVISOR = _PERMISOS_CAJERA | {
+            'anular_vale_caja', 'anular_vale_con_despacho_bodega',
+            'autorizar_descuento_pos', 'ver_inventario',
+        }
+        _PERMISOS_GERENTE = {
+            'ver_gerencia', 'panel_gerencia', 'revision_precios',
+            'ver_inventario', 'gestionar_compras', 'ver_auditoria',
+        }
         mapa_por_rol = {
-            'vendedor': {'pos_emitir_vale'},
-            'vendedora': {'pos_emitir_vale'},
-            'ventas': {'pos_emitir_vale'},
-            'meson': {'pos_emitir_vale'},
-            'cajera': {'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'},
-            'cajero': {'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'},
-            'caja': {'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'},
-            'supervisor': {
-                'pos_emitir_vale',
-                'caja_cobrar_vale',
-                'caja_abrir',
-                'caja_movimientos',
-                'caja_cerrar',
-                'anular_vale_caja',
-                'anular_vale_con_despacho_bodega',
-                'autorizar_descuento_pos',
-            },
-            'encargado': {
-                'pos_emitir_vale',
-                'caja_cobrar_vale',
-                'caja_abrir',
-                'caja_movimientos',
-                'caja_cerrar',
-                'anular_vale_caja',
-                'anular_vale_con_despacho_bodega',
-                'autorizar_descuento_pos',
-            },
-            'bodeguero': {'bodega_operador'},
-            'bodeguera': {'bodega_operador'},
+            'vendedor':   {'pos_emitir_vale'},
+            'vendedora':  {'pos_emitir_vale'},
+            'ventas':     {'pos_emitir_vale'},
+            'meson':      {'pos_emitir_vale'},
+            'cajera':     _PERMISOS_CAJERA,
+            'cajero':     _PERMISOS_CAJERA,
+            'caja':       _PERMISOS_CAJERA,
+            'supervisor': _PERMISOS_SUPERVISOR,
+            'encargado':  _PERMISOS_SUPERVISOR,
+            'gerente':    _PERMISOS_GERENTE,
+            'dueno':      _PERMISOS_GERENTE | {'gestionar_usuarios'},
+            'bodeguero':  {'bodega_operador', 'ver_inventario'},
+            'bodeguera':  {'bodega_operador', 'ver_inventario'},
         }
 
         cambios = False
@@ -1033,21 +1243,48 @@ def forzar_cambio_clave_si_corresponde():
     if not current_user.is_authenticated:
         return None
     # Auto-migraciones idempotentes para instancias con esquema legacy (Render/Neon).
-    _asegurar_columnas_caja_cuadratura()
-    _asegurar_columnas_ventas_legacy()
-    _asegurar_columnas_productos_legacy()
-    _asegurar_columnas_detalle_ventas_legacy()
-    _asegurar_columnas_customer_360_legacy()
-    _asegurar_tabla_c360_llamadas_snapshot()
-    _asegurar_tabla_cobranza_whatsapp_log()
-    _asegurar_tabla_erp_audit_log()
-    # Si alguna comprobación legacy dejó Postgres en estado abortado, limpiamos antes de la ruta.
-    db.session.rollback()
-    # Columnas despacho bodega: deben existir antes de cualquier Venta.query (p. ej. inicio/dashboard).
-    _asegurar_columnas_ventas_bodega_despacho()
-    # Retiro bodega post-cobro / plataforma (modelo Venta + DetalleVenta).
-    _asegurar_columnas_bodega_retiro()
-    _asegurar_columnas_bodega_sugerido_preparar()
+    # Short-circuit: si todas las migraciones ya pasaron en este proceso, no hacer nada.
+    _all_schema_ok = (
+        app.config.get('_CAJA_CUADRATURA_OK')
+        and app.config.get('_VENTAS_LEGACY_OK')
+        and app.config.get('_PRODUCTOS_LEGACY_OK')
+        and app.config.get('_DETALLE_VENTAS_LEGACY_OK')
+        and app.config.get('_CUSTOMER_360_COL_OK')
+        and app.config.get('_C360_SNAP_TABLE_OK')
+        and app.config.get('_COBRANZA_WA_LOG_OK')
+        and app.config.get('_AUDIT_LOG_TABLE_OK')
+        and app.config.get('_VENTAS_BODEGA_DSP_COL_OK')
+        and app.config.get('_BODEGA_RETIRO_COL_OK')
+        and app.config.get('_BODEGA_SUGERIDO_COL_OK')
+        and app.config.get('_FE_PHASE1_OK')
+    )
+    if not _all_schema_ok:
+        if time.time() < float(app.config.get('_SCHEMA_ENSURE_BACKOFF_UNTIL') or 0):
+            db.session.rollback()
+        else:
+            try:
+                with _SCHEMA_ENSURE_LOCK:
+                    _asegurar_columnas_caja_cuadratura()
+                    _asegurar_columnas_ventas_legacy()
+                    _asegurar_columnas_productos_legacy()
+                    _asegurar_columnas_detalle_ventas_legacy()
+                    _asegurar_columnas_customer_360_legacy()
+                    _asegurar_tabla_c360_llamadas_snapshot()
+                    _asegurar_tabla_cobranza_whatsapp_log()
+                    _asegurar_tabla_erp_audit_log()
+                    _asegurar_tabla_cafs_y_columnas_ventas_fe()
+                    db.session.rollback()
+                    _asegurar_columnas_ventas_bodega_despacho()
+                    _asegurar_columnas_bodega_retiro()
+                    _asegurar_columnas_bodega_sugerido_preparar()
+            except (SATimeoutError, OperationalError) as ex:
+                app.config['_SCHEMA_ENSURE_BACKOFF_UNTIL'] = time.time() + float(
+                    os.getenv('SCHEMA_ENSURE_BACKOFF_SEC', '45')
+                )
+                app.logger.warning('Auto-migración en pausa (pool/BD): %s', ex)
+                db.session.rollback()
+            else:
+                app.config.pop('_SCHEMA_ENSURE_BACKOFF_UNTIL', None)
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
@@ -1632,6 +1869,19 @@ def aplicar_stock_desde_catalogo_a_tienda(producto):
     _refrescar_stock_total_producto(producto)
 
 
+# --- CAF (folios autorizados SII) ---
+class Caf(db.Model):
+    __tablename__ = 'cafs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    tipo_dte = db.Column(db.Integer, nullable=False)
+    rango_desde = db.Column(db.Integer, nullable=False)
+    rango_hasta = db.Column(db.Integer, nullable=False)
+    caf_xml = db.Column(db.Text, nullable=True)
+    fecha_autorizacion = db.Column(db.Date, nullable=True)
+    usado_hasta = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+
+
 # --- VENTA ---
 class Venta(db.Model):
     __tablename__ = 'ventas'
@@ -1643,10 +1893,16 @@ class Venta(db.Model):
     estado = db.Column(db.String(20), default="Pendiente")
     
     # --- NUEVOS CAMPOS TRIBUTARIOS ---
-    tipo_documento = db.Column(db.String(20), default="Boleta") # Boleta o Factura
-    nro_documento = db.Column(db.Integer, nullable=True)        # Folio del SII
+    tipo_documento = db.Column(db.String(20), default="Boleta")  # Boleta o Factura (UI / lógica interna)
+    # Folio oficial del DTE timbrado (SII); no duplicar en otros campos
+    nro_documento = db.Column(db.Integer, nullable=True)
     neto = db.Column(db.Float, default=0.0)
     iva = db.Column(db.Float, default=0.0)
+    # Facturación electrónica: cola asíncrona si falla SII (p. ej. PENDIENTE_ENVIO)
+    dte_tipo = db.Column(db.Integer, nullable=True)  # 33 factura afecta, 39 boleta afecta, etc.
+    dte_estado = db.Column(db.String(32), nullable=True)
+    dte_track_id = db.Column(db.String(50), nullable=True)
+    caf_id = db.Column(db.Integer, db.ForeignKey('cafs.id'), nullable=True)
     # ---------------------------------
 
     metodo_pago = db.Column(db.String(20), nullable=True)
@@ -1670,6 +1926,9 @@ class Venta(db.Model):
     bodega_preparacion_estado = db.Column(db.String(24), nullable=True)
     bodega_preparacion_usuario = db.Column(db.String(80), nullable=True)
     bodega_preparacion_at = db.Column(db.DateTime, nullable=True)
+    # Fase 3 — SLA bodega: timestamps para medir tiempos de preparación.
+    bodega_preparacion_cobrado_at = db.Column(db.DateTime, nullable=True)
+    bodega_preparacion_cerrado_at = db.Column(db.DateTime, nullable=True)
     # Fase 2 — sugerido preparar (solo informativo; vale Pendiente + retiro Bodega; no reserva stock).
     bodega_sugerido_preparar = db.Column(db.SmallInteger, nullable=False, default=0, server_default='0')
     bodega_sugerido_preparar_at = db.Column(db.DateTime, nullable=True)
@@ -1681,6 +1940,7 @@ class Venta(db.Model):
 
     cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
     cliente = db.relationship('Cliente', backref='ventas')
+    caf = db.relationship('Caf', foreign_keys=[caf_id], backref=db.backref('ventas', lazy='dynamic'))
 
     detalles = db.relationship(
         'DetalleVenta',
@@ -1851,6 +2111,45 @@ def _asegurar_tabla_erp_audit_log():
     except Exception as ex:
         db.session.rollback()
         app.logger.warning('No se pudo crear tabla erp_audit_log: %s', ex)
+        return False
+
+
+def _asegurar_tabla_cafs_y_columnas_ventas_fe():
+    """Tabla `cafs` + columnas DTE en `ventas` (facturación electrónica Fase 1)."""
+    if app.config.get('_FE_PHASE1_OK'):
+        return True
+    try:
+        Caf.__table__.create(bind=db.engine, checkfirst=True)
+        insp = sa_inspect(db.engine)
+        tables = set(insp.get_table_names())
+        if 'ventas' not in tables:
+            return False
+        cols = {c['name'] for c in insp.get_columns('ventas')}
+        dn = (db.engine.dialect.name or '').lower()
+        cambios = False
+        columnas = (
+            ('dte_tipo', 'INTEGER NULL', 'INTEGER NULL'),
+            ('dte_estado', 'VARCHAR(32) NULL', 'VARCHAR(32) NULL'),
+            ('dte_track_id', 'VARCHAR(50) NULL', 'VARCHAR(50) NULL'),
+            ('caf_id', 'INTEGER NULL', 'INTEGER NULL'),
+        )
+        for col_name, pg_sql, my_sql in columnas:
+            if col_name in cols:
+                continue
+            if dn == 'postgresql':
+                db.session.execute(
+                    text(f'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS {col_name} {pg_sql}')
+                )
+            else:
+                db.session.execute(text(f'ALTER TABLE ventas ADD COLUMN {col_name} {my_sql}'))
+            cambios = True
+        if cambios:
+            db.session.commit()
+        app.config['_FE_PHASE1_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo asegurar tabla cafs / columnas FE en ventas: %s', ex)
         return False
 
 
@@ -2097,7 +2396,7 @@ class DetalleVenta(db.Model):
     producto = db.relationship('Producto')
 
 
-# --- COTIZACIONES (LexIA IA ERP) ---
+# --- COTIZACIONES (LhexIA IA ERP) ---
 
 class Cotizacion(db.Model):
     __tablename__ = 'cotizaciones'
@@ -2779,6 +3078,32 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/sobre-nosotros')
+@app.route('/quienes-somos')
+def sobre_nosotros():
+    return render_template('sobre_nosotros_2.html')
+
+
+@app.route('/sobre-nosotros-origen')
+@app.route('/sobre_nosotros_v1')
+def sobre_nosotros_origen():
+    return render_template('sobre_nosotros.html')
+
+
+@app.route('/sobre-nosotros-2')
+@app.route('/sobre_nosotros_2')
+@app.route('/sobre_nosotros_2.html')
+@app.route('/sobre-nosotros_2.html')
+def sobre_nosotros_2():
+    return render_template('sobre_nosotros_2.html')
+
+
+@app.route('/mensaje-del-fundador')
+@app.route('/fundador')
+def mensaje_del_fundador():
+    return render_template('fundador.html')
+
+
 @app.route('/healthz')
 def healthz():
     return jsonify({"status": "ok"}), 200
@@ -2799,8 +3124,8 @@ def api_landing_lead():
 @login_required
 @permisos_required('panel_gerencia', 'gestionar_usuarios')
 def comercial_leads():
-    if not _usuario_autorizado_lexia_interno():
-        flash('Acceso restringido al módulo interno LexIA IA ERP.', 'warning')
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno Lhexa ERP.', 'warning')
         return redirect(url_for('inicio'))
     q = (request.args.get('q') or '').strip().lower()
     estado = (request.args.get('estado') or '').strip()
@@ -2834,8 +3159,8 @@ def comercial_leads():
 @login_required
 @permisos_required('panel_gerencia', 'gestionar_usuarios')
 def comercial_lead_estado(lead_id):
-    if not _usuario_autorizado_lexia_interno():
-        flash('Acceso restringido al módulo interno LexIA IA ERP.', 'warning')
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno Lhexa ERP.', 'warning')
         return redirect(url_for('inicio'))
     estado = (request.form.get('estado') or '').strip()
     nota = (request.form.get('nota') or '').strip()
@@ -3322,7 +3647,7 @@ def owner_mobile():
 
 # --- BUSINESS INTELLIGENCE --------------------------------------------------------------
 @app.route('/bi')
-@login_required
+@permisos_required('ver_gerencia', 'panel_gerencia', 'gestionar_usuarios')
 def business_intelligence():
     hoy = datetime.now().date()
     fi_raw = (request.args.get('fecha_inicio') or '').strip()
@@ -4539,8 +4864,10 @@ def _float_param(value, default):
 
 def _parse_clp_monto(value):
     """
-    Monto en pesos chilenos desde input humano.
+    Monto en pesos chilenos (CLP) desde input humano.
     Acepta: 35990, 35.990, 35,990 (miles con punto o coma), espacios.
+    Con un solo punto: si hay 3 dígitos a la derecha se interpretan como miles (340.000 → 340000);
+    si hay 1–2 dígitos, como decimal (12,50 vía coma; 12.5 con punto).
     """
     if value is None:
         return None
@@ -4560,7 +4887,19 @@ def _parse_clp_monto(value):
         else:
             t = t.replace(',', '')
     else:
-        t = t.replace('.', '')
+        if t.count('.') >= 2:
+            t = t.replace('.', '')
+        elif t.count('.') == 1:
+            ent, frac = t.split('.', 1)
+            if ent.isdigit() and frac.isdigit():
+                if len(frac) == 3:
+                    t = ent + frac
+                elif len(frac) <= 2:
+                    t = ent + '.' + frac
+                else:
+                    t = ent + frac
+            else:
+                return None
     try:
         v = float(t)
         return v if v >= 0 else None
@@ -4576,7 +4915,7 @@ def api_catalogo_subs_por_categoria():
 
 
 @app.route('/productos')
-@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
 def mostrar_productos():
     query = (request.args.get('q') or '').strip()
     codigo_barra = (request.args.get('codigo_barra') or '').strip()
@@ -4936,7 +5275,7 @@ def filtrar_productos(tipo):
 
 
 @app.route('/stock/critico')
-@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
 def stock_critico():
     umbral = request.args.get('umbral', 5, type=int)
     umbral = max(1, min(umbral, 200))
@@ -5660,7 +5999,7 @@ def toggle_producto(id):
 
 
 @app.route('/productos/<int:id>/editar_stock', methods=['POST'])
-@login_required
+@permisos_required('admin_inventario', 'gestionar_usuarios')
 def editar_stock_producto(id):
     if not _usuario_puede_ajustar_stock():
         flash("No tienes permisos para ajustar stock desde esta pantalla.", "danger")
@@ -5721,7 +6060,7 @@ def editar_stock_producto(id):
 
 
 @app.route('/productos/stock_masivo', methods=['POST'])
-@login_required
+@permisos_required('admin_inventario', 'gestionar_usuarios')
 def actualizar_stock_masivo_productos():
     if not _usuario_puede_ajustar_stock():
         flash("No tienes permisos para ejecutar ajustes masivos de stock.", "danger")
@@ -5849,7 +6188,7 @@ def guardar_producto():
     return redirect(url_for('mostrar_productos'))
 #..............................................................................................
 @app.route('/cargar_productos', methods=['POST'])
-@login_required
+@permisos_required('admin_inventario', 'gestionar_usuarios')
 def cargar_productos():
     archivo = request.files.get('archivo')
     if not archivo or not archivo.filename:
@@ -6211,7 +6550,7 @@ def descargar_plantilla_productos():
     )
 # --- PROVEEDORES ---....................................................................
 @app.route('/proveedores')
-@login_required
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
 def mostrar_proveedores():
     q = (request.args.get('q') or '').strip()
     page = request.args.get('page', 1, type=int)
@@ -6640,7 +6979,9 @@ def _asegurar_columnas_bodega_retiro():
     try:
         insp = sa_inspect(db.engine)
         dn = (db.engine.dialect.name or '').lower()
-        if 'ventas' in set(insp.get_table_names()):
+        tables = set(insp.get_table_names())
+        if 'ventas' in tables:
+            vcols = {c['name'] for c in insp.get_columns('ventas')}
             cambios = False
             for col_sql_pg, col_sql_my, col_name in (
                 (
@@ -6658,20 +6999,25 @@ def _asegurar_columnas_bodega_retiro():
                     'ALTER TABLE ventas ADD COLUMN bodega_preparacion_at DATETIME NULL',
                     'bodega_preparacion_at',
                 ),
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_preparacion_cobrado_at TIMESTAMP NULL',
+                    'ALTER TABLE ventas ADD COLUMN bodega_preparacion_cobrado_at DATETIME NULL',
+                    'bodega_preparacion_cobrado_at',
+                ),
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS bodega_preparacion_cerrado_at TIMESTAMP NULL',
+                    'ALTER TABLE ventas ADD COLUMN bodega_preparacion_cerrado_at DATETIME NULL',
+                    'bodega_preparacion_cerrado_at',
+                ),
             ):
-                vcols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas')}
                 if col_name in vcols:
                     continue
-                if dn == 'postgresql':
-                    db.session.execute(text(col_sql_pg))
-                else:
-                    db.session.execute(text(col_sql_my))
+                db.session.execute(text(col_sql_pg if dn == 'postgresql' else col_sql_my))
                 cambios = True
             if cambios:
                 db.session.commit()
-        insp2 = sa_inspect(db.engine)
-        if 'detalle_ventas' in set(insp2.get_table_names()):
-            dcols = {c['name'] for c in insp2.get_columns('detalle_ventas')}
+        if 'detalle_ventas' in tables:
+            dcols = {c['name'] for c in insp.get_columns('detalle_ventas')}
             if 'cantidad_entregada_retiro_bodega' not in dcols:
                 if dn == 'postgresql':
                     db.session.execute(
@@ -6705,6 +7051,7 @@ def _asegurar_columnas_bodega_sugerido_preparar():
         dn = (db.engine.dialect.name or '').lower()
         if 'ventas' not in set(insp.get_table_names()):
             return False
+        vcols = {c['name'] for c in insp.get_columns('ventas')}
         cambios = False
         for col_sql_pg, col_sql_my, col_name in (
             (
@@ -6723,13 +7070,9 @@ def _asegurar_columnas_bodega_sugerido_preparar():
                 'bodega_sugerido_preparar_usuario',
             ),
         ):
-            vcols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas')}
             if col_name in vcols:
                 continue
-            if dn == 'postgresql':
-                db.session.execute(text(col_sql_pg))
-            else:
-                db.session.execute(text(col_sql_my))
+            db.session.execute(text(col_sql_pg if dn == 'postgresql' else col_sql_my))
             cambios = True
         if cambios:
             db.session.commit()
@@ -6838,16 +7181,16 @@ def _asegurar_columnas_ventas_legacy():
             cambios = True
         if cambios:
             db.session.commit()
-        insp = sa_inspect(db.engine)
-        if 'ventas_cuotas_credito' not in set(insp.get_table_names()):
+        cuotas_tables = set(sa_inspect(db.engine).get_table_names())
+        if 'ventas_cuotas_credito' not in cuotas_tables:
             db.create_all()
-            insp = sa_inspect(db.engine)
-            if 'ventas_cuotas_credito' not in set(insp.get_table_names()):
+            cuotas_tables = set(sa_inspect(db.engine).get_table_names())
+            if 'ventas_cuotas_credito' not in cuotas_tables:
                 app.logger.warning(
                     "No se pudo crear la tabla ventas_cuotas_credito; ejecute python init_db.py o sql/2026_05_08_ventas_cuotas_credito.sql"
                 )
-        if 'ventas_cuotas_credito' in set(insp.get_table_names()):
-            cq_cols = {c['name'] for c in insp.get_columns('ventas_cuotas_credito')}
+        if 'ventas_cuotas_credito' in cuotas_tables:
+            cq_cols = {c['name'] for c in sa_inspect(db.engine).get_columns('ventas_cuotas_credito')}
             if 'monto_pagado' not in cq_cols:
                 dn = (db.engine.dialect.name or '').lower()
                 if dn == 'postgresql':
@@ -6874,7 +7217,6 @@ def _asegurar_columnas_ventas_legacy():
                     )
                 )
                 db.session.commit()
-                insp = sa_inspect(db.engine)
         app.config['_VENTAS_LEGACY_OK'] = True
         return True
     except Exception as ex:
@@ -7112,7 +7454,15 @@ def punto_venta():
     pids = [d.id_producto for d in detalles if d.id_producto]
     stock_tienda = stock_tienda_por_producto_ids(pids)
 
-    pos_cross_sell = session.pop('pos_cross_sell', None)
+    pos_cross_sell_enabled = _pos_cross_sell_enabled_session()
+    pos_cross_sell = session.pop('pos_cross_sell', None) if pos_cross_sell_enabled else None
+    pos_cross_sell_panel = pos_cross_sell
+    if pos_cross_sell_enabled and not pos_cross_sell_panel and venta and detalles:
+        try:
+            pos_cross_sell_panel = _pos_cross_sell_build_for_venta(venta.id)
+        except Exception:
+            app.logger.exception('POS cross-sell panel')
+            pos_cross_sell_panel = None
 
     # Renderizar la plantilla con los datos
     return render_template(
@@ -7124,8 +7474,11 @@ def punto_venta():
         cotizacion_origen=cotizacion_origen,
         factores_stock=factores_stock,
         consumos_stock=consumos_stock,
+        pids=pids,
         stock_tienda=stock_tienda,
+        pos_cross_sell_enabled=pos_cross_sell_enabled,
         pos_cross_sell=pos_cross_sell,
+        pos_cross_sell_panel=pos_cross_sell_panel,
     )
 
 
@@ -7154,6 +7507,23 @@ def _pos_cross_sell_rules_load():
 
 POS_CROSS_SELL_SESSION_REJECTED = 'pos_cross_sell_rejected_rules'
 POS_CROSS_SELL_SESSION_SCOPE = '_pos_cross_sell_venta_scope_id'
+POS_CROSS_SELL_SESSION_ENABLED = 'pos_cross_sell_enabled'
+
+
+def _pos_cross_sell_enabled_session():
+    v = session.get(POS_CROSS_SELL_SESSION_ENABLED)
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() not in ('0', 'false', 'off', 'no')
+    return True
+
+
+def _pos_cross_sell_set_enabled_session(enabled):
+    session[POS_CROSS_SELL_SESSION_ENABLED] = bool(enabled)
+    if not enabled:
+        session.pop('pos_cross_sell', None)
+    session.modified = True
 
 
 def _pos_cross_sell_rejected_rule_ids_session():
@@ -7883,9 +8253,10 @@ def agregar_producto_venta():
             venta.recalcular_total()
         db.session.commit()
         try:
-            cs = _pos_cross_sell_build_for_venta(venta.id)
-            if cs:
-                session['pos_cross_sell'] = cs
+            if _pos_cross_sell_enabled_session():
+                cs = _pos_cross_sell_build_for_venta(venta.id)
+                if cs:
+                    session['pos_cross_sell'] = cs
         except Exception:
             app.logger.exception('POS cross-sell')
         return redirect(url_for('punto_venta'))
@@ -8983,11 +9354,8 @@ def caja_saldos_favor():
     )
 
 
-def anular_vale_caja(id):
-    """Vale emitido y no cobrado: cliente no retorna. Revierte despacho de bodega si hubo (voz) con permiso extra."""
-    _asegurar_columnas_ventas_bodega_despacho()
-    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
-    caja_act = obtener_caja_activa()
+def _anular_venta_colacaja_metadatos_y_permiso(venta, caja_act):
+    """Valida anulación desde cola (vale sin cobrar / borrador POS). Raise ValueError con mensaje para el usuario."""
     st = (venta.estado or '').strip()
     mp = venta.metodo_pago
     mp_vacio = mp is None or (isinstance(mp, str) and not mp.strip())
@@ -8999,49 +9367,68 @@ def anular_vale_caja(id):
         and (venta.caja_id is None or venta.caja_id == caja_act.id)
     )
     if not puede_pendiente and not puede_borrador:
-        flash(
+        raise ValueError(
             'Solo se pueden anular vales pendientes de cobro o borradores POS abiertos '
-            '(sin método de pago) de la caja actual.',
-            'warning',
+            '(sin método de pago) de la caja actual.'
         )
-        return redirect(url_for('caja_pendientes'))
     if puede_pendiente and _venta_tiene_despacho_bodega(venta):
         if not (
             usuario_tiene_permiso('anular_vale_con_despacho_bodega')
             or usuario_tiene_permiso('gestionar_usuarios')
         ):
-            flash(
+            raise ValueError(
                 'Este vale tiene despacho registrado en bodega (voz). '
-                'Se requiere permiso anular_vale_con_despacho_bodega o gestionar_usuarios para anular y revertir stock.',
-                'danger',
+                'Se requiere permiso anular_vale_con_despacho_bodega o gestionar_usuarios para anular y revertir stock.'
             )
-            return redirect(url_for('caja_pendientes'))
-    motivo = (request.form.get('motivo') or '').strip()[:500]
-    usr_an = (current_user.nombre or '')[:80] if current_user.is_authenticated else None
     datos_antes = {
         'estado': st,
         'bodega_despacho_estado': getattr(venta, 'bodega_despacho_estado', None),
         'bodega_despacho_json': getattr(venta, 'bodega_despacho_json', None),
     }
     hubo_despacho = bool(puede_pendiente and _venta_tiene_despacho_bodega(venta))
+    return {
+        'st': st,
+        'datos_antes': datos_antes,
+        'hubo_despacho': hubo_despacho,
+        'puede_pendiente': puede_pendiente,
+    }
+
+
+def _anular_venta_colacaja_mutar(venta, motivo, usr_an, meta):
+    if meta['hubo_despacho']:
+        _revertir_stock_bodega_por_anulacion(venta, usr_an or 'Caja')
+    venta.estado = 'Anulada'
+    venta.motivo_anulacion = motivo or None
+    venta.fecha_anulacion = datetime.now()
+    venta.usuario_anulacion = usr_an
+
+
+def anular_vale_caja(id):
+    """Vale emitido y no cobrado: cliente no retorna. Revierte despacho de bodega si hubo (voz) con permiso extra."""
+    _asegurar_columnas_ventas_bodega_despacho()
+    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
+    caja_act = obtener_caja_activa()
+    motivo = (request.form.get('motivo') or '').strip()[:500]
+    usr_an = (current_user.nombre or '')[:80] if current_user.is_authenticated else None
+    try:
+        meta = _anular_venta_colacaja_metadatos_y_permiso(venta, caja_act)
+    except ValueError as ve:
+        msg = str(ve)
+        flash(msg, 'danger' if 'despacho registrado' in msg else 'warning')
+        return redirect(url_for('caja_pendientes'))
     try:
         with transaccion_critica():
-            if hubo_despacho:
-                _revertir_stock_bodega_por_anulacion(venta, usr_an or 'Caja')
-            venta.estado = 'Anulada'
-            venta.motivo_anulacion = motivo or None
-            venta.fecha_anulacion = datetime.now()
-            venta.usuario_anulacion = usr_an
+            _anular_venta_colacaja_mutar(venta, motivo, usr_an, meta)
         _audit_log(
             'anular_vale',
             'venta',
             venta.id,
             usuario=usr_an,
-            datos_antes=datos_antes,
+            datos_antes=meta['datos_antes'],
             datos_despues={
                 'estado': 'Anulada',
                 'motivo': motivo,
-                'revirtio_bodega': hubo_despacho,
+                'revirtio_bodega': meta['hubo_despacho'],
             },
         )
         db.session.commit()
@@ -9056,6 +9443,8 @@ def anular_vale_caja(id):
         else:
             flash(f'No se pudo anular el vale: {ex}', 'danger')
         return redirect(url_for('caja_pendientes'))
+    st = meta['st']
+    hubo_despacho = meta['hubo_despacho']
     tipo_doc = 'Borrador POS' if st == 'Abierta' else 'Vale'
     if hubo_despacho:
         flash(
@@ -9067,9 +9456,16 @@ def anular_vale_caja(id):
     return redirect(url_for('caja_pendientes'))
 
 
+def _cobro_respuesta_json_solicitada() -> bool:
+    """True si el cliente (tótem / SPA) espera JSON en lugar de redirect HTML."""
+    if (request.args.get('formato') or '').strip().lower() == 'json':
+        return True
+    accept = (request.headers.get('Accept') or '').lower()
+    return 'application/json' in accept
+
+
 def procesar_cobro_caja(id):
     db.session.rollback()
-    _asegurar_columnas_bodega_retiro()
     venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
     caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
     metodo = request.form.get('metodo_pago')
@@ -9208,14 +9604,15 @@ def procesar_cobro_caja(id):
                         saldo_favor_usado,
                         f'Uso en venta #{venta.id}',
                     )
-                if _asegurar_columnas_bodega_sugerido_preparar():
+                if app.config.get('_BODEGA_SUGERIDO_COL_OK'):
                     venta.bodega_sugerido_preparar = 0
                     venta.bodega_sugerido_preparar_at = None
                     venta.bodega_sugerido_preparar_usuario = None
-                if _asegurar_columnas_bodega_retiro() and (venta.punto_retiro or '').strip() == 'Bodega':
+                if app.config.get('_BODEGA_RETIRO_COL_OK') and (venta.punto_retiro or '').strip() == 'Bodega':
                     venta.bodega_preparacion_estado = 'PENDIENTE'
                     venta.bodega_preparacion_usuario = None
                     venta.bodega_preparacion_at = None
+                    venta.bodega_preparacion_cobrado_at = datetime.now()
 
             for linea in lineas_stock:
                 producto = Producto.query.get(linea['producto_id'])
@@ -9250,11 +9647,59 @@ def procesar_cobro_caja(id):
             )
 
         db.session.commit()
-        
+
+        # Facturación electrónica (post-commit): no bloquea cobro; savepoint en servicio revierte folio si falla.
+        dte_estado_ui: Optional[str] = None
+        fe_mod = None
+        if metodo != 'Credito' and getattr(venta, 'estado', None) == 'Pagado':
+            from services import facturacion_electronica_service as fe_mod
+
+            v_fe = (
+                Venta.query.options(
+                    joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+                    joinedload(Venta.cliente),
+                )
+                .filter_by(id=venta.id)
+                .first()
+            )
+            if v_fe:
+                try:
+                    dte_estado_ui = fe_mod.post_cobro_emision_fe(
+                        db.session, v_fe, Caf, obtener_config_empresa, app.logger
+                    )
+                    db.session.commit()
+                except Exception as ex_fe_post:
+                    db.session.rollback()
+                    app.logger.exception('FE envoltura post-cobro (persistencia FE): %s', ex_fe_post)
+                    try:
+                        fe_mod.marcar_venta_dte_pendiente_envio(
+                            v_fe,
+                            fe_mod.resolver_dte_tipo_por_tipo_documento(v_fe.tipo_documento),
+                        )
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                    dte_estado_ui = fe_mod.DTE_ESTADO_PENDIENTE_ENVIO
+                venta = Venta.query.filter_by(id=venta.id).first() or venta
+
         if metodo == "Credito":
             msg_cred = f"Vale #{venta.id} registrado a crédito para {venta.cliente.nombre if venta.cliente else 'cliente'}."
             if (venta.credito_plan_codigo or '').strip():
                 msg_cred += f" Plan: {_mensaje_resumen_plan_cuotas(venta.credito_plan_codigo)}."
+            if _cobro_respuesta_json_solicitada():
+                return jsonify(
+                    {
+                        'exito': True,
+                        'venta_id': venta.id,
+                        'turno': int(getattr(venta, 'prioridad', None) or 0),
+                        'vuelto': float(venta.vuelto or 0),
+                        'vuelto_fmt': f"${float(venta.vuelto or 0):,.0f}".replace(',', '.'),
+                        'monto_total': float(venta.monto_total or 0),
+                        'estado': venta.estado,
+                        'metodo_pago': metodo,
+                        'dte_estado': dte_estado_ui,
+                    }
+                )
             flash(msg_cred, "success")
             return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
         else:
@@ -9263,6 +9708,22 @@ def procesar_cobro_caja(id):
                 msg_fin += (
                     " Retiro en bodega: el vale aparece en la plataforma de bodega; "
                     "los operadores reciben aviso sonoro en pantalla (consulta cada pocos segundos)."
+                )
+            if _cobro_respuesta_json_solicitada():
+                return jsonify(
+                    {
+                        'exito': True,
+                        'venta_id': venta.id,
+                        'turno': int(getattr(venta, 'prioridad', None) or 0),
+                        'vuelto': float(venta.vuelto or 0),
+                        'vuelto_fmt': f"${float(venta.vuelto or 0):,.0f}".replace(',', '.'),
+                        'monto_total': float(venta.monto_total or 0),
+                        'monto_total_fmt': f"${float(venta.monto_total or 0):,.0f}".replace(',', '.'),
+                        'estado': venta.estado,
+                        'metodo_pago': metodo,
+                        'dte_estado': dte_estado_ui
+                        or (fe_mod.DTE_ESTADO_PENDIENTE_ENVIO if fe_mod else None),
+                    }
                 )
             flash(msg_fin, "success")
             return redirect(
@@ -9276,6 +9737,9 @@ def procesar_cobro_caja(id):
 
     except Exception as e: # <--- Ahora este except sí tiene su try
         db.session.rollback()
+        app.logger.exception('procesar_cobro_caja FALLO vale #%s: %s', id, e)
+        if _cobro_respuesta_json_solicitada():
+            return jsonify({'exito': False, 'error': str(e)}), 500
         flash(f"Error crítico al procesar pago: {str(e)}", "danger")
         return redirect(url_for('caja_pendientes'))
 
@@ -9422,7 +9886,13 @@ def abrir_caja():
         return redirect(url_for('punto_venta'))
 
     if request.method == 'POST':
-        monto_inicial = float(request.form['monto_inicial'])
+        monto_inicial = _parse_clp_monto(request.form.get('monto_inicial'))
+        if monto_inicial is None:
+            flash(
+                'Monto inicial no válido. Ingrese pesos chilenos (CLP), ej.: 100000 o 100.000 (miles con punto).',
+                'danger',
+            )
+            return redirect(url_for('abrir_caja'))
         caja = Caja(monto_inicial=monto_inicial, usuario_apertura="Admin")
         db.session.add(caja)
         db.session.commit()
@@ -9457,11 +9927,18 @@ def movimiento_caja():
             if not responsable:
                 flash("Debe indicar el responsable del retiro.", "warning")
                 return redirect(url_for('movimiento_caja', **q_redirect))
+        monto = _parse_clp_monto((request.form.get('monto') or '').strip())
+        if monto is None:
+            flash(
+                'Monto no válido. Ingrese pesos chilenos (CLP), ej.: 5000 o 5.000 (miles con punto).',
+                'warning',
+            )
+            return redirect(url_for('movimiento_caja', **q_redirect))
         movimiento = MovimientoCaja(
             caja_id=caja.id,
             tipo=tipo,
             concepto=concepto,
-            monto=float(request.form['monto']),
+            monto=monto,
             responsable_retiro=responsable if tipo == "Egreso" else None,
             usuario_registro=current_user.nombre if current_user.is_authenticated else None
         )
@@ -9506,7 +9983,34 @@ def movimiento_caja():
         q_redirect=q_redirect
     )
 
-# mostrar movimientos de caja...............................................................
+
+def _documentos_bloquean_cierre_caja(caja):
+    """Vales pendientes sin método de pago y ventas POS en estado Abierta de esta caja (bloquean cerrar_caja)."""
+    if not caja:
+        return [], []
+    vales = (
+        Venta.query.options(joinedload(Venta.cliente))
+        .filter(
+            Venta.caja_id == caja.id,
+            Venta.estado == "Pendiente",
+            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ""),
+        )
+        .order_by(Venta.fecha.asc(), Venta.id.asc())
+        .all()
+    )
+    tickets = (
+        Venta.query.options(joinedload(Venta.cliente))
+        .filter(
+            Venta.caja_id == caja.id,
+            Venta.estado == "Abierta",
+        )
+        .order_by(Venta.fecha.asc(), Venta.id.asc())
+        .all()
+    )
+    return vales, tickets
+
+
+# Cierre de caja (cuadratura y ticket)
 @app.route('/cerrar_caja', methods=['GET', 'POST'])
 @login_required
 @permisos_required('caja_cerrar')
@@ -9518,23 +10022,7 @@ def cerrar_caja():
         flash("No hay ninguna caja abierta para cerrar.", "info")
         return redirect(url_for('index'))
 
-    vales_pendientes_cierre = (
-        Venta.query.filter(
-            Venta.caja_id == caja.id,
-            Venta.estado == "Pendiente",
-            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ""),
-        )
-        .order_by(Venta.fecha.asc(), Venta.id.asc())
-        .all()
-    )
-    tickets_abiertos_cierre = (
-        Venta.query.filter(
-            Venta.caja_id == caja.id,
-            Venta.estado == "Abierta",
-        )
-        .order_by(Venta.fecha.asc(), Venta.id.asc())
-        .all()
-    )
+    vales_pendientes_cierre, tickets_abiertos_cierre = _documentos_bloquean_cierre_caja(caja)
 
     # 2. Cálculos de VENTAS del turno
     # Defensa ante datos demo/importados: consideramos solo movimientos desde la apertura.
@@ -9630,10 +10118,13 @@ def cerrar_caja():
         if not monto_contado_raw:
             flash("Debe ingresar el efectivo contado para realizar la cuadratura.", "warning")
             return redirect(url_for('cerrar_caja'))
-        try:
-            monto_contado = float(monto_contado_raw.replace(',', '.'))
-        except ValueError:
-            flash("El efectivo contado ingresado no es válido.", "danger")
+        monto_contado = _parse_clp_monto(monto_contado_raw)
+        if monto_contado is None:
+            flash(
+                "El efectivo contado no es válido. Use pesos chilenos (CLP): solo números, miles con punto "
+                "(ej. 340000 o 340.000) o coma decimal (ej. 1234,50).",
+                "danger",
+            )
             return redirect(url_for('cerrar_caja'))
         diferencia_cuadratura = monto_contado - monto_teorico
         observacion_cierre = (request.form.get('observacion_cierre') or '').strip()
@@ -9656,14 +10147,25 @@ def cerrar_caja():
             if err_lookup == 'ambiguous_nombre':
                 flash("Hay más de un usuario con ese nombre; use usuario/correo único.", "warning")
                 return redirect(url_for('cerrar_caja'))
-            if (
-                not sup
-                or err_lookup == 'not_found'
-                or not sup.check_password(pwd)
-                or not usuario_esta_activo(sup)
-                or not usuario_obj_tiene_permiso(sup, 'gestionar_usuarios')
-            ):
-                flash("Autorización de supervisor inválida.", "danger")
+            if not sup or err_lookup == 'not_found':
+                flash(
+                    "No se encontró un usuario con ese nombre o correo. "
+                    "Use el login real del jefe de turno (mismo que para entrar al ERP).",
+                    "danger",
+                )
+                return redirect(url_for('cerrar_caja'))
+            if not usuario_esta_activo(sup):
+                flash("Ese usuario está inactivo; use otro supervisor.", "danger")
+                return redirect(url_for('cerrar_caja'))
+            if not sup.check_password(pwd):
+                flash("Contraseña del supervisor incorrecta.", "danger")
+                return redirect(url_for('cerrar_caja'))
+            if not usuario_puede_autorizar_diferencia_cierre_caja(sup):
+                flash(
+                    "Ese usuario no puede autorizar diferencias de cierre. "
+                    "Se requiere rol administrador, permiso «gestionar usuarios» o «ver gerencia».",
+                    "danger",
+                )
                 return redirect(url_for('cerrar_caja'))
             supervisor_nombre = (sup.nombre or sup.correo or '').strip()[:80]
 
@@ -10038,6 +10540,31 @@ button {{ margin-top: 1rem; padding: .6rem 1rem; width: 100%; background: #19875
     return Response(body, mimetype='text/html; charset=utf-8')
 
 
+def _home_por_perfil(usuario):
+    """Elige la landing page segun permisos del usuario recien logueado."""
+    es_admin = _rol_es_administrador_por_nombre(getattr(usuario, 'rol', None))
+    def _tiene(p):
+        if es_admin:
+            return True
+        try:
+            return any(
+                rp.permiso and rp.permiso.nombre == p
+                for rp in (usuario.rol_obj.rol_permisos if usuario.rol_obj else [])
+            )
+        except Exception:
+            return False
+
+    if es_admin or _tiene('panel_gerencia') or _tiene('ver_gerencia'):
+        return url_for('owner_mobile')
+    if _tiene('bodega_operador') and not _tiene('caja_cobrar_vale'):
+        return url_for('bodega_plataforma')
+    if _tiene('caja_cobrar_vale'):
+        return url_for('caja_pendientes')
+    if _tiene('pos_emitir_vale'):
+        return url_for('punto_venta')
+    return url_for('inicio')
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.args.get('descartar_sesion') == '1':
@@ -10052,7 +10579,7 @@ def login():
             session.clear()
             autenticado = False
         if autenticado:
-            return redirect(url_for('owner_mobile'))
+            return redirect(_home_por_perfil(current_user))
 
         if request.method == 'POST':
             _seed_permisos_catalogo_si_vacio()
@@ -10083,7 +10610,7 @@ def login():
                 next_url = (request.args.get('next') or '').strip()
                 if next_url.startswith('/') and not next_url.startswith('//'):
                     return redirect(next_url)
-                return redirect(url_for('owner_mobile'))
+                return redirect(_home_por_perfil(usuario))
             else:
                 flash("Correo o contraseña incorrectos. Intente de nuevo.", "danger")
 
@@ -11812,7 +12339,7 @@ def ver_auditorias():
 
 
 @app.route('/kardex')
-@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
 def kardex():
     pid = request.args.get('producto_id', type=int)
     tipo = (request.args.get('tipo') or '').strip()
@@ -11939,7 +12466,7 @@ def _registrar_seguimiento_oc(oc, estado_seg, nota_seg=''):
 
 
 @app.route('/compras/ordenes')
-@login_required
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
 def lista_ordenes_compra():
     if not _tablas_orden_compra_existen():
         flash('Ejecute la migración sql/2026_05_03_ordenes_compra.sql en la base de datos.', 'warning')
@@ -12595,6 +13122,7 @@ def _venta_actualizar_estado_plataforma_retiro(venta):
         return
     if all(_detalle_pendiente_retiro_bodega_unidades(d) <= 0 for d in detalles):
         venta.bodega_preparacion_estado = 'CERRADO'
+        venta.bodega_preparacion_cerrado_at = datetime.now()
         return
     if any(int(getattr(d, 'cantidad_entregada_retiro_bodega', None) or 0) > 0 for d in detalles):
         cur = (venta.bodega_preparacion_estado or '').strip()
@@ -12602,20 +13130,73 @@ def _venta_actualizar_estado_plataforma_retiro(venta):
             venta.bodega_preparacion_estado = 'ENTREGA_PARCIAL'
 
 
+def _bodega_sla_minutos(dt_inicio, dt_fin=None):
+    """Calcula minutos entre dos datetimes; si dt_fin es None usa ahora."""
+    if not dt_inicio:
+        return None
+    fin = dt_fin or datetime.now()
+    delta = fin - dt_inicio
+    return max(0, int(delta.total_seconds() / 60))
+
+
+_SLA_TIERS = {
+    'PENDIENTE':        (5, 10, 20),
+    'EN_PREPARACION':   (10, 20, 40),
+    'ENTREGA_PARCIAL':  (8, 15, 30),
+    'LISTO_RETIRO':     (15, 30, 60),
+}
+
+
+def _bodega_sla_prioridad(minutos, estado):
+    """Retorna (tier, css_class, label) segun minutos + estado.
+
+    Tiers: 0=on_track, 1=attention, 2=delayed, 3=critical.
+    PENDIENTE escala mas rapido (nadie lo tomo).
+    LISTO_RETIRO es tolerante (espera al cliente).
+    """
+    if minutos is None:
+        return 0, 'sla-none', 'Sin dato'
+    umbrales = _SLA_TIERS.get((estado or '').strip(), (15, 40, 80))
+    if minutos >= umbrales[2]:
+        return 3, 'sla-critical', 'Urgente'
+    if minutos >= umbrales[1]:
+        return 2, 'sla-delayed', 'Demorado'
+    if minutos >= umbrales[0]:
+        return 1, 'sla-attention', 'Atención'
+    return 0, 'sla-ok', 'En tiempo'
+
+
+def _bodega_enriquecer_vales_sla(vales, ahora=None):
+    """Agrega atributos SLA a una lista de vales (para templates)."""
+    ahora = ahora or datetime.now()
+    for v in vales:
+        cob = getattr(v, 'bodega_preparacion_cobrado_at', None)
+        mins = _bodega_sla_minutos(cob, ahora) if cob else None
+        estado = (v.bodega_preparacion_estado or '').strip()
+        tier, css, label = _bodega_sla_prioridad(mins, estado)
+        setattr(v, 'sla_min', mins)
+        setattr(v, 'sla_tier', tier)
+        setattr(v, 'sla_css', css)
+        setattr(v, 'sla_label', label)
+        setattr(v, 'sla_cobrado_iso', cob.isoformat() if cob else '')
+
+
 def bodega_cuadro_mando():
-    """Cuadro de mando bodega (v1): visibilidad consolidada; enlaza plataforma, despachos voz y detalle."""
+    """Cuadro de mando bodega (Fase 3): KPI, SLA, ranking operador, cola, top SKU."""
     _asegurar_columnas_bodega_retiro()
     _asegurar_columnas_bodega_sugerido_preparar()
     _asegurar_columnas_ventas_bodega_despacho()
 
+    _filtro_base_post = and_(
+        Venta.estado == 'Pagado',
+        db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+        Venta.bodega_preparacion_estado.isnot(None),
+        Venta.bodega_preparacion_estado != 'CERRADO',
+    )
+
     post_rows = (
         db.session.query(Venta.bodega_preparacion_estado, func.count(Venta.id))
-        .filter(
-            Venta.estado == 'Pagado',
-            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
-            Venta.bodega_preparacion_estado.isnot(None),
-            Venta.bodega_preparacion_estado != 'CERRADO',
-        )
+        .filter(_filtro_base_post)
         .group_by(Venta.bodega_preparacion_estado)
         .all()
     )
@@ -12624,16 +13205,13 @@ def bodega_cuadro_mando():
 
     vales_post_recientes = (
         Venta.query.options(joinedload(Venta.cliente))
-        .filter(
-            Venta.estado == 'Pagado',
-            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
-            Venta.bodega_preparacion_estado.isnot(None),
-            Venta.bodega_preparacion_estado != 'CERRADO',
-        )
+        .filter(_filtro_base_post)
         .order_by(Venta.fecha.desc())
         .limit(15)
         .all()
     )
+    ahora = datetime.now()
+    _bodega_enriquecer_vales_sla(vales_post_recientes, ahora)
 
     n_pre_cobro = (
         Venta.query.filter(
@@ -12662,17 +13240,54 @@ def bodega_cuadro_mando():
         .all()
     )
 
+    # --- SLA: promedio de vales cerrados hoy ---
+    hoy_inicio = datetime.combine(date.today(), datetime.min.time())
+    cerrados_hoy = (
+        Venta.query.filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado == 'CERRADO',
+            Venta.bodega_preparacion_cerrado_at >= hoy_inicio,
+        ).all()
+    )
+    sla_tiempos = []
+    for v in cerrados_hoy:
+        cob = getattr(v, 'bodega_preparacion_cobrado_at', None)
+        cer = getattr(v, 'bodega_preparacion_cerrado_at', None)
+        if cob and cer:
+            sla_tiempos.append(int((cer - cob).total_seconds() / 60))
+    sla_promedio_hoy = int(sum(sla_tiempos) / len(sla_tiempos)) if sla_tiempos else None
+    sla_max_hoy = max(sla_tiempos) if sla_tiempos else None
+    cerrados_hoy_count = len(cerrados_hoy)
+
+    # --- Ranking operador (últimos 7 días) ---
+    hace_7d = ahora - timedelta(days=7)
+    ranking_rows = (
+        db.session.query(
+            Venta.bodega_preparacion_usuario,
+            func.count(Venta.id),
+        )
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado == 'CERRADO',
+            Venta.bodega_preparacion_cerrado_at >= hace_7d,
+            Venta.bodega_preparacion_usuario.isnot(None),
+            Venta.bodega_preparacion_usuario != '',
+        )
+        .group_by(Venta.bodega_preparacion_usuario)
+        .order_by(func.count(Venta.id).desc())
+        .limit(10)
+        .all()
+    )
+    ranking_operadores = [{'nombre': r[0], 'cerrados': int(r[1])} for r in ranking_rows]
+
+    # --- Top SKU pendiente ---
     pend_uv = DetalleVenta.cantidad - func.coalesce(DetalleVenta.cantidad_entregada_retiro_bodega, 0)
     agg = (
         db.session.query(DetalleVenta.id_producto, func.sum(pend_uv).label('pend_sum'))
         .join(Venta, Venta.id == DetalleVenta.id_venta)
-        .filter(
-            Venta.estado == 'Pagado',
-            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
-            Venta.bodega_preparacion_estado.isnot(None),
-            Venta.bodega_preparacion_estado != 'CERRADO',
-            pend_uv > 0,
-        )
+        .filter(_filtro_base_post, pend_uv > 0)
         .group_by(DetalleVenta.id_producto)
         .order_by(func.sum(pend_uv).desc())
         .limit(18)
@@ -12702,8 +13317,10 @@ def bodega_cuadro_mando():
                 }
             )
 
+    tv = getattr(request, '_bodega_tv', False)
     return render_template(
         'bodega_cuadro_mando.html',
+        _base_template='base_tv.html' if tv else 'base.html',
         conteo_post=conteo_post,
         total_post_abiertos=total_post_abiertos,
         vales_post_recientes=vales_post_recientes,
@@ -12711,7 +13328,66 @@ def bodega_cuadro_mando():
         n_pre_cobro=n_pre_cobro,
         n_pre_cobro_sugerido=n_pre_cobro_sugerido,
         top_pendiente_retiro=top_pendiente_retiro,
+        sla_promedio_hoy=sla_promedio_hoy,
+        sla_max_hoy=sla_max_hoy,
+        cerrados_hoy_count=cerrados_hoy_count,
+        ranking_operadores=ranking_operadores,
     )
+
+
+def bodega_export_dia():
+    """Fase 3: export CSV con actividad de bodega del día."""
+    hoy_inicio = datetime.combine(date.today(), datetime.min.time())
+    vales = (
+        Venta.query.options(joinedload(Venta.cliente))
+        .filter(
+            Venta.estado == 'Pagado',
+            db.func.upper(db.func.trim(Venta.punto_retiro)) == 'BODEGA',
+            Venta.bodega_preparacion_estado.isnot(None),
+            or_(
+                Venta.bodega_preparacion_cobrado_at >= hoy_inicio,
+                and_(
+                    Venta.bodega_preparacion_estado != 'CERRADO',
+                    Venta.bodega_preparacion_cobrado_at.isnot(None),
+                ),
+            ),
+        )
+        .order_by(Venta.id.asc())
+        .limit(500)
+        .all()
+    )
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'Vale', 'Cliente', 'Estado', 'Operador',
+        'Cobrado', 'Cerrado', 'SLA (min)',
+    ])
+    for v in vales:
+        cob = getattr(v, 'bodega_preparacion_cobrado_at', None)
+        cer = getattr(v, 'bodega_preparacion_cerrado_at', None)
+        sla = _bodega_sla_minutos(cob, cer) if cob else ''
+        writer.writerow([
+            v.id,
+            v.cliente.nombre if v.cliente else '',
+            v.bodega_preparacion_estado or '',
+            v.bodega_preparacion_usuario or '',
+            cob.strftime('%Y-%m-%d %H:%M') if cob else '',
+            cer.strftime('%Y-%m-%d %H:%M') if cer else '',
+            sla,
+        ])
+    output.seek(0)
+    fname = f'bodega_{date.today().isoformat()}.csv'
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={fname}'},
+    )
+
+
+def bodega_cuadro_mando_fullscreen():
+    """Fase 3: modo TV/kiosk — mismo cuadro de mando sin menú lateral, auto-refresh 30s."""
+    request._bodega_tv = True
+    return bodega_cuadro_mando()
 
 
 def api_bodega_retiros_cola_snapshot():
@@ -12761,6 +13437,7 @@ def bodega_plataforma():
     if q_estado in ('PENDIENTE', 'EN_PREPARACION', 'LISTO_RETIRO', 'ENTREGA_PARCIAL'):
         base = base.filter(Venta.bodega_preparacion_estado == q_estado)
     vales = base.order_by(Venta.fecha.asc()).limit(300).all()
+    _bodega_enriquecer_vales_sla(vales)
     return render_template(
         'bodega_plataforma.html',
         vales=vales,
@@ -13098,7 +13775,7 @@ def api_bodega_voice_command():
 
 
 @app.route('/recepciones')
-@login_required
+@permisos_required('gestionar_compras', 'ver_inventario', 'admin_inventario', 'gestionar_usuarios')
 def lista_recepciones():
     recepciones = (
         RecepcionCompra.query.options(joinedload(RecepcionCompra.proveedor))
@@ -14282,18 +14959,34 @@ def api_creditos_cobranza_dispatch_cloud():
 
 def api_pos_cross_sell_sugerencias():
     """Sugerencias cross-sell según IDs de producto ya en carrito/cotización (JSON)."""
+    if not _pos_cross_sell_enabled_session():
+        return jsonify({'ok': True, 'enabled': False, 'sugerencia': None})
     raw = (request.args.get('producto_ids') or '').strip()
     if not raw:
-        return jsonify({'ok': True, 'sugerencia': None})
+        return jsonify({'ok': True, 'enabled': True, 'sugerencia': None})
     pids = []
     for x in raw.split(','):
         x = (x or '').strip()
         if x.isdigit():
             pids.append(int(x))
     if not pids:
-        return jsonify({'ok': True, 'sugerencia': None})
+        return jsonify({'ok': True, 'enabled': True, 'sugerencia': None})
     s = _pos_cross_sell_match_rules(pids, [])
-    return jsonify({'ok': True, 'sugerencia': s})
+    return jsonify({'ok': True, 'enabled': True, 'sugerencia': s})
+
+
+def api_pos_cross_sell_toggle():
+    """Activa o desactiva sugerencias de venta para esta sesión de POS."""
+    body = request.get_json(silent=True) or {}
+    raw = body.get('enabled')
+    if raw is None:
+        raw = request.form.get('enabled')
+    if isinstance(raw, str):
+        enabled = raw.strip().lower() not in ('0', 'false', 'off', 'no')
+    else:
+        enabled = bool(raw)
+    _pos_cross_sell_set_enabled_session(enabled)
+    return jsonify({'ok': True, 'enabled': enabled})
 
 
 def api_pos_cross_sell_reject():
@@ -14847,7 +15540,7 @@ class AbonoCredito(db.Model):
     comentario = db.Column(db.Text)
 
 # =================================================================
-# MODULO COTIZACIONES (LexIA IA ERP)
+# MODULO COTIZACIONES (LhexIA IA ERP)
 # =================================================================
 
 def _siguiente_numero_cotizacion():
@@ -15635,6 +16328,122 @@ def api_sistema_salud():
     return jsonify({'ok': True, **collect_sistema_salud_metrics()})
 
 
+def _usuario_puede_api_facturacion_prueba():
+    """Admin o `gestionar_usuarios` — respuestas JSON (sin redirect de permisos_required)."""
+    if not getattr(current_user, 'is_authenticated', False):
+        return False
+    rol = getattr(current_user, 'rol', None)
+    if not rol:
+        return False
+    rn = (rol.nombre or '').strip().lower()
+    if rn in ('admin', 'administrador', 'superadmin', 'super admin'):
+        return True
+    perms = {
+        rp.permiso.nombre
+        for rp in (getattr(rol, 'rol_permisos', None) or [])
+        if getattr(rp, 'permiso', None)
+    }
+    return 'gestionar_usuarios' in perms
+
+
+@app.route('/api/admin/facturacion/emitir-prueba', methods=['GET', 'POST'])
+@login_required
+def api_admin_facturacion_emitir_prueba():
+    """Genera XML DTE mock (33/39) o el set de certificación SII (33+39+61) bajo storage/dtes/pruebas_sii/."""
+    if not _usuario_puede_api_facturacion_prueba():
+        return jsonify(ok=False, error='forbidden'), 403
+
+    body = request.get_json(silent=True) or {} if request.method == 'POST' else {}
+    # Hot-reload opcional (?reload_env=1, body.reload_env, o ERP_RELOAD_ENV_FILES=1)
+    try:
+        _hot = os.getenv('ERP_RELOAD_ENV_FILES', '').strip().lower() in ('1', 'true', 'yes')
+        _hot = _hot or request.args.get('reload_env', '').strip().lower() in ('1', 'true', 'yes')
+        _hot = _hot or str(body.get('reload_env', '')).strip().lower() in ('1', 'true', 'yes')
+        if _hot:
+            _load_env_archivos(force_local_overwrite=True)
+    except Exception:
+        app.logger.exception('emitir-prueba: recarga de archivos entorno falló')
+
+    from services import facturacion_electronica_service as fe_svc
+    from services import facturacion_sii_certificacion as cert_sii
+
+    modo = (request.args.get('modo') or body.get('modo') or '').strip().lower()
+
+    if modo in ('set_certificacion', 'set_sii', 'casos_sii'):
+        # Siempre releer .env.qa / .env.local para tomar SII_CERT_* actualizados sin reiniciar Gunicorn/Flask.
+        try:
+            _load_env_archivos(force_local_overwrite=True)
+        except Exception:
+            app.logger.exception('emitir-prueba set certificación: recarga entorno falló')
+
+        def _int_param(name, default):
+            v = request.args.get(name)
+            if v is None or str(v).strip() == '':
+                v = body.get(name)
+            try:
+                return int(v) if v is not None and str(v).strip() != '' else int(default)
+            except (TypeError, ValueError):
+                return int(default)
+
+        folio_39 = _int_param('folio_39', 1)
+        folio_33 = _int_param('folio_33', 1)
+        folio_61 = _int_param('folio_61', 1)
+        zip_flag = str(request.args.get('zip') or body.get('zip') or '').strip().lower() in (
+            '1',
+            'true',
+            'yes',
+            'si',
+        )
+
+        cfg = obtener_config_empresa()
+        rut_emisor = (os.getenv('EMPRESA_RUT') or cfg.get('rut_emisor') or '76.192.028-5').strip()
+        razon_emisor = (cfg.get('razon_social') or cfg.get('nombre_comercial') or 'EMPRESA').strip()
+
+        casos, paths = cert_sii.ejecutar_set_certificacion_sii(
+            app.root_path,
+            rut_emisor=rut_emisor,
+            razon_emisor=razon_emisor,
+            folio_39=folio_39,
+            folio_33=folio_33,
+            folio_61=folio_61,
+        )
+        if zip_flag:
+            buf = cert_sii.crear_zip_pruebas_sii(paths)
+            return send_file(
+                buf,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name='pruebas_sii_dte.zip',
+            )
+        return jsonify(
+            ok=True,
+            modo='set_certificacion',
+            directorio=cert_sii.directorio_pruebas_sii(app.root_path),
+            rut_emisor=rut_emisor,
+            casos=casos,
+            archivos=[os.path.basename(p) for p in paths],
+            rutas_absolutas=paths,
+        )
+
+    raw_t = request.args.get('dte_tipo')
+    raw_f = request.args.get('folio')
+    if request.method == 'POST':
+        if body.get('dte_tipo') is not None:
+            raw_t = body.get('dte_tipo')
+        if body.get('folio') is not None:
+            raw_f = body.get('folio')
+    try:
+        dte_tipo = int(raw_t) if raw_t is not None and str(raw_t).strip() != '' else 39
+    except (TypeError, ValueError):
+        dte_tipo = 39
+    try:
+        folio = int(raw_f) if raw_f is not None and str(raw_f).strip() != '' else 1
+    except (TypeError, ValueError):
+        folio = 1
+    payload = fe_svc.emitir_prueba_xml(dte_tipo, folio=folio)
+    return jsonify(payload)
+
+
 from blueprints.bodega import register_bodega_routes
 from blueprints.c360 import register_c360_routes
 from blueprints.caja import register_caja_routes
@@ -15644,6 +16453,1468 @@ register_bodega_routes(app)
 register_caja_routes(app)
 register_pos_routes(app)
 register_c360_routes(app)
+
+
+# --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---
+def _schema_ensure_on_startup():
+    """Corre las comprobaciones de esquema al importar el módulo para que before_request
+    encuentre todos los flags ya seteados y haga short-circuit instantáneo."""
+    try:
+        _asegurar_columnas_caja_cuadratura()
+        _asegurar_columnas_ventas_legacy()
+        _asegurar_columnas_productos_legacy()
+        _asegurar_columnas_detalle_ventas_legacy()
+        _asegurar_columnas_customer_360_legacy()
+        _asegurar_tabla_c360_llamadas_snapshot()
+        _asegurar_tabla_cobranza_whatsapp_log()
+        _asegurar_tabla_erp_audit_log()
+        _asegurar_tabla_cafs_y_columnas_ventas_fe()
+        db.session.rollback()
+        _asegurar_columnas_ventas_bodega_despacho()
+        _asegurar_columnas_bodega_retiro()
+        _asegurar_columnas_bodega_sugerido_preparar()
+        try:
+            db.session.execute(text('CREATE EXTENSION IF NOT EXISTS pg_trgm'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        try:
+            db.session.execute(text(
+                'CREATE INDEX IF NOT EXISTS idx_productos_nombre_trgm '
+                'ON productos USING gist (nombre gist_trgm_ops)'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        app.logger.info('Schema ensure completado al arrancar.')
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('Schema ensure al arrancar falló (se reintentará en before_request): %s', ex)
+
+
+# ─── Ejecutivo Comercial IA (demo) ──────────────────────────────────
+@app.route('/demo/ejecutivo-comercial')
+def demo_ejecutivo_comercial():
+    cfg = obtener_config_empresa()
+    vcfg = obtener_liz_voice_config()
+    return render_template('demo_ejecutivo_comercial.html', empresa=cfg, voice_config=vcfg)
+
+
+@app.route('/api/demo/ofertas')
+def api_demo_ofertas():
+    """Devuelve 6 productos en oferta con descuento simulado."""
+    try:
+        prods = Producto.query.filter(
+            Producto.activo == True, Producto.stock > 0
+        ).order_by(Producto.precio_venta.desc()).limit(20).all()
+
+        import random
+        random.seed(42)
+        selected = random.sample(prods, min(6, len(prods))) if len(prods) > 6 else prods[:6]
+
+        offers = []
+        for p in selected:
+            pv = float(p.precio_venta or 0)
+            disc = random.choice([10, 15, 20, 25, 30])
+            old_price = round(pv * (100 / (100 - disc)))
+            img, _ = _get_product_image(p.id, p.nombre, p.categoria)
+
+            offers.append({
+                'id': p.id, 'nombre': p.nombre, 'codigo': p.codigo_barra or '',
+                'precio': pv, 'precio_fmt': f"${pv:,.0f}".replace(',', '.'),
+                'precio_original': old_price,
+                'precio_original_fmt': f"${old_price:,.0f}".replace(',', '.'),
+                'descuento': disc,
+                'stock': int(p.stock or 0),
+                'categoria': p.categoria or 'General',
+                'descripcion': p.categoria or p.nombre,
+                'especificacion': p.categoria or 'General',
+                'imagen_url': img,
+            })
+        return jsonify({'ok': True, 'ofertas': offers})
+    except Exception as e:
+        return jsonify({'ok': False, 'ofertas': [], 'error': str(e)})
+
+
+@app.route('/api/demo/recomendaciones')
+def api_demo_recomendaciones():
+    """Devuelve productos para el ejecutivo comercial demo."""
+    q = (request.args.get('q') or '').strip()
+    cat = (request.args.get('categoria') or '').strip()
+    try:
+        prods = Producto.query.filter(Producto.activo == True)
+        if q and len(q) >= 2:
+            like = f'%{q}%'
+            prods = prods.filter(
+                db.or_(Producto.nombre.ilike(like),
+                       Producto.codigo_barra.ilike(like)))
+        if cat:
+            prods = prods.filter(Producto.categoria.ilike(f'%{cat}%'))
+        prods = prods.order_by(Producto.precio_venta.desc()).limit(12).all()
+        items = []
+        for p in prods:
+            img_url, _ = _get_product_image(p.id, p.nombre, p.categoria)
+            items.append({
+                'id': p.id,
+                'nombre': p.nombre,
+                'codigo': p.codigo_barra or '',
+                'precio': float(p.precio_venta or 0),
+                'precio_fmt': f"${float(p.precio_venta or 0):,.0f}",
+                'stock': int(p.stock or 0),
+                'categoria': p.categoria or 'General',
+                'imagen_url': img_url,
+                'descripcion': '',
+            })
+        return jsonify({'ok': True, 'productos': items})
+    except Exception as e:
+        return jsonify({'ok': False, 'productos': [], 'error': str(e)})
+
+
+@app.route('/api/demo/productos-enriquecidos')
+def api_demo_productos_enriquecidos():
+    """Busca productos con fuzzy matching y enriquece con Gemini si disponible."""
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({'ok': False, 'productos': []})
+    try:
+        items = _buscar_productos_db(q)
+
+        if _GEMINI_KEY and items:
+            try:
+                nombres = [it['nombre'] for it in items[:8]]
+                prompt = (
+                    "Para cada producto de ferreteria, genera una descripcion comercial atractiva de MAXIMO 15 palabras.\n\n"
+                    "Responde SOLO JSON array, sin markdown.\n"
+                    "Ejemplo: [{\"desc\":\"Tornillo ideal para madera y tabiqueria.\"}]\n\n"
+                    "Productos:\n" + "\n".join(f"- {n}" for n in nombres)
+                )
+                result, status = _gemini_call({
+                    'contents': [{'parts': [{'text': prompt}]}],
+                    'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 600},
+                }, timeout=8)
+                if result and status == 'ok':
+                    ai_text = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '').strip()
+                    if ai_text.startswith('```'):
+                        ai_text = ai_text.split('\n', 1)[-1].rsplit('```', 1)[0]
+                    enriched = json.loads(ai_text)
+                    for i, item in enumerate(items):
+                        if i < len(enriched):
+                            item['especificacion'] = enriched[i].get('desc', '')
+                            item['descripcion'] = enriched[i].get('desc', '')
+                            # Mantener imagen de _get_product_image (loremflickr rompía / mostraba placeholder).
+            except Exception as e:
+                app.logger.warning('Gemini enrich error: %s', e)
+
+        return jsonify({'ok': True, 'productos': items, 'query': q})
+    except Exception as e:
+        return jsonify({'ok': False, 'productos': [], 'error': str(e)})
+
+
+@app.route('/api/demo/categorias')
+def api_demo_categorias():
+    try:
+        cats = db.session.query(Producto.categoria).filter(
+            Producto.activo == True, Producto.categoria != None, Producto.categoria != ''
+        ).distinct().order_by(Producto.categoria).all()
+        return jsonify({'ok': True, 'categorias': [c[0] for c in cats if c[0]]})
+    except Exception:
+        return jsonify({'ok': True, 'categorias': []})
+
+
+def _demo_vale_qr_signature(venta_id: int, turno: int) -> str:
+    """Firma corta para QR / URL de vale demo (cajera verifica integridad)."""
+    from hashlib import sha256
+    key = (app.secret_key or 'ferreteria-demo-vale').encode('utf-8', errors='ignore')
+    msg = f'{venta_id}|{int(turno or 0)}'.encode('utf-8')
+    return hmac.new(key, msg, sha256).hexdigest()[:16]
+
+
+def _demo_vale_qr_data_url(payload: str) -> str:
+    """PNG en data URL para ticket térmico."""
+    img = qrcode.make(payload, border=1)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+def extraer_ruts_desde_lectura_carnet(texto):
+    """
+    Devuelve lista de RUN/RUT validos (con puntos) desde carnet PDF417 o pegado.
+    Orden: prioriza formato XX.XXX.XXX-X y etiqueta RUN; prueba todos en BD.
+    """
+    if not texto:
+        return []
+    raw = texto.strip()
+    if len(raw) < 8:
+        return []
+    t = raw.upper()
+    bloques = {t}
+    for parte in re.split(r'[\x1d\x1e\x1f@\n\r|;\t,]+', t):
+        p = parte.strip()
+        if len(p) >= 8:
+            bloques.add(p)
+
+    candidatos = []
+
+    def agregar(s):
+        s = (s or '').strip()
+        if s and s not in candidatos:
+            candidatos.append(s)
+
+    rx_fmt = re.compile(r'\b(\d{1,2}\.\d{3}\.\d{3}-[\dK])\b')
+    rx_guion = re.compile(r'(?<![\d.])(\d{7,8}-[\dK])(?!\d)')
+    rx_run = re.compile(r'RUN\s*[:#]?\s*(\d{7,8}-[\dK])\b', re.I)
+    rx_sin_guion = re.compile(r'(?<![\d.])(\d{8})([\dK])(?!\d)')
+
+    # Orden de escaneo: formato carnet y RUN antes que digitos sueltos (evita serial que valida como RUT).
+    for b in bloques:
+        for m in rx_fmt.finditer(b):
+            agregar(m.group(1))
+        for m in rx_run.finditer(b):
+            agregar(m.group(1))
+        for m in rx_guion.finditer(b):
+            agregar(m.group(1))
+        for m in rx_sin_guion.finditer(b):
+            body, dv = m.group(1), m.group(2)
+            if int(body) < 1_000_000:
+                continue
+            agregar(f'{body}-{dv}')
+        for m in re.finditer(r'(?<![\d])(\d{7,8})([\dK])(?!\d)', b):
+            body, dv = m.group(1), m.group(2)
+            if int(body) < 200_000:
+                continue
+            agregar(f'{body}-{dv}')
+
+    def _a_formato_con_puntos(rut_sin_formato):
+        c = rut_sin_formato.replace('.', '').replace('-', '').replace(' ', '').upper()
+        if len(c) < 2:
+            return rut_sin_formato
+        body, dv = c[:-1], c[-1]
+        if not body.isdigit():
+            return rut_sin_formato
+        b = body
+        parts = []
+        while len(b) > 3:
+            parts.append(b[-3:])
+            b = b[:-3]
+        if b:
+            parts.append(b)
+        return '.'.join(reversed(parts)) + '-' + dv
+
+    def _puntuar(fmt):
+        s = fmt.replace('.', '').replace('-', '').upper()
+        cuerpo = len(s) - 1
+        puntos = 2 if '.' in fmt else 0
+        return (puntos, cuerpo)
+
+    vistos = set()
+    ordenados = []
+    for cand in candidatos:
+        if not validar_rut(cand):
+            continue
+        fmt = _a_formato_con_puntos(cand)
+        if not validar_rut(fmt):
+            fmt = cand
+        key = fmt.replace('.', '').replace('-', '').replace(' ', '').upper()
+        if key in vistos:
+            continue
+        vistos.add(key)
+        ordenados.append((-_puntuar(fmt)[0], -_puntuar(fmt)[1], fmt))
+    ordenados.sort()
+    return [x[2] for x in ordenados]
+
+
+def extraer_rut_desde_lectura_carnet(texto):
+    """Primer RUN valido del carnet (compatibilidad). Ver `extraer_ruts_desde_lectura_carnet`."""
+    ruts = extraer_ruts_desde_lectura_carnet(texto)
+    return ruts[0] if ruts else None
+
+
+@app.route('/api/demo/cliente')
+def api_demo_cliente():
+    """Busca cliente por RUT o nombre y devuelve perfil + historial de compras."""
+    q_raw = (request.args.get('q') or '').strip()
+    if len(q_raw) < 2:
+        return jsonify({'ok': False, 'found': False})
+    ruts_leidos = extraer_ruts_desde_lectura_carnet(q_raw)
+    rut_leido = ruts_leidos[0] if ruts_leidos else None
+    q = rut_leido or q_raw
+    try:
+        cli = None
+        norm_rut = db.func.upper(db.func.replace(db.func.replace(db.func.replace(
+            Cliente.rut, '.', ''), '-', ''), ' ', ''))
+
+        qcands = []
+        for rfmt in ruts_leidos:
+            qc = rfmt.replace('.', '').replace('-', '').replace(' ', '').upper()
+            if qc and qc not in qcands:
+                qcands.append(qc)
+        if not qcands:
+            q_tail = (rut_leido or q_raw).replace('.', '').replace('-', '').replace(' ', '').upper()
+            if len(q_tail) >= 8 and q_tail.replace('K', '').isdigit():
+                qcands.append(q_tail)
+
+        for q_clean in qcands:
+            cli = Cliente.query.filter(norm_rut == q_clean).first()
+            if cli:
+                break
+        if not cli:
+            for q_clean in qcands:
+                cli = Cliente.query.filter(norm_rut.contains(q_clean)).first()
+                if cli:
+                    break
+        if not cli:
+            for rfmt in ruts_leidos:
+                cli = Cliente.query.filter(Cliente.rut.ilike(f'%{rfmt}%')).first()
+                if cli:
+                    break
+        if not cli:
+            for q_clean in qcands:
+                if len(q_clean) >= 8:
+                    cli = Cliente.query.filter(Cliente.rut.ilike(f'%{q_clean}%')).first()
+                    if cli:
+                        break
+        if not cli and not ruts_leidos and len(q_raw) < 400:
+            cli = Cliente.query.filter(Cliente.nombre.ilike(f'%{q}%')).first()
+        if not cli:
+            payload = {'ok': True, 'found': False}
+            if rut_leido:
+                payload['rut_leido_carnet'] = rut_leido
+            return jsonify(payload)
+
+        ventas = Venta.query.filter(
+            Venta.cliente_id == cli.id, Venta.estado == 'Pagado'
+        ).order_by(Venta.fecha.desc()).limit(10).all()
+
+        historial = []
+        productos_comprados = {}
+        total_historico = 0
+        for v in ventas:
+            items = []
+            for d in (v.detalles or []):
+                prod = db.session.get(Producto, d.id_producto)
+                nombre_p = prod.nombre if prod else f'Producto #{d.id_producto}'
+                items.append({'nombre': nombre_p, 'cantidad': d.cantidad,
+                              'precio': float(d.precio_unitario or 0)})
+                if prod:
+                    productos_comprados[prod.id] = {
+                        'id': prod.id, 'nombre': prod.nombre,
+                        'categoria': prod.categoria or 'General',
+                        'precio_fmt': f"${float(prod.precio_venta or 0):,.0f}",
+                        'veces': productos_comprados.get(prod.id, {}).get('veces', 0) + 1}
+            total_historico += float(v.monto_total or 0)
+            historial.append({
+                'fecha': v.fecha.strftime('%d/%m/%Y') if v.fecha else '',
+                'total_fmt': f"${float(v.monto_total or 0):,.0f}",
+                'items': items[:5], 'metodo': v.metodo_pago or ''})
+
+        frecuentes = sorted(productos_comprados.values(), key=lambda x: -x['veces'])[:6]
+        cats_favoritas = list({p['categoria'] for p in frecuentes})[:3]
+
+        primera = cli.nombre.split()[0] if cli.nombre else 'Cliente'
+        out = {
+            'ok': True, 'found': True,
+            'cliente': {
+                'id': cli.id, 'nombre': cli.nombre, 'primera': primera,
+                'rut': cli.rut or '', 'telefono': cli.telefono or '',
+                'correo': cli.correo or '', 'comuna': cli.comuna or '',
+                'saldo_deudor': float(cli.saldo_deudor or 0),
+                'limite_credito': float(cli.limite_credito or 0),
+                'estado_credito': cli.estado_credito or 'Activo',
+                'total_compras': len(ventas),
+                'total_historico_fmt': f"${total_historico:,.0f}",
+            },
+            'historial': historial[:5],
+            'frecuentes': frecuentes,
+            'categorias_favoritas': cats_favoritas,
+        }
+        if rut_leido:
+            out['rut_leido_carnet'] = rut_leido
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+
+@app.route('/api/demo/stats')
+def api_demo_stats():
+    try:
+        total_prods = Producto.query.filter_by(activo=True).count()
+        total_cats = db.session.query(Producto.categoria).filter(
+            Producto.activo == True, Producto.categoria != None
+        ).distinct().count()
+        ventas_hoy = Venta.query.filter(
+            Venta.estado == 'Pagado',
+            db.func.date(Venta.fecha) == db.func.current_date()
+        ).count()
+        return jsonify({
+            'ok': True,
+            'productos_activos': total_prods,
+            'categorias': total_cats,
+            'ventas_hoy': ventas_hoy,
+        })
+    except Exception:
+        return jsonify({'ok': True, 'productos_activos': 0, 'categorias': 0, 'ventas_hoy': 0})
+
+
+# ─── Liz: Configuracion de voz persistente ──────────────────────────
+def _ruta_liz_voice_config():
+    carpeta = os.path.join(app.root_path, 'data')
+    os.makedirs(carpeta, exist_ok=True)
+    return os.path.join(carpeta, 'liz_voice_config.json')
+
+
+def _liz_voice_defaults():
+    return {'voice_name': '', 'rate': 1.0, 'pitch': 1.05, 'volume': 1.0}
+
+
+def obtener_liz_voice_config():
+    ruta = _ruta_liz_voice_config()
+    cfg = _liz_voice_defaults()
+    if not os.path.exists(ruta):
+        return cfg
+    try:
+        with open(ruta, 'r', encoding='utf-8') as f:
+            data = json.load(f) or {}
+        cfg.update({k: v for k, v in data.items() if k in cfg})
+    except Exception:
+        pass
+    return cfg
+
+
+@app.route('/api/demo/voice-config', methods=['GET'])
+def api_liz_voice_config_get():
+    return jsonify({'ok': True, **obtener_liz_voice_config()})
+
+
+@app.route('/api/demo/voice-config', methods=['POST'])
+def api_liz_voice_config_save():
+    data = request.get_json(silent=True) or {}
+    cfg = obtener_liz_voice_config()
+    for k in ('voice_name', 'rate', 'pitch', 'volume'):
+        if k in data:
+            cfg[k] = data[k]
+    try:
+        with open(_ruta_liz_voice_config(), 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        return jsonify({'ok': True, 'saved': cfg})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  LIZ AGENT — Arquitectura Premium con Function Calling + Fallback
+# ══════════════════════════════════════════════════════════════════════
+_GEMINI_KEY = os.getenv('GEMINI_API_KEY', '')
+_GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+_LIZ_HISTORY = {}
+_IMG_CACHE = {}
+
+
+# ── Dataclasses tipadas ──────────────────────────────────────────────
+
+@dataclass
+class ProductoDTO:
+    id: int
+    codigo: str
+    nombre: str
+    especificacion: str
+    precio: float
+    precio_fmt: str
+    stock: int
+    categoria: str
+    imagen_url: str
+    fuente_imagen: str  # 'erp' | 'ai' | 'cache'
+    descripcion: str = ''
+
+@dataclass
+class LizResponse:
+    exito: bool
+    response: str
+    productos: list = field(default_factory=list)
+    busqueda_activa: bool = False
+    modo: str = 'ai'
+    accion: str = ''          # 'buscar' | 'agregar_carrito' | 'checkout' | ''
+    producto_carrito: dict = field(default_factory=dict)
+    cantidad: int = 0
+
+
+# ── Mapa legado (términos para prompts); imágenes demo usan _DEMO_* abajo ────────────
+
+_IMG_SEARCH_MAP = {
+    'pintura': 'paint+can+hardware', 'barniz': 'wood+varnish', 'latex': 'wall+paint+bucket',
+    'esmalte': 'enamel+paint+can', 'brocha': 'paint+brush+tool', 'rodillo': 'paint+roller',
+    'tornillo': 'industrial+screw', 'clavo': 'steel+nail+hardware', 'tuerca': 'hex+nut+bolt',
+    'perno': 'steel+bolt+hardware', 'golilla': 'metal+washer+bolt',
+    'taladro': 'electric+drill+tool', 'sierra': 'circular+saw+tool', 'martillo': 'claw+hammer+tool',
+    'llave': 'adjustable+wrench', 'alicate': 'pliers+tool', 'destornillador': 'screwdriver+set',
+    'cable': 'electric+wire+cable', 'interruptor': 'light+switch+electric', 'enchufe': 'electric+outlet',
+    'ampolleta': 'led+light+bulb', 'tubo': 'pvc+pipe+plumbing', 'grifo': 'chrome+faucet',
+    'cemento': 'cement+bag+construction', 'fierro': 'steel+rebar+construction', 'ladrillo': 'red+brick',
+    'cinta': 'measuring+tape', 'adhesivo': 'industrial+adhesive', 'silicona': 'silicone+sealant+tube',
+    'candado': 'steel+padlock', 'cerradura': 'door+lock+security',
+    'parlante': 'bluetooth+speaker', 'foco': 'led+spotlight', 'linterna': 'flashlight+tool',
+    'guante': 'work+gloves+safety', 'casco': 'safety+helmet', 'gafas': 'safety+glasses',
+    'manguera': 'garden+hose', 'regadera': 'watering+can', 'pala': 'garden+shovel',
+    'escalera': 'aluminum+ladder', 'carretilla': 'wheelbarrow+construction',
+}
+
+_FUZZY_CORRECTIONS = {
+    'tornijo': 'tornillo', 'tornilo': 'tornillo', 'torniyo': 'tornillo',
+    'pintuta': 'pintura', 'pintra': 'pintura',
+    'martllo': 'martillo', 'martiyo': 'martillo',
+    'destornilador': 'destornillador', 'destorniyador': 'destornillador',
+    'serrucho': 'sierra', 'clavos': 'clavo', 'tornillos': 'tornillo',
+    'brochas': 'brocha', 'rodillos': 'rodillo', 'cables': 'cable',
+    'llaves': 'llave', 'alicates': 'alicate', 'tuercas': 'tuerca',
+    'candados': 'candado', 'cerraduras': 'cerradura',
+    'enchufes': 'enchufe', 'interruptores': 'interruptor',
+    'ampolletas': 'ampolleta', 'ampoleta': 'ampolleta',
+    'silicona': 'silicona', 'cementos': 'cemento',
+}
+
+
+# ── System Prompt ────────────────────────────────────────────────────
+
+def _liz_system_prompt(empresa_nombre, cliente_ctx, cart_ctx, productos_top):
+    return (
+        f"ROLE: Eres 'Liz', Agente Autonomo de Ventas Premium del ERP '{empresa_nombre}'. "
+        "Tu interfaz es la voz del cliente (TTS). Respuestas optimizadas para sintetizador de voz.\n\n"
+        "EXECUTION RULES:\n"
+        "1. FUNCTION CALLING INMEDIATO: Si el usuario pide un producto, invoca buscar_productos_erp "
+        "en el primer instante. NO saludes de vuelta extensamente antes de buscar.\n"
+        "2. TOKEN ECONOMY: Respuestas MAXIMO 15 palabras. Nunca repitas lo que el usuario ya sabe.\n"
+        "3. RESPUESTAS AUDIBLES: Cuando busques, di algo como 'Buscando tornillos. Mira las opciones en pantalla.' "
+        "Nunca leas codigos de barra ni IDs.\n"
+        "4. PROACTIVIDAD COMERCIAL: Si compran tornillos, sugiere tuercas o golillas. Natural, no forzado.\n"
+        "5. INTEGRIDAD: Prohibido alucinar productos o precios. Si no hay stock, ofrecelo buscar alternativa.\n"
+        "6. Solo texto plano. SIN markdown, asteriscos, ni formato.\n"
+        "7. Precios SIEMPRE en PESOS CHILENOS. Formato: $55.990. JAMAS dolares ni USD.\n"
+        "8. Personalidad: Alegre, breve, profesional. Tutea al cliente.\n"
+        "9. CARRITO: Al agregar, responde SOLO 'Agregado' o 'Listo'. Sin frases largas.\n"
+        "10. AMBIGUEDAD: Si un numero coincide con varios productos en pantalla, pregunta cual prefiere.\n"
+        "11. NAVEGACION: Si el usuario dice 'mas opciones', 'siguiente', 'baja', invoca navegar_resultados.\n"
+        "12. PRIORIDAD NUMEROS: Los productos en pantalla tienen ETIQUETAS NUMERADAS (#1, #2, #3...). "
+        "Si el usuario dice 'agregame el 3', 'quiero el numero 5', 'dame el 7', "
+        "el numero se refiere a la ETIQUETA VISIBLE del producto. Pasalo como identificador_producto.\n"
+        "13. CHECKOUT: Al finalizar, se emite un VALE con numero de turno. "
+        "El cliente va a CAJA a pagar con ese vale. NO preguntes metodo de pago, eso lo hace el cajero.\n\n"
+        f"CLIENTE: {json.dumps(cliente_ctx, ensure_ascii=False) if cliente_ctx else 'Invitado.'}\n"
+        f"CARRITO: {json.dumps(cart_ctx, ensure_ascii=False) if cart_ctx else 'Vacio'}\n"
+        f"CATALOGO ({len(productos_top)} prods):\n{json.dumps(productos_top[:15], ensure_ascii=False)}\n"
+    )
+
+
+# ── Function Calling Schema (Premium) ───────────────────────────────
+
+_LIZ_TOOLS = [{
+    'function_declarations': [
+        {
+            'name': 'buscar_productos_erp',
+            'description': (
+                'Busca productos en el inventario de la ferreteria. '
+                'OBLIGATORIO cuando el usuario quiera comprar, buscar, cotizar '
+                'o preguntar por disponibilidad de cualquier producto.'
+            ),
+            'parameters': {
+                'type': 'OBJECT',
+                'properties': {
+                    'termino_busqueda': {
+                        'type': 'STRING',
+                        'description': 'Palabras clave del producto. Ej: "tornillos hexagonales", "pintura latex blanca 20L".',
+                    },
+                    'medidas_especificas': {
+                        'type': 'STRING',
+                        'description': 'Medidas o especificaciones. Ej: "6x1.5", "3/8", "20 litros". Vacio si no aplica.',
+                    },
+                    'material': {
+                        'type': 'STRING',
+                        'description': 'Material: "acero", "galvanizado", "inoxidable". Vacio si no aplica.',
+                    },
+                    'cantidad_estimada': {
+                        'type': 'INTEGER',
+                        'description': 'Cantidad deseada. 0 si no se especifica.',
+                    },
+                    'categoria': {
+                        'type': 'STRING',
+                        'description': 'Categoria: PINTURAS, FERRETERIA, ELECTRICIDAD, PLOMERIA, etc.',
+                    },
+                },
+                'required': ['termino_busqueda'],
+            },
+        },
+        {
+            'name': 'agregar_al_carrito',
+            'description': (
+                'Agrega un producto al carrito de compras del cliente. '
+                'Usa esta funcion cuando el usuario diga "agregame", "ponme", "quiero llevar", '
+                '"agregame el 470", "el segundo", "ese", etc. '
+                'Identifica el producto por numero de modelo, nombre parcial, posicion en resultados o ID.'
+            ),
+            'parameters': {
+                'type': 'OBJECT',
+                'properties': {
+                    'identificador_producto': {
+                        'type': 'STRING',
+                        'description': (
+                            'Identificador del producto: puede ser un numero de modelo (ej: "470"), '
+                            'nombre parcial (ej: "tornillo kraft"), posicion ordinal ("el primero", "el segundo") '
+                            'o ID numerico. Extrae lo que el usuario mencione.'
+                        ),
+                    },
+                    'cantidad': {
+                        'type': 'INTEGER',
+                        'description': 'Cantidad a agregar. Default 1 si no se especifica.',
+                    },
+                },
+                'required': ['identificador_producto'],
+            },
+        },
+        {
+            'name': 'finalizar_compra',
+            'description': (
+                'Emite el vale de compra para que el cliente pague en caja. '
+                'Usa cuando el usuario diga "finalizar", "pagar", "cerrar venta", "emitir vale", '
+                '"procesar compra", "listo", "quiero pagar", "vamos a caja".'
+            ),
+            'parameters': {
+                'type': 'OBJECT',
+                'properties': {
+                    'confirmar': {
+                        'type': 'BOOLEAN',
+                        'description': 'True si el usuario confirmo que quiere generar el vale.',
+                    },
+                },
+                'required': [],
+            },
+        },
+        {
+            'name': 'navegar_resultados',
+            'description': (
+                'Navega entre paginas de resultados de busqueda. '
+                'Usa cuando el usuario diga "mas opciones", "siguiente", "baja", "muestra mas", "pagina siguiente".'
+            ),
+            'parameters': {
+                'type': 'OBJECT',
+                'properties': {
+                    'direccion': {
+                        'type': 'STRING',
+                        'description': '"siguiente" para ver mas productos, "anterior" para volver.',
+                    },
+                },
+                'required': ['direccion'],
+            },
+        },
+    ],
+}]
+
+_LIZ_SEARCH_STATE = {}  # session_id -> {query, offset, categoria}
+
+
+# ── Image Service con Cache ──────────────────────────────────────────
+
+_IMG_FALLBACK = '/static/img/product_placeholder.svg'
+
+# Fotos fijas Unsplash (ferretería / construcción) — URLs válidas para demo con cliente.
+_DEMO_UNSPLASH_Q = '?w=400&h=300&fit=crop&q=80'
+_DEMO_HARDWARE_POOL = [
+    'https://images.unsplash.com/photo-1504148455328-c376907d081c' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1586864387789-628af9feed72' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1581094794329-c8112a89af12' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1572981779307-38b8cabb2407' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1590479773265-7464e5d48118' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1504307651254-35680f356dfd' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1578662996442-48f60103fc96' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1503387762-592deb58ef4e' + _DEMO_UNSPLASH_Q,
+    'https://images.unsplash.com/photo-1621905251189-08b45d6a269e' + _DEMO_UNSPLASH_Q,
+]
+# Orden: palabras más específicas primero (p. ej. 'sierra circular' antes de 'sierra').
+_DEMO_KEYWORD_IMAGES_ORDERED = [
+    ('sierra circular', 'https://images.unsplash.com/photo-1578662996442-48f60103fc96' + _DEMO_UNSPLASH_Q),
+    ('rotomartillo', 'https://images.unsplash.com/photo-1504148455328-c376907d081c' + _DEMO_UNSPLASH_Q),
+    ('lijadora', 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e' + _DEMO_UNSPLASH_Q),
+    ('lijado', 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e' + _DEMO_UNSPLASH_Q),
+    ('esmeril', 'https://images.unsplash.com/photo-1504148455328-c376907d081c' + _DEMO_UNSPLASH_Q),
+    ('taladro', 'https://images.unsplash.com/photo-1504148455328-c376907d081c' + _DEMO_UNSPLASH_Q),
+    ('serrucho', 'https://images.unsplash.com/photo-1578662996442-48f60103fc96' + _DEMO_UNSPLASH_Q),
+    ('sierra', 'https://images.unsplash.com/photo-1578662996442-48f60103fc96' + _DEMO_UNSPLASH_Q),
+    ('martillo', 'https://images.unsplash.com/photo-1586864387789-628af9feed72' + _DEMO_UNSPLASH_Q),
+    ('tornillo', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('perno', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('clavo', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('tarugo', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('abrazadera', 'https://images.unsplash.com/photo-1572981779307-38b8cabb2407' + _DEMO_UNSPLASH_Q),
+    ('arandela', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('cable', 'https://images.unsplash.com/photo-1581094794329-c8112a89af12' + _DEMO_UNSPLASH_Q),
+    ('electric', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('interruptor', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('enchufe', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('ampolleta', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('breaker', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('canaleta', 'https://images.unsplash.com/photo-1581094794329-c8112a89af12' + _DEMO_UNSPLASH_Q),
+    ('pintura', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('latex', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('esmalte', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('barniz', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('brocha', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('rodillo', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('sellador', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('enduido', 'https://images.unsplash.com/photo-1590479773265-7464e5d48118' + _DEMO_UNSPLASH_Q),
+    ('tubo', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('pvc', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('gasfiter', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('grifo', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('flexible', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('sifon', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('teflon', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('cemento', 'https://images.unsplash.com/photo-1590479773265-7464e5d48118' + _DEMO_UNSPLASH_Q),
+    ('yeso', 'https://images.unsplash.com/photo-1590479773265-7464e5d48118' + _DEMO_UNSPLASH_Q),
+    ('adhesivo', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd' + _DEMO_UNSPLASH_Q),
+    ('autonivelante', 'https://images.unsplash.com/photo-1590479773265-7464e5d48118' + _DEMO_UNSPLASH_Q),
+    ('lana mineral', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q),
+    ('espuma poliuretano', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd' + _DEMO_UNSPLASH_Q),
+    ('melamina', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q),
+    ('mdf', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q),
+    ('candado', 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f' + _DEMO_UNSPLASH_Q),
+    ('cerradura', 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f' + _DEMO_UNSPLASH_Q),
+    ('llave de paso', 'https://images.unsplash.com/photo-1585704032915-c3400ca199e7' + _DEMO_UNSPLASH_Q),
+    ('llave', 'https://images.unsplash.com/photo-1572981779307-38b8cabb2407' + _DEMO_UNSPLASH_Q),
+    ('alicate', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('destornill', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('guante', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd' + _DEMO_UNSPLASH_Q),
+    ('casco', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd' + _DEMO_UNSPLASH_Q),
+    ('lente', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('mascarilla', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('zapatilla', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('cinta', 'https://images.unsplash.com/photo-1572981779307-38b8cabb2407' + _DEMO_UNSPLASH_Q),
+    ('manguera', 'https://images.unsplash.com/photo-1503387762-592deb58ef4e' + _DEMO_UNSPLASH_Q),
+    ('escalera', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q),
+    ('carretilla', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q),
+    ('fijaciones', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('herramientas electricas', 'https://images.unsplash.com/photo-1621905251918-48416bd8575a' + _DEMO_UNSPLASH_Q),
+    ('herramientas manuales', 'https://images.unsplash.com/photo-1581783898377-1c85bf937427' + _DEMO_UNSPLASH_Q),
+    ('seguridad', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd' + _DEMO_UNSPLASH_Q),
+    ('pinturas', 'https://images.unsplash.com/photo-1562259949-e8e7689d7828' + _DEMO_UNSPLASH_Q),
+    ('construccion', 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5' + _DEMO_UNSPLASH_Q),
+    ('jardin', 'https://images.unsplash.com/photo-1503387762-592deb58ef4e' + _DEMO_UNSPLASH_Q),
+]
+
+
+def _get_product_image(product_id, nombre, categoria):
+    """URL de imagen para demo: palabras clave ferretería → Unsplash fijo; si no, rotación estable por id."""
+    cache_key = f'img_{product_id}'
+    if cache_key in _IMG_CACHE:
+        return _IMG_CACHE[cache_key], 'cache'
+
+    blob = f'{(nombre or "")} {(categoria or "")}'.lower()
+    blob = _re.sub(r'[áàäâ]', 'a', blob)
+    blob = _re.sub(r'[éèëê]', 'e', blob)
+    blob = _re.sub(r'[íìïî]', 'i', blob)
+    blob = _re.sub(r'[óòöô]', 'o', blob)
+    blob = _re.sub(r'[úùüû]', 'u', blob)
+    blob = _re.sub(r'[ñ]', 'n', blob)
+
+    url = None
+    for kw, u in _DEMO_KEYWORD_IMAGES_ORDERED:
+        if kw in blob:
+            url = u
+            break
+    if not url:
+        pool = _DEMO_HARDWARE_POOL
+        idx = (int(product_id or 0) * 7919 + abs(hash(blob)) % 100000) % len(pool)
+        url = pool[idx]
+
+    _IMG_CACHE[cache_key] = url
+    return url, 'demo_curated'
+
+
+# ── Fuzzy Search en PostgreSQL ───────────────────────────────────────
+
+def _fuzzy_correct(word):
+    """Corrige errores ortograficos comunes."""
+    w = word.lower().strip()
+    return _FUZZY_CORRECTIONS.get(w, w)
+
+
+def _buscar_productos_db(termino, medidas='', material='', categoria='', offset=0):
+    """Busqueda con pg_trgm similarity + ILIKE fallback + correccion fuzzy."""
+    words = [_fuzzy_correct(w) for w in termino.split() if len(w) > 1]
+    if medidas:
+        words.extend([w for w in medidas.split() if len(w) > 1])
+    if material:
+        words.append(_fuzzy_correct(material))
+    if not words:
+        return []
+
+    search_term = ' '.join(words)
+    prods = []
+
+    # Strategy 1: pg_trgm similarity (tolerante a typos: "tornijo" → "tornillo")
+    try:
+        sql = text(
+            "SELECT id, nombre, codigo_barra, precio_venta, stock, categoria, "
+            "similarity(LOWER(nombre), LOWER(:term)) AS score "
+            "FROM productos "
+            "WHERE activo = true "
+            "AND (LOWER(nombre) ILIKE :like_term OR nombre % :term "
+            "     OR similarity(LOWER(nombre), LOWER(:term)) > 0.15) "
+            + ("AND LOWER(categoria) LIKE :cat_like " if categoria else "")
+            + "ORDER BY score DESC, stock DESC LIMIT 12 OFFSET :off"
+        )
+        params = {'term': search_term, 'like_term': f'%{search_term}%', 'off': int(offset)}
+        if categoria:
+            params['cat_like'] = f'%{categoria.lower()}%'
+        rows = db.session.execute(sql, params).fetchall()
+        if rows:
+            for r in rows:
+                pv = float(r.precio_venta or 0)
+                img_url, img_src = _get_product_image(r.id, r.nombre, r.categoria)
+                prods.append(asdict(ProductoDTO(
+                    id=r.id, codigo=r.codigo_barra or '', nombre=r.nombre,
+                    especificacion=r.categoria or 'General',
+                    precio=pv, precio_fmt=f"${pv:,.0f}".replace(',', '.'),
+                    stock=int(r.stock or 0), categoria=r.categoria or 'General',
+                    descripcion=r.categoria or r.nombre,
+                    imagen_url=img_url, fuente_imagen=img_src)))
+            if prods:
+                return prods
+    except Exception as e:
+        app.logger.warning('pg_trgm search failed (extension might not be available): %s', e)
+        db.session.rollback()
+
+    # Strategy 2: ILIKE multi-palabra (fallback si pg_trgm no disponible)
+    conditions = []
+    for w in words:
+        wlike = f'%{w}%'
+        conditions.append(db.or_(
+            Producto.nombre.ilike(wlike),
+            Producto.codigo_barra.ilike(wlike),
+            Producto.categoria.ilike(wlike)))
+
+    query = Producto.query.filter(Producto.activo == True)
+    if conditions:
+        query = query.filter(db.or_(*conditions))
+    if categoria:
+        query = query.filter(Producto.categoria.ilike(f'%{categoria}%'))
+    result = query.order_by(Producto.stock.desc()).offset(int(offset)).limit(10).all()
+
+    # Strategy 3: si multi-palabra no encontro, buscar cada palabra individual
+    if not result and len(words) > 1:
+        for w in words:
+            wlike = f'%{w}%'
+            partial = Producto.query.filter(
+                Producto.activo == True,
+                db.or_(Producto.nombre.ilike(wlike), Producto.categoria.ilike(wlike))
+            ).order_by(Producto.stock.desc()).limit(5).all()
+            result.extend(partial)
+        seen = set()
+        result = [p for p in result if p.id not in seen and not seen.add(p.id)][:10]
+
+    for p in result:
+        pv = float(p.precio_venta or 0)
+        img_url, img_src = _get_product_image(p.id, p.nombre, p.categoria)
+        prods.append(asdict(ProductoDTO(
+            id=p.id, codigo=p.codigo_barra or '', nombre=p.nombre,
+            especificacion=p.categoria or 'General',
+            precio=pv, precio_fmt=f"${pv:,.0f}".replace(',', '.'),
+            stock=int(p.stock or 0), categoria=p.categoria or 'General',
+            descripcion=p.categoria or p.nombre,
+            imagen_url=img_url, fuente_imagen=img_src)))
+    return prods
+
+
+# ── Resolver producto para carrito ────────────────────────────────────
+import re as _re
+
+def _resolver_producto_carrito(identificador, productos_recientes=None):
+    """Resuelve un identificador ambiguo a un producto concreto.
+    Prioridad: ordinal > codigo/SKU en pantalla > nombre en pantalla > BD por codigo > BD por nombre.
+    NUNCA matchea contra precio o stock para evitar ambiguedad."""
+    ident = str(identificador).strip().lower()
+
+    # 1. Ordinales: "el primero", "el segundo", "ese"
+    ordinals = {'primero': 0, 'primer': 0, 'segundo': 1, 'tercero': 2,
+                'cuarto': 3, 'quinto': 4, 'sexto': 5, 'septimo': 6,
+                'octavo': 7, 'noveno': 8, 'decimo': 9,
+                'ese': 0, 'este': 0, 'ultimo': -1}
+    if ident in ordinals and productos_recientes:
+        idx = ordinals[ident]
+        if abs(idx) <= len(productos_recientes):
+            return productos_recientes[idx]
+
+    nums = _re.findall(r'\d+', ident)
+
+    # 1b. Numero de etiqueta visible: "numero 3", "el 7", "#5"
+    num_match = _re.search(r'(?:numero|num|#|producto)\s*(\d+)', ident)
+    if num_match and productos_recientes:
+        pos = int(num_match.group(1)) - 1
+        if 0 <= pos < len(productos_recientes):
+            return productos_recientes[pos]
+
+    # 1c. Si el ident es SOLO un numero pequeno (1-30), tratar como posicion
+    if len(nums) == 1 and ident.strip() == nums[0]:
+        pos = int(nums[0]) - 1
+        if productos_recientes and 0 <= pos < len(productos_recientes):
+            return productos_recientes[pos]
+
+    # 2. Buscar en CONTEXTO DE PANTALLA primero (prioridad: codigo > nombre)
+    if productos_recientes:
+        # 2a. Match exacto por codigo/SKU
+        for p in productos_recientes:
+            cod = str(p.get('codigo', '')).lower()
+            if cod and cod == ident:
+                return p
+            for num in nums:
+                if cod and num in cod:
+                    return p
+
+        # 2b. Match por numero en nombre (ej: "tornillo 470" → nombre contiene "470")
+        for num in nums:
+            matches = [p for p in productos_recientes if num in str(p.get('nombre', '')).lower()]
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                return {'_ambiguous': True, 'matches': matches[:3]}
+
+        # 2c. Match por texto en nombre
+        text_part = _re.sub(r'\d+', '', ident).strip()
+        if text_part and len(text_part) >= 3:
+            for p in productos_recientes:
+                if text_part in str(p.get('nombre', '')).lower():
+                    return p
+
+        # 2d. Match por ID
+        for p in productos_recientes:
+            if ident == str(p.get('id', '')):
+                return p
+
+    # 3. Buscar en BD (solo si no estaba en pantalla)
+    if nums:
+        for num in nums:
+            try:
+                # Prioridad: codigo_barra > nombre. NUNCA precio/stock.
+                prod = Producto.query.filter(
+                    Producto.activo == True,
+                    db.or_(
+                        Producto.codigo_barra.ilike(f'%{num}%'),
+                        Producto.nombre.ilike(f'%{num}%'),
+                    )
+                ).order_by(
+                    db.case((Producto.codigo_barra.ilike(f'%{num}%'), 0), else_=1),
+                    Producto.stock.desc()
+                ).first()
+                if prod:
+                    pv = float(prod.precio_venta or 0)
+                    img_url, img_src = _get_product_image(prod.id, prod.nombre, prod.categoria)
+                    return asdict(ProductoDTO(
+                        id=prod.id, codigo=prod.codigo_barra or '', nombre=prod.nombre,
+                        especificacion=prod.categoria or 'General',
+                        precio=pv, precio_fmt=f"${pv:,.0f}".replace(',', '.'),
+                        stock=int(prod.stock or 0), categoria=prod.categoria or 'General',
+                        descripcion=prod.categoria or prod.nombre,
+                        imagen_url=img_url, fuente_imagen=img_src))
+            except Exception:
+                pass
+    return None
+
+
+def _fallback_agregar_carrito(user_msg, productos_recientes=None):
+    """Fallback regex: detecta intenciones de agregar al carrito sin Gemini."""
+    msg = user_msg.lower()
+    add_patterns = [r'agreg', r'ponme', r'quiero llevar', r'dame', r'a[ñn]ade',
+                    r'mete', r'pon\b', r'llevo', r'quiero\s+\d']
+    is_add = any(_re.search(p, msg) for p in add_patterns)
+    if not is_add:
+        return None, 0
+
+    nums = _re.findall(r'\d+', msg)
+    qty_match = _re.search(r'(\d+)\s*(unidad|und|pz|pieza|kilo|kg|metro|mt)', msg)
+    qty = int(qty_match.group(1)) if qty_match else 1
+
+    ident = nums[0] if nums else ''
+    if not ident:
+        ordinals = {'primero': 0, 'primer': 0, 'segundo': 1, 'tercero': 2,
+                    'cuarto': 3, 'quinto': 4, 'ese': 0, 'este': 0, 'ultimo': -1}
+        for word, idx in ordinals.items():
+            if word in msg:
+                ident = word
+                break
+
+    if not ident:
+        return None, qty
+
+    producto = _resolver_producto_carrito(ident, productos_recientes)
+    return producto, qty
+
+
+def _fallback_finalizar_compra(user_msg):
+    """Detecta intención de checkout sin Gemini."""
+    msg = user_msg.lower()
+    return bool(_re.search(r'finalizar|pagar|cerrar venta|procesar|checkout|comprar todo|listo.*compra|emitir vale|vamos a caja|quiero pagar', msg))
+
+
+# ── Gemini API Caller con retry/fallback ─────────────────────────────
+
+_FORCE_FALLBACK = False  # Flag de prueba: simula error 429
+
+def _gemini_call(payload, timeout=12):
+    """Llama a Gemini con manejo de errores y rate limiting."""
+    if _FORCE_FALLBACK:
+        app.logger.warning('FORCE_FALLBACK active — simulating 429')
+        return None, 'rate_limited'
+    if not _GEMINI_KEY:
+        return None, 'no_key'
+    try:
+        resp = requests.post(
+            f'{_GEMINI_URL}?key={_GEMINI_KEY}',
+            json=payload, timeout=timeout)
+        if resp.status_code == 429:
+            app.logger.warning('Gemini rate limited (429)')
+            return None, 'rate_limited'
+        if resp.status_code != 200:
+            app.logger.warning('Gemini error %s: %s', resp.status_code, resp.text[:200])
+            return None, f'http_{resp.status_code}'
+        return resp.json(), 'ok'
+    except requests.Timeout:
+        return None, 'timeout'
+    except Exception as e:
+        app.logger.error('Gemini exception: %s', e)
+        return None, 'exception'
+
+
+# ── Keyword Extractor (fallback sin Gemini) ──────────────────────────
+
+_STOP_WORDS = {
+    'hola', 'liz', 'necesito', 'quiero', 'busco', 'dame', 'dime',
+    'buscar', 'tengo', 'tiene', 'tienen', 'hay', 'ver', 'mostrar',
+    'muestra', 'me', 'el', 'la', 'los', 'las', 'un', 'una', 'unos',
+    'de', 'del', 'en', 'por', 'para', 'con', 'que', 'como', 'donde',
+    'si', 'no', 'y', 'o', 'a', 'al', 'lo', 'le', 'se', 'es', 'son',
+    'puedo', 'puede', 'puedes', 'favor', 'gracias', 'bueno', 'bien',
+    'ok', 'oye', 'mira', 'quisiera', 'podria', 'comprar', 'cotizar',
+    'agregar', 'agregame', 'poner', 'ponme', 'llevar', 'quiero',
+    'necesitamos', 'queremos', 'buscamos', 'seria', 'podrias',
+}
+
+def _extract_keywords(text):
+    """Extrae keywords removiendo stopwords (fallback sin AI)."""
+    import unicodedata
+    normalized = unicodedata.normalize('NFD', text.lower())
+    cleaned = ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
+    words = [w for w in cleaned.split() if len(w) > 1 and w not in _STOP_WORDS]
+    return ' '.join(words)
+
+
+# ── Chat Endpoint Principal ──────────────────────────────────────────
+
+_LIZ_LAST_PRODUCTS = {}
+
+
+@app.route('/api/demo/chat', methods=['POST'])
+def api_demo_chat():
+    """Agente Liz: Function Calling (3 funciones) con degradacion elegante."""
+    data = request.get_json(silent=True) or {}
+    user_msg = (data.get('message') or '').strip()
+    if not user_msg:
+        return jsonify(asdict(LizResponse(exito=False, response='Mensaje vacio.')))
+
+    cliente_ctx = data.get('cliente') or None
+    cart_ctx = data.get('cart') or []
+    session_id = data.get('session_id') or 'default'
+
+    # Productos visibles en pantalla (enviados por frontend con num_visible)
+    pantalla = data.get('productos_pantalla') or []
+    if pantalla:
+        _LIZ_LAST_PRODUCTS[session_id] = pantalla
+    productos_recientes = _LIZ_LAST_PRODUCTS.get(session_id, [])
+
+    try:
+        cfg = obtener_config_empresa()
+        empresa_nombre = cfg.get('nombre_comercial', 'Ferreteria')
+
+        prods_top = []
+        for p in Producto.query.filter_by(activo=True).order_by(Producto.stock.desc()).limit(30).all():
+            pv = float(p.precio_venta or 0)
+            prods_top.append({
+                'nombre': p.nombre,
+                'precio_clp': f"${pv:,.0f}".replace(',', '.'),
+                'categoria': p.categoria or 'General',
+                'stock': int(p.stock or 0),
+            })
+
+        system_text = _liz_system_prompt(empresa_nombre, cliente_ctx, cart_ctx, prods_top)
+        history = _LIZ_HISTORY.get(session_id, [])
+        history.append({'role': 'user', 'parts': [{'text': user_msg}]})
+        if len(history) > 20:
+            history = history[-20:]
+
+        # ═══ GEMINI CON FUNCTION CALLING ═══════════════════════════
+        payload = {
+            'system_instruction': {'parts': [{'text': system_text}]},
+            'contents': history,
+            'tools': _LIZ_TOOLS,
+            'tool_config': {'function_calling_config': {'mode': 'AUTO'}},
+            'generationConfig': {'temperature': 0.7, 'maxOutputTokens': 100, 'topP': 0.85},
+        }
+
+        result, status = _gemini_call(payload)
+        productos = []
+        ai_text = ''
+        accion = ''
+        producto_carrito = {}
+        cantidad_carrito = 0
+
+        if result and status == 'ok':
+            parts = result.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+            fn_call = None
+            for part in parts:
+                if 'functionCall' in part:
+                    fn_call = part['functionCall']
+                elif 'text' in part:
+                    ai_text = part['text'].strip()
+
+            # ── FC: buscar_productos_erp ─────────────────────────
+            if fn_call and fn_call.get('name') == 'buscar_productos_erp':
+                accion = 'buscar'
+                args = fn_call.get('args', {})
+                termino = args.get('termino_busqueda', '')
+                medidas = args.get('medidas_especificas', '')
+                material = args.get('material', '')
+                categoria = args.get('categoria', '')
+                app.logger.info('FC: buscar_productos_erp(%s)', termino)
+
+                productos = _buscar_productos_db(termino, medidas, material, categoria)
+                _LIZ_LAST_PRODUCTS[session_id] = productos
+                _LIZ_SEARCH_STATE[session_id] = {'query': termino, 'medidas': medidas, 'material': material, 'categoria': categoria, 'offset': 0}
+
+                resumen = [f"{p['nombre']} - {p['precio_fmt']} ({p['stock']} uds)" for p in productos[:6]]
+                fn_resp = f"Encontre {len(productos)} para '{termino}':\n" + ('\n'.join(resumen) or 'Sin resultados.')
+
+                history.append({'role': 'model', 'parts': [{'functionCall': {'name': 'buscar_productos_erp', 'args': args}}]})
+                history.append({'role': 'user', 'parts': [{'functionResponse': {'name': 'buscar_productos_erp', 'response': {'content': fn_resp}}}]})
+
+                r2, s2 = _gemini_call({'system_instruction': {'parts': [{'text': system_text}]}, 'contents': history, 'generationConfig': {'temperature': 0.7, 'maxOutputTokens': 80, 'topP': 0.85}})
+                if r2 and s2 == 'ok':
+                    ai_text = r2.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '').strip()
+                if not ai_text:
+                    ai_text = f"Encontre {len(productos)} productos. Mira las opciones en pantalla." if productos else "No encontre ese producto. Quieres que busque algo similar?"
+
+            # ── FC: agregar_al_carrito ────────────────────────────
+            elif fn_call and fn_call.get('name') == 'agregar_al_carrito':
+                accion = 'agregar_carrito'
+                args = fn_call.get('args', {})
+                ident = args.get('identificador_producto', '')
+                cantidad_carrito = int(args.get('cantidad', 1)) or 1
+                app.logger.info('FC: agregar_al_carrito(%s, qty=%d)', ident, cantidad_carrito)
+
+                resolved = _resolver_producto_carrito(ident, productos_recientes)
+
+                # Handle ambiguity: multiple products match the number
+                if isinstance(resolved, dict) and resolved.get('_ambiguous'):
+                    matches = resolved['matches']
+                    opciones = ' o '.join([f'"{m["nombre"]}"' for m in matches[:3]])
+                    ai_text = f'Encontre varios productos con ese numero. Prefieres {opciones}?'
+                    accion = ''
+                    producto_carrito = {}
+                else:
+                    producto_carrito = resolved or {}
+                    if producto_carrito:
+                        # Ultra-short: no second Gemini call needed for cart add
+                        ai_text = 'Agregado'
+                    else:
+                        ai_text = f"No encontre '{ident}'. Dame mas detalles."
+
+            # ── FC: finalizar_compra (emitir vale) ───────────────
+            elif fn_call and fn_call.get('name') == 'finalizar_compra':
+                accion = 'checkout'
+                ai_text = 'Vamos a generar tu vale! Revisa el resumen en pantalla.'
+
+            # ── FC: navegar_resultados ──────────────────────────
+            elif fn_call and fn_call.get('name') == 'navegar_resultados':
+                accion = 'buscar'
+                search_state = _LIZ_SEARCH_STATE.get(session_id, {})
+                if search_state:
+                    direccion = (fn_call.get('args', {}).get('direccion', 'siguiente') or 'siguiente').lower()
+                    page_size = 10
+                    new_offset = search_state.get('offset', 0) + (page_size if 'anterior' not in direccion else -page_size)
+                    new_offset = max(0, new_offset)
+                    search_state['offset'] = new_offset
+                    _LIZ_SEARCH_STATE[session_id] = search_state
+
+                    productos = _buscar_productos_db(
+                        search_state['query'], search_state.get('medidas', ''),
+                        search_state.get('material', ''), search_state.get('categoria', ''),
+                        offset=new_offset)
+                    _LIZ_LAST_PRODUCTS[session_id] = productos
+
+                    if productos:
+                        ai_text = f'Aqui tienes mas opciones! Pagina {(new_offset // page_size) + 1}.'
+                    else:
+                        ai_text = 'No hay mas productos para mostrar.'
+                        new_offset = max(0, new_offset - page_size)
+                        search_state['offset'] = new_offset
+                else:
+                    ai_text = 'Primero busca un producto. Que necesitas?'
+                    productos = []
+
+            if ai_text:
+                history.append({'role': 'model', 'parts': [{'text': ai_text}]})
+            _LIZ_HISTORY[session_id] = history[-20:]
+
+            resp = LizResponse(
+                exito=True, response=ai_text or 'En que puedo ayudarte?',
+                productos=productos, busqueda_activa=len(productos) > 0,
+                modo='ai', accion=accion,
+                producto_carrito=producto_carrito, cantidad=cantidad_carrito)
+            return jsonify(asdict(resp))
+
+        # ═══ FALLBACK: Gemini no disponible ═══════════════════════
+        app.logger.warning('Gemini unavailable (%s), using fallback', status)
+
+        # Fallback: detectar agregar al carrito
+        fb_prod, fb_qty = _fallback_agregar_carrito(user_msg, productos_recientes)
+        if fb_prod:
+            ai_text = f"Agregado: {fb_prod['nombre']} x{fb_qty}."
+            history.append({'role': 'model', 'parts': [{'text': ai_text}]})
+            _LIZ_HISTORY[session_id] = history[-20:]
+            return jsonify(asdict(LizResponse(
+                exito=True, response=ai_text, modo='fallback',
+                accion='agregar_carrito', producto_carrito=fb_prod, cantidad=fb_qty)))
+
+        # Fallback: detectar checkout
+        if _fallback_finalizar_compra(user_msg):
+            ai_text = 'Vamos a generar tu vale!'
+            history.append({'role': 'model', 'parts': [{'text': ai_text}]})
+            _LIZ_HISTORY[session_id] = history[-20:]
+            return jsonify(asdict(LizResponse(
+                exito=True, response=ai_text, modo='fallback', accion='checkout')))
+
+        # Fallback: detectar navegacion
+        nav_pattern = _re.search(r'\b(mas opciones|mas productos|siguiente|pagina|baja|muestra mas|mostrar mas)\b', user_msg.lower())
+        if nav_pattern:
+            search_state = _LIZ_SEARCH_STATE.get(session_id, {})
+            if search_state:
+                new_offset = search_state.get('offset', 0) + 10
+                search_state['offset'] = new_offset
+                _LIZ_SEARCH_STATE[session_id] = search_state
+                productos = _buscar_productos_db(search_state['query'], search_state.get('medidas', ''), search_state.get('material', ''), search_state.get('categoria', ''), offset=new_offset)
+                _LIZ_LAST_PRODUCTS[session_id] = productos
+                ai_text = f'Mas opciones! Pagina {(new_offset // 10) + 1}.' if productos else 'No hay mas productos.'
+                history.append({'role': 'model', 'parts': [{'text': ai_text}]})
+                _LIZ_HISTORY[session_id] = history[-20:]
+                return jsonify(asdict(LizResponse(
+                    exito=True, response=ai_text, productos=productos,
+                    busqueda_activa=len(productos) > 0, modo='fallback', accion='buscar')))
+
+        # Fallback: detectar saludo/bienvenida (no buscar productos)
+        msg_low = user_msg.lower()
+        is_greeting = _re.search(r'salud[ao]|bienvenid|present[ae]|lleg[oó]|entr[oó]|invitado|hola.*ayud', msg_low)
+        if is_greeting:
+            nombre_match = _re.search(r'cliente\s+([A-ZÁÉÍÓÚa-záéíóú]+)', user_msg)
+            nombre = nombre_match.group(1) if nombre_match else 'amigo'
+            ai_text = f'Hola {nombre}! Espero que estes bien, gracias por venir. En que te puedo ayudar hoy?'
+            history.append({'role': 'model', 'parts': [{'text': ai_text}]})
+            _LIZ_HISTORY[session_id] = history[-20:]
+            return jsonify(asdict(LizResponse(
+                exito=True, response=ai_text, modo='fallback', accion='')))
+
+        # Fallback: busqueda de productos
+        keywords = _extract_keywords(user_msg)
+        if keywords:
+            productos = _buscar_productos_db(keywords)
+            _LIZ_LAST_PRODUCTS[session_id] = productos
+            _LIZ_SEARCH_STATE[session_id] = {'query': keywords, 'medidas': '', 'material': '', 'categoria': '', 'offset': 0}
+
+        ai_text = f"Encontre {len(productos)} productos. Miralos en pantalla." if productos else 'Dime que producto buscas!'
+        history.append({'role': 'model', 'parts': [{'text': ai_text}]})
+        _LIZ_HISTORY[session_id] = history[-20:]
+
+        return jsonify(asdict(LizResponse(
+            exito=True, response=ai_text, productos=productos,
+            busqueda_activa=len(productos) > 0, modo='fallback', accion='buscar' if productos else '')))
+
+    except Exception as e:
+        app.logger.error('Liz agent error: %s', e)
+        keywords = _extract_keywords(user_msg)
+        productos = _buscar_productos_db(keywords) if keywords else []
+        msg = f"Encontre {len(productos)} opciones!" if productos else 'Disculpa, intenta de nuevo!'
+        return jsonify(asdict(LizResponse(
+            exito=True, response=msg, productos=productos,
+            busqueda_activa=len(productos) > 0, modo='fallback')))
+
+
+@app.route('/api/demo/checkout', methods=['POST'])
+def api_demo_checkout():
+    """
+    Emite un VALE PENDIENTE desde el asistente comercial (Liz).
+    El vale queda en cola para que el cajero lo cobre via procesar_cobro_caja.
+    NO se selecciona metodo de pago aqui — eso lo hace el cajero.
+    """
+    data = request.get_json(silent=True) or {}
+    items = data.get('items') or []
+    cliente_id = data.get('cliente_id')
+    punto_retiro = (data.get('punto_retiro') or 'Tienda').strip()
+
+    if not items:
+        return jsonify({'ok': False, 'error': 'Carrito vacío'}), 400
+
+    try:
+        caja_activa = obtener_caja_activa()
+        if not caja_activa:
+            return jsonify({'ok': False, 'error': 'No hay caja abierta. Avisa al personal.'}), 400
+
+        cli = None
+        if cliente_id:
+            cli = Cliente.query.get(int(cliente_id))
+        if not cli:
+            cli = obtener_o_crear_cliente_final()
+
+        venta = Venta(
+            usuario='Liz-Asistente',
+            estado='Pendiente',
+            caja_id=caja_activa.id,
+            cliente_id=cli.id,
+            punto_retiro=punto_retiro,
+            tipo_documento='Boleta',
+        )
+        db.session.add(venta)
+        db.session.flush()
+
+        total = 0.0
+        detalles_resp = []
+        errores_stock = []
+
+        for it in items:
+            prod = Producto.query.get(int(it['id']))
+            if not prod:
+                continue
+            qty = max(1, int(it.get('cantidad', 1)))
+            precio = float(prod.precio_venta or 0)
+            subtotal = round(precio * qty)
+
+            disp = max(stock_disponible_venta_tienda(prod), int(prod.stock or 0))
+            if disp < qty:
+                errores_stock.append(f'{prod.nombre}: disponible {disp}, pedido {qty}')
+
+            det = DetalleVenta(
+                id_venta=venta.id,
+                id_producto=prod.id,
+                cantidad=qty,
+                precio_unitario=precio,
+                descuento=float(it.get('descuento', 0)),
+                subtotal=subtotal,
+            )
+            db.session.add(det)
+            total += subtotal
+            detalles_resp.append({
+                'id_producto': prod.id,
+                'nombre': prod.nombre,
+                'categoria': prod.categoria or '',
+                'cantidad': qty,
+                'precio_unitario': precio,
+                'subtotal': subtotal,
+            })
+
+        if errores_stock:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': 'Stock insuficiente', 'detalles': errores_stock}), 400
+
+        venta.monto_total = total
+        venta.desglosar_iva()
+
+        pendientes = Venta.query.filter_by(estado="Pendiente").filter(Venta.metodo_pago.is_(None)).count()
+        venta.prioridad = pendientes + 1
+        db.session.commit()
+
+        fmt = lambda v: f"${v:,.0f}".replace(",", ".")
+        base = (request.url_root or '').rstrip('/')
+        sig = _demo_vale_qr_signature(venta.id, venta.prioridad)
+        qr_url = f'{base}/api/demo/vale/{venta.id}?s={sig}'
+        qr_payload = f'VALE|FERRE_SD|{venta.id}|TURNO{venta.prioridad}|{sig}'
+        qr_data_url = _demo_vale_qr_data_url(qr_url)
+        return jsonify({
+            'ok': True,
+            'exito': True,
+            'venta_id': venta.id,
+            'turno': venta.prioridad,
+            'estado': 'Pendiente',
+            'cliente': cli.nombre,
+            'total': total,
+            'total_fmt': fmt(total),
+            'neto': venta.neto,
+            'neto_fmt': fmt(venta.neto or 0),
+            'iva': venta.iva,
+            'iva_fmt': fmt(venta.iva or 0),
+            'tipo_documento': venta.tipo_documento,
+            'dte_estado': None,
+            'fecha': venta.fecha.strftime('%d/%m/%Y %H:%M') if venta.fecha else datetime.now().strftime('%d/%m/%Y %H:%M'),
+            'items': detalles_resp,
+            'punto_retiro': venta.punto_retiro,
+            'qr_url': qr_url,
+            'qr_payload': qr_payload,
+            'qr_data_url': qr_data_url,
+        })
+
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_demo_checkout error: %s', ex)
+        return jsonify({'ok': False, 'error': str(ex)}), 500
+
+
+@app.route('/api/demo/vale/<int:venta_id>')
+def api_demo_vale_lookup(venta_id):
+    """Consulta vale pendiente (QR que escanea la cajera). Requiere firma ?s= del checkout."""
+    try:
+        sig_in = (request.args.get('s') or '').strip().lower()
+        v = Venta.query.get(venta_id)
+        if not v:
+            return jsonify({'ok': False, 'error': 'Vale no encontrado'}), 404
+        sig_ok = _demo_vale_qr_signature(v.id, v.prioridad or 0).lower()
+        if not sig_in or sig_in != sig_ok:
+            return jsonify({'ok': False, 'error': 'Codigo QR invalido o vencido'}), 403
+        cli = v.cliente
+        return jsonify({
+            'ok': True,
+            'venta_id': v.id,
+            'estado': v.estado,
+            'turno': v.prioridad,
+            'total': float(v.monto_total or 0),
+            'total_fmt': f"${float(v.monto_total or 0):,.0f}".replace(',', '.'),
+            'cliente': cli.nombre if cli else '',
+            'punto_retiro': v.punto_retiro or 'Tienda',
+            'fecha': v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '',
+        })
+    except Exception as ex:
+        app.logger.exception('api_demo_vale_lookup: %s', ex)
+        return jsonify({'ok': False, 'error': str(ex)}), 500
+
+
+@app.route('/api/demo/chat/reset', methods=['POST'])
+def api_demo_chat_reset():
+    """Reinicia el historial de conversacion."""
+    data = request.get_json(silent=True) or {}
+    sid = data.get('session_id') or 'default'
+    _LIZ_HISTORY.pop(sid, None)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/demo/test/force-fallback', methods=['POST'])
+def api_demo_test_force_fallback():
+    """Prueba de estres: activa/desactiva simulacion de error 429."""
+    global _FORCE_FALLBACK
+    data = request.get_json(silent=True) or {}
+    _FORCE_FALLBACK = bool(data.get('active', not _FORCE_FALLBACK))
+    app.logger.info('FORCE_FALLBACK = %s', _FORCE_FALLBACK)
+    return jsonify({'ok': True, 'force_fallback': _FORCE_FALLBACK})
+
+
+with app.app_context():
+    _schema_ensure_on_startup()
 
 
 # --- cierre del archivo ---
