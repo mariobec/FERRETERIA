@@ -1005,7 +1005,7 @@ def permisos_required(*permisos):
                 if any(p in permisos_rol for p in permisos):
                     return f(*args, **kwargs)
             flash("No tienes permisos para acceder a esta acción.", "danger")
-            return redirect(url_for('index'))
+            return _redirigir_home_erp()
         return decorated_function
     return wrapper
 
@@ -3069,12 +3069,10 @@ def aplicar_ajuste_automatico(auditoria_id):
 
 
 # --- RUTAS DE NAVEGACIÓN ---
-# Página de inicio, redirige a punto de venta si ya está logueado, sino muestra bienvenida
+# Página de inicio pública: siempre muestra la landing comercial.
 @app.route('/')
 @app.route('/index')
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('owner_mobile'))  # primera vista de impacto para demo
     return render_template('index.html')
 
 
@@ -5960,7 +5958,7 @@ def inventario_enrolamiento():
             '(y las migraciones de almacenes si aún no las aplicaste).',
             'danger',
         )
-        return redirect(url_for('index'))
+        return _redirigir_home_erp()
     almacenes_ui = _enrol_almacenes_ui()
     if not almacenes_ui:
         flash('No hay almacenes activos. Creá al menos uno en Administración → Almacenes.', 'warning')
@@ -10020,7 +10018,7 @@ def cerrar_caja():
     
     if not caja:
         flash("No hay ninguna caja abierta para cerrar.", "info")
-        return redirect(url_for('index'))
+        return _redirigir_home_erp()
 
     vales_pendientes_cierre, tickets_abiertos_cierre = _documentos_bloquean_cierre_caja(caja)
 
@@ -10565,6 +10563,13 @@ def _home_por_perfil(usuario):
     return url_for('inicio')
 
 
+def _redirigir_home_erp():
+    """Redirige al home interno correcto sin mezclarlo con la landing pública."""
+    if current_user.is_authenticated:
+        return redirect(_home_por_perfil(current_user))
+    return redirect(url_for('login'))
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.args.get('descartar_sesion') == '1':
@@ -10643,7 +10648,7 @@ def cambiar_password():
             current_user.perfil = 'ACTIVO'
         db.session.commit()
         flash("Contraseña actualizada correctamente.", "success")
-        return redirect(url_for('index'))
+        return _redirigir_home_erp()
 
     return render_template('cambiar_password.html')
 
