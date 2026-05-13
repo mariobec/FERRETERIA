@@ -14,7 +14,8 @@
     .public-header-brand h4 { margin: 0; font-size: 1.05rem; color: #0f172a; font-weight: 700; }
     .public-header-brand small { display: block; color: #64748b; font-size: 0.78rem; margin-top: 2px; }
     .public-footer { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 22px; padding: 14px 12px; color: #64748b; font-size: 0.78rem; }
-    .public-footer img { height: 44px; width: auto; max-width: min(420px, 85vw); object-fit: contain; opacity: 0.95; border-radius: 4px; }
+    .public-footer img { height: 44px; width: auto; max-width: min(420px, 85vw); object-fit: contain; opacity: 0.98; border-radius: 4px; }
+    .public-footer-brand { display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; background: #0b0f19; border-radius: 12px; box-shadow: 0 12px 28px rgba(11, 15, 25, 0.12); }
     .public-footer span strong { color: #f37021; font-weight: 700; letter-spacing: 0.04em; }
   </style>
 </head>
@@ -124,7 +125,9 @@
       </nav>
       {% endif %}
       <div class="public-footer">
-        <img src="{{ url_for('static', filename='img/lhexia-brand-official.png') }}?v=lhexia20260513" alt="LhexIA ERP · www.lhexia.cl">
+        <span class="public-footer-brand">
+          <img src="{{ url_for('static', filename='img/lhexia_logo.png') }}?v=lhexia20260513d" alt="LhexIA ERP · www.lhexia.cl">
+        </span>
         <span>Powered by <strong>LhexIA ERP</strong> · <a href="https://www.lhexia.cl" class="text-decoration-none" style="color:inherit;font-weight:600;">www.lhexia.cl</a></span>
       </div>
     </div>
