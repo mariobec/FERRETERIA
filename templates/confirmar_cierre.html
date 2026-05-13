@@ -221,14 +221,22 @@
     const umbral = Number({{ umbral_diferencia|default(2000)|tojson }});
 
     function parseClpInput(s) {
-        s = (s || '').trim().replace(/\$/g, '').replace(/\s/g, '');
+        s = (s || '')
+            .normalize('NFKC')
+            .trim()
+            .replace(/clp/gi, '')
+            .replace(/\$/g, '')
+            .replace(/'/g, '')
+            .replace(/\s/g, '');
         if (!s) return null;
+        if (/[^0-9,.\-]/.test(s)) return null;
         if (s.includes(',') && s.includes('.')) {
             if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
             else s = s.replace(/,/g, '');
         } else if (s.includes(',')) {
             const parts = s.split(',');
-            if (parts.length === 2 && parts[1].length <= 2 && /^\d+$/.test(parts[1]))
+            if (parts.length > 2) s = s.replace(/,/g, '');
+            else if (parts.length === 2 && parts[1].length <= 2 && /^\d+$/.test(parts[1]))
                 s = parts[0].replace(/\./g, '') + '.' + parts[1];
             else s = s.replace(/,/g, '');
         } else {
@@ -243,6 +251,7 @@
                 } else return null;
             }
         }
+        if ((s.match(/\-/g) || []).length > 1 || (s.includes('-') && !s.startsWith('-'))) return null;
         const v = parseFloat(s);
         return Number.isFinite(v) ? v : null;
     }

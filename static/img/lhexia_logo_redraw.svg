@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 650 200" width="100%" height="100%">
+  <!-- Fondo Oscuro Cuadriculado (Simulación del patrón de la imagen) -->
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <rect width="20" height="20" fill="#121212"/>
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1a1a1a" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="650" height="200" fill="url(#grid)" />
+
+  <!-- 1. El Hexágono Naranja Exterior -->
+  <!-- Usamos una forma de polígono definida por sus 6 esquinas (coordenadas x,y) -->
+  <polygon points="90,25 155,62.5 155,137.5 90,175 25,137.5 25,62.5"
+           fill="none" stroke="#FF6600" stroke-width="8" stroke-linejoin="round" />
+
+  <!-- 2. La Letra 'L' Blanca Estilizada -->
+  <!-- Una ruta (path) que dibuja la estructura interna en color blanco -->
+  <path d="M 50,55 L 85,55 L 85,115 L 130,115 L 130,145 L 50,145 Z" fill="#FFFFFF" />
+
+  <!-- 3. Los detalles Naranjas dentro del Hexágono -->
+  <!-- Círculo que representa la cabeza o punto del isotipo -->
+  <circle cx="115" cy="65" r="8" fill="#FFFFFF" />
+  <!-- Barra diagonal naranja en movimiento -->
+  <path d="M 70,120 L 105,95 L 125,110 L 90,135 Z" fill="#FF6600" />
+
+  <!-- 4. Textos del Logotipo (Fuentes estándar para visualización directa) -->
+  <!-- Nombre principal: "hexIA" -->
+  <text x="180" y="115" font-family="Arial, sans-serif" font-weight="bold" font-size="68" fill="#FFFFFF">hex<tspan fill="#FF6600">IA</tspan></text>
+
+  <!-- Subtítulo técnico: "ERP" -->
+  <text x="400" y="85" font-family="Arial, sans-serif" font-weight="bold" font-size="28" fill="#FFFFFF">ERP</text>
+
+  <!-- Eslogan inferior: "Haz rentable cada decisión" -->
+  <text x="182" y="152" font-family="Arial, sans-serif" font-size="21" fill="#E0E0E0" letter-spacing="1">Haz rentable cada decisión</text>
+</svg>

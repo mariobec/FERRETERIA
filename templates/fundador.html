@@ -24,7 +24,7 @@
           "@type": "Organization",
           "name": "LhexIA IA ERP",
           "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia_logo.png"
+          "logo": "https://www.lhexia.cl/static/img/lhexia_logo.svg"
         },
         {
           "@type": "Person",
@@ -38,30 +38,68 @@
       ]
     }
     </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "inLanguage": "es-CL"
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Inicio",
+              "item": "https://www.lhexia.cl/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Mensaje del Fundador",
+              "item": "https://www.lhexia.cl/mensaje-del-fundador"
+            }
+          ]
+        }
+      ]
+    }
+    </script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
     <style>
         :root {
-            --bg: #101419;
-            --bg-soft: #151b22;
-            --surface: rgba(23, 30, 38, 0.78);
-            --line: rgba(255, 255, 255, 0.08);
+            --bg: #0b0f19;
+            --bg-soft: #121826;
+            --surface: rgba(255, 255, 255, 0.01);
+            --surface-strong: rgba(255, 255, 255, 0.03);
+            --line: rgba(255, 255, 255, 0.05);
+            --line-strong: rgba(255, 255, 255, 0.09);
             --text: #eef2f7;
             --muted: #aab5c3;
-            --accent: #f97316;
-            --accent-soft: rgba(249, 115, 22, 0.12);
+            --accent: #ea580c;
+            --accent-soft: rgba(234, 88, 12, 0.16);
             --trust: #22c55e;
-            --trust-soft: rgba(34, 197, 94, 0.10);
-            --radius-lg: 24px;
-            --radius-md: 18px;
-            --shadow-soft: 0 20px 46px rgba(0, 0, 0, 0.18);
+            --heading-font: "Century Gothic", Futura, "Montserrat", "Segoe UI", sans-serif;
+            --radius-xl: 30px;
+            --radius-lg: 22px;
+            --radius-md: 16px;
+            --shadow-soft: 0 24px 60px rgba(0, 0, 0, 0.28);
         }
 
         body.founder-page {
             color: var(--text);
             -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(234, 88, 12, 0.1), transparent 28rem),
+                radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.04), transparent 24rem),
+                linear-gradient(180deg, rgba(11, 15, 25, 0.99), rgba(15, 23, 42, 0.97));
         }
 
         body.founder-page::before {
@@ -70,46 +108,140 @@
             inset: 0;
             z-index: -1;
             background:
-                radial-gradient(circle at top left, rgba(249, 115, 22, 0.06), transparent 28rem),
-                radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.05), transparent 24rem),
-                linear-gradient(180deg, rgba(15, 19, 24, 0.98), rgba(17, 23, 31, 0.98));
-            filter: none;
-            transform: none;
+                radial-gradient(circle at 12% 16%, rgba(234, 88, 12, 0.08), transparent 18rem),
+                radial-gradient(circle at 86% 78%, rgba(148, 163, 184, 0.05), transparent 22rem),
+                linear-gradient(180deg, rgba(11, 15, 25, 0.98), rgba(9, 12, 19, 0.98));
             pointer-events: none;
-        }
-
-        .founder-page p,
-        .founder-page li {
-            color: var(--muted);
-            font-size: 1.06rem;
-            line-height: 1.88;
         }
 
         .founder-page a {
             text-decoration: none;
         }
 
+        .founder-page p,
+        .founder-page li {
+            color: var(--muted);
+            font-size: 1.04rem;
+            line-height: 1.86;
+        }
+
         .founder-page .landing-nav-links .btn {
             white-space: nowrap;
         }
 
-        .section-space {
-            padding: 5rem 0;
+        .manifest-main {
+            position: relative;
+            z-index: 2;
+            width: min(1460px, calc(100% - 40px));
+            height: calc(100vh - 82px);
+            margin: 0 auto;
+            padding: 18px 0 24px;
         }
 
-        .hero-space {
-            padding: 8rem 0 4.75rem;
+        .manifest-layout {
+            display: grid;
+            grid-template-columns: minmax(360px, 0.86fr) minmax(0, 1.14fr);
+            gap: 26px;
+            height: 100%;
+            align-items: stretch;
+        }
+
+        .manifest-visual,
+        .manifest-flow {
+            min-height: 0;
+        }
+
+        .manifest-visual-panel,
+        .manifest-panel,
+        .timeline-card,
+        .capability-card {
+            position: relative;
+            overflow: hidden;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .manifest-visual-panel {
+            height: 100%;
+            min-height: 100%;
+            border-radius: var(--radius-xl);
+        }
+
+        .photo-stage {
+            position: absolute;
+            inset: 0;
+        }
+
+        .photo-stage img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center top;
+            filter: brightness(0.72) contrast(1.08) saturate(0.9);
+        }
+
+        .photo-stage::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(180deg, rgba(11, 15, 25, 0.28) 0%, rgba(11, 15, 25, 0.48) 34%, rgba(11, 15, 25, 0.9) 100%),
+                linear-gradient(90deg, rgba(11, 15, 25, 0.12) 0%, transparent 38%, rgba(11, 15, 25, 0.58) 100%);
+        }
+
+        .photo-stage::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 26% 18%, rgba(255, 255, 255, 0.18), transparent 22%),
+                radial-gradient(circle at 82% 38%, rgba(234, 88, 12, 0.22), transparent 18%);
+            mix-blend-mode: screen;
+            pointer-events: none;
+        }
+
+        .visual-grid {
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+            background-size: 56px 56px;
+            mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.85), transparent 80%);
+            opacity: 0.24;
+        }
+
+        .visual-scan {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.06) 48%, transparent 100%);
+            transform: translateY(-100%);
+            animation: scanSweep 8s linear infinite;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        .manifest-visual-content {
+            position: absolute;
+            inset: auto 0 0 0;
+            z-index: 2;
+            padding: 28px;
+            display: grid;
+            gap: 18px;
         }
 
         .eyebrow {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 1rem;
-            padding: 0.46rem 0.86rem;
+            width: fit-content;
+            padding: 0.48rem 0.92rem;
             border-radius: 999px;
-            border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            background: rgba(255, 255, 255, 0.05);
             color: #d9e2ec;
             font-size: 0.78rem;
             font-weight: 700;
@@ -117,9 +249,99 @@
             text-transform: uppercase;
         }
 
+        .visual-role {
+            margin: 0;
+            color: rgba(255, 255, 255, 0.86);
+            font-size: 0.86rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .visual-quote {
+            max-width: 26rem;
+            color: #f8fafc;
+            font-family: var(--heading-font);
+            font-size: clamp(1.35rem, 2vw, 1.85rem);
+            font-weight: 800;
+            line-height: 1.18;
+            letter-spacing: -0.04em;
+        }
+
+        .signal-cluster {
+            display: grid;
+            gap: 0.75rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .signal-cluster li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.78rem 0.92rem;
+            color: #e5edf6;
+            font-size: 0.96rem;
+            line-height: 1.45;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(8px);
+        }
+
+        .signal-cluster i {
+            color: var(--trust);
+        }
+
+        .manifest-flow {
+            overflow-y: auto;
+            padding-right: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(234, 88, 12, 0.32) rgba(255, 255, 255, 0.04);
+        }
+
+        .manifest-flow::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .manifest-flow::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 999px;
+        }
+
+        .manifest-flow::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, rgba(234, 88, 12, 0.6), rgba(249, 115, 22, 0.22));
+            border-radius: 999px;
+        }
+
+        .manifest-panel,
+        .timeline-card,
+        .capability-card {
+            border-radius: var(--radius-lg);
+            transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
+        }
+
+        .manifest-panel {
+            padding: 32px;
+        }
+
+        .manifest-panel::before,
+        .timeline-card::before,
+        .capability-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 28%),
+                transparent;
+            pointer-events: none;
+        }
+
         .section-kicker {
+            display: inline-flex;
             margin-bottom: 1rem;
-            color: var(--accent);
+            color: #ffb27d;
             font-size: 0.8rem;
             font-weight: 700;
             letter-spacing: 0.08em;
@@ -127,207 +349,434 @@
         }
 
         h1, h2, h3 {
-            color: #ffffff;
+            font-family: var(--heading-font);
             letter-spacing: -0.03em;
         }
 
         h1 {
-            font-size: clamp(2.2rem, 4.5vw, 3.7rem);
-            line-height: 1.08;
-            margin-bottom: 1.2rem;
+            font-size: clamp(3.5rem, 5vw, 4.6rem);
+            font-weight: 900;
+            line-height: 0.98;
+            margin-bottom: 1.35rem;
+            letter-spacing: -0.065em;
+            background: linear-gradient(180deg, #ffffff 0%, #f4f7fb 34%, #cfd6e1 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
 
         h2 {
-            font-size: clamp(1.75rem, 2.8vw, 2.45rem);
-            line-height: 1.14;
+            font-size: clamp(2rem, 3vw, 2.85rem);
+            font-weight: 900;
+            line-height: 1.02;
             margin-bottom: 1rem;
+            letter-spacing: -0.055em;
+            background: linear-gradient(180deg, #ffffff 0%, #eef2f7 45%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
 
         h3 {
-            font-size: 1.12rem;
-            line-height: 1.35;
+            color: #ffffff;
+            font-size: 1.34rem;
+            font-weight: 800;
+            line-height: 1.15;
             margin-bottom: 0.7rem;
         }
 
-        .hero-lead {
-            max-width: 44rem;
-            font-size: 1.16rem;
-            line-height: 1.86;
-            margin-bottom: 1.5rem;
+        .manifest-lead {
+            max-width: 50rem;
+            color: #dbe4ef;
+            font-size: 1.15rem;
+            line-height: 1.82;
+            margin-bottom: 1rem;
         }
 
-        .surface {
-            background: rgba(18, 23, 30, 0.9);
-            border: 1px solid var(--line);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-soft);
-        }
-
-        .hero-copy-card {
-            padding: 2rem 2rem 1.8rem;
-        }
-
-        .hero-copy-card p {
-            color: #c5cfda;
-        }
-
-        .hero-photo {
-            padding: 1rem;
-        }
-
-        .hero-photo img {
-            width: 100%;
-            border-radius: 18px;
-            object-fit: cover;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .caption {
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .caption strong {
-            display: block;
-            color: #ffffff;
+        .editorial-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+            margin-top: 1.8rem;
         }
 
         .btn-accent {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: #ffffff;
+            background: linear-gradient(135deg, #ea580c, #f97316);
+            border: 1px solid rgba(249, 115, 22, 0.32);
+            color: #0b0f19;
             border-radius: 999px;
-            padding: 0.95rem 1.45rem;
-            font-weight: 700;
+            padding: 0.96rem 1.55rem;
+            font-weight: 800;
+            box-shadow: 0 16px 34px rgba(234, 88, 12, 0.26);
+            transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease;
         }
 
         .btn-accent:hover,
         .btn-accent:focus {
-            background: #ea580c;
-            border-color: #ea580c;
-            color: #ffffff;
+            background: linear-gradient(135deg, #ea580c, #fb923c);
+            border-color: rgba(249, 115, 22, 0.42);
+            color: #0b0f19;
+            transform: translateY(-2px);
+            box-shadow: 0 18px 38px rgba(234, 88, 12, 0.34), 0 0 18px rgba(249, 115, 22, 0.14);
         }
 
         .btn-soft {
             border-radius: 999px;
-            padding: 0.95rem 1.45rem;
-            font-weight: 600;
+            padding: 0.96rem 1.55rem;
+            font-weight: 700;
             border: 1px solid rgba(255, 255, 255, 0.12);
             color: #f8fafc;
             background: rgba(255, 255, 255, 0.03);
+            transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease;
         }
 
         .btn-soft:hover,
         .btn-soft:focus {
             color: #ffffff;
             background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
         }
 
-        .signal-list {
-            display: grid;
-            gap: 0.8rem;
-            margin-top: 1.5rem;
+        .tech-ribbon {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
         }
 
-        .signal-list span {
+        .tech-ribbon span {
             display: inline-flex;
             align-items: center;
-            gap: 0.7rem;
-            color: #e2e8f0;
-            font-size: 0.98rem;
-        }
-
-        .signal-list i {
-            color: var(--trust);
-        }
-
-        .message-card {
-            padding: 2rem;
-        }
-
-        .message-card blockquote {
-            margin: 0;
-            padding-left: 1.35rem;
-            border-left: 3px solid var(--accent);
-        }
-
-        .quote-break {
-            color: #ffffff;
+            gap: 0.55rem;
+            padding: 0.78rem 1rem;
+            border-radius: 999px;
+            color: #eff4fb;
+            font-size: 0.92rem;
             font-weight: 600;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.07);
         }
 
-        .insight-card,
-        .future-card {
-            padding: 1.45rem;
-            height: 100%;
+        .tech-ribbon span:before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #ffffff, #ea580c);
+            box-shadow: 0 0 12px rgba(234, 88, 12, 0.36);
         }
 
-        .icon-wrap {
-            width: 3rem;
-            height: 3rem;
+        .manifest-section {
+            margin-top: 24px;
+        }
+
+        .section-intro {
+            max-width: 48rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .timeline {
+            position: relative;
+            display: grid;
+            gap: 22px;
+            padding-left: 36px;
+        }
+
+        .timeline::before {
+            content: "";
+            position: absolute;
+            left: 11px;
+            top: 10px;
+            bottom: 10px;
+            width: 1px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(234, 88, 12, 0.42), rgba(255, 255, 255, 0.04));
+        }
+
+        .timeline-card {
+            padding: 32px;
+            margin-bottom: 24px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+        }
+
+        .timeline-card:after {
+            content: "";
+            position: absolute;
+            left: -31px;
+            top: 34px;
+            width: 13px;
+            height: 13px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #ffb27d, #ea580c);
+            box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.12), 0 0 14px rgba(234, 88, 12, 0.28);
+        }
+
+        .timeline-meta {
+            display: inline-flex;
+            margin-bottom: 0.8rem;
+            padding: 0.42rem 0.72rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            color: #d7dee8;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .timeline-card:hover,
+        .timeline-card.in-view,
+        .capability-card:hover,
+        .capability-card.in-view,
+        .closing-panel:hover,
+        .closing-panel.in-view {
+            border-color: rgba(234, 88, 12, 0.42);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28), 0 0 22px rgba(234, 88, 12, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .data-glyph {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 84px;
+            height: 56px;
+            pointer-events: none;
+            opacity: 0.78;
+        }
+
+        .data-glyph span {
+            position: absolute;
+            display: block;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.18), rgba(234, 88, 12, 0.72), transparent);
+            transform-origin: left center;
+            animation: dataFlow 4.8s linear infinite;
+        }
+
+        .data-glyph span:nth-child(1) {
+            top: 10px;
+            left: 8px;
+            width: 62px;
+        }
+
+        .data-glyph span:nth-child(2) {
+            top: 24px;
+            left: 22px;
+            width: 44px;
+            animation-delay: -1.1s;
+        }
+
+        .data-glyph span:nth-child(3) {
+            top: 38px;
+            left: 2px;
+            width: 70px;
+            animation-delay: -2.1s;
+        }
+
+        .data-glyph span:nth-child(4) {
+            top: 18px;
+            left: 56px;
+            width: 1px;
+            height: 20px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(234, 88, 12, 0.75), transparent);
+            animation-delay: -0.8s;
+        }
+
+        .capabilities-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .capability-card {
+            padding: 26px;
+            border-radius: 18px;
+        }
+
+        .capability-icon {
+            width: 52px;
+            height: 52px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 1rem;
-            border-radius: 14px;
-            background: var(--accent-soft);
-            color: var(--accent);
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(234, 88, 12, 0.18));
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            color: #ffffff;
             font-size: 1.2rem;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
         }
 
-        .icon-wrap.trust {
-            background: var(--trust-soft);
-            color: var(--trust);
+        .capability-card .data-glyph {
+            top: 14px;
+            right: 14px;
         }
 
-        .signature-card {
-            padding: 2rem;
+        .closing-panel {
             text-align: center;
         }
 
+        .signature-lockup {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 1.6rem;
+            padding: 0.92rem 1.1rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .signature-lockup img {
+            width: 34px;
+            height: 34px;
+            display: block;
+            filter: drop-shadow(0 8px 16px rgba(234, 88, 12, 0.18));
+        }
+
         .signature-name {
-            margin-top: 1.3rem;
             color: #ffffff;
-            font-size: 1.05rem;
-            font-weight: 700;
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1.1;
+            text-align: left;
         }
 
         .signature-role {
             color: var(--muted);
+            font-size: 0.9rem;
+            text-align: left;
         }
 
-        .footer-note {
-            padding: 1.5rem 0 2.3rem;
-            color: var(--muted);
+        .closing-actions {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-top: 1.8rem;
+        }
+
+        .final-cta {
+            min-height: 58px;
+            padding-inline: 2rem;
+            font-size: 1rem;
+            animation: ctaPulse 2.8s ease-in-out infinite;
+        }
+
+        .manifest-footer {
+            margin-top: 22px;
+            padding: 0.5rem 0 0.8rem;
+            color: rgba(255, 255, 255, 0.58);
             font-size: 0.92rem;
+            text-align: center;
         }
 
-        .footer-note a {
+        .manifest-footer a {
             color: #e2e8f0;
         }
 
+        @keyframes scanSweep {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+
+        @keyframes dataFlow {
+            0%,
+            100% {
+                opacity: 0.38;
+                transform: scaleX(0.78);
+            }
+            50% {
+                opacity: 1;
+                transform: scaleX(1);
+            }
+        }
+
+        @keyframes ctaPulse {
+            0%,
+            100% {
+                box-shadow: 0 16px 34px rgba(234, 88, 12, 0.24);
+            }
+            50% {
+                box-shadow: 0 18px 38px rgba(234, 88, 12, 0.34), 0 0 16px rgba(249, 115, 22, 0.14);
+            }
+        }
+
+        @media (max-width: 1199.98px) {
+            .manifest-layout {
+                grid-template-columns: minmax(320px, 0.86fr) minmax(0, 1.14fr);
+            }
+
+            .capabilities-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 991.98px) {
+            body.founder-page {
+                overflow-y: auto;
+            }
+
+            .manifest-main {
+                height: auto;
+                padding: 18px 0 56px;
+            }
+
+            .manifest-layout {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .manifest-visual-panel {
+                min-height: 620px;
+            }
+
+            .manifest-flow {
+                overflow: visible;
+                padding-right: 0;
+            }
+
+            .capabilities-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         @media (max-width: 767.98px) {
-            .section-space {
-                padding: 4rem 0;
+            .manifest-main {
+                width: min(100%, calc(100% - 28px));
             }
 
-            .hero-space {
-                padding: 6.8rem 0 4rem;
+            .manifest-panel,
+            .timeline-card,
+            .capability-card {
+                padding: 22px;
             }
 
-            .message-card,
-            .insight-card,
-            .future-card,
-            .signature-card,
-            .hero-copy-card {
-                padding: 1.35rem;
+            .manifest-visual-content {
+                padding: 22px;
             }
 
-            .founder-page p,
-            .founder-page li {
-                font-size: 1rem;
+            .manifest-visual-panel {
+                min-height: 520px;
+            }
+
+            .timeline {
+                padding-left: 28px;
+            }
+
+            .timeline-card:after {
+                left: -23px;
+            }
+
+            h1 {
+                font-size: clamp(3rem, 13vw, 3.9rem);
             }
         }
     </style>
@@ -335,7 +784,7 @@
 <body class="index-body erp-landing founder-page">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ url_for('static', filename='img/lhexia_logo.png') }}?v=lhexia20260513d" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
             <span class="landing-brand-text">
                 <strong>LhexIA IA ERP</strong>
                 <small>www.lhexia.cl · LhexIA para ferreterías, corralones y retail especializado</small>
@@ -353,150 +802,189 @@
         </nav>
     </header>
 
-    <main>
-        <section class="hero-space">
-            <div class="container">
-                <div class="row align-items-start g-5">
-                    <div class="col-lg-7">
-                        <div class="surface hero-copy-card">
-                            <span class="eyebrow">Mensaje del fundador</span>
-                            <h1>La tecnología que siempre debió estar del lado del negocio.</h1>
-                            <p class="hero-lead">
-                                Después de años en SAP, BI, prevención de pérdidas, transformación digital y operaciones
-                                de alta exigencia, hubo una idea que se volvió imposible de ignorar: muchas empresas
-                                necesitaban una plataforma más poderosa, sí, pero también más útil, más cercana y más
-                                accesible para el negocio real.
-                            </p>
-                            <p class="mb-0">
-                                Esa convicción es la que hoy mueve a LhexIA: ayudar a ferreterías, retail, constructoras,
-                                distribuidoras y compañías con alto volumen de SKU a operar con más claridad, proteger más
-                                margen, prevenir mejor pérdidas y usar Inteligencia Artificial donde sí cambia resultados.
-                            </p>
-                            <div class="signal-list">
-                                <span><i class="bi bi-check2-circle"></i> Tecnología de punta sin costo de multinacional</span>
-                                <span><i class="bi bi-check2-circle"></i> IA aplicada a ventas, Customer 360, bodega y control</span>
-                                <span><i class="bi bi-check2-circle"></i> Visión real sobre fraude, pérdidas y operación intensiva en SKU</span>
-                            </div>
-                            <div class="d-flex flex-wrap gap-3 mt-4">
-                                <a href="#mensaje" class="btn btn-accent">Leer mensaje completo</a>
-                                <a href="{{ url_for('sobre_nosotros') }}" class="btn btn-soft">Volver a Quiénes somos</a>
-                            </div>
-                        </div>
+    <main class="manifest-main">
+        <div class="manifest-layout">
+            <aside class="manifest-visual">
+                <div class="manifest-visual-panel">
+                    <div class="photo-stage">
+                        <img src="{{ url_for('static', filename='img/mario-becerra-olea-founder.png') }}" alt="Mario Becerra Olea, CEO y fundador de LhexIA IA ERP">
+                        <div class="visual-grid" aria-hidden="true"></div>
+                        <div class="visual-scan" aria-hidden="true"></div>
                     </div>
-
-                    <div class="col-lg-5">
-                        <div class="surface hero-photo">
-                            <img src="{{ url_for('static', filename='img/mario-becerra-olea-founder.png') }}" alt="Mario Becerra Olea, CEO y fundador de LhexIA IA ERP">
-                            <div class="caption">
-                                <strong>Mario Becerra Olea</strong>
-                                <p class="mb-0">CEO y fundador de LhexIA IA ERP. Más de 20 años en SAP, BI, retail, prevención de pérdidas y transformación digital.</p>
-                            </div>
-                        </div>
+                    <div class="manifest-visual-content">
+                        <span class="eyebrow">Mensaje del fundador</span>
+                        <p class="visual-role">Mario Becerra Olea · CEO y Fundador</p>
+                        <div class="visual-quote">Tecnología industrial, criterio de negocio y ejecución real para empresas que no pueden permitirse improvisar.</div>
+                        <ul class="signal-cluster">
+                            <li><i class="bi bi-check2-circle"></i> Más de 20 años en SAP, BI, retail y transformación digital</li>
+                            <li><i class="bi bi-check2-circle"></i> Visión fuerte sobre pérdidas, fraude e inventario intensivo</li>
+                            <li><i class="bi bi-check2-circle"></i> IA aplicada donde sí cambia margen, control y velocidad</li>
+                        </ul>
                     </div>
                 </div>
-            </div>
-        </section>
+            </aside>
 
-        <section class="section-space pt-0" id="mensaje">
-            <div class="container">
-                <div class="section-kicker">Carta abierta</div>
-                <div class="surface message-card">
-                    <blockquote>
-                        <p>
-                            <span class="quote-break">Si tú estás todos los días en el negocio, sabes que el problema rara vez es solo vender.</span>
-                            El problema es vender bien, cobrar a tiempo, no perder dinero en errores operativos, no inmovilizar capital
-                            en inventario mal gestionado y no depender de sistemas lentos cuando el mercado exige reacción.
-                        </p>
-                        <p>
-                            Durante años vi empresas pagar como multinacionales por herramientas que en el papel prometían control, pero
-                            en la práctica seguían siendo complejas, lentas de adaptar y muchas veces distantes de la realidad diaria de la operación.
-                            Vi también algo más importante: cuánto valor se pierde cuando un sistema no entiende el negocio de verdad.
-                        </p>
-                        <p>
-                            Por eso construimos LhexIA. No como otro ERP pesado, sino como una plataforma de inteligencia operativa pensada
-                            para negocios que manejan miles de SKU, múltiples puntos de decisión y presión constante por margen, velocidad,
-                            trazabilidad y prevención de pérdidas.
-                        </p>
-                        <p>
-                            Nuestra visión combina <strong class="text-white">Agentes IA 24/7, despacho por voz, Customer 360 predictivo,
-                            control operativo, foco comercial y decisiones con contexto</strong>. No para llenar una presentación de promesas,
-                            sino para ayudar a que una empresa venda mejor, proteja margen, libere capital y opere con más inteligencia.
-                        </p>
-                        <p>
-                            Creo profundamente que la mejor tecnología no es la más cara ni la más compleja. Es la que logra algo mucho más
-                            difícil: hacer que el negocio avance. La que acompaña al equipo. La que previene errores. La que deja menos espacio
-                            para el fraude, la pérdida y la improvisación. La que permite crecer sin perder el control.
-                        </p>
-                        <p class="mb-0">
-                            Esa es la apuesta de LhexIA. Poner al alcance de empresas chilenas y latinoamericanas una plataforma moderna,
-                            poderosa y razonable en precio. Lo mejor sin tener que pagar ni sufrir como si cada proyecto fuera una implementación eterna.
-                        </p>
-                    </blockquote>
-                </div>
-            </div>
-        </section>
-
-        <section class="section-space" id="vision">
-            <div class="container">
-                <div class="section-kicker">Lo que estamos construyendo</div>
-                <h2>Una plataforma para empresas que necesitan crecer sin perder control.</h2>
-                <p class="mb-4" style="max-width: 46rem;">
-                    LhexIA no se piensa solo para un rubro. Se piensa para operaciones donde la complejidad existe de verdad:
-                    retail, ferreterías, constructoras, distribuidoras y cualquier empresa donde importan el inventario, la
-                    prevención de pérdidas, la velocidad comercial y el criterio para decidir.
-                </p>
-
-                <div class="row g-4">
-                    <div class="col-md-6 col-xl-4">
-                        <div class="surface insight-card">
-                            <span class="icon-wrap"><i class="bi bi-cpu"></i></span>
-                            <h3>Innovación que sí aterriza</h3>
-                            <p class="mb-0">Agentes IA, Customer 360, despacho por voz y automatización real puestos al servicio de la operación diaria.</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-xl-4">
-                        <div class="surface insight-card">
-                            <span class="icon-wrap trust"><i class="bi bi-shield-check"></i></span>
-                            <h3>Control y prevención</h3>
-                            <p class="mb-0">Mirada fuerte sobre pérdidas, fraude, inventario, trazabilidad y decisiones que no pueden depender de intuición.</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-xl-4">
-                        <div class="surface insight-card">
-                            <span class="icon-wrap"><i class="bi bi-graph-up-arrow"></i></span>
-                            <h3>Crecimiento real</h3>
-                            <p class="mb-0">Más ventas, mejor margen, capital liberado y una operación más inteligente sin pagar como una corporación global.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="section-space pt-0">
-            <div class="container">
-                <div class="surface signature-card">
-                    <div class="section-kicker">Cierre</div>
-                    <h2>Quiero que cuando una empresa conozca LhexIA sienta algo muy simple: por fin apareció una herramienta hecha para ayudar de verdad.</h2>
-                    <p class="mb-0">
-                        Si tu operación necesita más claridad, más control y una plataforma capaz de acompañar crecimiento real,
-                        conversemos. Estamos construyendo tecnología para quienes quieren competir en serio, sin resignarse a sistemas
-                        viejos ni a proyectos eternos.
+            <section class="manifest-flow">
+                <article class="manifest-panel manifest-intro">
+                    <div class="section-kicker">Manifiesto de innovación</div>
+                    <h1>La tecnología que siempre debió estar del lado del negocio.</h1>
+                    <p class="manifest-lead">
+                        Después de años en SAP, BI, prevención de pérdidas, transformación digital y operaciones de alta exigencia,
+                        hubo una idea que se volvió imposible de ignorar: muchas empresas necesitaban una plataforma más poderosa,
+                        sí, pero sobre todo más útil, más cercana y más alineada con la realidad del negocio.
                     </p>
-                    <div class="signature-name">Mario Becerra Olea</div>
-                    <div class="signature-role">CEO y Fundador · LhexIA IA ERP</div>
-                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
-                        <a href="{{ url_for('index') }}#diagnostico" class="btn btn-accent">Quiero mi Diagnóstico IA Gratis</a>
+                    <p>
+                        Esa convicción es la que hoy mueve a LhexIA: ayudar a retail, ferreterías, constructoras, distribuidoras
+                        y compañías con alto volumen de SKU a operar con más claridad, proteger margen, prevenir pérdidas y usar
+                        Inteligencia Artificial donde sí cambia resultados.
+                    </p>
+                    <div class="editorial-actions">
+                        <a href="#mensaje" class="btn btn-accent">Explorar el manifiesto</a>
                         <a href="{{ url_for('sobre_nosotros') }}" class="btn btn-soft">Volver a Quiénes somos</a>
                     </div>
-                </div>
-            </div>
-        </section>
+                    <div class="tech-ribbon">
+                        <span>Agentes IA 24/7</span>
+                        <span>Despacho por voz</span>
+                        <span>Customer 360 predictivo</span>
+                        <span>Prevención de pérdidas</span>
+                    </div>
+                </article>
+
+                <section class="manifest-section" id="mensaje">
+                    <div class="section-kicker">Hitos de aprendizaje</div>
+                    <h2>Durante años vi empresas pagar como multinacionales por herramientas que seguían lejos del negocio real.</h2>
+                    <p class="section-intro">
+                        El problema rara vez es solo vender. El problema es vender bien, cobrar a tiempo, no inmovilizar capital
+                        en inventario mal gestionado y no depender de sistemas lentos cuando el mercado exige reacción.
+                    </p>
+                    <div class="timeline">
+                        <article class="timeline-card">
+                            <div class="timeline-meta">SAP y proyectos complejos</div>
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <h3>Cuando el sistema se vuelve más pesado que el problema</h3>
+                            <p class="mb-0">
+                                Vi empresas invertir fuerte en plataformas que prometían control, pero que terminaban siendo lentas de adaptar,
+                                costosas de evolucionar y demasiado lejanas para equipos que necesitaban ejecutar con velocidad.
+                            </p>
+                        </article>
+
+                        <article class="timeline-card">
+                            <div class="timeline-meta">Inventario y capital</div>
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <h3>El inventario sin criterio inmoviliza dinero y desgasta la operación</h3>
+                            <p class="mb-0">
+                                Cuando la reposición llega tarde, el stock no conversa con la venta y la bodega opera a ciegas,
+                                la empresa paga dos veces: en capital atrapado y en clientes que se van porque la ejecución falló.
+                            </p>
+                        </article>
+
+                        <article class="timeline-card">
+                            <div class="timeline-meta">Retail y prevención de pérdidas</div>
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <h3>La prevención de pérdidas no puede ser un informe que llega tarde</h3>
+                            <p class="mb-0">
+                                En operaciones intensivas en SKU, el fraude, los errores operativos y la trazabilidad débil erosionan
+                                margen todos los días. La tecnología correcta debe prevenir, alertar y dejar menos espacio para improvisar.
+                            </p>
+                        </article>
+
+                        <article class="timeline-card">
+                            <div class="timeline-meta">IA con sentido de negocio</div>
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <h3>La Inteligencia Artificial solo importa cuando mejora decisiones reales</h3>
+                            <p class="mb-0">
+                                Por eso construimos LhexIA: no como otro ERP pesado, sino como una plataforma de inteligencia operativa
+                                capaz de combinar agentes IA 24/7, Customer 360, despacho por voz, foco comercial y control operativo
+                                con criterio económico.
+                            </p>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="manifest-section" id="vision">
+                    <div class="section-kicker">Lo que estamos construyendo</div>
+                    <h2>Una plataforma para empresas que necesitan crecer sin perder control.</h2>
+                    <p class="section-intro">
+                        LhexIA no se piensa para un solo rubro. Se piensa para operaciones donde la complejidad existe de verdad:
+                        inventario, múltiples puntos de decisión, presión por margen, velocidad comercial y exigencia real sobre trazabilidad.
+                    </p>
+                    <div class="capabilities-grid">
+                        <article class="capability-card">
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <span class="capability-icon"><i class="bi bi-cpu"></i></span>
+                            <h3>Agentes IA que trabajan 24/7</h3>
+                            <p class="mb-0">Ventas, cobranza, Customer 360 y rentabilidad operando como una capa activa, no como un reporte pasivo.</p>
+                        </article>
+
+                        <article class="capability-card">
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <span class="capability-icon"><i class="bi bi-mic"></i></span>
+                            <h3>Despacho por voz y ejecución premium</h3>
+                            <p class="mb-0">La bodega deja de ser un cuello de botella cuando la tecnología acelera el retiro, la preparación y la coordinación real.</p>
+                        </article>
+
+                        <article class="capability-card">
+                            <div class="data-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <span class="capability-icon"><i class="bi bi-shield-check"></i></span>
+                            <h3>Control, prevención y trazabilidad</h3>
+                            <p class="mb-0">Menos espacio para el fraude, la pérdida y la intuición cuando el sistema entiende la operación con profundidad.</p>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="manifest-section">
+                    <article class="manifest-panel closing-panel">
+                        <div class="section-kicker">Cierre</div>
+                        <h2>Quiero que cuando una empresa conozca LhexIA sienta algo muy simple: por fin apareció una herramienta hecha para ayudar de verdad.</h2>
+                        <p class="mb-0">
+                            Si tu operación necesita más claridad, más control y una plataforma capaz de acompañar crecimiento real,
+                            conversemos. Estamos construyendo tecnología para quienes quieren competir en serio, sin resignarse a sistemas
+                            viejos ni a proyectos eternos.
+                        </p>
+                        <div class="signature-lockup">
+                            <img src="{{ url_for('static', filename='img/lhexia_icon.svg') }}" alt="Isotipo LhexIA">
+                            <div>
+                                <div class="signature-name">Mario Becerra Olea</div>
+                                <div class="signature-role">CEO y Fundador · LhexIA IA ERP</div>
+                            </div>
+                        </div>
+                        <div class="closing-actions">
+                            <a href="{{ url_for('index') }}#diagnostico" class="btn btn-accent final-cta">Quiero mi Diagnóstico IA Gratis</a>
+                            <a href="{{ url_for('sobre_nosotros') }}" class="btn btn-soft">Volver a Quiénes somos</a>
+                        </div>
+                    </article>
+                </section>
+
+                <footer class="manifest-footer">
+                    © 2026 LhexIA IA ERP · <a href="https://www.lhexia.cl">www.lhexia.cl</a> ·
+                    <a href="{{ url_for('sobre_nosotros') }}">Quiénes somos</a> ·
+                    <a href="{{ url_for('mensaje_del_fundador') }}">Mensaje del fundador</a> ·
+                    Tecnología para retail, ferreterías y operaciones complejas
+                </footer>
+            </section>
+        </div>
     </main>
 
-    <div class="index-footer landing-footer">
-        © 2026 LhexIA IA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para retail, ferreterías y operaciones complejas
-    </div>
-
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    <script>
+        (() => {
+            const cards = document.querySelectorAll('.timeline-card, .capability-card, .closing-panel');
+            if (!('IntersectionObserver' in window)) {
+                cards.forEach((card) => card.classList.add('in-view'));
+                return;
+            }
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    entry.target.classList.toggle('in-view', entry.isIntersecting);
+                });
+            }, {
+                root: document.querySelector('.manifest-flow'),
+                threshold: 0.22
+            });
+
+            cards.forEach((card) => observer.observe(card));
+        })();
+    </script>
 </body>
 </html>

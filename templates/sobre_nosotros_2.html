@@ -24,7 +24,7 @@
           "@type": "Organization",
           "name": "LhexIA IA ERP",
           "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia_logo.png",
+          "logo": "https://www.lhexia.cl/static/img/lhexia_logo.svg",
           "description": "ERP para retail, ferreterías, constructoras y operaciones intensivas en SKU con sistema POS bodega, Customer 360 e Inteligencia Artificial aplicada."
         },
         {
@@ -40,16 +40,46 @@
       ]
     }
     </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "inLanguage": "es-CL"
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Inicio",
+              "item": "https://www.lhexia.cl/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Sobre Nosotros",
+              "item": "https://www.lhexia.cl/sobre-nosotros"
+            }
+          ]
+        }
+      ]
+    }
+    </script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
     <style>
         :root {
-            --bg: #0f1318;
-            --bg-soft: #141a21;
-            --surface: #171e26;
-            --surface-soft: #1b232d;
+            --bg: #0b0f19;
+            --bg-soft: #121826;
+            --surface: rgba(255, 255, 255, 0.03);
+            --surface-soft: rgba(255, 255, 255, 0.02);
             --line: rgba(255, 255, 255, 0.08);
             --text: #edf2f7;
             --muted: #a9b4c2;
@@ -57,9 +87,10 @@
             --accent-soft: rgba(249, 115, 22, 0.12);
             --trust: #22c55e;
             --trust-soft: rgba(34, 197, 94, 0.10);
-            --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.18);
+            --shadow-soft: 0 24px 56px rgba(0, 0, 0, 0.24);
             --radius-lg: 24px;
             --radius-md: 18px;
+            --heading-font: "Century Gothic", Futura, "Montserrat", "Segoe UI", sans-serif;
         }
 
         html {
@@ -69,6 +100,10 @@
         body.about-page {
             color: var(--text);
             -webkit-font-smoothing: antialiased;
+            background:
+                radial-gradient(circle at top left, rgba(249, 115, 22, 0.08), transparent 28rem),
+                radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.05), transparent 24rem),
+                linear-gradient(180deg, rgba(11, 15, 25, 0.98), rgba(15, 23, 42, 0.96));
         }
 
         .about-page p,
@@ -123,23 +158,37 @@
         h2,
         h3 {
             color: #f8fafc;
+            font-family: var(--heading-font);
             letter-spacing: -0.03em;
         }
 
         h1 {
             font-size: clamp(2.35rem, 4.6vw, 4rem);
+            font-weight: 900;
             line-height: 1.08;
             margin-bottom: 1.3rem;
+            letter-spacing: -0.06em;
+            background: linear-gradient(180deg, #ffffff 0%, #eef2f7 52%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
 
         h2 {
             font-size: clamp(1.85rem, 3vw, 2.6rem);
+            font-weight: 900;
             line-height: 1.14;
             margin-bottom: 1rem;
+            letter-spacing: -0.055em;
+            background: linear-gradient(180deg, #ffffff 0%, #edf2f7 48%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
 
         h3 {
             font-size: 1.15rem;
+            font-weight: 800;
             line-height: 1.35;
             margin-bottom: 0.7rem;
         }
@@ -156,11 +205,29 @@
             margin-bottom: 2.25rem;
         }
 
+        .hero-copy-surface {
+            max-width: 42rem;
+            margin-bottom: 2rem;
+            padding: 1.15rem 1.2rem;
+            border-radius: 22px;
+            background:
+                linear-gradient(90deg, rgba(8, 12, 18, 0.84) 0%, rgba(10, 16, 24, 0.72) 64%, rgba(10, 16, 24, 0.28) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 22px 48px rgba(0, 0, 0, 0.24);
+            backdrop-filter: blur(12px);
+        }
+
+        .hero-copy-surface p:last-child {
+            margin-bottom: 0;
+        }
+
         .soft-card {
-            background: rgba(23, 30, 38, 0.78);
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--line);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         .hero-panel {
@@ -217,19 +284,20 @@
         }
 
         .btn-accent {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: #ffffff;
+            background: linear-gradient(135deg, #ea580c, #f97316);
+            border-color: rgba(249, 115, 22, 0.3);
+            color: #0b0f19;
             border-radius: 999px;
             padding: 0.95rem 1.45rem;
             font-weight: 700;
+            box-shadow: 0 14px 30px rgba(234, 88, 12, 0.22);
         }
 
         .btn-accent:hover,
         .btn-accent:focus {
-            background: #ea580c;
-            border-color: #ea580c;
-            color: #ffffff;
+            background: linear-gradient(135deg, #ea580c, #fb923c);
+            border-color: rgba(249, 115, 22, 0.42);
+            color: #0b0f19;
         }
 
         .btn-soft {
@@ -411,7 +479,7 @@
 <body class="index-body erp-landing about-page">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ url_for('static', filename='img/lhexia_logo.png') }}?v=lhexia20260513d" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
             <span class="landing-brand-text">
                 <strong>LhexIA IA ERP</strong>
                 <small>www.lhexia.cl · LhexIA para ferreterías, corralones y retail especializado</small>
@@ -436,16 +504,18 @@
                     <div class="col-lg-7">
                         <span class="eyebrow">Sobre Nosotros · El origen de LhexIA</span>
                         <h1>Experiencia real para modernizar operaciones complejas.</h1>
-                        <p class="hero-lead">
-                            LhexIA nace después de años participando en proyectos SAP, Business Intelligence,
-                            prevención de pérdidas y transformación digital en empresas de alta exigencia.
-                            La idea fue simple: construir una plataforma más clara, más cercana y realmente útil.
-                        </p>
-                        <p class="hero-origin">
-                            Hoy esa experiencia se traduce en una solución para <strong class="text-white">retail, ferreterías,
-                            constructoras, distribuidoras y empresas con alto volumen de SKU</strong>, con foco en operación,
-                            control, prevención de pérdidas y decisiones apoyadas por Inteligencia Artificial aplicada.
-                        </p>
+                        <div class="hero-copy-surface">
+                            <p class="hero-lead">
+                                LhexIA nace después de años participando en proyectos SAP, Business Intelligence,
+                                prevención de pérdidas y transformación digital en empresas de alta exigencia.
+                                La idea fue simple: construir una plataforma más clara, más cercana y realmente útil.
+                            </p>
+                            <p class="hero-origin">
+                                Hoy esa experiencia se traduce en una solución para <strong class="text-white">retail, ferreterías,
+                                constructoras, distribuidoras y empresas con alto volumen de SKU</strong>, con foco en operación,
+                                control, prevención de pérdidas y decisiones apoyadas por Inteligencia Artificial aplicada.
+                            </p>
+                        </div>
                         <div class="d-flex flex-wrap gap-3">
                             <a href="{{ url_for('index') }}#diagnostico" class="btn btn-accent">Quiero mi Diagnóstico IA Gratis</a>
                             <a href="{{ url_for('mensaje_del_fundador') }}" class="btn btn-soft">Leer mensaje del fundador</a>

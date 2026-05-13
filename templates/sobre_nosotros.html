@@ -15,6 +15,42 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Sobre Nosotros | LhexIA IA ERP">
     <meta name="twitter:description" content="Una solución creada desde años de experiencia real en operaciones, retail, ERP e Inteligencia Artificial.">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "logo": "https://www.lhexia.cl/static/img/lhexia_logo.svg"
+        },
+        {
+          "@type": "WebSite",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "inLanguage": "es-CL"
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Inicio",
+              "item": "https://www.lhexia.cl/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Sobre Nosotros",
+              "item": "https://www.lhexia.cl/sobre-nosotros"
+            }
+          ]
+        }
+      ]
+    }
+    </script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
@@ -23,7 +59,7 @@
 <body class="index-body erp-landing">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ url_for('static', filename='img/lhexia_logo.png') }}?v=lhexia20260513d" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
             <span class="landing-brand-text">
                 <strong>LhexIA IA ERP</strong>
                 <small>www.lhexia.cl · Inteligencia operativa para ferreterías y retail especializado</small>
@@ -45,15 +81,17 @@
             <div class="landing-hero-copy">
                 <span class="landing-eyebrow">Sobre Nosotros · El origen de LhexIA</span>
                 <h1>Una solución creada desde la experiencia real, para negocios que necesitan tecnología útil, cercana y confiable.</h1>
-                <p>
-                    LhexIA nace después de años participando en proyectos de transformación digital, Business
-                    Intelligence e implementación de ERP en compañías de alta exigencia. Desde ahí surgió una convicción
-                    clara: muchas empresas necesitan algo más inteligente, más enfocado y más aterrizado a su operación diaria.
-                </p>
-                <p>
-                    En ferreterías y retail especializado, eso significa tener una herramienta que no solo ordene, sino que
-                    también ayude a vender mejor, proteger margen, cobrar antes y tomar decisiones con más claridad.
-                </p>
+                <div class="landing-copy-mask">
+                    <p>
+                        LhexIA nace después de años participando en proyectos de transformación digital, Business
+                        Intelligence e implementación de ERP en compañías de alta exigencia. Desde ahí surgió una convicción
+                        clara: muchas empresas necesitan algo más inteligente, más enfocado y más aterrizado a su operación diaria.
+                    </p>
+                    <p class="mb-0 mt-3">
+                        En ferreterías y retail especializado, eso significa tener una herramienta que no solo ordene, sino que
+                        también ayude a vender mejor, proteger margen, cobrar antes y tomar decisiones con más claridad.
+                    </p>
+                </div>
                 <div class="landing-actions">
                     <a href="{{ url_for('index') }}#diagnostico" class="btn btn-warning btn-lg">
                         <i class="bi bi-stars"></i> Quiero mi Diagnóstico IA Gratis

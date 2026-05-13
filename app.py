@@ -14,9 +14,10 @@ _pgopt_actual = _os_early.environ.get('PGOPTIONS', '')
 if not _neon_pooler and 'lc_messages' not in _pgopt_actual:
     _os_early.environ['PGOPTIONS'] = (_pgopt_actual + ' -c lc_messages=C').strip()
 
-from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session, abort, has_request_context
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date, datetime, timedelta
+import datetime as dt_module
 import csv
 import os
 import threading
@@ -41,6 +42,7 @@ import io
 import base64
 import re
 import shutil
+import unicodedata
 import urllib.error
 import urllib.request
 import pdfkit
@@ -596,6 +598,176 @@ def cargar_landing_leads_gestion(limit=800):
         out.append(row)
     out.reverse()
     return out
+
+
+def _public_site_base_url():
+    """Base pública canónica para enlaces absolutos del sitemap/notificaciones."""
+    configured = (
+        os.getenv('PUBLIC_SITE_URL')
+        or os.getenv('SITE_URL')
+        or os.getenv('APP_URL')
+        or os.getenv('CANONICAL_SITE_URL')
+        or ''
+    ).strip()
+    if configured:
+        return configured.rstrip('/')
+    if has_request_context():
+        host = (request.host or '').split(':', 1)[0].strip().lower()
+        if host and host not in ('localhost', '127.0.0.1'):
+            return request.url_root.rstrip('/')
+    return 'https://www.lhexia.cl'
+
+
+def _absolute_public_url(path: str) -> str:
+    if not path:
+        path = '/'
+    if not path.startswith('/'):
+        path = f'/{path}'
+    return f"{_public_site_base_url()}{path}"
+
+
+def _sitemap_entries():
+    today_iso = dt_module.date.today().isoformat()
+    return [
+        {
+            'path': '/',
+            'loc': _absolute_public_url('/'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '1.0',
+        },
+        {
+            'path': '/lhexia-vs-defontana',
+            'loc': _absolute_public_url('/lhexia-vs-defontana'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.9',
+        },
+        {
+            'path': '/erp-ferreterias',
+            'loc': _absolute_public_url('/erp-ferreterias'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.9',
+        },
+        {
+            'path': '/erp-retail-especializado',
+            'loc': _absolute_public_url('/erp-retail-especializado'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.9',
+        },
+        {
+            'path': '/alternativa-a-defontana',
+            'loc': _absolute_public_url('/alternativa-a-defontana'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.8',
+        },
+        {
+            'path': '/erp-con-bodega-por-voz',
+            'loc': _absolute_public_url('/erp-con-bodega-por-voz'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.8',
+        },
+        {
+            'path': '/como-reducir-quiebres-de-stock-en-ferreterias',
+            'loc': _absolute_public_url('/como-reducir-quiebres-de-stock-en-ferreterias'),
+            'lastmod': today_iso,
+            'changefreq': 'weekly',
+            'priority': '0.8',
+        },
+        {
+            'path': '/fundador',
+            'loc': _absolute_public_url('/fundador'),
+            'lastmod': today_iso,
+            'changefreq': 'weekly',
+            'priority': '0.8',
+        },
+    ]
+
+
+def notificar_cambio_a_google(changed_paths=None):
+    """Best-effort: simula o ejecuta POST a Google Indexing API sin bloquear la UX."""
+    endpoint = (
+        os.getenv('GOOGLE_INDEXING_ENDPOINT')
+        or 'https://indexing.googleapis.com/v3/urlNotifications:publish'
+    ).strip()
+    bearer_token = (os.getenv('GOOGLE_INDEXING_BEARER_TOKEN') or '').strip()
+
+    if changed_paths:
+        urls = [_absolute_public_url(p) for p in changed_paths]
+    else:
+        urls = [entry['loc'] for entry in _sitemap_entries()]
+    sitemap_url = _absolute_public_url('/sitemap.xml')
+
+    if not bearer_token:
+        app.logger.info(
+            "Google notify simulado. Configura GOOGLE_INDEXING_BEARER_TOKEN para ejecución real. "
+            "sitemap=%s urls=%s",
+            sitemap_url,
+            urls,
+        )
+        return {
+            'status': 'simulated',
+            'endpoint': endpoint,
+            'sitemap': sitemap_url,
+            'urls': urls,
+        }
+
+    headers = {
+        'Authorization': f'Bearer {bearer_token}',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json',
+    }
+    results = []
+    for current_url in urls:
+        payload = {'url': current_url, 'type': 'URL_UPDATED'}
+        try:
+            resp = requests.post(endpoint, headers=headers, json=payload, timeout=8)
+            results.append({
+                'url': current_url,
+                'status_code': resp.status_code,
+                'ok': resp.ok,
+                'body': (resp.text or '')[:500],
+            })
+        except requests.RequestException as ex:
+            app.logger.warning("Falló notificación Google para %s: %s", current_url, ex)
+            results.append({
+                'url': current_url,
+                'status_code': None,
+                'ok': False,
+                'body': str(ex),
+            })
+
+    ok = all(item['ok'] for item in results) if results else False
+    app.logger.info(
+        "Google notify completado. ok=%s sitemap=%s urls=%s",
+        ok,
+        sitemap_url,
+        [item['url'] for item in results],
+    )
+    return {
+        'status': 'executed',
+        'endpoint': endpoint,
+        'sitemap': sitemap_url,
+        'ok': ok,
+        'results': results,
+    }
+
+
+def _notificar_cambio_a_google_async(changed_paths=None):
+    paths = list(changed_paths or [])
+
+    def _runner():
+        with app.app_context():
+            try:
+                notificar_cambio_a_google(paths or None)
+            except Exception:
+                app.logger.exception("No se pudo completar la notificación asíncrona a Google.")
+
+    threading.Thread(target=_runner, name='google-indexing-notify', daemon=True).start()
 
 
 def _usuario_autorizado_lhexia_interno():
@@ -3073,7 +3245,41 @@ def aplicar_ajuste_automatico(auditoria_id):
 @app.route('/')
 @app.route('/index')
 def index():
-    return render_template('index.html')
+    return render_template(
+        'index.html',
+        page_variant='home',
+        page_canonical=_absolute_public_url('/'),
+    )
+
+
+@app.route('/lhexia-vs-defontana')
+def lhexia_vs_defontana():
+    return render_template('lhexia_vs_defontana.html')
+
+
+@app.route('/erp-ferreterias')
+def erp_ferreterias():
+    return render_template('erp_ferreterias.html')
+
+
+@app.route('/erp-retail-especializado')
+def erp_retail_especializado():
+    return render_template('erp_retail_especializado.html')
+
+
+@app.route('/alternativa-a-defontana')
+def alternativa_a_defontana():
+    return render_template('alternativa_a_defontana.html')
+
+
+@app.route('/erp-con-bodega-por-voz')
+def erp_con_bodega_por_voz():
+    return render_template('erp_con_bodega_por_voz.html')
+
+
+@app.route('/como-reducir-quiebres-de-stock-en-ferreterias')
+def como_reducir_quiebres_de_stock_en_ferreterias():
+    return render_template('como_reducir_quiebres_de_stock_en_ferreterias.html')
 
 
 @app.route('/sobre-nosotros')
@@ -3100,6 +3306,55 @@ def sobre_nosotros_2():
 @app.route('/fundador')
 def mensaje_del_fundador():
     return render_template('fundador.html')
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    entries = _sitemap_entries()
+    xml_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    for entry in entries:
+        xml_lines.extend([
+            '  <url>',
+            f"    <loc>{html.escape(entry['loc'])}</loc>",
+            f"    <lastmod>{entry['lastmod']}</lastmod>",
+            f"    <changefreq>{entry['changefreq']}</changefreq>",
+            f"    <priority>{entry['priority']}</priority>",
+            '  </url>',
+        ])
+    xml_lines.append('</urlset>')
+    xml_payload = '\n'.join(xml_lines)
+    response = Response(xml_payload, status=200)
+    response.headers['Content-Type'] = 'application/xml; charset=utf-8'
+    return response
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    site_url = _public_site_base_url()
+    lines = [
+        'User-agent: *',
+        'Allow: /',
+        'Allow: /lhexia-vs-defontana',
+        'Allow: /erp-ferreterias',
+        'Allow: /erp-retail-especializado',
+        'Allow: /alternativa-a-defontana',
+        'Allow: /erp-con-bodega-por-voz',
+        'Allow: /como-reducir-quiebres-de-stock-en-ferreterias',
+        'Allow: /fundador',
+        'Allow: /static/',
+        'Disallow: /api/admin/',
+        'Disallow: /demo/',
+        'Disallow: /instance/',
+        'Disallow: /storage/',
+        f'Sitemap: {site_url}/sitemap.xml',
+    ]
+    payload = '\n'.join(lines)
+    response = Response(payload, status=200)
+    response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+    return response
 
 
 @app.route('/healthz')
@@ -4866,24 +5121,38 @@ def _parse_clp_monto(value):
     Acepta: 35990, 35.990, 35,990 (miles con punto o coma), espacios.
     Con un solo punto: si hay 3 dígitos a la derecha se interpretan como miles (340.000 → 340000);
     si hay 1–2 dígitos, como decimal (12,50 vía coma; 12.5 con punto).
+    También tolera texto copiado/pegado con espacios Unicode, NBSP o prefijos como "$" / "CLP".
     """
     if value is None:
         return None
-    t = str(value).strip()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        v = float(value)
+        return v if v >= 0 else None
+
+    t = unicodedata.normalize('NFKC', str(value)).strip()
     if not t:
         return None
-    t = t.replace(' ', '').replace('$', '')
+    t = re.sub(r'\s+', '', t, flags=re.UNICODE)
+    t = re.sub(r'(?i)clp', '', t)
+    t = t.replace('$', '').replace("'", '')
+    if not t:
+        return None
+    if re.search(r'[^0-9,.\-]', t):
+        return None
     if ',' in t and '.' in t:
         if t.rindex(',') > t.rindex('.'):
             t = t.replace('.', '').replace(',', '.')
         else:
             t = t.replace(',', '')
     elif ',' in t:
-        parts = t.split(',')
-        if len(parts) == 2 and len(parts[1]) <= 2 and parts[1].isdigit():
-            t = parts[0].replace('.', '') + '.' + parts[1]
-        else:
+        if t.count(',') >= 2:
             t = t.replace(',', '')
+        else:
+            parts = t.split(',')
+            if len(parts) == 2 and len(parts[1]) <= 2 and parts[1].isdigit():
+                t = parts[0].replace('.', '') + '.' + parts[1]
+            else:
+                t = t.replace(',', '')
     else:
         if t.count('.') >= 2:
             t = t.replace('.', '')
@@ -4898,6 +5167,8 @@ def _parse_clp_monto(value):
                     t = ent + frac
             else:
                 return None
+    if t.count('-') > 1 or ('-' in t and not t.startswith('-')):
+        return None
     try:
         v = float(t)
         return v if v >= 0 else None
@@ -10743,6 +11014,16 @@ def admin_empresa():
             flash("El nombre comercial es obligatorio.", "warning")
             return redirect(url_for('admin_empresa'))
         cfg = guardar_config_empresa(data)
+        _notificar_cambio_a_google_async([
+            '/',
+            '/lhexia-vs-defontana',
+            '/erp-ferreterias',
+            '/erp-retail-especializado',
+            '/alternativa-a-defontana',
+            '/erp-con-bodega-por-voz',
+            '/como-reducir-quiebres-de-stock-en-ferreterias',
+            '/fundador',
+        ])
         flash("Datos de empresa actualizados correctamente.", "success")
     return render_template('admin_empresa.html', empresa=cfg)
 

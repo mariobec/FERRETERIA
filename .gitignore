@@ -49,3 +49,10 @@ docs/coverage_html/
 Generated_image.png
 Logos/
 liz/
+
+# Nunca ignorar assets/rutas públicas críticas para indexación SEO
+!templates/index.html
+!templates/fundador.html
+!templates/sobre_nosotros.html
+!templates/sobre_nosotros_2.html
+!static/img/lhexia_logo.svg

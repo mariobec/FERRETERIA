@@ -615,6 +615,27 @@ class TestRutasAltoTrafico:
 # =====================================================================
 class TestCajaExtra:
 
+    @pytest.mark.parametrize(
+        ("raw_value", "expected"),
+        [
+            ("340000", 340000.0),
+            ("340.000", 340000.0),
+            ("340,000", 340000.0),
+            ("340.000,00", 340000.0),
+            ("$ 340.000", 340000.0),
+            ("CLP 340.000", 340000.0),
+            ("340\u00a0000", 340000.0),
+            ("12,50", 12.5),
+            ("12.5", 12.5),
+        ],
+    )
+    def test_parse_clp_monto_acepta_formatos_reales(self, raw_value, expected):
+        assert m._parse_clp_monto(raw_value) == expected
+
+    @pytest.mark.parametrize("raw_value", ["", "abc", "12a", "1-2", "-500"])
+    def test_parse_clp_monto_rechaza_invalidos(self, raw_value):
+        assert m._parse_clp_monto(raw_value) is None
+
     def test_cerrar_caja_post(self, app_client):
         _ensure_caja_abierta()
         r = app_client.post('/cerrar_caja', follow_redirects=True)

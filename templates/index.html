@@ -3,18 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LhexIA IA ERP | El mejor ERP para ferreterías y retail especializado en 2026</title>
-    <meta name="description" content="LhexIA IA ERP es la máquina de generar y proteger dinero para ferreterías y retail especializado: agentes inteligentes, POS ultra-rápido, bodega por voz, cobranza WhatsApp, Customer 360 y multi-almacén real.">
-    <link rel="canonical" href="https://www.lhexia.cl/">
+    {% set is_vs_defontana = page_variant == 'lhexia_vs_defontana' %}
+    <title>{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente para retail y ferreterías{% else %}LhexIA IA ERP | El mejor ERP para ferreterías y retail especializado en 2026{% endif %}</title>
+    <meta name="description" content="{% if is_vs_defontana %}Compara LhexIA vs Defontana y descubre por qué un ERP inteligente con IA, despacho por voz, Customer 360 y foco en margen puede transformar retail y ferreterías.{% else %}LhexIA IA ERP es la máquina de generar y proteger dinero para ferreterías y retail especializado: agentes inteligentes, POS ultra-rápido, bodega por voz, cobranza WhatsApp, Customer 360 y multi-almacén real.{% endif %}">
+    <link rel="canonical" href="{{ page_canonical or 'https://www.lhexia.cl/' }}">
     <meta property="og:locale" content="es_CL">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="LhexIA IA ERP">
-    <meta property="og:title" content="LhexIA IA ERP | El mejor ERP para ferreterías y retail especializado en 2026">
-    <meta property="og:description" content="Agentes inteligentes, POS ultra-rápido, bodega por voz, Customer 360, cobranza automática y rentabilidad protegida para ferreterías ambiciosas.">
-    <meta property="og:url" content="https://www.lhexia.cl/">
+    <meta property="og:title" content="{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente para retail y ferreterías{% else %}LhexIA IA ERP | El mejor ERP para ferreterías y retail especializado en 2026{% endif %}">
+    <meta property="og:description" content="{% if is_vs_defontana %}Descubre qué diferencia a LhexIA de un ERP tradicional: IA predictiva, operación por voz, foco en margen y control real para ferreterías y retail.{% else %}Agentes inteligentes, POS ultra-rápido, bodega por voz, Customer 360, cobranza automática y rentabilidad protegida para ferreterías ambiciosas.{% endif %}">
+    <meta property="og:url" content="{{ page_canonical or 'https://www.lhexia.cl/' }}">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="LhexIA IA ERP para ferreterías">
-    <meta name="twitter:description" content="El ERP premium que vende, cobra, protege margen y acelera la bodega con agentes inteligentes 24/7.">
+    <meta name="twitter:title" content="{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente{% else %}LhexIA IA ERP para ferreterías{% endif %}">
+    <meta name="twitter:description" content="{% if is_vs_defontana %}Conoce por qué LhexIA va más allá de un ERP tradicional con IA aplicada, voz, Customer 360 y foco en rentabilidad.{% else %}El ERP premium que vende, cobra, protege margen y acelera la bodega con agentes inteligentes 24/7.{% endif %}">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -22,8 +23,8 @@
       "name": "LhexIA IA ERP",
       "applicationCategory": "BusinessApplication",
       "operatingSystem": "Web",
-      "description": "ERP premium para ferreterías con agentes inteligentes, POS, caja, inventario multi-almacén, Customer 360, cobranzas por WhatsApp y bodega asistida por voz.",
-      "url": "https://www.lhexia.cl/",
+      "description": "{% if is_vs_defontana %}Comparativa entre LhexIA y Defontana para retail y ferreterías con foco en Inteligencia Artificial, operación por voz, Customer 360 y rentabilidad.{% else %}ERP premium para ferreterías con agentes inteligentes, POS, caja, inventario multi-almacén, Customer 360, cobranzas por WhatsApp y bodega asistida por voz.{% endif %}",
+      "url": "{{ page_canonical or 'https://www.lhexia.cl/' }}",
       "audience": {
         "@type": "Audience",
         "audienceType": "Ferreterías, materiales de construcción y retail especializado"
@@ -35,6 +36,52 @@
       }
     }
     </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "logo": "https://www.lhexia.cl/static/img/lhexia_logo.svg",
+          "description": "ERP inteligente para retail, ferreterías, constructoras y operaciones con alto volumen de SKU."
+        },
+        {
+          "@type": "WebSite",
+          "name": "LhexIA IA ERP",
+          "url": "https://www.lhexia.cl/",
+          "inLanguage": "es-CL"
+        }
+      ]
+    }
+    </script>
+    {% if is_vs_defontana %}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿Por qué LhexIA es gratuito e ilimitado para emitir boletas y facturas?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Porque LhexIA se integra directamente con los servidores del SII a través de tu certificado digital .pfx, eliminando intermediarios y cobros por tramos de emisión."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Qué diferencia a LhexIA de un ERP tradicional como Defontana?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Un ERP tradicional solo registra datos del pasado. LhexIA es un ERP inteligente que predice quiebres de stock con IA, opera por voz mediante Liz y optimiza los márgenes del retail y ferreterías."
+          }
+        }
+      ]
+    }
+    </script>
+    {% endif %}
     
     <!-- Bootstrap e iconos (local, sin CDN) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
@@ -45,10 +92,10 @@
 <body class="index-body erp-landing">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ url_for('static', filename='img/lhexia_logo.png') }}?v=lhexia20260513d" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA IA ERP · www.lhexia.cl" class="landing-brand-logo">
             <span class="landing-brand-text">
-                <strong>LhexIA IA ERP</strong>
-                <small>www.lhexia.cl · LhexIA para ferreterías, corralones y retail especializado</small>
+                <strong><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP</strong>
+                <small>www.lhexia.cl · <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> para ferreterías, corralones y retail especializado</small>
             </span>
         </a>
         <nav class="landing-nav-links">
@@ -68,19 +115,21 @@
     <main>
         <section class="landing-hero">
             <div class="landing-hero-copy">
-                <span class="landing-eyebrow">LhexIA IA ERP · La categoría premium en 2026</span>
+                <span class="landing-eyebrow"><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP · La categoría premium en 2026</span>
                 <h1>La máquina de generar y proteger dinero para ferreterías y retail especializado.</h1>
-                <p>
-                    LhexIA IA ERP no es otro software que registra ventas. Es una plataforma premium con agentes inteligentes
-                    que trabajan 24/7 para vender más, cobrar antes, proteger margen, acelerar la bodega y ordenar la operación
-                    sin frenar el ritmo del mostrador.
-                </p>
+                <div class="landing-copy-mask">
+                    <p>
+                        <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP no es otro software que registra ventas. Es una plataforma premium con agentes inteligentes
+                        que trabajan 24/7 para vender más, cobrar antes, proteger margen, acelerar la bodega y ordenar la operación
+                        sin frenar el ritmo del mostrador.
+                    </p>
+                </div>
                 <div class="landing-actions">
                     <button type="button" class="btn btn-warning btn-lg" data-open-ai-demo>
                         <i class="bi bi-stars"></i> Quiero mi Diagnóstico IA Gratis
                     </button>
                     <a href="#bi" class="btn btn-light btn-lg">
-                        <i class="bi bi-trophy"></i> Ver por qué aplasta a otros ERP
+                        <i class="bi bi-trophy"></i> Ver cómo se diferencia frente a otros ERP
                     </a>
                 </div>
                 <div class="landing-trust">
@@ -97,12 +146,12 @@
                 </div>
                 <div class="intelligence-header">
                     <span>War room de rentabilidad</span>
-                    <strong>Lo que hoy convierte a LhexIA en una ventaja competitiva brutal</strong>
+                    <strong>Lo que hoy convierte a <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> en una ventaja competitiva clara</strong>
                 </div>
                 <div class="signal-card signal-primary">
                     <small>Motor comercial y operativo</small>
                     <strong>Clientes por reactivar, mora por atacar, margen por rescatar y quiebres por evitar</strong>
-                    <p>LhexIA cruza caja, bodega, cartera, inventario, ventas y comportamiento comercial para decir dónde está hoy el dinero y dónde se está fugando.</p>
+                    <p><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> cruza caja, bodega, cartera, inventario, ventas y comportamiento comercial para decir dónde está hoy el dinero y dónde se está fugando.</p>
                 </div>
                 <div class="signal-grid">
                     <div><i class="bi bi-whatsapp"></i><span>Cobranza WA</span><strong>Caja más rápida</strong></div>
@@ -112,18 +161,18 @@
                 </div>
                 <div class="ai-recommendation">
                     <i class="bi bi-lightning-charge"></i>
-                    <span>Diagnóstico tipo LhexIA: cobra primero esta cartera, corrige estos precios, repón esta familia crítica y activa oferta sobre los clientes con mayor probabilidad de recompra.</span>
+                    <span>Diagnóstico tipo <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span>: cobra primero esta cartera, corrige estos precios, repón esta familia crítica y activa oferta sobre los clientes con mayor probabilidad de recompra.</span>
                 </div>
             </div>
         </section>
 
         <section class="landing-section contrast-section" id="diferenciales">
             <div class="section-heading">
-                <span>Por qué gana LhexIA</span>
-                <h2>Un ERP tradicional registra el pasado. LhexIA mueve caja, margen y ejecución mientras el negocio sigue operando.</h2>
+                <span>Por qué destaca <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span></span>
+                <h2>Un ERP tradicional registra el pasado. <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> mueve caja, margen y ejecución mientras el negocio sigue operando.</h2>
                 <p>
                     Cuando una ferretería crece, no se cae por falta de reportes: se cae por quiebres, mora, bodega lenta,
-                    precios rezagados y ventas sin foco. LhexIA existe para atacar exactamente esas fugas.
+                    precios rezagados y ventas sin foco. <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> existe para resolver exactamente esas fugas.
                 </p>
             </div>
             <div class="contrast-grid">
@@ -138,7 +187,7 @@
                     </ul>
                 </article>
                 <article class="contrast-card featured">
-                    <div class="contrast-label">LhexIA IA ERP</div>
+                    <div class="contrast-label"><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP</div>
                     <h3>Trabaja 24/7 para generar y proteger dinero</h3>
                     <ul>
                         <li>Activa agentes de ventas, cobranza, customer 360 y rentabilidad.</li>
@@ -153,33 +202,69 @@
         <section class="landing-section" id="modulos">
             <div class="section-heading">
                 <span>Los 4 agentes inteligentes</span>
-                <h2>La razón por la que LhexIA no compite como software administrativo, sino como máquina de rentabilidad.</h2>
+                <h2>La razón por la que <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> no compite como software administrativo, sino como máquina de rentabilidad.</h2>
             </div>
             <div class="agent-grid">
                 <article class="module-card agent-card">
                     <div class="agent-badge">Agente 24/7</div>
-                    <i class="bi bi-broadcast"></i>
+                    <div class="premium-icon premium-icon-agent" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="8" y="8" width="48" height="48" rx="16"></rect>
+                            <path class="icon-stroke" d="M20 38V26l16-6v24l-16-6Z"></path>
+                            <path class="icon-stroke" d="M36 24h5c4 0 7 3 7 8s-3 8-7 8h-5"></path>
+                            <path class="icon-accent-stroke" d="M22 18c3-3 8-5 13-5"></path>
+                            <path class="icon-accent-stroke" d="M22 46c3 3 8 5 13 5"></path>
+                            <circle class="icon-accent-fill" cx="47" cy="32" r="3"></circle>
+                        </svg>
+                    </div>
                     <h3>Agente de Ventas Digital</h3>
                     <p>Detecta oportunidades, sugiere la siguiente venta, empuja ofertas proactivas y ayuda a que cada cliente tenga más probabilidad de recompra.</p>
                     <strong class="agent-impact">Impacto esperado: más conversión y mejor ticket.</strong>
                 </article>
                 <article class="module-card agent-card">
                     <div class="agent-badge">Agente 24/7</div>
-                    <i class="bi bi-whatsapp"></i>
+                    <div class="premium-icon premium-icon-agent" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="8" y="8" width="48" height="48" rx="16"></rect>
+                            <path class="icon-stroke" d="M22 45l2-7a14 14 0 1 1 7 2l-9 5Z"></path>
+                            <path class="icon-accent-stroke" d="M27 28c1 5 5 9 10 10"></path>
+                            <path class="icon-accent-stroke" d="M39 35l3 2"></path>
+                            <circle class="icon-accent-fill" cx="43" cy="22" r="3"></circle>
+                        </svg>
+                    </div>
                     <h3>Agente Financiero y Cobranza WA</h3>
                     <p>Segmenta cartera, activa recordatorios, prioriza urgencias y convierte la cobranza en un flujo disciplinado que libera caja más rápido.</p>
                     <strong class="agent-impact">Impacto esperado: menos mora y más caja disponible.</strong>
                 </article>
                 <article class="module-card agent-card">
                     <div class="agent-badge">Agente 24/7</div>
-                    <i class="bi bi-person-lines-fill"></i>
+                    <div class="premium-icon premium-icon-agent" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="8" y="8" width="48" height="48" rx="16"></rect>
+                            <circle class="icon-stroke-fill" cx="32" cy="25" r="7"></circle>
+                            <path class="icon-stroke" d="M20 44c2-6 8-10 12-10s10 4 12 10"></path>
+                            <path class="icon-accent-stroke" d="M17 24c2-4 5-7 9-9"></path>
+                            <path class="icon-accent-stroke" d="M47 24c-2-4-5-7-9-9"></path>
+                            <circle class="icon-accent-fill" cx="16" cy="38" r="3"></circle>
+                            <circle class="icon-accent-fill" cx="48" cy="38" r="3"></circle>
+                        </svg>
+                    </div>
                     <h3>Agente Customer 360</h3>
                     <p>Une historial de compra, cupo, riesgo, etapa de obra y potencial para decir a quién llamar, qué ofrecer y cuándo proteger la relación.</p>
                     <strong class="agent-impact">Impacto esperado: más foco comercial y menos cartera ciega.</strong>
                 </article>
                 <article class="module-card agent-card">
                     <div class="agent-badge">Agente 24/7</div>
-                    <i class="bi bi-cash-coin"></i>
+                    <div class="premium-icon premium-icon-agent" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="8" y="8" width="48" height="48" rx="16"></rect>
+                            <path class="icon-stroke" d="M20 40l8-8 6 5 10-12"></path>
+                            <path class="icon-accent-stroke" d="M41 25h6v6"></path>
+                            <ellipse class="icon-stroke-fill" cx="24" cy="24" rx="5.5" ry="4"></ellipse>
+                            <path class="icon-accent-stroke" d="M24 20v8"></path>
+                            <circle class="icon-accent-fill" cx="45" cy="42" r="3"></circle>
+                        </svg>
+                    </div>
                     <h3>Agente de Rentabilidad</h3>
                     <p>Vigila precios rezagados, costo vs venta, capital atrapado, quiebres y compra sugerida para defender utilidad todos los días.</p>
                     <strong class="agent-impact">Impacto esperado: margen protegido y menos dinero inmovilizado.</strong>
@@ -190,15 +275,23 @@
         <section class="landing-section decision-section" id="customer360">
             <div class="section-heading">
                 <span>Por qué es el mejor en 2026</span>
-                <h2>Diez razones por las que un dueño ambicioso elegiría LhexIA antes que un ERP tradicional.</h2>
+                <h2>Diez razones por las que un dueño ambicioso elegiría <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> antes que un ERP tradicional.</h2>
                 <p>
-                    LhexIA se diferencia cuando el objetivo deja de ser “ordenarse un poco” y pasa a ser crecer, proteger utilidad
+                    <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> se diferencia cuando el objetivo deja de ser “ordenarse un poco” y pasa a ser crecer, proteger utilidad
                     y profesionalizar la operación sin matar la velocidad del negocio.
                 </p>
             </div>
             <div class="decision-grid">
                 <article class="decision-card">
-                    <div class="decision-icon"><i class="bi bi-robot"></i></div>
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <rect class="icon-stroke" x="22" y="22" width="20" height="20" rx="5"></rect>
+                            <path class="icon-accent-stroke" d="M18 26h-4M18 38h-4M46 26h4M46 38h4M26 18v-4M38 18v-4M26 46v4M38 46v4"></path>
+                            <circle class="icon-accent-fill" cx="32" cy="32" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 01</div>
                     <h3>No registra: actúa</h3>
                     <p>Opera con agentes inteligentes que buscan ventas, cobranza, margen y ejecución más fuerte cada día.</p>
                     <ul>
@@ -208,7 +301,33 @@
                     </ul>
                 </article>
                 <article class="decision-card">
-                    <div class="decision-icon"><i class="bi bi-building"></i></div>
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M18 46V26l12-6v26M34 46V20l12 6v20"></path>
+                            <path class="icon-accent-stroke" d="M24 30h4M24 36h4M40 30h4M40 36h4"></path>
+                            <path class="icon-accent-stroke" d="M28 18l4-4 4 4"></path>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 02</div>
+                    <h3>POS ultra-rápido</h3>
+                    <p>El punto de venta deja de ser fricción y se transforma en velocidad comercial para el mostrador.</p>
+                    <ul>
+                        <li>Atención más fluida.</li>
+                        <li>Menos pasos innecesarios.</li>
+                        <li>Más conversión en terreno.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M18 46V26l12-6v26M34 46V20l12 6v20"></path>
+                            <path class="icon-accent-stroke" d="M24 30h4M24 36h4M40 30h4M40 36h4"></path>
+                            <path class="icon-accent-stroke" d="M28 18l4-4 4 4"></path>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 03</div>
                     <h3>Multi-almacén real</h3>
                     <p>Tienda y bodega trabajan coordinadas con invariantes estrictos de stock y menos espacio para errores caros.</p>
                     <ul>
@@ -218,13 +337,138 @@
                     </ul>
                 </article>
                 <article class="decision-card">
-                    <div class="decision-icon"><i class="bi bi-mic"></i></div>
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M22 41V27l10-6v26l-10-6Z"></path>
+                            <path class="icon-accent-stroke" d="M38 25c3 2 5 4 5 7s-2 5-5 7"></path>
+                            <path class="icon-accent-stroke" d="M42 21c4 3 7 7 7 11s-3 8-7 11"></path>
+                            <circle class="icon-accent-fill" cx="24" cy="32" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 04</div>
                     <h3>Bodega Ultra Premium</h3>
                     <p>Retiro, preparación, SLA y voz con IA convierten la bodega en ventaja competitiva y no en cuello de botella.</p>
                     <ul>
                         <li>Retiros más rápidos.</li>
                         <li>Menos fricción con mostrador.</li>
                         <li>Experiencia premium real.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M18 42l7-7 7 6 14-15"></path>
+                            <path class="icon-accent-stroke" d="M40 20h8v8"></path>
+                            <path class="icon-accent-stroke" d="M18 22h10"></path>
+                            <circle class="icon-accent-fill" cx="18" cy="42" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 05</div>
+                    <h3>Rentabilidad protegida</h3>
+                    <p>La utilidad deja de depender solo del criterio humano y empieza a estar acompañada por señales concretas.</p>
+                    <ul>
+                        <li>Precios rezagados visibles.</li>
+                        <li>Menos capital inmovilizado.</li>
+                        <li>Más margen defendido.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M21 24h22a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H29l-8 6v-6h0a5 5 0 0 1-5-5V29a5 5 0 0 1 5-5Z"></path>
+                            <path class="icon-accent-stroke" d="M24 32h16"></path>
+                            <path class="icon-accent-stroke" d="M24 37h10"></path>
+                            <circle class="icon-accent-fill" cx="42" cy="32" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 06</div>
+                    <h3>Cobranza por WhatsApp</h3>
+                    <p>La cartera se mueve con más disciplina cuando hay prioridad, contexto y contacto más directo con el cliente.</p>
+                    <ul>
+                        <li>Menos mora dormida.</li>
+                        <li>Más caja anticipada.</li>
+                        <li>Más orden financiero.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <circle class="icon-stroke-fill" cx="32" cy="25" r="7"></circle>
+                            <path class="icon-stroke" d="M20 44c2-6 8-10 12-10s10 4 12 10"></path>
+                            <path class="icon-accent-stroke" d="M17 24c2-4 5-7 9-9"></path>
+                            <path class="icon-accent-stroke" d="M47 24c-2-4-5-7-9-9"></path>
+                            <circle class="icon-accent-fill" cx="16" cy="38" r="3"></circle>
+                            <circle class="icon-accent-fill" cx="48" cy="38" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 07</div>
+                    <h3>Customer 360 útil</h3>
+                    <p>El equipo deja de vender a ciegas porque entiende mejor historial, potencial, riesgo y próxima acción.</p>
+                    <ul>
+                        <li>Más foco comercial.</li>
+                        <li>Más probabilidad de recompra.</li>
+                        <li>Mejor lectura del cliente.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M22 18h15l9 9v19H22z"></path>
+                            <path class="icon-accent-stroke" d="M37 18v9h9"></path>
+                            <path class="icon-accent-stroke" d="M27 35l4 4 8-9"></path>
+                            <circle class="icon-accent-fill" cx="44" cy="44" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 08</div>
+                    <h3>Chile nativo y SII directo</h3>
+                    <p>La capa local importa cuando quieres emitir, operar y cumplir sin armar un ecosistema paralelo de parches.</p>
+                    <ul>
+                        <li>Integración directa al SII.</li>
+                        <li>Menos dependencia externa.</li>
+                        <li>Más aterrizaje local.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M32 18l14 5v9c0 9-6 14-14 18-8-4-14-9-14-18v-9z"></path>
+                            <path class="icon-accent-stroke" d="M27 33l4 4 7-8"></path>
+                            <circle class="icon-accent-fill" cx="32" cy="24" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 09</div>
+                    <h3>Auditoría y RBAC serio</h3>
+                    <p>El control no depende de memoria ni confianza absoluta: queda trazabilidad sobre acciones, permisos y cambios.</p>
+                    <ul>
+                        <li>Más gobernanza operativa.</li>
+                        <li>Menos espacio para fraude.</li>
+                        <li>Más seguridad al crecer.</li>
+                    </ul>
+                </article>
+                <article class="decision-card">
+                    <div class="premium-icon decision-icon" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" class="premium-icon-svg">
+                            <rect class="icon-shell" x="10" y="10" width="44" height="44" rx="15"></rect>
+                            <path class="icon-stroke" d="M22 38c2-7 8-12 15-12 3 0 6 1 8 2"></path>
+                            <path class="icon-stroke" d="M42 24h8v8"></path>
+                            <path class="icon-accent-stroke" d="M18 44h12"></path>
+                            <path class="icon-accent-stroke" d="M34 44h12"></path>
+                            <circle class="icon-accent-fill" cx="31" cy="44" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="decision-index">Razón 10</div>
+                    <h3>Atención cercana y desarrollos rápidos</h3>
+                    <p>No solo importa el software. También importa la capacidad de responder, ajustar y ejecutar con velocidad real.</p>
+                    <ul>
+                        <li>Más personalización útil.</li>
+                        <li>Más velocidad de respuesta.</li>
+                        <li>Más sensación de partner.</li>
                     </ul>
                 </article>
             </div>
@@ -234,7 +478,7 @@
                     <strong>“El mejor ERP no es el que más pantallas tiene; es el que más utilidad protege sin frenar la venta.”</strong>
                 </div>
                 <p>
-                    Por eso LhexIA combina POS ultra-rápido, agentes comerciales, bodega por voz, cobranza inteligente,
+                    Por eso <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> combina POS ultra-rápido, agentes comerciales, bodega por voz, cobranza inteligente,
                     auditoría, RBAC y facturación local en una propuesta coherente para dueños que quieren crecer en serio.
                 </p>
             </div>
@@ -243,10 +487,10 @@
         <section class="landing-section bi-section" id="bi">
             <div class="section-heading">
                 <span>Comparativa competitiva</span>
-                <h2>Donde LhexIA aplasta a los ERP tradicionales, generalistas o demasiado pesados para el rubro.</h2>
+                <h2>Dónde <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> aporta más valor frente a ERP tradicionales, generalistas o demasiado pesados para el rubro.</h2>
                 <p>
-                    Si el criterio es “qué tan bien registra contabilidad”, hay muchos. Si el criterio es “qué ERP ayuda más a una
-                    ferretería a vender, cobrar, proteger margen y ejecutar mejor”, LhexIA juega en otra liga.
+                    Si el criterio es “qué tan bien registra contabilidad”, hay muchas alternativas. Si el criterio es “qué ERP ayuda más a una
+                    ferretería a vender, cobrar, proteger margen y ejecutar mejor”, <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> marca una diferencia clara.
                 </p>
             </div>
             <div class="comparison-table-wrap">
@@ -255,34 +499,34 @@
                         <tr>
                             <th>Competidor</th>
                             <th>Lo que prometen</th>
-                            <th>Donde LhexIA gana</th>
+                            <th>Dónde <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> aporta más valor</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td>Defontana</td>
                             <td>Suite masiva y transversal.</td>
-                            <td>LhexIA gana cuando importa la profundidad ferretera, agentes IA, bodega con SLA y ejecución tienda+bodega sin fricción.</td>
+                            <td><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> destaca cuando importa la profundidad ferretera, agentes IA, bodega con SLA y ejecución tienda+bodega sin fricción.</td>
                         </tr>
                         <tr>
                             <td>Random / UpERP</td>
                             <td>Control operativo local.</td>
-                            <td>LhexIA gana por ventas digital, cobranza WA, customer 360, rentabilidad y una experiencia premium de operación real.</td>
+                            <td><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> destaca por ventas digital, cobranza WA, customer 360, rentabilidad y una experiencia premium de operación real.</td>
                         </tr>
                         <tr>
                             <td>GlobalBluePoint</td>
                             <td>Cobertura amplia y narrativa corporativa.</td>
-                            <td>LhexIA gana por especialización, velocidad de adopción y foco directo en caja, margen, cartera y bodega.</td>
+                            <td><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> aporta más valor por especialización, velocidad de adopción y foco directo en caja, margen, cartera y bodega.</td>
                         </tr>
                         <tr>
                             <td>SAP B1 / NetSuite / Epicor</td>
                             <td>Marca enterprise y robustez global.</td>
-                            <td>LhexIA gana en time-to-value, verticalidad chilena, SII, WhatsApp, POS intenso y operación ferretera aterrizada.</td>
+                            <td><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> se diferencia en time-to-value, verticalidad chilena, SII, WhatsApp, POS intenso y operación ferretera aterrizada.</td>
                         </tr>
                         <tr>
                             <td>Odoo</td>
                             <td>Flexibilidad generalista.</td>
-                            <td>LhexIA gana cuando el cliente no quiere armar un rompecabezas, sino una máquina de rentabilidad lista para el rubro.</td>
+                            <td><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> encaja mejor cuando el cliente no quiere armar un rompecabezas, sino una máquina de rentabilidad lista para el rubro.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -292,7 +536,7 @@
         <section class="landing-section predictive-section" id="predictivo">
             <div class="section-heading">
                 <span>Resultados cuantificables esperados</span>
-                <h2>Cuando LhexIA se implementa bien, el impacto no se siente solo bonito: se nota en dinero, velocidad y control.</h2>
+                <h2>Cuando <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> se implementa bien, el impacto no se siente solo bonito: se nota en dinero, velocidad y control.</h2>
                 <p>
                     Los resultados exactos dependen de la disciplina operativa y calidad del catálogo, pero estas son metas
                     ambiciosas y creíbles para una ferretería que adopta en serio agentes, POS, bodega y cartera.
@@ -339,7 +583,7 @@
                     <h2>Descubre en menos de un minuto dónde hoy se te está escapando el dinero.</h2>
                     <p>
                         Sin formulario eterno. Sin reunión obligatoria. Solo una lectura inicial de tus riesgos de stock,
-                        caja, margen, cartera y velocidad operativa para saber si LhexIA puede mover tu negocio de verdad.
+                        caja, margen, cartera y velocidad operativa para saber si <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> puede mover tu negocio de verdad.
                     </p>
                     <div class="demo-ai-points">
                         <span><i class="bi bi-check2-circle"></i> Sin formulario largo</span>
@@ -350,7 +594,7 @@
                 <div class="ai-demo-widget" data-ai-demo-widget>
                     <div class="ai-demo-header">
                         <div>
-                            <small>Asistente LhexIA IA ERP</small>
+                            <small>Asistente <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP</small>
                             <strong>Diagnóstico express</strong>
                         </div>
                         <i class="bi bi-robot"></i>
@@ -377,7 +621,7 @@
                 <span class="landing-eyebrow">Beneficios para una ferretería real</span>
                 <h2>Operación premium para el piso del negocio: mostrador rápido, caja clara y bodega que no frena.</h2>
                 <p>
-                    LhexIA no se ve bien solo en el discurso. Se siente en la operación: menos pasos absurdos, más trazabilidad,
+                    <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> no se ve bien solo en el discurso. Se siente en la operación: menos pasos absurdos, más trazabilidad,
                     menos fricción entre áreas y una experiencia más profesional frente al cliente final.
                 </p>
                 <div class="benefit-list">
@@ -396,7 +640,7 @@
                     y luego activar la capa inteligente donde más retorno produce.
                 </p>
                 <button type="button" class="btn btn-warning" data-open-ai-demo>
-                    Quiero evaluar LhexIA
+                    Quiero evaluar <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span>
                 </button>
             </div>
         </section>
@@ -406,7 +650,7 @@
                 <span class="landing-eyebrow">Quiénes somos</span>
                 <h2>La tecnología importa, pero el criterio detrás de la plataforma importa igual o más.</h2>
                 <p>
-                    LhexIA nace desde años de experiencia en SAP, BI, prevención de pérdidas y operación real.
+                    <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> nace desde años de experiencia en SAP, BI, prevención de pérdidas y operación real.
                     Esa trayectoria es la que nos llevó a construir una plataforma más útil para retail, ferreterías,
                     constructoras y empresas que manejan alto volumen de SKU.
                 </p>
@@ -419,7 +663,7 @@
             <div class="landing-note-card">
                 <h3>Una historia, dos niveles de profundidad</h3>
                 <p>
-                    En Quiénes somos resumimos el origen y el respaldo de LhexIA. En la página del fundador
+                    En Quiénes somos resumimos el origen y el respaldo de <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span>. En la página del fundador
                     desarrollamos la visión completa detrás de la plataforma y hacia dónde creemos que deben avanzar
                     las operaciones modernas.
                 </p>
@@ -430,42 +674,93 @@
             </div>
         </section>
 
+        <section class="landing-section" id="soluciones-rubro">
+            <div class="section-heading">
+                <span>Soluciones por vertical</span>
+                <h2>Explora cómo <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> aterriza su propuesta en distintos tipos de operación.</h2>
+                <p>
+                    Ya puedes explorar páginas específicas para cada realidad operativa, de modo que Google y tus clientes
+                    encuentren una respuesta más precisa según su rubro, madurez y complejidad.
+                </p>
+            </div>
+            <div class="faq-grid">
+                <article class="faq-card">
+                    <h3>ERP para ferreterías en Chile</h3>
+                    <p>Una mirada específica sobre POS, mostrador, crédito, caja, bodega, despacho por voz y margen en el mundo ferretero.</p>
+                    <a href="{{ url_for('erp_ferreterias') }}" class="btn btn-outline-light mt-3">Ver página ferreterías</a>
+                </article>
+                <article class="faq-card">
+                    <h3>ERP para retail especializado</h3>
+                    <p>Una propuesta enfocada en operaciones intensivas en SKU, Customer 360, trazabilidad, rentabilidad y prevención de pérdidas.</p>
+                    <a href="{{ url_for('erp_retail_especializado') }}" class="btn btn-outline-light mt-3">Ver página retail especializado</a>
+                </article>
+            </div>
+        </section>
+
+        <section class="landing-section" id="recursos-estrategicos">
+            <div class="section-heading">
+                <span>Recursos estratégicos</span>
+                <h2>Contenido de alta intención para evaluar ERP, operación, stock y ventajas competitivas reales.</h2>
+                <p>
+                    Este clúster nos permite explicar mejor la propuesta de LhexIA y, al mismo tiempo, capturar búsquedas más
+                    específicas de dueños, gerencias y equipos que ya están comparando soluciones.
+                </p>
+            </div>
+            <div class="faq-grid">
+                <article class="faq-card">
+                    <h3>Alternativa a Defontana</h3>
+                    <p>Una lectura comercial para empresas que ya están evaluando salir de un ERP tradicional hacia una plataforma más inteligente y más útil.</p>
+                    <a href="{{ url_for('alternativa_a_defontana') }}" class="btn btn-outline-light mt-3">Ver alternativa a Defontana</a>
+                </article>
+                <article class="faq-card">
+                    <h3>ERP con bodega por voz</h3>
+                    <p>Una página dedicada a uno de los diferenciales más fuertes de LhexIA para operaciones donde el retiro y despacho sí importan.</p>
+                    <a href="{{ url_for('erp_con_bodega_por_voz') }}" class="btn btn-outline-light mt-3">Ver bodega por voz</a>
+                </article>
+                <article class="faq-card">
+                    <h3>Cómo reducir quiebres de stock</h3>
+                    <p>Un recurso orientado al dolor real de ferreterías y retail: cobertura, reposición, coordinación y foco en venta sin quiebres.</p>
+                    <a href="{{ url_for('como_reducir_quiebres_de_stock_en_ferreterias') }}" class="btn btn-outline-light mt-3">Ver guía de quiebres</a>
+                </article>
+            </div>
+        </section>
+
         <section class="landing-section faq-section" id="faq">
             <div class="section-heading">
                 <span>Objeciones que frenan la compra</span>
                 <h2>Las respuestas que un dueño serio necesita antes de cambiar de ERP.</h2>
-                <p>Copy de cierre para precio, complejidad, migración, adopción y miedo al cambio.</p>
+                <p>Precio, complejidad, migración, adopción y miedo al cambio: aquí está el cierre comercial que despeja esas dudas con criterio de negocio.</p>
             </div>
             <div class="faq-grid">
-                <article class="faq-card">
+                <article class="faq-card seo-faq-item">
                     <h3>“Se ve caro”</h3>
-                    <p>Caro es seguir perdiendo margen, cobrando tarde y comprando mal. LhexIA no se mide por licencia: se mide por caja recuperada y utilidad protegida.</p>
+                    <p>Caro es seguir perdiendo margen, cobrando tarde y comprando mal. <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> no se mide por licencia: se mide por caja recuperada y utilidad protegida.</p>
                 </article>
-                <article class="faq-card">
+                <article class="faq-card seo-faq-item">
                     <h3>“Suena complejo”</h3>
-                    <p>Complejo es seguir coordinando mostrador, bodega, cobranza y precios por intuición. LhexIA simplifica la operación donde hoy más duele.</p>
+                    <p>Complejo es seguir coordinando mostrador, bodega, cobranza y precios por intuición. <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> simplifica la operación donde hoy más duele.</p>
                 </article>
-                <article class="faq-card">
+                <article class="faq-card seo-faq-item">
                     <h3>“Migrar me da miedo”</h3>
                     <p>La salida en vivo se diseña por etapas. Primero orden, luego datos, luego adopción. Se migra para reducir riesgo, no para crearlo.</p>
                 </article>
-                <article class="faq-card">
+                <article class="faq-card seo-faq-item">
                     <h3>“Ya tengo ERP”</h3>
                     <p>Entonces compara una sola pregunta: tu ERP actual te ayuda a vender más, cobrar antes y proteger margen por sí solo, o solo registra lo que ya pasó.</p>
                 </article>
-                <article class="faq-card">
+                <article class="faq-card seo-faq-item">
                     <h3>“Mi equipo no se va a adaptar”</h3>
                     <p>La adopción sube cuando el POS es más rápido, la caja más clara y la bodega más simple. La resistencia baja cuando la experiencia diaria mejora de verdad.</p>
                 </article>
-                <article class="faq-card">
+                <article class="faq-card seo-faq-item">
                     <h3>“No sé si sirve para mi negocio”</h3>
-                    <p>Si vives de rotación, bodega, retiro, crédito, cartera o márgenes finos, LhexIA fue pensado precisamente para esa realidad operativa.</p>
+                    <p>Si vives de rotación, bodega, retiro, crédito, cartera o márgenes finos, <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> fue pensado precisamente para esa realidad operativa.</p>
                 </article>
             </div>
         </section>
 
         <section class="landing-cta">
-            <h2>LhexIA IA ERP no viene a ordenar papeles. Viene a mover caja, margen y velocidad operativa.</h2>
+            <h2><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP no viene a ordenar papeles. Viene a mover caja, margen y velocidad operativa.</h2>
             <p>Agenda tu diagnóstico y descubre cuánto margen, cuánta cobranza y cuánta velocidad podrías recuperar en los próximos 90 días.</p>
             <div class="landing-actions justify-content-center">
                 <button type="button" class="btn btn-warning btn-lg" data-open-ai-demo>
@@ -488,8 +783,11 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content shadow-lg">
                 <div class="modal-header border-0">
-                    <h5 class="modal-title w-100 text-center text-white">ACCESO A LhexIA IA ERP</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <div class="modal-login-brand text-center w-100">
+                        <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA ERP" class="modal-login-logo">
+                        <h5 class="modal-title w-100 text-center text-white">ACCESO A <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP</h5>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white position-absolute end-0 top-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4 text-start">
                     <form action="{{ url_for('login') }}" method="POST">
@@ -507,14 +805,14 @@
                     </form>
                 </div>
                 <div class="modal-footer border-0 justify-content-center">
-                    <small class="text-muted opacity-75">LhexIA IA ERP · {{ empresa_cfg.nombre_comercial }}</small>
+                    <small class="text-muted opacity-75"><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP · {{ empresa_cfg.nombre_comercial }}</small>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="index-footer landing-footer">
-        © 2026 LhexIA IA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para ferreterías y retail especializado
+        © 2026 <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para ferreterías y retail especializado
     </div>
 
     <!-- Bootstrap JS Local -->

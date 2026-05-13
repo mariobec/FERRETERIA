@@ -122,17 +122,17 @@
         }
 
         .login-brand {
-            display: inline-block;
-            margin-bottom: 0.55rem;
-            color: #fff;
-            font-family: "Montserrat", "Segoe UI", Roboto, Arial, sans-serif;
-            font-size: 1.42rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 0.7rem;
         }
 
-        .login-brand span {
-            color: var(--login-orange);
+        .login-brand-logo {
+            display: block;
+            height: 66px;
+            width: auto;
+            filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.28));
         }
 
         .login-brand-subtitle {
@@ -179,8 +179,10 @@
             color: #ffffff;
         }
 
-        .login-card .form-control::placeholder {
-            color: rgba(255, 255, 255, 0.45);
+        .login-card .form-control::placeholder,
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.6) !important;
+            opacity: 1;
         }
 
         .login-card .form-control:focus {
@@ -236,7 +238,9 @@
                 </div>
                 <div class="card login-card">
                     <div class="login-header text-center">
-                        <div class="login-brand">Lhex<span>IA</span></div>
+                        <div class="login-brand">
+                            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA ERP" class="login-brand-logo">
+                        </div>
                         <span class="login-brand-subtitle">Inteligencia Operativa</span>
                         <h5 class="m-0 fw-bold"><i class="fas fa-key me-2"></i>Acceso al ERP</h5>
                         <small>{{ empresa_cfg.nombre_comercial }}</small>
