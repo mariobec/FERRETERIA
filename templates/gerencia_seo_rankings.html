@@ -1,0 +1,416 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .seo-hero {
+    background: linear-gradient(135deg, #111827 0%, #172554 38%, #0f766e 100%);
+    color: #f8fafc;
+    border-radius: 18px;
+    padding: 1.4rem 1.5rem;
+    border: 1px solid rgba(148, 163, 184, .22);
+    box-shadow: 0 22px 55px rgba(15, 23, 42, .3);
+    position: relative;
+    overflow: hidden;
+  }
+  .seo-hero::after {
+    content: "";
+    position: absolute;
+    right: -60px;
+    top: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(34, 197, 94, .22), transparent 72%);
+  }
+  .seo-kpi {
+    background: rgba(15, 23, 42, .48);
+    border: 1px solid rgba(148, 163, 184, .18);
+    border-radius: 14px;
+    padding: 1rem;
+    height: 100%;
+    backdrop-filter: blur(8px);
+  }
+  .seo-kpi .lbl {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: rgba(191, 219, 254, .9);
+  }
+  .seo-kpi .val {
+    font-size: 1.7rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .seo-card {
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, .08);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .08);
+  }
+  .seo-mini {
+    font-size: .78rem;
+    color: var(--bs-secondary-color);
+  }
+  .seo-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: .28rem .62rem;
+    border-radius: 999px;
+    border: 1px solid rgba(13, 110, 253, .16);
+    background: rgba(13, 110, 253, .08);
+    color: #0d6efd;
+    font-size: .78rem;
+    font-weight: 700;
+  }
+  .seo-chip.good {
+    background: rgba(22, 163, 74, .1);
+    border-color: rgba(22, 163, 74, .18);
+    color: #15803d;
+  }
+  .seo-chip.warn {
+    background: rgba(245, 158, 11, .1);
+    border-color: rgba(245, 158, 11, .18);
+    color: #b45309;
+  }
+  .seo-chip.bad {
+    background: rgba(220, 38, 38, .08);
+    border-color: rgba(220, 38, 38, .16);
+    color: #b91c1c;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1320px;">
+  <div class="seo-hero mb-4">
+    <div class="position-relative" style="z-index:1;">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <div class="small text-info fw-bold text-uppercase mb-1">SEO intelligence · LhexIA</div>
+          <h2 class="mb-2"><i class="fas fa-magnifying-glass-chart me-2"></i>SEO & Rankings · Command Center</h2>
+          <p class="mb-0" style="max-width:58rem; color: rgba(226, 232, 240, .92);">
+            Estado técnico del sitio público, keywords objetivo, páginas prioritarias y tracción orgánica,
+            todo visible desde la plataforma interna.
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <form method="post" action="{{ url_for('gerencia_seo_snapshot') }}">
+            <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
+              <i class="fas fa-arrows-rotate me-1"></i> Ejecutar snapshot SEO
+            </button>
+          </form>
+          <a href="{{ url_for('gerencia_analitica_web') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-chart-area me-1"></i> Analítica web
+          </a>
+        </div>
+      </div>
+
+      <div class="row g-2 g-md-3">
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi">
+            <div class="lbl">Snapshot</div>
+            <div class="val">{{ seo_summary.snapshot_date.strftime('%d/%m/%Y') if seo_summary.snapshot_date else '—' }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi">
+            <div class="lbl">Score promedio</div>
+            <div class="val">{{ seo_summary.avg_score }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi">
+            <div class="lbl">Sesiones orgánicas 7 días</div>
+            <div class="val">{{ seo_summary.organic_sessions_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi border-success border-opacity-50">
+            <div class="lbl text-success">Conv. orgánicas 7 días</div>
+            <div class="val text-success">{{ seo_summary.organic_conversions_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi">
+            <div class="lbl">URLs en sitemap</div>
+            <div class="val">{{ seo_summary.sitemap_url_count }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi">
+            <div class="lbl">Páginas trackeadas</div>
+            <div class="val">{{ seo_summary.tracked_pages }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi">
+            <div class="lbl">Robots / sitemap</div>
+            <div class="val" style="font-size:1.15rem;">
+              <span class="seo-chip {% if seo_summary.robots_ok and seo_summary.sitemap_ok %}good{% else %}warn{% endif %}">
+                {{ 'OK' if seo_summary.robots_ok and seo_summary.sitemap_ok else 'Revisar' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-kpi border-warning border-opacity-50">
+            <div class="lbl text-warning">Páginas noindex</div>
+            <div class="val text-warning">{{ seo_summary.noindex_pages }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card card-ds seo-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-chart-line text-primary me-1"></i> Tendencia SEO</span>
+          <span class="seo-mini">Score técnico y sesiones orgánicas</span>
+        </div>
+        <div class="card-body">
+          <canvas id="seoTrendChart" height="110"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-ds seo-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-circle-exclamation text-danger me-1"></i> Hallazgos prioritarios
+        </div>
+        <div class="card-body">
+          {% for issue in seo_issues %}
+          <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="fw-semibold"><code>{{ issue.path }}</code></div>
+            <div class="seo-mini">{{ issue.issue }}</div>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">Sin hallazgos críticos en el último snapshot.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-7">
+      <div class="card card-ds seo-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-file-waveform text-primary me-1"></i> Salud SEO por página</span>
+          <span class="seo-mini">Score, canonical, schema y tracción orgánica</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Página</th>
+                  <th class="text-end">Score</th>
+                  <th class="text-end">HTTP</th>
+                  <th class="text-end">Schemas</th>
+                  <th class="text-end">Orgánico 7d</th>
+                  <th class="text-end">Conv. 7d</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in seo_page_rows %}
+                <tr>
+                  <td>
+                    <div><code>{{ row.path }}</code></div>
+                    <div class="seo-mini text-truncate" style="max-width: 340px;">{{ row.title or 'Sin title' }}</div>
+                  </td>
+                  <td class="text-end fw-bold">{{ row.seo_score }}</td>
+                  <td class="text-end">{{ row.status_code }}</td>
+                  <td class="text-end">{{ row.schema_count }}</td>
+                  <td class="text-end">{{ row.organic_sessions_7d }}</td>
+                  <td class="text-end fw-bold text-success">{{ row.organic_conversions_7d }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">Ejecuta el snapshot SEO para poblar esta tabla.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card card-ds seo-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-seedling text-success me-1"></i> Páginas con mejor tracción orgánica
+        </div>
+        <div class="card-body">
+          {% for row in seo_organic_top %}
+          <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="d-flex justify-content-between gap-2 align-items-center">
+              <div>
+                <div class="fw-semibold"><code>{{ row.path }}</code></div>
+                <div class="seo-mini">Score {{ row.seo_score }} · {{ row.schema_count }} schema</div>
+              </div>
+              <div class="text-end">
+                <div class="fw-bold">{{ row.organic_sessions_7d }} sesiones</div>
+                <div class="seo-mini">{{ row.organic_conversions_7d }} conv.</div>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">Todavía no hay páginas orgánicas destacadas registradas.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card card-ds seo-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-pen-ruler text-warning me-1"></i> Registrar métrica manual
+        </div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('gerencia_seo_keyword_metric') }}" class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Keyword objetivo</label>
+              <select name="keyword_target_id" class="form-select" required>
+                {% for item in seo_keyword_targets %}
+                <option value="{{ item.id }}">{{ item.keyword }} → {{ item.target_path }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Fecha</label>
+              <input type="date" name="snapshot_date" class="form-control" value="{{ seo_summary.snapshot_date.isoformat() if seo_summary.snapshot_date else '' }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Posición</label>
+              <input type="number" min="1" name="current_position" class="form-control" placeholder="Ej: 7">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Impresiones</label>
+              <input type="number" min="0" name="impressions" class="form-control" placeholder="Ej: 340">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Clicks</label>
+              <input type="number" min="0" name="clicks" class="form-control" placeholder="Ej: 22">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Notas</label>
+              <input type="text" name="notes" class="form-control" placeholder="Fuente: Search Console / revisión manual">
+            </div>
+            <div class="col-12 d-grid">
+              <button type="submit" class="btn btn-ds-primary fw-bold">
+                <i class="fas fa-save me-1"></i> Guardar métrica SEO
+              </button>
+            </div>
+          </form>
+          <p class="seo-mini mt-3 mb-0">
+            Esto deja la base operativa hoy. En la siguiente iteración conectamos sincronización automática con Search Console/API.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card card-ds seo-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-key text-primary me-1"></i> Keywords monitoreadas</span>
+          <span class="seo-mini">Ranking y performance más reciente</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Keyword</th>
+                  <th>Target</th>
+                  <th class="text-end">Pos.</th>
+                  <th class="text-end">Clicks</th>
+                  <th class="text-end">CTR</th>
+                  <th class="text-end">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in seo_keyword_rows %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.target.keyword }}</div>
+                    <div class="seo-mini">{{ row.target.intent }} · {{ row.target.cluster }}</div>
+                  </td>
+                  <td><code>{{ row.target.target_path }}</code></td>
+                  <td class="text-end">{{ row.metric.current_position if row.metric and row.metric.current_position is not none else '—' }}</td>
+                  <td class="text-end">{{ row.metric.clicks if row.metric and row.metric.clicks is not none else '—' }}</td>
+                  <td class="text-end">{{ ('%.2f%%'|format(row.metric.ctr)) if row.metric and row.metric.ctr is not none else '—' }}</td>
+                  <td class="text-end">
+                    {% if row.status == 'alto' %}
+                    <span class="seo-chip good">Top 3</span>
+                    {% elif row.status == 'medio' %}
+                    <span class="seo-chip">Top 10</span>
+                    {% elif row.status == 'bajo' %}
+                    <span class="seo-chip warn">Fuera top 10</span>
+                    {% else %}
+                    <span class="seo-chip bad">Sin dato</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No hay keywords registradas aún.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+(() => {
+  const el = document.getElementById('seoTrendChart');
+  if (!el || typeof Chart === 'undefined') return;
+  new Chart(el, {
+    type: 'line',
+    data: {
+      labels: {{ seo_chart_labels|tojson }},
+      datasets: [
+        {
+          label: 'Score SEO',
+          data: {{ seo_chart_scores|tojson }},
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13,110,253,.10)',
+          borderWidth: 2,
+          fill: true,
+          tension: .3,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Sesiones orgánicas 7d',
+          data: {{ seo_chart_organic|tojson }},
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22,163,74,.10)',
+          borderWidth: 2,
+          fill: true,
+          tension: .3,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' }
+      },
+      scales: {
+        y: { beginAtZero: true, position: 'left' },
+        y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

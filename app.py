@@ -45,8 +45,10 @@ import shutil
 import unicodedata
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 import pdfkit
 import requests
+from lxml import etree, html as lxml_html
 from flask import make_response, render_template
 
 
@@ -508,6 +510,7 @@ def _ruta_landing_lead_eventos():
 
 def guardar_landing_lead(payload):
     data = payload if isinstance(payload, dict) else {}
+    analytics = data.get('analytics') if isinstance(data.get('analytics'), dict) else {}
     nombre = (str(data.get('nombre') or '').strip())[:120]
     empresa = (str(data.get('empresa') or '').strip())[:160]
     telefono = (str(data.get('telefono') or '').strip())[:40]
@@ -528,6 +531,13 @@ def guardar_landing_lead(payload):
         "urgencia": (str(data.get('urgencia') or '').strip())[:80],
         "recomendacion_demo": (str(data.get('recomendacion_demo') or '').strip())[:220],
         "landing_url": (str(data.get('landing_url') or '').strip())[:220],
+        "visitor_key": _web_analytics_clean(analytics.get('visitor_key') or data.get('visitor_key'), 64),
+        "session_id": _web_analytics_clean(analytics.get('session_id') or analytics.get('session_key') or data.get('session_id') or data.get('session_key'), 64),
+        "session_key": _web_analytics_clean(analytics.get('session_id') or analytics.get('session_key') or data.get('session_id') or data.get('session_key'), 64),
+        "pageview_key": _web_analytics_clean(analytics.get('pageview_key') or data.get('pageview_key'), 64),
+        "traffic_source": _web_analytics_clean(analytics.get('source') or data.get('source'), 80),
+        "traffic_medium": _web_analytics_clean(analytics.get('medium') or data.get('medium'), 80),
+        "traffic_campaign": _web_analytics_clean(analytics.get('campaign') or data.get('campaign'), 120),
         "user_agent": (request.headers.get('User-Agent') or '')[:220],
         "ip": (request.headers.get('X-Forwarded-For') or request.remote_addr or '')[:120],
     }
@@ -598,6 +608,156 @@ def cargar_landing_leads_gestion(limit=800):
         out.append(row)
     out.reverse()
     return out
+
+
+def _web_analytics_clean(value, max_len=255):
+    return (str(value or '').strip())[:max_len]
+
+
+def _web_analytics_json(data, max_len=4000):
+    if data in (None, '', {}, []):
+        return None
+    try:
+        raw = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    except Exception:
+        return None
+    return raw[:max_len] if raw else None
+
+
+def _safe_positive_int(value):
+    try:
+        num = int(str(value or '').strip())
+    except Exception:
+        return None
+    return num if num >= 0 else None
+
+
+_LIZ_SESSION_ID_RE = re.compile(r'^liz_s_[a-z0-9]{6,20}_[a-z0-9]{8,40}$')
+
+
+def _es_session_id_liz_legitimo(session_id):
+    sid = _web_analytics_clean(session_id, 64).lower()
+    return bool(sid and _LIZ_SESSION_ID_RE.match(sid))
+
+
+def _web_analytics_domain(url):
+    raw = (str(url or '').strip())
+    if not raw:
+        return ''
+    try:
+        parsed = urlparse(raw if '://' in raw else f'https://{raw}')
+        host = (parsed.netloc or parsed.path or '').strip().lower()
+    except Exception:
+        return ''
+    return host.split(':', 1)[0]
+
+
+def _web_analytics_is_bot(user_agent):
+    ua = (str(user_agent or '').strip().lower())
+    if not ua:
+        return False
+    markers = (
+        'bot', 'spider', 'crawl', 'slurp', 'headless', 'lighthouse',
+        'facebookexternalhit', 'preview', 'python-requests', 'curl/', 'wget',
+    )
+    return any(marker in ua for marker in markers)
+
+
+def _web_analytics_device_type(user_agent):
+    ua = (str(user_agent or '').strip().lower())
+    if not ua:
+        return 'unknown'
+    if any(x in ua for x in ('ipad', 'tablet')):
+        return 'tablet'
+    if any(x in ua for x in ('mobile', 'iphone', 'android')):
+        return 'mobile'
+    return 'desktop'
+
+
+def _web_analytics_source_tuple(referrer='', utm_source='', utm_medium='', utm_campaign=''):
+    source = _web_analytics_clean(utm_source, 80)
+    medium = _web_analytics_clean(utm_medium, 80)
+    campaign = _web_analytics_clean(utm_campaign, 120)
+    if source or medium or campaign:
+        return (
+            source or 'campaign',
+            medium or 'campaign',
+            campaign,
+            _web_analytics_domain(referrer),
+        )
+
+    ref_domain = _web_analytics_domain(referrer)
+    if not ref_domain:
+        return 'direct', 'direct', '', ''
+
+    public_domain = _web_analytics_domain(_public_site_base_url())
+    if public_domain and ref_domain.endswith(public_domain):
+        return 'internal', 'internal', '', ref_domain
+
+    search_domains = (
+        'google.', 'bing.', 'yahoo.', 'duckduckgo.', 'ecosia.', 'brave.',
+    )
+    social_domains = (
+        'facebook.', 'instagram.', 'linkedin.', 'x.com', 'twitter.', 't.co',
+        'youtube.', 'tiktok.', 'threads.',
+    )
+    whatsapp_domains = ('wa.me', 'whatsapp.')
+    if any(x in ref_domain for x in search_domains):
+        return ref_domain, 'organic', '', ref_domain
+    if any(x in ref_domain for x in social_domains):
+        return ref_domain, 'social', '', ref_domain
+    if any(x in ref_domain for x in whatsapp_domains):
+        return ref_domain, 'whatsapp', '', ref_domain
+    return ref_domain, 'referral', '', ref_domain
+
+
+def _web_analytics_event_context(payload, default_ip=None, default_user_agent=None):
+    data = payload if isinstance(payload, dict) else {}
+    referrer = _web_analytics_clean(data.get('referrer'), 500)
+    def _safe_int_bound(value, lower=0, upper=100):
+        try:
+            num = int(float(value or 0))
+        except Exception:
+            num = 0
+        return max(lower, min(num, upper))
+
+    raw_value_clp = str(data.get('value_clp') or '').strip()
+    try:
+        value_clp = float(raw_value_clp) if raw_value_clp else None
+    except Exception:
+        value_clp = None
+    source, medium, campaign, ref_domain = _web_analytics_source_tuple(
+        referrer=referrer,
+        utm_source=data.get('utm_source'),
+        utm_medium=data.get('utm_medium'),
+        utm_campaign=data.get('utm_campaign'),
+    )
+    session_id = _web_analytics_clean(data.get('session_id') or data.get('session_key'), 64).lower()
+    return {
+        'visitor_key': _web_analytics_clean(data.get('visitor_key'), 64),
+        'session_id': session_id,
+        'session_key': session_id,
+        'pageview_key': _web_analytics_clean(data.get('pageview_key'), 64),
+        'event_name': _web_analytics_clean(data.get('event_name'), 60).lower(),
+        'path': _web_analytics_clean(data.get('path'), 240) or '/',
+        'full_url': _web_analytics_clean(data.get('full_url') or data.get('url'), 500),
+        'page_title': _web_analytics_clean(data.get('page_title') or data.get('title'), 200),
+        'label': _web_analytics_clean(data.get('label'), 180),
+        'target': _web_analytics_clean(data.get('target'), 320),
+        'referrer': referrer,
+        'source': source,
+        'medium': medium,
+        'campaign': campaign,
+        'referrer_domain': ref_domain,
+        'active_seconds': _safe_int_bound(data.get('active_seconds'), lower=0, upper=300),
+        'scroll_depth': _safe_int_bound(data.get('scroll_depth'), lower=0, upper=100),
+        'conversion_type': _web_analytics_clean(data.get('conversion_type'), 80),
+        'value_clp': value_clp,
+        'meta': data.get('meta') if isinstance(data.get('meta'), dict) else {},
+        'ip': _web_analytics_clean(default_ip or request.headers.get('X-Forwarded-For') or request.remote_addr, 120),
+        'user_agent': _web_analytics_clean(default_user_agent or request.headers.get('User-Agent'), 280),
+        'is_bot': bool(data.get('is_bot')) or _web_analytics_is_bot(default_user_agent or request.headers.get('User-Agent')),
+    }
 
 
 def _public_site_base_url():
@@ -1007,6 +1167,12 @@ _NAV_MAP = [
             {'label': 'Panel ejecutivo', 'icon': 'fa-chart-pie', 'endpoint': 'panel_dueno',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['panel_dueno']},
+            {'label': 'Analítica web', 'icon': 'fa-chart-area', 'endpoint': 'gerencia_analitica_web',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['gerencia_analitica_web']},
+            {'label': 'SEO y rankings', 'icon': 'fa-magnifying-glass-chart', 'endpoint': 'gerencia_seo_rankings',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['gerencia_seo_rankings', 'gerencia_seo_snapshot', 'gerencia_seo_keyword_metric']},
             {'label': 'ROI IA · Customer 360', 'icon': 'fa-robot', 'endpoint': 'gerencia_c360_ia_dashboard',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['gerencia_c360_ia_dashboard']},
@@ -2244,6 +2410,213 @@ class ErpAuditLog(db.Model):
     datos_despues = db.Column(db.Text, nullable=True)
 
 
+class WebAnalyticsVisitor(db.Model):
+    __tablename__ = 'web_analytics_visitors'
+
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_key = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    first_seen_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    last_seen_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    first_source = db.Column(db.String(80), nullable=True)
+    first_medium = db.Column(db.String(80), nullable=True)
+    first_campaign = db.Column(db.String(120), nullable=True)
+    first_referrer_domain = db.Column(db.String(160), nullable=True)
+    first_landing_path = db.Column(db.String(240), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    ip = db.Column(db.String(120), nullable=True)
+
+
+class WebAnalyticsSession(db.Model):
+    __tablename__ = 'web_analytics_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_id = db.Column(db.Integer, db.ForeignKey('web_analytics_visitors.id', ondelete='CASCADE'), nullable=False, index=True)
+    session_key = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    started_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    last_seen_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    landing_path = db.Column(db.String(240), nullable=True)
+    landing_url = db.Column(db.String(500), nullable=True)
+    exit_path = db.Column(db.String(240), nullable=True)
+    source = db.Column(db.String(80), nullable=True)
+    medium = db.Column(db.String(80), nullable=True)
+    campaign = db.Column(db.String(120), nullable=True)
+    referrer = db.Column(db.String(500), nullable=True)
+    referrer_domain = db.Column(db.String(160), nullable=True)
+    device_type = db.Column(db.String(20), nullable=True)
+    user_agent = db.Column(db.Text, nullable=True)
+    ip = db.Column(db.String(120), nullable=True)
+    is_bot = db.Column(db.Boolean, default=False, nullable=False)
+    pageviews_count = db.Column(db.Integer, default=0, nullable=False)
+    events_count = db.Column(db.Integer, default=0, nullable=False)
+    conversions_count = db.Column(db.Integer, default=0, nullable=False)
+    active_seconds = db.Column(db.Integer, default=0, nullable=False)
+    max_scroll_depth = db.Column(db.Integer, default=0, nullable=False)
+
+
+class WebAnalyticsPageView(db.Model):
+    __tablename__ = 'web_analytics_pageviews'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('web_analytics_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+    pageview_key = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    path = db.Column(db.String(240), nullable=False, index=True)
+    full_url = db.Column(db.String(500), nullable=True)
+    page_title = db.Column(db.String(200), nullable=True)
+    referrer = db.Column(db.String(500), nullable=True)
+    active_seconds = db.Column(db.Integer, default=0, nullable=False)
+    max_scroll_depth = db.Column(db.Integer, default=0, nullable=False)
+    is_entry = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class WebAnalyticsEvent(db.Model):
+    __tablename__ = 'web_analytics_events'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('web_analytics_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+    pageview_id = db.Column(db.Integer, db.ForeignKey('web_analytics_pageviews.id', ondelete='SET NULL'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    event_name = db.Column(db.String(60), nullable=False, index=True)
+    path = db.Column(db.String(240), nullable=True, index=True)
+    label = db.Column(db.String(180), nullable=True)
+    target = db.Column(db.String(320), nullable=True)
+    meta_json = db.Column(db.Text, nullable=True)
+
+
+class WebAnalyticsConversion(db.Model):
+    __tablename__ = 'web_analytics_conversions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('web_analytics_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
+    pageview_id = db.Column(db.Integer, db.ForeignKey('web_analytics_pageviews.id', ondelete='SET NULL'), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    conversion_type = db.Column(db.String(80), nullable=False, index=True)
+    path = db.Column(db.String(240), nullable=True, index=True)
+    value_clp = db.Column(db.Float, nullable=True)
+    details_json = db.Column(db.Text, nullable=True)
+
+
+class ControlTraficoInterno(db.Model):
+    """Ledger raw de telemetría web first-party para retención y purga controlada."""
+
+    __tablename__ = 'control_trafico_interno'
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    visitor_key = db.Column(db.String(64), nullable=True, index=True)
+    session_id = db.Column(db.String(64), nullable=False, index=True)
+    pageview_key = db.Column(db.String(64), nullable=True, index=True)
+    event_name = db.Column(db.String(60), nullable=False, index=True)
+    path = db.Column(db.String(240), nullable=True, index=True)
+    source = db.Column(db.String(80), nullable=True)
+    medium = db.Column(db.String(80), nullable=True)
+    campaign = db.Column(db.String(120), nullable=True)
+    visits_count = db.Column(db.Integer, nullable=False, default=0)
+    clicks_count = db.Column(db.Integer, nullable=False, default=0)
+    active_seconds = db.Column(db.Integer, nullable=False, default=0)
+    conversions_count = db.Column(db.Integer, nullable=False, default=0)
+    ip = db.Column(db.String(120), nullable=True)
+    is_bot = db.Column(db.Boolean, default=False, nullable=False)
+    meta_json = db.Column(db.Text, nullable=True)
+
+
+class TelemetriaHistoricaAgregada(db.Model):
+    """Resumen histórico consolidado de telemetría cruda purgada."""
+
+    __tablename__ = 'telemetria_historica_agregada'
+    __table_args__ = (UniqueConstraint('bucket_date', name='uq_telemetria_historica_bucket_date'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    bucket_date = db.Column(db.Date, nullable=False, index=True)
+    first_event_at = db.Column(db.DateTime, nullable=True)
+    last_event_at = db.Column(db.DateTime, nullable=True)
+    records_consolidated = db.Column(db.Integer, nullable=False, default=0)
+    visitas_total = db.Column(db.Integer, nullable=False, default=0)
+    clicks_total = db.Column(db.Integer, nullable=False, default=0)
+    tiempo_activo_segundos = db.Column(db.Integer, nullable=False, default=0)
+    conversiones_total = db.Column(db.Integer, nullable=False, default=0)
+    consolidado_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class SeoKeywordTarget(db.Model):
+    __tablename__ = 'seo_keyword_targets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    keyword = db.Column(db.String(180), unique=True, nullable=False, index=True)
+    target_path = db.Column(db.String(240), nullable=False, index=True)
+    cluster = db.Column(db.String(80), nullable=True)
+    intent = db.Column(db.String(40), nullable=True)
+    priority = db.Column(db.String(20), nullable=True, default='MEDIA')
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class SeoKeywordDailyMetric(db.Model):
+    __tablename__ = 'seo_keyword_daily_metrics'
+    __table_args__ = (UniqueConstraint('snapshot_date', 'keyword_target_id', name='uq_seo_keyword_daily_metric'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    snapshot_date = db.Column(db.Date, nullable=False, index=True)
+    keyword_target_id = db.Column(db.Integer, db.ForeignKey('seo_keyword_targets.id', ondelete='CASCADE'), nullable=False, index=True)
+    current_position = db.Column(db.Integer, nullable=True)
+    impressions = db.Column(db.Integer, nullable=True)
+    clicks = db.Column(db.Integer, nullable=True)
+    ctr = db.Column(db.Float, nullable=True)
+    source = db.Column(db.String(40), nullable=True, default='manual')
+    notes = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    keyword_target = db.relationship('SeoKeywordTarget', backref=db.backref('daily_metrics', lazy='dynamic'))
+
+
+class SeoPageDailySnapshot(db.Model):
+    __tablename__ = 'seo_page_daily_snapshots'
+    __table_args__ = (UniqueConstraint('snapshot_date', 'path', name='uq_seo_page_daily_snapshot'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    snapshot_date = db.Column(db.Date, nullable=False, index=True)
+    path = db.Column(db.String(240), nullable=False, index=True)
+    public_url = db.Column(db.String(500), nullable=False)
+    status_code = db.Column(db.Integer, nullable=False, default=0)
+    response_ms = db.Column(db.Integer, nullable=True)
+    title = db.Column(db.String(255), nullable=True)
+    meta_description = db.Column(db.String(320), nullable=True)
+    canonical_url = db.Column(db.String(500), nullable=True)
+    h1 = db.Column(db.String(255), nullable=True)
+    robots_meta = db.Column(db.String(180), nullable=True)
+    noindex = db.Column(db.Boolean, default=False, nullable=False)
+    schema_count = db.Column(db.Integer, default=0, nullable=False)
+    has_faq_schema = db.Column(db.Boolean, default=False, nullable=False)
+    has_org_schema = db.Column(db.Boolean, default=False, nullable=False)
+    has_website_schema = db.Column(db.Boolean, default=False, nullable=False)
+    has_breadcrumb_schema = db.Column(db.Boolean, default=False, nullable=False)
+    word_count = db.Column(db.Integer, default=0, nullable=False)
+    internal_links = db.Column(db.Integer, default=0, nullable=False)
+    seo_score = db.Column(db.Integer, default=0, nullable=False)
+    organic_sessions_7d = db.Column(db.Integer, default=0, nullable=False)
+    organic_conversions_7d = db.Column(db.Integer, default=0, nullable=False)
+    checked_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class SeoSiteDailySnapshot(db.Model):
+    __tablename__ = 'seo_site_daily_snapshots'
+    __table_args__ = (UniqueConstraint('snapshot_date', name='uq_seo_site_daily_snapshot'),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    snapshot_date = db.Column(db.Date, nullable=False, index=True)
+    public_base_url = db.Column(db.String(320), nullable=False)
+    sitemap_ok = db.Column(db.Boolean, default=False, nullable=False)
+    sitemap_url_count = db.Column(db.Integer, default=0, nullable=False)
+    robots_ok = db.Column(db.Boolean, default=False, nullable=False)
+    robots_allows_home = db.Column(db.Boolean, default=False, nullable=False)
+    tracked_pages = db.Column(db.Integer, default=0, nullable=False)
+    avg_page_score = db.Column(db.Float, nullable=False, default=0.0)
+    noindex_pages = db.Column(db.Integer, default=0, nullable=False)
+    organic_sessions_7d = db.Column(db.Integer, default=0, nullable=False)
+    organic_conversions_7d = db.Column(db.Integer, default=0, nullable=False)
+    checked_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
 def _asegurar_tabla_reabasto_cliente_wa_log():
     if app.config.get('_REABASTO_WA_TABLE_OK'):
         return True
@@ -2284,6 +2657,648 @@ def _asegurar_tabla_erp_audit_log():
         db.session.rollback()
         app.logger.warning('No se pudo crear tabla erp_audit_log: %s', ex)
         return False
+
+
+def _asegurar_tablas_web_analytics():
+    if app.config.get('_WEB_ANALYTICS_TABLES_OK'):
+        return True
+    try:
+        WebAnalyticsVisitor.__table__.create(bind=db.engine, checkfirst=True)
+        WebAnalyticsSession.__table__.create(bind=db.engine, checkfirst=True)
+        WebAnalyticsPageView.__table__.create(bind=db.engine, checkfirst=True)
+        WebAnalyticsEvent.__table__.create(bind=db.engine, checkfirst=True)
+        WebAnalyticsConversion.__table__.create(bind=db.engine, checkfirst=True)
+        ControlTraficoInterno.__table__.create(bind=db.engine, checkfirst=True)
+        TelemetriaHistoricaAgregada.__table__.create(bind=db.engine, checkfirst=True)
+        app.config['_WEB_ANALYTICS_TABLES_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudieron crear tablas web analytics: %s', ex)
+        return False
+
+
+def _asegurar_tablas_seo_monitor():
+    if app.config.get('_SEO_MONITOR_TABLES_OK'):
+        return True
+    try:
+        SeoKeywordTarget.__table__.create(bind=db.engine, checkfirst=True)
+        SeoKeywordDailyMetric.__table__.create(bind=db.engine, checkfirst=True)
+        SeoPageDailySnapshot.__table__.create(bind=db.engine, checkfirst=True)
+        SeoSiteDailySnapshot.__table__.create(bind=db.engine, checkfirst=True)
+        app.config['_SEO_MONITOR_TABLES_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudieron crear tablas SEO monitor: %s', ex)
+        return False
+
+
+def _seed_seo_keyword_targets():
+    if not _asegurar_tablas_seo_monitor():
+        return 0
+    seeds = [
+        {'keyword': 'erp ferreterias chile', 'target_path': '/erp-ferreterias', 'cluster': 'money-page', 'intent': 'transactional', 'priority': 'ALTA'},
+        {'keyword': 'erp para ferreterias', 'target_path': '/erp-ferreterias', 'cluster': 'money-page', 'intent': 'transactional', 'priority': 'ALTA'},
+        {'keyword': 'erp retail especializado', 'target_path': '/erp-retail-especializado', 'cluster': 'money-page', 'intent': 'transactional', 'priority': 'ALTA'},
+        {'keyword': 'alternativa a defontana', 'target_path': '/alternativa-a-defontana', 'cluster': 'comparison', 'intent': 'commercial', 'priority': 'ALTA'},
+        {'keyword': 'lhexia vs defontana', 'target_path': '/lhexia-vs-defontana', 'cluster': 'comparison', 'intent': 'commercial', 'priority': 'MEDIA'},
+        {'keyword': 'erp con bodega por voz', 'target_path': '/erp-con-bodega-por-voz', 'cluster': 'feature', 'intent': 'commercial', 'priority': 'MEDIA'},
+        {'keyword': 'como reducir quiebres de stock en ferreterias', 'target_path': '/como-reducir-quiebres-de-stock-en-ferreterias', 'cluster': 'content', 'intent': 'informational', 'priority': 'MEDIA'},
+        {'keyword': 'erp chile', 'target_path': '/', 'cluster': 'brand-category', 'intent': 'transactional', 'priority': 'ALTA'},
+        {'keyword': 'lhexia', 'target_path': '/', 'cluster': 'brand', 'intent': 'navigational', 'priority': 'ALTA'},
+    ]
+    created = 0
+    for row in seeds:
+        exists = SeoKeywordTarget.query.filter(db.func.lower(SeoKeywordTarget.keyword) == row['keyword'].lower()).first()
+        if exists:
+            continue
+        db.session.add(SeoKeywordTarget(**row))
+        created += 1
+    if created:
+        db.session.commit()
+    return created
+
+
+def _web_analytics_resolve_entities(ctx, cache):
+    visitor = cache['visitors'].get(ctx['visitor_key'])
+    if visitor is None:
+        visitor = WebAnalyticsVisitor.query.filter_by(visitor_key=ctx['visitor_key']).first()
+        if visitor is None:
+            visitor = WebAnalyticsVisitor(
+                visitor_key=ctx['visitor_key'],
+                first_source=ctx['source'] or None,
+                first_medium=ctx['medium'] or None,
+                first_campaign=ctx['campaign'] or None,
+                first_referrer_domain=ctx['referrer_domain'] or None,
+                first_landing_path=ctx['path'] or None,
+                user_agent=ctx['user_agent'] or None,
+                ip=ctx['ip'] or None,
+            )
+            db.session.add(visitor)
+            db.session.flush()
+        cache['visitors'][ctx['visitor_key']] = visitor
+    visitor.last_seen_at = datetime.now()
+    if not visitor.user_agent and ctx['user_agent']:
+        visitor.user_agent = ctx['user_agent']
+    if not visitor.ip and ctx['ip']:
+        visitor.ip = ctx['ip']
+
+    session_obj = cache['sessions'].get(ctx['session_key'])
+    if session_obj is None:
+        session_obj = WebAnalyticsSession.query.filter_by(session_key=ctx['session_key']).first()
+        if session_obj is None:
+            session_obj = WebAnalyticsSession(
+                visitor_id=visitor.id,
+                session_key=ctx['session_key'],
+                landing_path=ctx['path'] or None,
+                landing_url=ctx['full_url'] or None,
+                exit_path=ctx['path'] or None,
+                source=ctx['source'] or None,
+                medium=ctx['medium'] or None,
+                campaign=ctx['campaign'] or None,
+                referrer=ctx['referrer'] or None,
+                referrer_domain=ctx['referrer_domain'] or None,
+                device_type=_web_analytics_device_type(ctx['user_agent']),
+                user_agent=ctx['user_agent'] or None,
+                ip=ctx['ip'] or None,
+                is_bot=ctx['is_bot'],
+            )
+            db.session.add(session_obj)
+            db.session.flush()
+        cache['sessions'][ctx['session_key']] = session_obj
+
+    session_obj.last_seen_at = datetime.now()
+    session_obj.exit_path = ctx['path'] or session_obj.exit_path
+    session_obj.max_scroll_depth = max(int(session_obj.max_scroll_depth or 0), int(ctx['scroll_depth'] or 0))
+    if not session_obj.user_agent and ctx['user_agent']:
+        session_obj.user_agent = ctx['user_agent']
+    if not session_obj.ip and ctx['ip']:
+        session_obj.ip = ctx['ip']
+
+    pageview = None
+    is_new_pageview = False
+    if ctx['pageview_key']:
+        pageview = cache['pageviews'].get(ctx['pageview_key'])
+        if pageview is None:
+            pageview = WebAnalyticsPageView.query.filter_by(pageview_key=ctx['pageview_key']).first()
+            if pageview is None:
+                pageview = WebAnalyticsPageView(
+                    session_id=session_obj.id,
+                    pageview_key=ctx['pageview_key'],
+                    path=ctx['path'] or '/',
+                    full_url=ctx['full_url'] or None,
+                    page_title=ctx['page_title'] or None,
+                    referrer=ctx['referrer'] or None,
+                    is_entry=int(session_obj.pageviews_count or 0) == 0,
+                )
+                db.session.add(pageview)
+                db.session.flush()
+                session_obj.pageviews_count = int(session_obj.pageviews_count or 0) + 1
+                is_new_pageview = True
+            cache['pageviews'][ctx['pageview_key']] = pageview
+
+        if ctx['page_title']:
+            pageview.page_title = ctx['page_title']
+        if ctx['full_url']:
+            pageview.full_url = ctx['full_url']
+        if ctx['referrer'] and not pageview.referrer:
+            pageview.referrer = ctx['referrer']
+        pageview.max_scroll_depth = max(int(pageview.max_scroll_depth or 0), int(ctx['scroll_depth'] or 0))
+
+    return visitor, session_obj, pageview, is_new_pageview
+
+
+def _validar_payload_analytics_track(eventos):
+    batch = list(eventos or [])[:60]
+    if not batch:
+        return False, 'payload vacío'
+    for raw in batch:
+        if not isinstance(raw, dict):
+            return False, 'evento inválido'
+        session_id = _web_analytics_clean(raw.get('session_id') or '', 64).lower()
+        if not _es_session_id_liz_legitimo(session_id):
+            return False, 'session_id inválido'
+    return True, ''
+
+
+def _registrar_web_analytics_eventos(eventos, default_ip=None, default_user_agent=None):
+    if not _asegurar_tablas_web_analytics():
+        return 0
+
+    cache = {'visitors': {}, 'sessions': {}, 'pageviews': {}}
+    accepted = 0
+    for raw in list(eventos or [])[:60]:
+        ctx = _web_analytics_event_context(raw, default_ip=default_ip, default_user_agent=default_user_agent)
+        if not ctx['visitor_key'] or not ctx['session_key'] or not ctx['event_name']:
+            continue
+        visitor, session_obj, pageview, _is_new_pageview = _web_analytics_resolve_entities(ctx, cache)
+        _ = visitor  # explicit for readability; visitor gets updated in resolver
+
+        if ctx['event_name'] == 'heartbeat':
+            delta = int(ctx['active_seconds'] or 0)
+            if delta > 0:
+                session_obj.active_seconds = int(session_obj.active_seconds or 0) + delta
+                if pageview is not None:
+                    pageview.active_seconds = int(pageview.active_seconds or 0) + delta
+        elif ctx['event_name'] == 'scroll_depth':
+            session_obj.max_scroll_depth = max(int(session_obj.max_scroll_depth or 0), int(ctx['scroll_depth'] or 0))
+            if pageview is not None:
+                pageview.max_scroll_depth = max(int(pageview.max_scroll_depth or 0), int(ctx['scroll_depth'] or 0))
+            ev = WebAnalyticsEvent(
+                session_id=session_obj.id,
+                pageview_id=pageview.id if pageview is not None else None,
+                event_name='scroll_depth',
+                path=ctx['path'] or None,
+                label=str(ctx['scroll_depth'] or ''),
+                target=None,
+                meta_json=_web_analytics_json({'scroll_depth': int(ctx['scroll_depth'] or 0)}),
+            )
+            db.session.add(ev)
+            session_obj.events_count = int(session_obj.events_count or 0) + 1
+        else:
+            if ctx['event_name'] == 'conversion':
+                conv = WebAnalyticsConversion(
+                    session_id=session_obj.id,
+                    pageview_id=pageview.id if pageview is not None else None,
+                    conversion_type=ctx['conversion_type'] or 'conversion',
+                    path=ctx['path'] or None,
+                    value_clp=ctx['value_clp'],
+                    details_json=_web_analytics_json(ctx['meta']),
+                )
+                db.session.add(conv)
+                session_obj.conversions_count = int(session_obj.conversions_count or 0) + 1
+            elif ctx['event_name'] != 'page_view':
+                ev = WebAnalyticsEvent(
+                    session_id=session_obj.id,
+                    pageview_id=pageview.id if pageview is not None else None,
+                    event_name=ctx['event_name'],
+                    path=ctx['path'] or None,
+                    label=ctx['label'] or None,
+                    target=ctx['target'] or None,
+                    meta_json=_web_analytics_json(ctx['meta']),
+                )
+                db.session.add(ev)
+                session_obj.events_count = int(session_obj.events_count or 0) + 1
+
+        raw_row = ControlTraficoInterno(
+            session_id=ctx['session_id'],
+            visitor_key=ctx['visitor_key'] or None,
+            pageview_key=ctx['pageview_key'] or None,
+            event_name=ctx['event_name'],
+            path=ctx['path'] or None,
+            source=ctx['source'] or None,
+            medium=ctx['medium'] or None,
+            campaign=ctx['campaign'] or None,
+            visits_count=1 if ctx['event_name'] == 'page_view' else 0,
+            clicks_count=1 if ctx['event_name'] == 'cta_click' else 0,
+            active_seconds=int(ctx['active_seconds'] or 0),
+            conversions_count=1 if ctx['event_name'] == 'conversion' else 0,
+            ip=ctx['ip'] or None,
+            is_bot=bool(ctx['is_bot']),
+            meta_json=_web_analytics_json({
+                'label': ctx.get('label') or '',
+                'target': ctx.get('target') or '',
+                'conversion_type': ctx.get('conversion_type') or '',
+                'scroll_depth': int(ctx.get('scroll_depth') or 0),
+            }),
+        )
+        db.session.add(raw_row)
+
+        accepted += 1
+
+    if accepted:
+        db.session.commit()
+    return accepted
+
+
+def _registrar_conversion_landing_web(payload, lead=None):
+    data = payload if isinstance(payload, dict) else {}
+    analytics = data.get('analytics') if isinstance(data.get('analytics'), dict) else {}
+    source = analytics or data
+    if not source:
+        return 0
+    nombre = _web_analytics_clean(data.get('nombre'), 120)
+    empresa = _web_analytics_clean(data.get('empresa'), 160)
+    lead_id = _web_analytics_clean((lead or {}).get('id'), 80)
+    evento = {
+        'visitor_key': source.get('visitor_key'),
+        'session_id': source.get('session_id') or source.get('session_key'),
+        'session_key': source.get('session_id') or source.get('session_key'),
+        'pageview_key': source.get('pageview_key'),
+        'event_name': 'conversion',
+        'conversion_type': 'landing_lead_submit',
+        'path': source.get('path') or '/diagnostico',
+        'full_url': source.get('full_url') or data.get('landing_url'),
+        'page_title': source.get('page_title') or 'Diagnóstico IA',
+        'referrer': source.get('referrer'),
+        'utm_source': source.get('utm_source'),
+        'utm_medium': source.get('utm_medium'),
+        'utm_campaign': source.get('utm_campaign'),
+        'meta': {
+            'lead_id': lead_id,
+            'prioridad': _web_analytics_clean(data.get('prioridad'), 30),
+            'empresa': empresa,
+            'nombre': nombre,
+        },
+    }
+    return _registrar_web_analytics_eventos([evento])
+
+
+def consolidar_y_purgar_telemetria(retention_days=90):
+    """
+    Consolida telemetría raw de `control_trafico_interno` más antigua que `retention_days`
+    hacia `telemetria_historica_agregada` y luego elimina las filas crudas antiguas.
+
+    Seguridad:
+    - usa SQL parametrizado para el DELETE sobre `control_trafico_interno`
+    - persiste primero el resumen agregado y después purga
+    - no toca datos recientes ni depende de APIs externas
+    """
+    if not _asegurar_tablas_web_analytics():
+        return {'ok': False, 'deleted_rows': 0, 'aggregated_rows': 0}
+
+    cutoff_dt = datetime.now() - timedelta(days=max(1, int(retention_days or 90)))
+    old_rows = ControlTraficoInterno.query.filter(ControlTraficoInterno.created_at < cutoff_dt).all()
+    if not old_rows:
+        return {'ok': True, 'deleted_rows': 0, 'aggregated_rows': 0}
+
+    grouped = {}
+    for row in old_rows:
+        bucket = (row.created_at or cutoff_dt).date()
+        acc = grouped.setdefault(bucket, {
+            'first_event_at': row.created_at,
+            'last_event_at': row.created_at,
+            'records_consolidated': 0,
+            'visitas_total': 0,
+            'clicks_total': 0,
+            'tiempo_activo_segundos': 0,
+            'conversiones_total': 0,
+        })
+        ts = row.created_at or cutoff_dt
+        acc['first_event_at'] = min(acc['first_event_at'], ts)
+        acc['last_event_at'] = max(acc['last_event_at'], ts)
+        acc['records_consolidated'] += 1
+        acc['visitas_total'] += int(row.visits_count or 0)
+        acc['clicks_total'] += int(row.clicks_count or 0)
+        acc['tiempo_activo_segundos'] += int(row.active_seconds or 0)
+        acc['conversiones_total'] += int(row.conversions_count or 0)
+
+    aggregated_rows = 0
+    for bucket_date, totals in grouped.items():
+        archive = TelemetriaHistoricaAgregada.query.filter_by(bucket_date=bucket_date).first()
+        if archive is None:
+            archive = TelemetriaHistoricaAgregada(bucket_date=bucket_date)
+            db.session.add(archive)
+        archive.first_event_at = totals['first_event_at']
+        archive.last_event_at = totals['last_event_at']
+        archive.records_consolidated = totals['records_consolidated']
+        archive.visitas_total = totals['visitas_total']
+        archive.clicks_total = totals['clicks_total']
+        archive.tiempo_activo_segundos = totals['tiempo_activo_segundos']
+        archive.conversiones_total = totals['conversiones_total']
+        archive.consolidado_at = datetime.now()
+        aggregated_rows += 1
+
+    db.session.flush()
+    delete_stmt = text('DELETE FROM control_trafico_interno WHERE created_at < :cutoff_dt')
+    delete_result = db.session.execute(delete_stmt, {'cutoff_dt': cutoff_dt})
+    db.session.commit()
+    return {
+        'ok': True,
+        'deleted_rows': int(delete_result.rowcount or 0),
+        'aggregated_rows': aggregated_rows,
+        'cutoff_dt': cutoff_dt.isoformat(timespec='seconds'),
+    }
+
+
+def _sincronizar_google_search_console_async():
+    """
+    Esqueleto asíncrono de sincronización con Google Search Console.
+
+    Reglas de arquitectura:
+    - Este proceso SIEMPRE corre desacoplado en segundo plano.
+    - Debe leer credenciales/propiedades desde variables de entorno de producción.
+    - Está PROHIBIDO que `/gerencia/seo-rankings` invoque APIs externas en tiempo real.
+    - El dashboard solo consume datos locales ya persistidos en snapshots/métricas.
+    """
+    site_url = (os.getenv('GSC_SITE_URL') or os.getenv('GSC_PROPERTY_URI') or '').strip()
+    creds_json = (os.getenv('GSC_SERVICE_ACCOUNT_JSON') or '').strip()
+    if not site_url or not creds_json:
+        app.logger.info('GSC async sync omitida: faltan variables de entorno GSC_SITE_URL / GSC_SERVICE_ACCOUNT_JSON.')
+        return False
+
+    def _runner():
+        with app.app_context():
+            try:
+                # Implementación real en siguiente fase: autenticación service-account,
+                # lectura batch de Search Console y persistencia en SeoKeywordDailyMetric /
+                # SeoSiteDailySnapshot sin bloquear requests de usuarios.
+                app.logger.info('GSC async sync programada para %s (stub desacoplado).', site_url)
+            except Exception:
+                db.session.rollback()
+                app.logger.exception('Falló la sincronización asíncrona de Google Search Console.')
+
+    threading.Thread(target=_runner, name='google-search-console-sync', daemon=True).start()
+    return True
+
+
+def _seo_target_pages():
+    return [
+        {'path': '/', 'label': 'Home'},
+        {'path': '/lhexia-vs-defontana', 'label': 'Vs Defontana'},
+        {'path': '/alternativa-a-defontana', 'label': 'Alternativa Defontana'},
+        {'path': '/erp-ferreterias', 'label': 'ERP Ferreterías'},
+        {'path': '/erp-retail-especializado', 'label': 'ERP Retail'},
+        {'path': '/erp-con-bodega-por-voz', 'label': 'Bodega por voz'},
+        {'path': '/como-reducir-quiebres-de-stock-en-ferreterias', 'label': 'Quiebres de stock'},
+        {'path': '/sobre-nosotros', 'label': 'Sobre nosotros'},
+        {'path': '/fundador', 'label': 'Fundador'},
+        {'path': '/catalogo', 'label': 'Catálogo público'},
+        {'path': '/consulta-stock', 'label': 'Consulta stock'},
+    ]
+
+
+def _seo_extract_jsonld_types(doc):
+    types = []
+    for node in doc.xpath('//script[@type="application/ld+json"]'):
+        raw = (node.text or '').strip()
+        if not raw:
+            continue
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            continue
+        stack = [parsed]
+        while stack:
+            item = stack.pop()
+            if isinstance(item, dict):
+                atype = item.get('@type')
+                if isinstance(atype, list):
+                    types.extend([str(x) for x in atype if x])
+                elif atype:
+                    types.append(str(atype))
+                if '@graph' in item and isinstance(item['@graph'], list):
+                    stack.extend(item['@graph'])
+            elif isinstance(item, list):
+                stack.extend(item)
+    return types
+
+
+def _seo_score_snapshot(snapshot):
+    score = 0
+    if int(snapshot.get('status_code') or 0) == 200:
+        score += 25
+    title = snapshot.get('title') or ''
+    meta = snapshot.get('meta_description') or ''
+    h1 = snapshot.get('h1') or ''
+    canonical = snapshot.get('canonical_url') or ''
+    if 35 <= len(title) <= 70:
+        score += 15
+    elif title:
+        score += 8
+    if 80 <= len(meta) <= 180:
+        score += 15
+    elif meta:
+        score += 8
+    if h1:
+        score += 10
+    if canonical:
+        score += 10
+    if not snapshot.get('noindex'):
+        score += 10
+    if int(snapshot.get('schema_count') or 0) > 0:
+        score += 10
+    if int(snapshot.get('word_count') or 0) >= 180:
+        score += 10
+    if int(snapshot.get('internal_links') or 0) >= 2:
+        score += 5
+    return min(score, 100)
+
+
+def _seo_fetch_internal_response(path):
+    start = time.perf_counter()
+    with app.test_client() as client:
+        resp = client.get(path)
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    return resp, elapsed_ms
+
+
+def _seo_parse_page_snapshot(path):
+    resp, elapsed_ms = _seo_fetch_internal_response(path)
+    html_text = resp.get_data(as_text=True) if int(resp.status_code or 0) == 200 else ''
+    title = ''
+    meta_description = ''
+    canonical_url = ''
+    h1 = ''
+    robots_meta = ''
+    noindex = False
+    schema_count = 0
+    has_faq_schema = False
+    has_org_schema = False
+    has_website_schema = False
+    has_breadcrumb_schema = False
+    word_count = 0
+    internal_links = 0
+
+    if html_text:
+        try:
+            doc = lxml_html.fromstring(html_text)
+            titles = doc.xpath('//title/text()')
+            title = _web_analytics_clean(titles[0] if titles else '', 255)
+            desc = doc.xpath('//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="description"]/@content')
+            meta_description = _web_analytics_clean(desc[0] if desc else '', 320)
+            canon = doc.xpath('//link[translate(@rel,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="canonical"]/@href')
+            canonical_url = _web_analytics_clean(canon[0] if canon else '', 500)
+            h1s = doc.xpath('//h1')
+            h1 = _web_analytics_clean(h1s[0].text_content() if h1s else '', 255)
+            robots_vals = doc.xpath('//meta[translate(@name,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")="robots"]/@content')
+            robots_meta = _web_analytics_clean(robots_vals[0] if robots_vals else '', 180)
+            noindex = 'noindex' in (robots_meta or '').lower()
+            types = _seo_extract_jsonld_types(doc)
+            schema_count = len(types)
+            types_low = {t.lower() for t in types}
+            has_faq_schema = 'faqpage' in types_low
+            has_org_schema = 'organization' in types_low
+            has_website_schema = 'website' in types_low
+            has_breadcrumb_schema = 'breadcrumblist' in types_low
+            body_text = " ".join(doc.xpath('//body//text()'))
+            word_count = len(re.findall(r'[A-Za-zÀ-ÿ0-9]{2,}', body_text))
+            public_domain = _web_analytics_domain(_public_site_base_url())
+            for href in doc.xpath('//a[@href]/@href'):
+                href = (href or '').strip()
+                if not href or href.startswith('#') or href.startswith('mailto:') or href.startswith('tel:'):
+                    continue
+                if href.startswith('/'):
+                    internal_links += 1
+                    continue
+                if public_domain and _web_analytics_domain(href).endswith(public_domain):
+                    internal_links += 1
+        except Exception:
+            app.logger.exception('No se pudo parsear snapshot SEO de %s', path)
+
+    snapshot = {
+        'path': path,
+        'public_url': _absolute_public_url(path),
+        'status_code': int(resp.status_code or 0),
+        'response_ms': elapsed_ms,
+        'title': title,
+        'meta_description': meta_description,
+        'canonical_url': canonical_url,
+        'h1': h1,
+        'robots_meta': robots_meta,
+        'noindex': noindex,
+        'schema_count': schema_count,
+        'has_faq_schema': has_faq_schema,
+        'has_org_schema': has_org_schema,
+        'has_website_schema': has_website_schema,
+        'has_breadcrumb_schema': has_breadcrumb_schema,
+        'word_count': word_count,
+        'internal_links': internal_links,
+    }
+    snapshot['seo_score'] = _seo_score_snapshot(snapshot)
+    return snapshot
+
+
+def _seo_fetch_site_files():
+    sitemap_resp, _ = _seo_fetch_internal_response('/sitemap.xml')
+    robots_resp, _ = _seo_fetch_internal_response('/robots.txt')
+    sitemap_text = sitemap_resp.get_data(as_text=True) if int(sitemap_resp.status_code or 0) == 200 else ''
+    robots_text = robots_resp.get_data(as_text=True) if int(robots_resp.status_code or 0) == 200 else ''
+
+    sitemap_count = 0
+    if sitemap_text:
+        try:
+            root = etree.fromstring(sitemap_text.encode('utf-8'))
+            sitemap_count = len(root.xpath('//*[local-name()="url"]'))
+        except Exception:
+            sitemap_count = sitemap_text.count('<url>')
+    return {
+        'sitemap_ok': int(sitemap_resp.status_code or 0) == 200,
+        'sitemap_url_count': sitemap_count,
+        'robots_ok': int(robots_resp.status_code or 0) == 200,
+        'robots_allows_home': 'Allow: /' in robots_text,
+    }
+
+
+def _seo_organic_metrics_map(days=7):
+    since = datetime.now() - timedelta(days=max(1, int(days or 7)))
+    sessions = WebAnalyticsSession.query.filter(
+        WebAnalyticsSession.started_at >= since,
+        WebAnalyticsSession.medium == 'organic',
+        WebAnalyticsSession.is_bot == False,
+    ).all()
+    conv_session_ids = {
+        c.session_id for c in WebAnalyticsConversion.query.filter(WebAnalyticsConversion.created_at >= since).all()
+        if c.session_id
+    }
+    by_path = defaultdict(lambda: {'sessions': 0, 'conversions': 0})
+    for sess in sessions:
+        path = (sess.landing_path or '/').strip() or '/'
+        by_path[path]['sessions'] += 1
+        if sess.id in conv_session_ids:
+            by_path[path]['conversions'] += 1
+    totals = {
+        'sessions': sum(v['sessions'] for v in by_path.values()),
+        'conversions': sum(v['conversions'] for v in by_path.values()),
+    }
+    return by_path, totals
+
+
+def _run_seo_snapshot():
+    if not _asegurar_tablas_seo_monitor():
+        return {'ok': False, 'message': 'No se pudieron asegurar tablas SEO'}
+    _seed_seo_keyword_targets()
+
+    snapshot_date = date.today()
+    organic_by_path, organic_totals = _seo_organic_metrics_map(days=7)
+    page_rows = []
+    for page in _seo_target_pages():
+        snap = _seo_parse_page_snapshot(page['path'])
+        snap['organic_sessions_7d'] = int(organic_by_path.get(page['path'], {}).get('sessions', 0))
+        snap['organic_conversions_7d'] = int(organic_by_path.get(page['path'], {}).get('conversions', 0))
+        row = SeoPageDailySnapshot.query.filter_by(snapshot_date=snapshot_date, path=page['path']).first()
+        if row is None:
+            row = SeoPageDailySnapshot(snapshot_date=snapshot_date, path=page['path'])
+            db.session.add(row)
+        for key, value in snap.items():
+            setattr(row, key, value)
+        row.checked_at = datetime.now()
+        page_rows.append(row)
+
+    site_files = _seo_fetch_site_files()
+    avg_score = round(sum(int(r.seo_score or 0) for r in page_rows) / len(page_rows), 1) if page_rows else 0.0
+    noindex_pages = sum(1 for r in page_rows if r.noindex)
+    site_row = SeoSiteDailySnapshot.query.filter_by(snapshot_date=snapshot_date).first()
+    if site_row is None:
+        site_row = SeoSiteDailySnapshot(snapshot_date=snapshot_date, public_base_url=_public_site_base_url())
+        db.session.add(site_row)
+    site_row.public_base_url = _public_site_base_url()
+    site_row.sitemap_ok = site_files['sitemap_ok']
+    site_row.sitemap_url_count = int(site_files['sitemap_url_count'] or 0)
+    site_row.robots_ok = site_files['robots_ok']
+    site_row.robots_allows_home = bool(site_files['robots_allows_home'])
+    site_row.tracked_pages = len(page_rows)
+    site_row.avg_page_score = avg_score
+    site_row.noindex_pages = noindex_pages
+    site_row.organic_sessions_7d = int(organic_totals['sessions'])
+    site_row.organic_conversions_7d = int(organic_totals['conversions'])
+    site_row.checked_at = datetime.now()
+    db.session.commit()
+    return {'ok': True, 'pages': len(page_rows), 'avg_score': avg_score}
+
+
+def _latest_keyword_metric_map():
+    out = {}
+    metrics = SeoKeywordDailyMetric.query.order_by(
+        SeoKeywordDailyMetric.keyword_target_id.asc(),
+        SeoKeywordDailyMetric.snapshot_date.desc(),
+        SeoKeywordDailyMetric.id.desc(),
+    ).all()
+    for item in metrics:
+        if item.keyword_target_id not in out:
+            out[item.keyword_target_id] = item
+    return out
 
 
 def _asegurar_tabla_cafs_y_columnas_ventas_fe():
@@ -3362,6 +4377,26 @@ def healthz():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route('/api/analytics/track', methods=['POST'])
+def api_analytics_track():
+    data = request.get_json(silent=True) or {}
+    eventos = data.get('events') if isinstance(data.get('events'), list) else [data]
+    ok_payload, payload_error = _validar_payload_analytics_track(eventos)
+    if not ok_payload:
+        return jsonify(ok=False, accepted=0, message=f'Bad Request: {payload_error}'), 400
+    try:
+        accepted = _registrar_web_analytics_eventos(
+            eventos,
+            default_ip=(request.headers.get('X-Forwarded-For') or request.remote_addr or ''),
+            default_user_agent=(request.headers.get('User-Agent') or ''),
+        )
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo registrar evento analytics web: %s', ex)
+        return jsonify(ok=False, accepted=0), 500
+    return jsonify(ok=True, accepted=accepted), 202
+
+
 @app.route('/api/landing/lead', methods=['POST'])
 def api_landing_lead():
     data = request.get_json(silent=True) or {}
@@ -3370,7 +4405,348 @@ def api_landing_lead():
     except Exception as ex:
         app.logger.exception("No se pudo guardar lead landing: %s", ex)
         return jsonify(ok=False, message="No se pudo registrar el lead"), 500
+    try:
+        _registrar_conversion_landing_web(data, lead=lead)
+    except Exception:
+        db.session.rollback()
+        app.logger.exception('No se pudo registrar conversion web de lead landing.')
     return jsonify(ok=True, lead_ts=lead.get("ts")), 201
+
+
+def _fmt_active_seconds(value):
+    total = int(value or 0)
+    if total >= 3600:
+        return f"{total // 3600}h {(total % 3600) // 60}m"
+    if total >= 60:
+        return f"{total // 60}m {total % 60}s"
+    return f"{total}s"
+
+
+def _build_web_analytics_dashboard(days=30):
+    now = datetime.now()
+    since = now - timedelta(days=max(1, int(days or 30)))
+    since_7 = now - timedelta(days=7)
+    since_active = now - timedelta(minutes=15)
+    since_chart = now - timedelta(days=13)
+
+    sessions = WebAnalyticsSession.query.filter(
+        WebAnalyticsSession.started_at >= since,
+        WebAnalyticsSession.is_bot == False,
+    ).order_by(WebAnalyticsSession.started_at.desc()).all()
+    pageviews = WebAnalyticsPageView.query.filter(
+        WebAnalyticsPageView.created_at >= since,
+    ).all()
+    events = WebAnalyticsEvent.query.filter(
+        WebAnalyticsEvent.created_at >= since,
+    ).all()
+    conversions = WebAnalyticsConversion.query.filter(
+        WebAnalyticsConversion.created_at >= since,
+    ).order_by(WebAnalyticsConversion.created_at.desc()).all()
+
+    sessions_7 = [s for s in sessions if (s.started_at or now) >= since_7]
+    pageviews_7 = [p for p in pageviews if (p.created_at or now) >= since_7]
+    events_7 = [e for e in events if (e.created_at or now) >= since_7]
+    conversions_7 = [c for c in conversions if (c.created_at or now) >= since_7]
+
+    unique_visitors_7 = len({s.visitor_id for s in sessions_7 if s.visitor_id})
+    avg_active_7 = round(sum(int(s.active_seconds or 0) for s in sessions_7) / len(sessions_7)) if sessions_7 else 0
+    active_now = sum(1 for s in sessions if (s.last_seen_at or s.started_at or now) >= since_active)
+    cta_clicks_7 = sum(1 for e in events_7 if (e.event_name or '') == 'cta_click')
+    whatsapp_clicks_7 = sum(1 for c in conversions_7 if (c.conversion_type or '') == 'whatsapp_click')
+    conversion_rate_7 = round((len(conversions_7) / len(sessions_7)) * 100, 1) if sessions_7 else 0.0
+
+    conv_by_path = defaultdict(int)
+    for conv in conversions:
+        conv_by_path[(conv.path or '/').strip() or '/'] += 1
+
+    page_stats = {}
+    for pv in pageviews:
+        path = (pv.path or '/').strip() or '/'
+        row = page_stats.setdefault(path, {
+            'path': path,
+            'pageviews': 0,
+            'active_seconds': 0,
+            'scroll_depth_sum': 0,
+            'sessions': set(),
+            'conversions': 0,
+        })
+        row['pageviews'] += 1
+        row['active_seconds'] += int(pv.active_seconds or 0)
+        row['scroll_depth_sum'] += int(pv.max_scroll_depth or 0)
+        if pv.session_id:
+            row['sessions'].add(int(pv.session_id))
+    for path, row in page_stats.items():
+        row['conversions'] = conv_by_path.get(path, 0)
+        row['sessions_count'] = len(row['sessions'])
+        row['avg_active_seconds'] = round(row['active_seconds'] / row['pageviews']) if row['pageviews'] else 0
+        row['avg_scroll_depth'] = round(row['scroll_depth_sum'] / row['pageviews']) if row['pageviews'] else 0
+        row['avg_active_label'] = _fmt_active_seconds(row['avg_active_seconds'])
+    top_pages = sorted(
+        page_stats.values(),
+        key=lambda x: (x['conversions'], x['pageviews'], x['active_seconds']),
+        reverse=True,
+    )[:10]
+
+    source_stats = {}
+    conv_sessions = {c.session_id for c in conversions if c.session_id}
+    for sess in sessions:
+        key = ((sess.source or 'direct').strip() or 'direct', (sess.medium or 'direct').strip() or 'direct')
+        row = source_stats.setdefault(key, {'source': key[0], 'medium': key[1], 'sessions': 0, 'conversions': 0})
+        row['sessions'] += 1
+        if sess.id in conv_sessions:
+            row['conversions'] += 1
+    top_sources = sorted(source_stats.values(), key=lambda x: (x['conversions'], x['sessions']), reverse=True)[:8]
+
+    cta_stats = {}
+    for ev in events:
+        if (ev.event_name or '') != 'cta_click':
+            continue
+        label = (ev.label or ev.target or 'CTA').strip()[:120] or 'CTA'
+        row = cta_stats.setdefault(label, {'label': label, 'clicks': 0})
+        row['clicks'] += 1
+    top_ctas = sorted(cta_stats.values(), key=lambda x: x['clicks'], reverse=True)[:8]
+
+    daily_sessions = defaultdict(int)
+    daily_conversions = defaultdict(int)
+    for sess in sessions:
+        ts = sess.started_at or now
+        if ts >= since_chart:
+            daily_sessions[ts.date().isoformat()] += 1
+    for conv in conversions:
+        ts = conv.created_at or now
+        if ts >= since_chart:
+            daily_conversions[ts.date().isoformat()] += 1
+    chart_labels = []
+    chart_sessions = []
+    chart_conversions = []
+    for i in range(14):
+        day = (since_chart.date() + timedelta(days=i)).isoformat()
+        chart_labels.append(day[5:])
+        chart_sessions.append(daily_sessions.get(day, 0))
+        chart_conversions.append(daily_conversions.get(day, 0))
+
+    recent_conversions = []
+    for conv in conversions[:12]:
+        meta = {}
+        if conv.details_json:
+            try:
+                meta = json.loads(conv.details_json) or {}
+            except Exception:
+                meta = {}
+        recent_conversions.append({
+            'created_at': conv.created_at,
+            'conversion_type': conv.conversion_type,
+            'path': conv.path or '/',
+            'lead_id': (meta.get('lead_id') or ''),
+            'empresa': (meta.get('empresa') or ''),
+            'nombre': (meta.get('nombre') or ''),
+        })
+
+    recent_events = []
+    for ev in [e for e in events if (e.event_name or '') in ('cta_click', 'scroll_depth', 'nav_click')][:12]:
+        recent_events.append({
+            'created_at': ev.created_at,
+            'event_name': ev.event_name,
+            'path': ev.path or '/',
+            'label': ev.label or ev.target or 'Interacción',
+        })
+
+    return {
+        'wa_summary': {
+            'sessions_7d': len(sessions_7),
+            'visitors_7d': unique_visitors_7,
+            'pageviews_7d': len(pageviews_7),
+            'conversions_7d': len(conversions_7),
+            'avg_active_7_label': _fmt_active_seconds(avg_active_7),
+            'active_now': active_now,
+            'cta_clicks_7d': cta_clicks_7,
+            'whatsapp_clicks_7d': whatsapp_clicks_7,
+            'conversion_rate_7': conversion_rate_7,
+        },
+        'wa_top_pages': top_pages,
+        'wa_top_sources': top_sources,
+        'wa_top_ctas': top_ctas,
+        'wa_recent_conversions': recent_conversions,
+        'wa_recent_events': recent_events,
+        'wa_chart_labels': chart_labels,
+        'wa_chart_sessions': chart_sessions,
+        'wa_chart_conversions': chart_conversions,
+    }
+
+
+@app.route('/gerencia/analitica-web')
+@login_required
+@permisos_required('ver_gerencia', 'panel_gerencia', 'gestionar_usuarios')
+def gerencia_analitica_web():
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno LhexIA.', 'warning')
+        return redirect(url_for('inicio'))
+    dashboard = _build_web_analytics_dashboard(days=30)
+    return render_template('gerencia_analitica_web.html', **dashboard)
+
+
+def _build_seo_monitor_dashboard():
+    """
+    Dashboard SEO local-only.
+
+    Importante: esta vista NO debe llamar APIs externas en tiempo real
+    (Search Console, providers SEO, scraping remoto, etc.). Solo consume
+    snapshots y métricas ya persistidas localmente para garantizar latencia cero.
+    """
+    _asegurar_tablas_seo_monitor()
+    _seed_seo_keyword_targets()
+    latest_site = SeoSiteDailySnapshot.query.order_by(
+        SeoSiteDailySnapshot.snapshot_date.desc(),
+        SeoSiteDailySnapshot.id.desc(),
+    ).first()
+    latest_date = latest_site.snapshot_date if latest_site else None
+    page_rows = []
+    if latest_date:
+        page_rows = SeoPageDailySnapshot.query.filter_by(snapshot_date=latest_date).order_by(
+            SeoPageDailySnapshot.seo_score.desc(),
+            SeoPageDailySnapshot.path.asc(),
+        ).all()
+
+    keyword_targets = SeoKeywordTarget.query.filter_by(active=True).order_by(
+        SeoKeywordTarget.priority.desc(),
+        SeoKeywordTarget.keyword.asc(),
+    ).all()
+    latest_metric_map = _latest_keyword_metric_map()
+    keyword_rows = []
+    for target in keyword_targets:
+        metric = latest_metric_map.get(target.id)
+        keyword_rows.append({
+            'target': target,
+            'metric': metric,
+            'status': (
+                'alto' if metric and metric.current_position and metric.current_position <= 3 else
+                'medio' if metric and metric.current_position and metric.current_position <= 10 else
+                'sin_dato' if not metric or metric.current_position is None else
+                'bajo'
+            )
+        })
+
+    issues = []
+    for row in page_rows:
+        if row.status_code != 200:
+            issues.append({'path': row.path, 'issue': f'HTTP {row.status_code}'})
+        if not row.title:
+            issues.append({'path': row.path, 'issue': 'Sin title'})
+        if not row.meta_description:
+            issues.append({'path': row.path, 'issue': 'Sin meta description'})
+        if not row.canonical_url:
+            issues.append({'path': row.path, 'issue': 'Sin canonical'})
+        if row.noindex:
+            issues.append({'path': row.path, 'issue': 'Meta robots noindex'})
+    issues = issues[:12]
+
+    snapshots = SeoSiteDailySnapshot.query.order_by(SeoSiteDailySnapshot.snapshot_date.desc()).limit(14).all()
+    snapshots.reverse()
+    chart_labels = [s.snapshot_date.strftime('%d/%m') for s in snapshots]
+    chart_scores = [float(s.avg_page_score or 0) for s in snapshots]
+    chart_organic = [int(s.organic_sessions_7d or 0) for s in snapshots]
+
+    organic_top = sorted(
+        page_rows,
+        key=lambda x: (int(x.organic_conversions_7d or 0), int(x.organic_sessions_7d or 0), int(x.seo_score or 0)),
+        reverse=True,
+    )[:8]
+
+    summary = {
+        'snapshot_date': latest_date,
+        'tracked_pages': int(latest_site.tracked_pages or 0) if latest_site else 0,
+        'avg_score': float(latest_site.avg_page_score or 0) if latest_site else 0.0,
+        'sitemap_url_count': int(latest_site.sitemap_url_count or 0) if latest_site else 0,
+        'sitemap_ok': bool(latest_site.sitemap_ok) if latest_site else False,
+        'robots_ok': bool(latest_site.robots_ok) if latest_site else False,
+        'organic_sessions_7d': int(latest_site.organic_sessions_7d or 0) if latest_site else 0,
+        'organic_conversions_7d': int(latest_site.organic_conversions_7d or 0) if latest_site else 0,
+        'noindex_pages': int(latest_site.noindex_pages or 0) if latest_site else 0,
+    }
+    return {
+        'seo_summary': summary,
+        'seo_page_rows': page_rows,
+        'seo_keyword_rows': keyword_rows,
+        'seo_issues': issues,
+        'seo_chart_labels': chart_labels,
+        'seo_chart_scores': chart_scores,
+        'seo_chart_organic': chart_organic,
+        'seo_organic_top': organic_top,
+    }
+
+
+@app.route('/gerencia/seo-rankings')
+@login_required
+@permisos_required('ver_gerencia', 'panel_gerencia', 'gestionar_usuarios')
+def gerencia_seo_rankings():
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno LhexIA.', 'warning')
+        return redirect(url_for('inicio'))
+    dashboard = _build_seo_monitor_dashboard()
+    dashboard['seo_keyword_targets'] = SeoKeywordTarget.query.filter_by(active=True).order_by(SeoKeywordTarget.keyword.asc()).all()
+    return render_template('gerencia_seo_rankings.html', **dashboard)
+
+
+@app.route('/gerencia/seo-rankings/snapshot', methods=['POST'])
+@login_required
+@permisos_required('ver_gerencia', 'panel_gerencia', 'gestionar_usuarios')
+def gerencia_seo_snapshot():
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno LhexIA.', 'warning')
+        return redirect(url_for('inicio'))
+    result = _run_seo_snapshot()
+    if result.get('ok'):
+        flash(f"Snapshot SEO actualizado: {result.get('pages', 0)} páginas, score promedio {result.get('avg_score', 0)}.", 'success')
+    else:
+        flash(result.get('message') or 'No se pudo ejecutar el snapshot SEO.', 'danger')
+    return redirect(url_for('gerencia_seo_rankings'))
+
+
+@app.route('/gerencia/seo-rankings/keyword-metric', methods=['POST'])
+@login_required
+@permisos_required('ver_gerencia', 'panel_gerencia', 'gestionar_usuarios')
+def gerencia_seo_keyword_metric():
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno LhexIA.', 'warning')
+        return redirect(url_for('inicio'))
+    if not _asegurar_tablas_seo_monitor():
+        flash('No se pudieron preparar las tablas SEO.', 'danger')
+        return redirect(url_for('gerencia_seo_rankings'))
+
+    target_id = int(request.form.get('keyword_target_id') or 0)
+    target = db.session.get(SeoKeywordTarget, target_id)
+    if not target:
+        flash('Keyword objetivo no encontrada.', 'warning')
+        return redirect(url_for('gerencia_seo_rankings'))
+
+    raw_date = (request.form.get('snapshot_date') or '').strip()
+    try:
+        snapshot_date = dt_module.date.fromisoformat(raw_date) if raw_date else date.today()
+    except Exception:
+        snapshot_date = date.today()
+
+    current_position = _safe_positive_int(request.form.get('current_position'))
+    impressions = _safe_positive_int(request.form.get('impressions'))
+    clicks = _safe_positive_int(request.form.get('clicks'))
+    notes = _web_analytics_clean(request.form.get('notes'), 255)
+    ctr = round((clicks / impressions) * 100, 2) if impressions and clicks is not None else None
+
+    row = SeoKeywordDailyMetric.query.filter_by(
+        snapshot_date=snapshot_date,
+        keyword_target_id=target.id,
+    ).first()
+    if row is None:
+        row = SeoKeywordDailyMetric(snapshot_date=snapshot_date, keyword_target_id=target.id)
+        db.session.add(row)
+    row.current_position = current_position
+    row.impressions = impressions
+    row.clicks = clicks
+    row.ctr = ctr
+    row.source = 'manual'
+    row.notes = notes or None
+    db.session.commit()
+    flash(f'Métrica SEO guardada para "{target.keyword}".', 'success')
+    return redirect(url_for('gerencia_seo_rankings'))
 
 
 @app.route('/comercial/leads')
@@ -10662,13 +12038,17 @@ def editar_usuario(id):
     roles = Rol.query.all()
 
     if request.method == 'POST':
-        usuario.nombre = request.form['nombre']
-        usuario.correo = request.form['correo']
-        usuario.rol_id = request.form['rol_id']
+        usuario.nombre = (request.form.get('nombre') or '').strip()
+        usuario.correo = (request.form.get('correo') or '').strip()
+        usuario.rol_id = request.form.get('rol_id')
 
-        # Si quieres permitir cambiar contraseña:
-        if request.form['password']:
-            usuario.set_password(request.form['password'])
+        nueva_password = (request.form.get('password') or '').strip()
+        if nueva_password:
+            usuario.set_password(nueva_password)
+            # Si la clave la redefine un administrador, dejamos la cuenta lista para usar
+            # en vez de mantenerla marcada como "temporal pendiente".
+            if usuario_requiere_cambio_clave(usuario):
+                usuario.perfil = 'ACTIVO'
 
         db.session.commit()
         flash("Usuario actualizado correctamente.", "success")
@@ -16754,6 +18134,8 @@ def _schema_ensure_on_startup():
         _asegurar_tabla_c360_llamadas_snapshot()
         _asegurar_tabla_cobranza_whatsapp_log()
         _asegurar_tabla_erp_audit_log()
+        _asegurar_tablas_web_analytics()
+        _asegurar_tablas_seo_monitor()
         _asegurar_tabla_cafs_y_columnas_ventas_fe()
         db.session.rollback()
         _asegurar_columnas_ventas_bodega_despacho()

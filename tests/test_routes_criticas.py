@@ -668,6 +668,241 @@ class TestCajaExtra:
         _ensure_caja_abierta()
 
 
+class TestUsuariosAdmin:
+
+    def test_editar_usuario_actualiza_password_y_limpia_forzar_clave(self, app_client):
+        rol = m.Rol.query.first()
+        assert rol is not None
+
+        usuario = m.Usuario(
+            nombre='QA Editar Usuario',
+            correo='qa_editar_usuario@test.cl',
+            rol_id=rol.id,
+            perfil='FORZAR_CLAVE',
+        )
+        usuario.set_password('temporal123')
+        db.session.add(usuario)
+        db.session.commit()
+
+        r = app_client.post(
+            f'/editar_usuario/{usuario.id}',
+            data={
+                'nombre': 'QA Editar Usuario',
+                'correo': 'qa_editar_usuario@test.cl',
+                'rol_id': str(rol.id),
+                'password': 'NuevaClave456',
+            },
+            follow_redirects=True,
+        )
+        assert r.status_code == 200
+
+        db.session.expire_all()
+        usuario_editado = db.session.get(m.Usuario, usuario.id)
+        assert usuario_editado is not None
+        assert usuario_editado.check_password('NuevaClave456')
+        assert usuario_editado.perfil == 'ACTIVO'
+
+        db.session.delete(usuario_editado)
+        db.session.commit()
+
+
+class TestAnalyticsWeb:
+
+    def test_api_analytics_track_persiste_sesion_y_conversion(self, app_client):
+        suffix = datetime.now().strftime('%H%M%S%f')
+        visitor_key = f'liz_v_{suffix.lower()}_qavisitorabc123'
+        session_key = f'liz_s_{suffix.lower()}_qasessionabc12345'
+        pageview_key = f'liz_p_qa{suffix.lower()}'
+
+        r = app_client.post(
+            '/api/analytics/track',
+            json={
+                'events': [
+                    {
+                        'visitor_key': visitor_key,
+                        'session_id': session_key,
+                        'session_key': session_key,
+                        'pageview_key': pageview_key,
+                        'event_name': 'page_view',
+                        'path': '/erp-ferreterias',
+                        'full_url': 'https://www.lhexia.cl/erp-ferreterias',
+                        'page_title': 'ERP para ferreterías',
+                        'source': 'google.com',
+                        'medium': 'organic',
+                    },
+                    {
+                        'visitor_key': visitor_key,
+                        'session_id': session_key,
+                        'session_key': session_key,
+                        'pageview_key': pageview_key,
+                        'event_name': 'heartbeat',
+                        'path': '/erp-ferreterias',
+                        'active_seconds': 18,
+                    },
+                    {
+                        'visitor_key': visitor_key,
+                        'session_id': session_key,
+                        'session_key': session_key,
+                        'pageview_key': pageview_key,
+                        'event_name': 'conversion',
+                        'conversion_type': 'whatsapp_click',
+                        'path': '/erp-ferreterias',
+                    },
+                ]
+            },
+            follow_redirects=True,
+        )
+        assert r.status_code == 202
+
+        visitor = m.WebAnalyticsVisitor.query.filter_by(visitor_key=visitor_key).first()
+        session = m.WebAnalyticsSession.query.filter_by(session_key=session_key).first()
+        pageview = m.WebAnalyticsPageView.query.filter_by(pageview_key=pageview_key).first()
+        conversion = (
+            m.WebAnalyticsConversion.query.join(m.WebAnalyticsSession)
+            .filter(m.WebAnalyticsSession.session_key == session_key)
+            .order_by(m.WebAnalyticsConversion.id.desc())
+            .first()
+        )
+
+        assert visitor is not None
+        assert session is not None
+        assert pageview is not None
+        assert conversion is not None
+        assert session.pageviews_count >= 1
+        assert session.active_seconds >= 18
+        assert session.conversions_count >= 1
+        assert conversion.conversion_type == 'whatsapp_click'
+        raw_rows = m.ControlTraficoInterno.query.filter_by(session_id=session_key).all()
+        assert len(raw_rows) >= 3
+
+        if conversion:
+            db.session.delete(conversion)
+        events = m.WebAnalyticsEvent.query.filter_by(session_id=session.id).all() if session else []
+        for ev in events:
+            db.session.delete(ev)
+        for raw in raw_rows:
+            db.session.delete(raw)
+        if pageview:
+            db.session.delete(pageview)
+        if session:
+            db.session.delete(session)
+        if visitor:
+            db.session.delete(visitor)
+        db.session.commit()
+
+    def test_api_analytics_track_rechaza_session_id_invalido(self, app_client):
+        r = app_client.post(
+            '/api/analytics/track',
+            json={
+                'events': [
+                    {
+                        'visitor_key': 'liz_v_demo_demo123456',
+                        'session_id': 'invalido',
+                        'pageview_key': 'liz_p_demo123',
+                        'event_name': 'page_view',
+                        'path': '/',
+                    }
+                ]
+            },
+            follow_redirects=True,
+        )
+        assert r.status_code == 400
+
+    def test_consolidar_y_purgar_telemetria_archiva_y_elimina_raw(self):
+        with m.app.app_context():
+            m._asegurar_tablas_web_analytics()
+            old_ts = datetime.now() - timedelta(days=120)
+            raw = m.ControlTraficoInterno(
+                created_at=old_ts,
+                visitor_key='liz_v_oldbucket_demo123',
+                session_id='liz_s_oldbucket_demo123456',
+                pageview_key='liz_p_oldbucket123',
+                event_name='cta_click',
+                path='/erp-ferreterias',
+                visits_count=1,
+                clicks_count=2,
+                active_seconds=35,
+                conversions_count=1,
+            )
+            db.session.add(raw)
+            db.session.commit()
+
+            result = m.consolidar_y_purgar_telemetria(retention_days=90)
+            assert result.get('ok') is True
+            assert result.get('deleted_rows', 0) >= 1
+
+            archive = m.TelemetriaHistoricaAgregada.query.filter_by(bucket_date=old_ts.date()).first()
+            assert archive is not None
+            assert archive.visitas_total >= 1
+            assert archive.clicks_total >= 2
+            assert archive.tiempo_activo_segundos >= 35
+            assert archive.conversiones_total >= 1
+            assert m.ControlTraficoInterno.query.filter_by(session_id='liz_s_oldbucket_demo123456').first() is None
+
+
+class TestSeoMonitor:
+
+    def test_run_seo_snapshot_crea_site_y_paginas(self):
+        with m.app.app_context():
+            result = m._run_seo_snapshot()
+            assert result.get('ok') is True
+            assert result.get('pages', 0) >= 5
+
+            site = (
+                m.SeoSiteDailySnapshot.query
+                .order_by(m.SeoSiteDailySnapshot.snapshot_date.desc(), m.SeoSiteDailySnapshot.id.desc())
+                .first()
+            )
+            page = (
+                m.SeoPageDailySnapshot.query
+                .filter_by(path='/')
+                .order_by(m.SeoPageDailySnapshot.snapshot_date.desc(), m.SeoPageDailySnapshot.id.desc())
+                .first()
+            )
+            assert site is not None
+            assert page is not None
+            assert site.tracked_pages >= 5
+            assert page.status_code == 200
+
+    def test_guardar_keyword_metric_manual(self, app_client):
+        with m.app.app_context():
+            m._seed_seo_keyword_targets()
+            target = m.SeoKeywordTarget.query.order_by(m.SeoKeywordTarget.id.asc()).first()
+            interno = m.Usuario.query.filter(m.func.lower(m.Usuario.correo) == 'mariobec@gmail.com').first()
+            assert target is not None
+            assert interno is not None
+            target_id = int(target.id)
+            internal_user_id = str(interno.id)
+
+        with app_client.session_transaction() as sess:
+            sess['_user_id'] = internal_user_id
+            sess['login_at'] = datetime.now().isoformat()
+
+        r = app_client.post(
+            '/gerencia/seo-rankings/keyword-metric',
+            data={
+                'keyword_target_id': str(target_id),
+                'snapshot_date': date.today().isoformat(),
+                'current_position': '5',
+                'impressions': '120',
+                'clicks': '14',
+                'notes': 'QA manual',
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 302
+
+        with m.app.app_context():
+            metric = m.SeoKeywordDailyMetric.query.filter_by(
+                snapshot_date=date.today(),
+                keyword_target_id=target_id,
+            ).first()
+            assert metric is not None
+            assert metric.current_position == 5
+            assert metric.clicks == 14
+            assert metric.impressions == 120
+
+
 # =====================================================================
 #  12. Clientes y consultas
 # =====================================================================

@@ -1,0 +1,376 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .wa-hero {
+    background: linear-gradient(135deg, #0b1220 0%, #16263f 35%, #0f3b5f 72%, #0d5a55 100%);
+    color: #f8fafc;
+    border-radius: 18px;
+    padding: 1.4rem 1.5rem;
+    border: 1px solid rgba(148, 163, 184, .24);
+    box-shadow: 0 22px 55px rgba(15, 23, 42, .34);
+    position: relative;
+    overflow: hidden;
+  }
+  .wa-hero::after {
+    content: "";
+    position: absolute;
+    right: -70px;
+    top: -70px;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(56, 189, 248, .26), transparent 70%);
+  }
+  .wa-hero h2 { font-weight: 800; letter-spacing: -0.02em; }
+  .wa-kpi {
+    background: rgba(15, 23, 42, .48);
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 14px;
+    padding: 1rem 1.05rem;
+    height: 100%;
+    backdrop-filter: blur(8px);
+  }
+  .wa-kpi .lbl {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: rgba(191, 219, 254, .9);
+  }
+  .wa-kpi .val {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .wa-card {
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, .08);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .08);
+  }
+  .wa-mini {
+    font-size: .78rem;
+    color: var(--bs-secondary-color);
+  }
+  .wa-table td, .wa-table th {
+    vertical-align: middle;
+  }
+  .wa-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: .3rem .65rem;
+    border-radius: 999px;
+    background: rgba(13, 110, 253, .08);
+    border: 1px solid rgba(13, 110, 253, .16);
+    font-size: .78rem;
+    font-weight: 700;
+    color: #0d6efd;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1320px;">
+  <div class="wa-hero mb-4">
+    <div class="position-relative" style="z-index:1;">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <div class="small text-info fw-bold text-uppercase mb-1">LhexIA · First-party analytics</div>
+          <h2 class="mb-2"><i class="fas fa-chart-area me-2"></i>Analítica Web · Command Center</h2>
+          <p class="mb-0" style="max-width: 58rem; color: rgba(226, 232, 240, .92);">
+            Torre de control del sitio público: sesiones, páginas, tiempo activo real, clics en CTA,
+            intención comercial y conversiones capturadas desde infraestructura propia.
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('comercial_leads') }}" class="btn btn-warning btn-sm fw-bold text-dark">
+            <i class="fas fa-user-group me-1"></i> Leads comerciales
+          </a>
+          <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm" target="_blank" rel="noopener">
+            <i class="fas fa-globe me-1"></i> Ver sitio público
+          </a>
+        </div>
+      </div>
+
+      <div class="row g-2 g-md-3">
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi">
+            <div class="lbl">Sesiones 7 días</div>
+            <div class="val">{{ wa_summary.sessions_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi">
+            <div class="lbl">Visitantes únicos 7 días</div>
+            <div class="val">{{ wa_summary.visitors_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi">
+            <div class="lbl">Pageviews 7 días</div>
+            <div class="val">{{ wa_summary.pageviews_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi border-success border-opacity-50">
+            <div class="lbl text-success">Conversiones 7 días</div>
+            <div class="val text-success">{{ wa_summary.conversions_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi">
+            <div class="lbl">Tiempo activo promedio</div>
+            <div class="val">{{ wa_summary.avg_active_7_label }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi border-warning border-opacity-50">
+            <div class="lbl text-warning">CTR de conversión sesión</div>
+            <div class="val text-warning">{{ wa_summary.conversion_rate_7 }}%</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi">
+            <div class="lbl">Clicks CTA 7 días</div>
+            <div class="val">{{ wa_summary.cta_clicks_7d }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="wa-kpi">
+            <div class="lbl">Sesiones activas recientes</div>
+            <div class="val">{{ wa_summary.active_now }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-chart-line text-primary me-1"></i> Tendencia 14 días</span>
+          <span class="wa-mini">Sesiones vs conversiones</span>
+        </div>
+        <div class="card-body">
+          <canvas id="waTrendChart" height="110"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-bullseye text-danger me-1"></i> CTA y WhatsApp
+        </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <span>Clicks CTA</span>
+            <span class="wa-chip">{{ wa_summary.cta_clicks_7d }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <span>Clicks WhatsApp</span>
+            <span class="wa-chip">{{ wa_summary.whatsapp_clicks_7d }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center py-2">
+            <span>Conversión sesión</span>
+            <span class="wa-chip">{{ wa_summary.conversion_rate_7 }}%</span>
+          </div>
+          <p class="wa-mini mt-3 mb-0">
+            Esta capa ya distingue sesiones activas, interacciones de CTA y conversiones de alto valor desde el sitio.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-7">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-file-waveform text-primary me-1"></i> Páginas con más valor</span>
+          <span class="wa-mini">Ordenadas por conversión, pageviews y engagement</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 wa-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Página</th>
+                  <th class="text-end">Views</th>
+                  <th class="text-end">Sesiones</th>
+                  <th class="text-end">Activa prom.</th>
+                  <th class="text-end">Scroll prom.</th>
+                  <th class="text-end">Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in wa_top_pages %}
+                <tr>
+                  <td><code>{{ row.path }}</code></td>
+                  <td class="text-end fw-semibold">{{ row.pageviews }}</td>
+                  <td class="text-end">{{ row.sessions_count }}</td>
+                  <td class="text-end">{{ row.avg_active_label }}</td>
+                  <td class="text-end">{{ row.avg_scroll_depth }}%</td>
+                  <td class="text-end fw-bold text-success">{{ row.conversions }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">Aún no hay suficiente data web capturada.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-compass text-info me-1"></i> Fuentes de adquisición
+        </div>
+        <div class="card-body">
+          {% for row in wa_top_sources %}
+          <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div>
+              <div class="fw-semibold">{{ row.source }}</div>
+              <div class="wa-mini">{{ row.medium }}</div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold">{{ row.sessions }}</div>
+              <div class="wa-mini">{{ row.conversions }} conv.</div>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">Todavía no hay fuentes consolidadas para mostrar.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-hand-pointer text-warning me-1"></i> CTA más clickeados
+        </div>
+        <div class="card-body">
+          {% for row in wa_top_ctas %}
+          <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="fw-semibold text-truncate pe-3">{{ row.label }}</div>
+            <span class="wa-chip">{{ row.clicks }}</span>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">Aún no hay CTA relevantes registrados.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-wave-square text-secondary me-1"></i> Eventos recientes de intención
+        </div>
+        <div class="card-body">
+          {% for row in wa_recent_events %}
+          <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="fw-semibold">{{ row.label }}</div>
+                <div class="wa-mini"><code>{{ row.path }}</code> · {{ row.event_name }}</div>
+              </div>
+              <span class="wa-mini text-nowrap">{{ row.created_at.strftime('%d/%m %H:%M') if row.created_at else '—' }}</span>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">Sin eventos recientes de interacción todavía.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds wa-card">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-funnel-dollar text-success me-1"></i> Conversiones recientes</span>
+      <span class="wa-mini">Lead submit, WhatsApp y señales de alto valor</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 wa-table">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Página</th>
+              <th>Empresa</th>
+              <th>Nombre</th>
+              <th>Lead</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in wa_recent_conversions %}
+            <tr>
+              <td class="small">{{ row.created_at.strftime('%d/%m %H:%M') if row.created_at else '—' }}</td>
+              <td><span class="badge text-bg-success">{{ row.conversion_type }}</span></td>
+              <td><code>{{ row.path }}</code></td>
+              <td>{{ row.empresa or '—' }}</td>
+              <td>{{ row.nombre or '—' }}</td>
+              <td class="small">{{ row.lead_id or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay conversiones registradas en la plataforma.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script>
+(() => {
+  const el = document.getElementById('waTrendChart');
+  if (!el || typeof Chart === 'undefined') return;
+  new Chart(el, {
+    type: 'line',
+    data: {
+      labels: {{ wa_chart_labels|tojson }},
+      datasets: [
+        {
+          label: 'Sesiones',
+          data: {{ wa_chart_sessions|tojson }},
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13,110,253,.12)',
+          borderWidth: 2,
+          fill: true,
+          tension: .32
+        },
+        {
+          label: 'Conversiones',
+          data: {{ wa_chart_conversions|tojson }},
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22,163,74,.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: .32
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

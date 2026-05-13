@@ -816,6 +816,7 @@
     </div>
 
     <!-- Bootstrap JS Local -->
+    {% include '_web_analytics_tracker.html' %}
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
     <script>
         (() => {
@@ -888,6 +889,7 @@
             }
 
             async function trackLead() {
+                const analytics = window.LhexiaWebAnalytics?.getContext?.() || {};
                 const payload = {
                     prioridad: getLeadPriority(),
                     nombre: nameInput?.value?.trim() || "",
@@ -901,6 +903,7 @@
                     urgencia: state.urgencia || "",
                     recomendacion_inicial: recommendationByPriority(),
                     landing_url: window.location.href,
+                    analytics: analytics,
                 };
                 const resp = await fetch("{{ url_for('api_landing_lead') }}", {
                     method: "POST",

@@ -1,0 +1,7 @@
+<script>
+window.LhexiaWebAnalyticsConfig = {
+    enabled: true,
+    trackUrl: "{{ url_for('api_analytics_track') }}"
+};
+</script>
+<script src="{{ url_for('static', filename='js/web_analytics_tracker.js') }}"></script>
