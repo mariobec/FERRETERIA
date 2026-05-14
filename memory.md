@@ -16,12 +16,12 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 ## Qué es este proyecto
 
 - **Stack principal:** Flask, Flask-SQLAlchemy, Flask-Login, PostgreSQL (producción/hosting típico) o MySQL local por defecto si no hay `DATABASE_URL`.
-- **Patrón:** aplicación **monolítica**: modelos, rutas y lógica en **`app.py`** (sin Flask Blueprints). Hay **132** decoradores `@app.route(` (conteo real sobre archivo).
+- **Patrón:** núcleo todavía **monolítico** en **`app.py`**, pero ya convive con **blueprints** registrados (`bodega`, `caja`, `pos`, `c360`) y servicios extraídos para dominios críticos.
 - **Frontend servidor:** Jinja2 en **`templates/`** (~75 HTML).
 - **Estáticos:** **`static/`** (`design-system.css`, Bootstrap local, `pos.js`, logos).
 - **Migraciones / DDL:** **`sql/`** (fechas `YYYY_MM_DD_*`).
 - **Scripts:** **`scripts/`** (semillas, migraciones auxiliares). Normalizar precios/montos DEMO ya en BD: `python scripts/normalize_demo_data_clp.py`.
-- **Datos JSON runtime:** **`data/`** (empresa, proveedores, leads en archivo según features).
+- **Datos JSON runtime:** **`data/`** (empresa, proveedores, `landing_leads.jsonl`, `landing_lead_events.jsonl` y otros artefactos runtime).
 
 ## Arquitectura del repositorio (carpetas relevantes)
 
@@ -36,7 +36,7 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 | `sql/`, `scripts/` | DDL incremental y utilidades. |
 | `demo_ferreteria/` | Demo empaquetada para cliente. |
 | `CARGA DE DATOS/` | CSV masivos. |
-| `docs/` | Doc suelta (branding, **`roadmap_customer_360_ferreteria_2026.md`**). |
+| `docs/` | Documentación operativa, roadmap C360 y **roadmap de observabilidad 2026–2030**. |
 
 Copias viejas (`app-28-04-2026.py`, `ventas.*.py`): **operativo = `app.py`**.
 
@@ -99,13 +99,14 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 
 ### 1. Público, landing y catálogo web
 
-- **Rutas:** `/`, `/index`, `/healthz`, `POST /api/landing/lead`, `/catalogo`, `/consulta-stock`.
-- **Lógica:** landing puede registrar leads (archivo/JSONL según implementación); catálogo/consulta respetan flags tipo **`PUBLICO_MUESTRA_PRECIO`**, **`PUBLICO_MUESTRA_STOCK_EXACTO`** (ver también `render.yaml`). No exponer datos sensibles sin revisar plantillas.
+- **Rutas:** `/`, `/index`, `/healthz`, `POST /api/landing/lead`, `/catalogo`, `/consulta-stock`, `/sitemap.xml`, `/robots.txt`.
+- **SEO / money pages públicas:** `/lhexia-vs-defontana`, `/erp-ferreterias`, `/erp-retail-especializado`, `/alternativa-a-defontana`, `/erp-con-bodega-por-voz`, `/como-reducir-quiebres-de-stock-en-ferreterias`, `/quienes-somos`, `/fundador`.
+- **Lógica:** landing premium + cluster SEO ya desplegado en producción; captura leads en JSONL y dispara conversión web first-party. Catálogo/consulta respetan flags tipo **`PUBLICO_MUESTRA_PRECIO`**, **`PUBLICO_MUESTRA_STOCK_EXACTO`** (ver también `render.yaml`). Sitemap/robots se generan dinámicamente desde Flask.
 
 ### 2. Autenticación y usuarios
 
 - **Rutas:** `/login`, `/logout`, `/logout/forzar`, `/cambiar_password`, `/usuarios`, toggle estado usuario, `/editar_usuario`, `/eliminar_usuario`.
-- **Lógica:** Flask-Login; perfiles `ACTIVO` / `INACTIVO`; forcing cambio clave con perfiles tipo `FORZAR_CLAVE`; sesión guarda `login_at` para UI.
+- **Lógica:** Flask-Login; perfiles `ACTIVO` / `INACTIVO`; forcing cambio clave con perfiles tipo `FORZAR_CLAVE`; sesión guarda `login_at` para UI. **Fix vigente:** si un administrador redefine la contraseña desde `/editar_usuario/<id>`, la cuenta sale de `FORZAR_CLAVE` y queda en `ACTIVO`.
 
 ### 3. Home y ayuda
 
@@ -119,8 +120,8 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 
 ### 5. BI, gerencia e informes
 
-- **Rutas:** `/bi`, `/bi/panel-dueno`, `/gerencia/informes-dueno`, demos `/bi/demo/*`, `/gerencia/simulador-margen`, exports `bi/export.csv`, `bi/export_vendedores.csv`.
-- **Lógica:** paneles y CSV export según consultas agregadas en `app.py` (ventas, vendedores, etc.). Detalle numérico siempre en código.
+- **Rutas:** `/bi`, `/bi/panel-dueno`, `/gerencia/informes-dueno`, demos `/bi/demo/*`, `/gerencia/simulador-margen`, `/gerencia/analitica-web`, `/gerencia/seo-rankings`, exports `bi/export.csv`, `bi/export_vendedores.csv`.
+- **Lógica:** además de BI histórico, ahora existe una capa interna de **observabilidad comercial y SEO**: analítica first-party, snapshots SEO locales, funnel ejecutivo, alertas mínimas y taxonomía estable de eventos/CTA. Todo el dashboard consume datos locales ya persistidos, sin llamadas externas en tiempo real.
 
 ### 6. IA abastecimiento / sugerencias compra
 
@@ -192,7 +193,14 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 - **Rutas:** lista, `nueva`, `detalle`, `editar`, `contacto`, `estado`, `pdf`, `whatsapp`, **`convertir`** → POS, APIs buscar productos/clientes.
 - **Lógica:** cotización con snapshot cliente; **`cotizacion_convertir_venta`** crea **`Venta` Abierta**, copia líneas, marca cotización **`Convertida`** y **`venta_id`**; enlaza/crea **`Cliente`** desde snapshot si falta; valida stock y advierte faltantes **antes de emitir vale** en POS.
 
-### 19. Roadmap — Customer 360 + módulo clientes (plan 2026, pendiente de código)
+### 19. Observabilidad web y SEO interno (implementado mayo 2026)
+
+- **Rutas públicas / ingestión:** `POST /api/analytics/track`, `POST /api/landing/lead`, `POST /api/observabilidad/cron-diario`.
+- **Rutas internas:** `/gerencia/analitica-web`, `/gerencia/seo-rankings`, `POST /gerencia/seo-rankings/snapshot`, `POST /gerencia/seo-rankings/keyword-metric`.
+- **Persistencia principal:** `WebAnalyticsVisitor`, `WebAnalyticsSession`, `WebAnalyticsPageView`, `WebAnalyticsEvent`, `WebAnalyticsConversion`, `ControlTraficoInterno`, `TelemetriaHistoricaAgregada`, `SeoKeywordTarget`, `SeoKeywordDailyMetric`, `SeoPageDailySnapshot`, `SeoSiteDailySnapshot`.
+- **Lógica:** tracking first-party con `session_id` Liz válido, taxonomía estable de eventos/CTA, retención/purga de telemetría, cron seguro de observabilidad, funnel ejecutivo `visita -> CTA -> WhatsApp -> lead`, alertas comerciales mínimas y alertas SEO ejecutivas. La sync con Search Console quedó aislada y solo como proceso asíncrono/stub.
+
+### 20. Roadmap — Customer 360 + módulo clientes (plan 2026, pendiente de código)
 
 - **Documento detallado:** `docs/roadmap_customer_360_ferreteria_2026.md` (fuente de verdad del plan por fases).
 - **Resumen:** P0 urgente = ficha **Customer 360** en Flask, motor **etapa de proyecto** (clasificación obra gruesa / instalaciones / acabados), **fecha estimada siguiente compra** (~21 días), **score de puntualidad** y regla **>90 %** solo para **sugerencias** de crédito proactivo (no automático), **log de predicciones** medible vs ventas. P1 = CDP ligero, timeline, dashboard ferretero predictivo. P2 = Smart dropzone + OCR simulado/real y abonos prellenados. P2b = **worker/cron** “llamadas recomendadas”. P3 = portal cliente, IA asistida.
@@ -270,6 +278,13 @@ Referencias `L####` = línea aproximada en `app.py` para ubicar la vista rápido
 | 2026-05-10 | **`POST /cargar_productos`:** bucle de importación CSV/Excel envuelto en `transaccion_critica()`; `_audit_log` evento `carga_masiva_productos_archivo` antes del `commit` (mismo patrón que stock masivo UI). |
 | 2026-05-11 | **Bodega Fase 3 completada:** SLA (columnas `bodega_preparacion_cobrado_at` / `bodega_preparacion_cerrado_at`; KPI promedio+max en cuadro de mando; chip SLA por vale), ranking operador (7 días, barras), export CSV del día (`GET /bodega/export-dia`), modo TV/kiosk (`GET /bodega/cuadro-mando/tv` con `base_tv.html`, auto-refresh 30 s). Rediseño estético previo del cuadro de mando. |
 | 2026-05-11 | **RBAC v2 — Navegación centralizada por permisos.** `_NAV_MAP` en `app.py`: mapa declarativo de menú (grupos, ítems, permisos, endpoints activos). `_construir_nav_usuario()` filtra por permisos del usuario autenticado; `nav_menu` inyectado vía context_processor. Sidebar de `base.html` reescrito para iterar `nav_menu` (≈15 líneas Jinja vs ~180 anteriores). Nuevos permisos: `ver_inventario`, `ver_gerencia`, `gestionar_compras`. Perfiles: `gerente`, `dueno` en `mapa_por_rol`. Rutas protegidas: `mostrar_productos`, `stock_critico`, `kardex`, `business_intelligence`, `mostrar_proveedores`, `lista_ordenes_compra`, `lista_recepciones`, `editar_stock_producto`, `actualizar_stock_masivo_productos`, `cargar_productos` ahora usan `@permisos_required`. |
+| 2026-05-12 | **Sitio público / SEO premium:** landing principal reescrita, páginas institucionales (`quienes-somos`, `fundador`), money pages (`erp-ferreterias`, `erp-retail-especializado`) y cluster editorial/comparativo (`lhexia-vs-defontana`, `alternativa-a-defontana`, `erp-con-bodega-por-voz`, `como-reducir-quiebres-de-stock-en-ferreterias`). `robots.txt` y `sitemap.xml` dinámicos ya operativos en producción. |
+| 2026-05-12 | **Observabilidad first-party fase base:** modelos web analytics + SEO monitor, tracker web propio, dashboards internos `gerencia/analitica-web` y `gerencia/seo-rankings`, snapshots SEO locales y captura de conversiones/CTA. |
+| 2026-05-13 | **Blindaje observabilidad:** validación estricta de `session_id` Liz en `POST /api/analytics/track`, `control_trafico_interno`, `telemetria_historica_agregada`, `consolidar_y_purgar_telemetria()`, stub asíncrono de Search Console y pruebas críticas verdes. |
+| 2026-05-13 | **Profundización observabilidad:** `POST /api/observabilidad/cron-diario`, taxonomía estable de eventos/CTA, embudo ejecutivo `visita -> CTA -> WhatsApp -> lead`, alertas gerenciales mínimas en analítica/SEO, roadmap `docs/roadmap_observabilidad_lhexia_2026_2030.md` y despliegue confirmado en Render. |
+| 2026-05-14 | **Facturación electrónica — diagnóstico de certificación:** existe base **Fase 1** (`services/facturacion_electronica_service.py`, ruta admin `GET/POST /api/admin/facturacion/emitir-prueba`, migración `sql/2026_05_12_facturacion_electronica_fase1.sql`). En esta máquina el `.pfx` sí existe en `instance/certs/emisor.pfx` y `SII_AMBIENTE=certificacion`, pero la firma falla con **`Invalid password or PKCS12 data`**; la clave hoy entra por `SII_CERT_PFX_PASSWORD` (4 caracteres) y debe revisarse como **clave de exportación del `.pfx`** o pasar a `SII_CERT_PFX_PASSWORD_FILE`. Además, tabla **`cafs`** está vacía (`33/39/61 = 0`) y el envío SOAP al SII sigue en **stub** (`enviar_dte_soap`). Mientras se consigue la clave correcta, continuar otros frentes sin bloquear caja/POS. |
+| 2026-05-14 | **Customer 360 P0 — avance real en código:** se agregó auditoría **`cliente_prediccion_log`** (modelo en `app.py` + migración `sql/2026_05_14_cliente_prediccion_log.sql` + auto-ensure), el motor ahora guarda **`fecha_estimada_siguiente_compra`** y **`ultima_compra_clasificada`** (regla default 21 días vía `C360_SIGUIENTE_COMPRA_DIAS`), calcula **`elegible_credito_proactivo`** / motivo de no elegibilidad y evita duplicar logs idénticos el mismo día. La ficha `admin_cliente_c360.html` ahora muestra próxima compra estimada, elegibilidad de crédito y **compras recientes**. Cobertura mínima agregada en `tests/test_customer_360.py` (2 tests verdes). |
+| 2026-05-14 | **Customer 360 P0.1 — backend resumen/API:** se añadió resumen 90 días en `services/c360_service.py` (`c360_resumen_actividad_cliente`) con última compra, ventas 90d, ticket promedio, frecuencia media, saldo/límite/cupo y familias compradas por `Producto.categoria`; también `c360_predicciones_recientes_cliente`. Nueva API protegida **`GET /api/c360/clientes/<id>/resumen`** (opción `?recalcular=1`) expone `cliente`, `perfil`, `resumen`, `compras_recientes` y `predicciones_recientes`. La ficha `admin_cliente_c360.html` ahora incorpora bloque **“Actividad 90 días”**. Tests ampliados a **3 verdes** en `tests/test_customer_360.py`. |
 
 ---
 
@@ -279,8 +294,8 @@ El documento **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`** quedó **cerra
 
 **Backlog post-v2:** métricas Fase 4 finas, otras rutas masivas no inventariadas, `version` optimistic locking, más blueprints — ver sección *Backlog post-v2* en el plan.
 
-**Referencias:** `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`, `docs/FLUJOS_CRITICOS.md`, blueprints `bodega` / `caja` / `pos` / `c360`.
+**Referencias:** `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`, `docs/FLUJOS_CRITICOS.md`, blueprints `bodega` / `caja` / `pos` / `c360`, `docs/roadmap_observabilidad_lhexia_2026_2030.md`.
 
 ---
 
-*Última actualización del contenido estructural: 2026-05-11 (RBAC v2: navegación centralizada por permisos + protección de rutas).*
+*Última actualización del contenido estructural: 2026-05-14 (diagnóstico FE certificación pendiente de clave `.pfx`).*

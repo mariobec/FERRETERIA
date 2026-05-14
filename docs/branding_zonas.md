@@ -5,12 +5,18 @@ Esta guia define que marca usar segun el area del sistema para evitar mezclas en
 ## Marca comercial vigente
 
 - **Nombre**: LhexIA IA ERP
-- **Tagline oficial**: "Inteligencia operativa para retail y ferreterias."
+- **Tagline oficial**: "Haz rentable tu decisión."
 - **Paleta**: naranja corporativo `#F37021`, fondo oscuro `#0F1419`/`#0B0F14`, blanco metalico
-- **Logo principal (transparente)**: `static/img/lhexia_logo_transparent.png`
+- **Logo principal (transparente)**: `static/img/lhexia-brand-compact.svg`
 - **Logo con fondo oscuro (respaldo legacy)**: `static/img/sintrel-erp-logo-dark-bg.png` (solo si se necesita fondo embebido)
 - **Logo vectorial (editable, respaldo)**: `static/img/sintrel-ia-erp-logo.svg` (wordmark actualizado a LhexIA)
 - **Marca anterior**: Cimentia (deprecada por colision con un ERP existente en Espana). No volver a usar.
+
+## Assets visibles vigentes
+- **Cabeceras publicas / navbar marketing**: `static/img/lhexia-brand-compact.svg`
+- **Sidebar ERP y footers powered by**: `static/img/lhexia_logo.svg`
+- **Isotipo animado / login / modal / favicon**: `static/img/lhexia-icon-approved.png`
+- **Logo SEO / JSON-LD / respaldo vectorial**: `static/img/lhexia_logo.svg`
 
 ## 1) Landing publica (marketing)
 - **Marca**: LhexIA IA ERP

@@ -91,6 +91,12 @@ def _borrar_cliente_test(sa_text):
         if not cli_ids:
             return
         ct = tuple(cli_ids)
+        for dep in ('cliente_prediccion_log', 'c360_llamadas_snapshot_dia', 'c360_proactiva_ofertas'):
+            try:
+                db.session.execute(sa_text(
+                    f"DELETE FROM {dep} WHERE cliente_id IN :c"), {'c': ct})
+            except Exception:
+                db.session.rollback()
         vids_cli = [r[0] for r in db.session.execute(
             sa_text("SELECT id FROM ventas WHERE cliente_id IN :c"), {'c': ct}).fetchall()]
         if vids_cli:

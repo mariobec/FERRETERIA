@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acceso LhexIA ERP | {{ empresa_cfg.nombre_comercial }}</title>
+    <link rel="icon" href="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
     <style>
@@ -125,14 +126,40 @@
             display: inline-flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 0.7rem;
+            position: relative;
+            width: 118px;
+            height: 118px;
+            margin-bottom: 0.9rem;
+            border-radius: 32px;
+            background:
+                radial-gradient(circle at 50% 36%, rgba(255, 143, 31, 0.28), rgba(255, 143, 31, 0.06) 54%, transparent 74%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow:
+                0 26px 54px rgba(0, 0, 0, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.14);
+            backdrop-filter: blur(14px);
         }
 
         .login-brand-logo {
             display: block;
-            height: 66px;
+            position: relative;
+            z-index: 1;
+            height: 76px;
             width: auto;
-            filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.28));
+            filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.24));
+            animation: loginBrandFloat 4.6s ease-in-out infinite;
+        }
+
+        @keyframes loginBrandFloat {
+            0%, 100% {
+                transform: translateY(0) scale(1);
+                filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.24));
+            }
+            50% {
+                transform: translateY(-2px) scale(1.025);
+                filter: drop-shadow(0 20px 36px rgba(255, 122, 16, 0.18));
+            }
         }
 
         .login-brand-subtitle {
@@ -239,7 +266,7 @@
                 <div class="card login-card">
                     <div class="login-header text-center">
                         <div class="login-brand">
-                            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA ERP" class="login-brand-logo">
+                            <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="Isotipo LhexIA" class="login-brand-logo">
                         </div>
                         <span class="login-brand-subtitle">Inteligencia Operativa</span>
                         <h5 class="m-0 fw-bold"><i class="fas fa-key me-2"></i>Acceso al ERP</h5>
@@ -273,3 +300,4 @@
 {% include '_web_analytics_tracker.html' %}
 </body>
 </html>
+

@@ -16,6 +16,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
@@ -237,6 +238,18 @@ class TestT05Invariantes:
 class TestT06Redireccion:
     def test_funcion_existe_y_es_callable(self, app_ctx):
         assert callable(m._home_por_perfil)
+
+    def test_redirige_a_pos_si_el_rol_tiene_permiso_pos(self, app_ctx):
+        usuario = SimpleNamespace(
+            rol=SimpleNamespace(
+                nombre='Vendedor',
+                rol_permisos=[
+                    SimpleNamespace(permiso=SimpleNamespace(nombre='pos_emitir_vale'))
+                ],
+            )
+        )
+        with m.app.test_request_context('/'):
+            assert m._home_por_perfil(usuario) == m.url_for('punto_venta')
 
 
 # =====================================================================

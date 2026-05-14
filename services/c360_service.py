@@ -146,17 +146,360 @@ def c360_probabilidad_mora_cliente(cliente_id):
         .scalar()
         or 0.0
     )
-    cli = Cliente.query.get(cliente_id)
+    cli = m.db.session.get(Cliente, cliente_id)
     lim = float(cli.limite_credito or 1.0) if cli else 1.0
     return float(min(95.0, 18.0 + (monto_venc / max(lim, 1.0)) * 55.0))
 
 
-def c360_project_predictor_actualizar_cliente(cliente_id, commit=True):
+def c360_regla_dias_siguiente_compra(default=21):
+    raw = (os.getenv('C360_SIGUIENTE_COMPRA_DIAS') or '').strip()
+    try:
+        dias = int(raw) if raw else int(default)
+    except (TypeError, ValueError):
+        dias = int(default)
+    return max(7, min(dias, 90))
+
+
+def c360_siguiente_compra_cliente(cliente_id, dias_regla=None):
+    import app as m
+
+    if not cliente_id:
+        return {
+            'ultima_compra_clasificada': None,
+            'ultima_compra_clasificada_label': None,
+            'fecha_estimada_siguiente_compra': None,
+            'fecha_estimada_siguiente_compra_label': None,
+            'dias_hasta_siguiente_compra': None,
+            'regla_dias': c360_regla_dias_siguiente_compra() if dias_regla is None else dias_regla,
+        }
+
+    try:
+        dias_regla = int(dias_regla) if dias_regla is not None else c360_regla_dias_siguiente_compra()
+    except (TypeError, ValueError):
+        dias_regla = c360_regla_dias_siguiente_compra()
+    dias_regla = max(7, min(dias_regla, 90))
+
+    Venta = m.Venta
+    DetalleVenta = m.DetalleVenta
+    Producto = m.Producto
+    dt_max = (
+        m.db.session.query(func.max(Venta.fecha))
+        .select_from(DetalleVenta)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .join(Producto, Producto.id == DetalleVenta.id_producto)
+        .filter(
+            Venta.cliente_id == int(cliente_id),
+            or_(Venta.estado.is_(None), ~Venta.estado.in_(('Anulada', 'Abierta'))),
+            func.coalesce(Producto.fase_obra, '') != '',
+        )
+        .scalar()
+    )
+    if not dt_max:
+        return {
+            'ultima_compra_clasificada': None,
+            'ultima_compra_clasificada_label': None,
+            'fecha_estimada_siguiente_compra': None,
+            'fecha_estimada_siguiente_compra_label': None,
+            'dias_hasta_siguiente_compra': None,
+            'regla_dias': dias_regla,
+        }
+
+    ultima = dt_max.date() if hasattr(dt_max, 'date') else dt_max
+    estimada = ultima + timedelta(days=dias_regla)
+    return {
+        'ultima_compra_clasificada': ultima.isoformat(),
+        'ultima_compra_clasificada_label': ultima.strftime('%d/%m/%Y'),
+        'fecha_estimada_siguiente_compra': estimada.isoformat(),
+        'fecha_estimada_siguiente_compra_label': estimada.strftime('%d/%m/%Y'),
+        'dias_hasta_siguiente_compra': (estimada - date.today()).days,
+        'regla_dias': dias_regla,
+    }
+
+
+def c360_ultimas_compras_cliente(cliente_id, limit=6):
+    import app as m
+
+    if not cliente_id:
+        return []
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 6
+    limit = max(1, min(limit, 20))
+
+    Venta = m.Venta
+    DetalleVenta = m.DetalleVenta
+    Producto = m.Producto
+    ventas = (
+        Venta.query.filter(
+            Venta.cliente_id == int(cliente_id),
+            or_(Venta.estado.is_(None), ~Venta.estado.in_(('Anulada', 'Abierta'))),
+        )
+        .order_by(Venta.fecha.desc(), Venta.id.desc())
+        .limit(limit)
+        .all()
+    )
+    if not ventas:
+        return []
+
+    venta_ids = [v.id for v in ventas]
+    fase_por_venta = {}
+    rows = (
+        m.db.session.query(
+            DetalleVenta.id_venta,
+            func.coalesce(Producto.fase_obra, '').label('fase_raw'),
+            func.coalesce(func.sum(DetalleVenta.subtotal), 0.0).label('monto'),
+        )
+        .select_from(DetalleVenta)
+        .join(Producto, Producto.id == DetalleVenta.id_producto)
+        .filter(DetalleVenta.id_venta.in_(venta_ids))
+        .group_by(DetalleVenta.id_venta, Producto.fase_obra)
+        .all()
+    )
+    tmp = defaultdict(list)
+    for venta_id, fase_raw, monto in rows:
+        tmp[int(venta_id)].append((c360_fase_obra_valida(fase_raw), float(monto or 0.0)))
+    for venta_id, grupos in tmp.items():
+        grupos_validos = [g for g in grupos if g[0]]
+        if grupos_validos:
+            grupos_validos.sort(key=lambda x: (x[1], c360_fase_orden(x[0])), reverse=True)
+            fase_por_venta[venta_id] = grupos_validos[0][0]
+
+    out = []
+    for venta in ventas:
+        fase_dom = fase_por_venta.get(venta.id)
+        fecha = venta.fecha.date() if hasattr(venta.fecha, 'date') else venta.fecha
+        out.append(
+            {
+                'venta_id': venta.id,
+                'fecha': fecha.isoformat() if fecha else None,
+                'fecha_label': fecha.strftime('%d/%m/%Y') if fecha else '—',
+                'estado': (venta.estado or '—').strip() or '—',
+                'monto_total_clp': int(round(float(venta.monto_total or 0.0))),
+                'fase_dominante': fase_dom,
+                'fase_dominante_label': C360_FASE_OBRA_LABELS.get(fase_dom, 'Sin clasificar'),
+                'punto_retiro': (venta.punto_retiro or '').strip() or None,
+            }
+        )
+    return out
+
+
+def c360_resumen_actividad_cliente(cliente_id, dias=90, limit_categorias=5):
+    import app as m
+
+    try:
+        dias = int(dias)
+    except (TypeError, ValueError):
+        dias = 90
+    dias = max(30, min(dias, 365))
+    try:
+        limit_categorias = int(limit_categorias)
+    except (TypeError, ValueError):
+        limit_categorias = 5
+    limit_categorias = max(1, min(limit_categorias, 12))
+
+    out = {
+        'dias_ventana': dias,
+        'ultima_compra': None,
+        'ultima_compra_label': None,
+        'dias_desde_ultima_compra': None,
+        'ventas_90d': 0,
+        'monto_total_90d_clp': 0,
+        'ticket_promedio_90d_clp': 0,
+        'frecuencia_media_dias_90d': None,
+        'saldo_deudor_clp': 0,
+        'limite_credito_clp': 0,
+        'cupo_disponible_clp': 0,
+        'estado_credito': None,
+        'categorias_top': [],
+    }
+    if not cliente_id:
+        return out
+
+    Cliente = m.Cliente
+    Venta = m.Venta
+    DetalleVenta = m.DetalleVenta
+    Producto = m.Producto
+    db = m.db
+    cli = db.session.get(Cliente, int(cliente_id))
+    if cli:
+        out.update(
+            {
+                'saldo_deudor_clp': int(round(float(cli.saldo_deudor or 0.0))),
+                'limite_credito_clp': int(round(float(cli.limite_credito or 0.0))),
+                'cupo_disponible_clp': int(round(float(cli.cupo_disponible or 0.0))),
+                'estado_credito': (cli.estado_credito or '').strip() or None,
+            }
+        )
+
+    cut = datetime.now() - timedelta(days=dias)
+    ventas = (
+        Venta.query.filter(
+            Venta.cliente_id == int(cliente_id),
+            Venta.fecha >= cut,
+            or_(Venta.estado.is_(None), ~Venta.estado.in_(('Anulada', 'Abierta'))),
+        )
+        .order_by(Venta.fecha.asc(), Venta.id.asc())
+        .all()
+    )
+    if not ventas:
+        return out
+
+    fechas = []
+    monto_total = 0.0
+    for venta in ventas:
+        fecha = venta.fecha.date() if hasattr(venta.fecha, 'date') else venta.fecha
+        if fecha:
+            fechas.append(fecha)
+        monto_total += float(venta.monto_total or 0.0)
+    fechas = sorted(set(fechas))
+    ultima = fechas[-1] if fechas else None
+    freq_media = None
+    if len(fechas) >= 2:
+        gaps = [(fechas[i] - fechas[i - 1]).days for i in range(1, len(fechas))]
+        if gaps:
+            freq_media = round(sum(gaps) / len(gaps), 1)
+
+    out.update(
+        {
+            'ultima_compra': ultima.isoformat() if ultima else None,
+            'ultima_compra_label': ultima.strftime('%d/%m/%Y') if ultima else None,
+            'dias_desde_ultima_compra': (date.today() - ultima).days if ultima else None,
+            'ventas_90d': len(ventas),
+            'monto_total_90d_clp': int(round(monto_total)),
+            'ticket_promedio_90d_clp': int(round(monto_total / len(ventas))) if ventas else 0,
+            'frecuencia_media_dias_90d': freq_media,
+        }
+    )
+
+    rows = (
+        db.session.query(
+            Producto.categoria,
+            func.coalesce(func.sum(DetalleVenta.subtotal), 0.0).label('monto'),
+        )
+        .select_from(DetalleVenta)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .join(Producto, Producto.id == DetalleVenta.id_producto)
+        .filter(
+            Venta.cliente_id == int(cliente_id),
+            Venta.fecha >= cut,
+            or_(Venta.estado.is_(None), ~Venta.estado.in_(('Anulada', 'Abierta'))),
+        )
+        .group_by(Producto.categoria)
+        .all()
+    )
+    categorias = []
+    for categoria_raw, monto in rows:
+        mv = float(monto or 0.0)
+        if mv <= 0:
+            continue
+        categoria = (categoria_raw or '').strip() or 'Sin categoría'
+        categorias.append({'categoria': categoria, 'monto_clp': int(round(mv))})
+    categorias.sort(key=lambda x: (-x['monto_clp'], x['categoria']))
+    for item in categorias[:limit_categorias]:
+        item['participacion_pct'] = round((item['monto_clp'] / max(out['monto_total_90d_clp'], 1)) * 100.0, 1)
+    out['categorias_top'] = categorias[:limit_categorias]
+    return out
+
+
+def c360_predicciones_recientes_cliente(cliente_id, limit=5):
+    import app as m
+
+    if not cliente_id:
+        return []
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 5
+    limit = max(1, min(limit, 20))
+    if not m._asegurar_tabla_cliente_prediccion_log():
+        return []
+
+    ClientePrediccionLog = m.ClientePrediccionLog
+    rows = (
+        ClientePrediccionLog.query.filter_by(cliente_id=int(cliente_id))
+        .order_by(ClientePrediccionLog.created_at.desc(), ClientePrediccionLog.id.desc())
+        .limit(limit)
+        .all()
+    )
+    out = []
+    for row in rows:
+        payload = {}
+        try:
+            payload = json.loads(row.payload_json) if row.payload_json else {}
+            if not isinstance(payload, dict):
+                payload = {}
+        except Exception:
+            payload = {}
+        created = row.created_at
+        out.append(
+            {
+                'id': int(row.id),
+                'created_at': created.isoformat() if created else None,
+                'created_at_label': created.strftime('%d/%m/%Y %H:%M') if created else None,
+                'tipo_recomendacion': row.tipo_recomendacion,
+                'usuario_origen': row.usuario_origen,
+                'resultado': row.resultado,
+                'venta_asociada_id': row.venta_asociada_id,
+                'payload': payload,
+            }
+        )
+    return out
+
+
+def c360_registrar_prediccion_log(
+    cliente_id,
+    tipo_recomendacion,
+    payload_dict,
+    *,
+    usuario_origen='Motor C360',
+    resultado='ignorada',
+    venta_asociada_id=None,
+):
+    import app as m
+
+    if not cliente_id or not tipo_recomendacion:
+        return None
+    if not m._asegurar_tabla_cliente_prediccion_log():
+        return None
+
+    ClientePrediccionLog = m.ClientePrediccionLog
+    payload_json = json.dumps(payload_dict or {}, ensure_ascii=False, sort_keys=True)
+    ultimo = (
+        ClientePrediccionLog.query.filter_by(
+            cliente_id=int(cliente_id),
+            tipo_recomendacion=(tipo_recomendacion or '').strip()[:48],
+        )
+        .order_by(ClientePrediccionLog.id.desc())
+        .first()
+    )
+    hoy = date.today()
+    if ultimo and ultimo.created_at and ultimo.created_at.date() == hoy:
+        if (
+            (ultimo.payload_json or '') == payload_json
+            and (ultimo.resultado or '') == (resultado or '')
+            and (ultimo.venta_asociada_id or None) == (venta_asociada_id or None)
+        ):
+            return ultimo
+
+    row = ClientePrediccionLog(
+        cliente_id=int(cliente_id),
+        tipo_recomendacion=(tipo_recomendacion or '').strip()[:48],
+        payload_json=payload_json,
+        usuario_origen=(usuario_origen or 'Motor C360')[:100],
+        resultado=(resultado or 'ignorada')[:32],
+        venta_asociada_id=int(venta_asociada_id) if venta_asociada_id else None,
+    )
+    m.db.session.add(row)
+    return row
+
+
+def c360_project_predictor_actualizar_cliente(cliente_id, commit=True, usuario_origen=None):
     import app as m
 
     Cliente = m.Cliente
     db = m.db
-    cli = Cliente.query.get(cliente_id)
+    cli = m.db.session.get(Cliente, cliente_id)
     if not cli or m._cliente_es_sistema_final(cli):
         return None
     etapa_fase_anterior = (cli.c360_etapa_actual or '').strip().upper() or None
@@ -166,6 +509,12 @@ def c360_project_predictor_actualizar_cliente(cliente_id, commit=True):
     perfil = c360_perfil_dict_desde_cliente(cli)
     score = c360_score_puntualidad_cliente(cliente_id)
     prob_mora = c360_probabilidad_mora_cliente(cliente_id)
+    sig_compra = c360_siguiente_compra_cliente(cliente_id)
+    cuotas_vencidas = c360_cliente_tiene_cuota_credito_vencida(cliente_id)
+    estado_credito_activo = (cli.estado_credito or '').strip() == 'Activo'
+    elegible_credito_proactivo = bool(score > 90.0 and estado_credito_activo and not cuotas_vencidas)
+    motivo_no_elegible = None
+    motivo_no_elegible_label = None
 
     def _pct(fk):
         return (por.get(fk, 0.0) / total) if total > 0 else 0.0
@@ -196,19 +545,29 @@ def c360_project_predictor_actualizar_cliente(cliente_id, commit=True):
             alerta = 'Perfil mixto o etapa inicial; revisar clasificación de productos.'
 
     cupo_sug = 0.0
-    if score > 88.0 and total > 0:
+    if elegible_credito_proactivo and total > 0:
         lim = float(cli.limite_credito or 0)
         cupo_sug = float(min(lim * 0.20, max(50000.0, total * 0.24)))
+    if not estado_credito_activo:
+        motivo_no_elegible = 'credito_inactivo'
+        motivo_no_elegible_label = 'Estado de crédito no activo.'
+    elif cuotas_vencidas:
+        motivo_no_elegible = 'cuotas_vencidas'
+        motivo_no_elegible_label = 'Cliente con cuotas vencidas.'
+    elif score <= 90.0:
+        motivo_no_elegible = 'score_bajo'
+        motivo_no_elegible_label = 'Score de puntualidad <= 90.'
 
     cli.c360_etapa_actual = nueva_etapa
     sin_clas = float(agg.get('sin_clasificar') or 0.0)
     ratio_sin = (sin_clas / total) if total > 0 else 0.0
     lim_c = float(cli.limite_credito or 0.0)
     recomendar_avanzado = bool(
-        score > 88.0
+        elegible_credito_proactivo
         and nueva_etapa
         and nueva_etapa in ('INSTALACIONES', 'ACABADOS', 'TERMINACIONES')
         and total > 0
+        and bool(sig_compra.get('fecha_estimada_siguiente_compra'))
     )
     recomendar_data_quality = bool(
         score > 86.0
@@ -237,6 +596,15 @@ def c360_project_predictor_actualizar_cliente(cliente_id, commit=True):
             'cupo_sugerido_proxima_fase': int(round(cupo_sug)),
             'score_puntualidad': round(score, 2),
             'alerta_oportunidad_credito': alerta,
+            'elegible_credito_proactivo': elegible_credito_proactivo,
+            'motivo_no_elegible_credito': motivo_no_elegible,
+            'motivo_no_elegible_credito_label': motivo_no_elegible_label,
+            'ultima_compra_clasificada': sig_compra.get('ultima_compra_clasificada'),
+            'ultima_compra_clasificada_label': sig_compra.get('ultima_compra_clasificada_label'),
+            'fecha_estimada_siguiente_compra': sig_compra.get('fecha_estimada_siguiente_compra'),
+            'fecha_estimada_siguiente_compra_label': sig_compra.get('fecha_estimada_siguiente_compra_label'),
+            'dias_hasta_siguiente_compra': sig_compra.get('dias_hasta_siguiente_compra'),
+            'regla_dias_siguiente_compra': sig_compra.get('regla_dias'),
             'ultima_prediccion_at': datetime.utcnow().isoformat() + 'Z',
             'ventana_dias': agg['dias'],
             'monto_total_ventana_clp': int(round(total)),
@@ -248,6 +616,23 @@ def c360_project_predictor_actualizar_cliente(cliente_id, commit=True):
     )
     c360_guardar_perfil_cliente(cli, perfil)
     if commit:
+        if recomendar_avanzado:
+            c360_registrar_prediccion_log(
+                cli.id,
+                'EXTENSION_CREDITO_SUGERIDA',
+                {
+                    'cliente_id': cli.id,
+                    'etapa_sugerida': nueva_etapa,
+                    'score_puntualidad': round(score, 2),
+                    'cupo_sugerido_proxima_fase': int(round(cupo_sug)),
+                    'monto_total_ventana_clp': int(round(total)),
+                    'ultima_compra_clasificada': sig_compra.get('ultima_compra_clasificada'),
+                    'fecha_estimada_siguiente_compra': sig_compra.get('fecha_estimada_siguiente_compra'),
+                    'regla_dias_siguiente_compra': sig_compra.get('regla_dias'),
+                },
+                usuario_origen=usuario_origen or 'Motor C360',
+                resultado='ignorada',
+            )
         if recomendar:
             c360_upsert_llamada_snapshot_si_recomendada(cli.id, perfil, datetime.now().date())
         db.session.commit()

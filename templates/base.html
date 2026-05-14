@@ -18,6 +18,7 @@
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" type="image/png">
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -27,8 +28,8 @@
             <!-- Menú Lateral -->
             <nav class="col-md-2 app-sidebar d-none d-md-block">
                 <div class="app-sidebar-header app-sidebar-header--compact">
-                    <a href="{{ url_for('inicio') }}" class="app-brand-compact" title="LhexIA ERP · www.lhexia.cl">
-                        <img src="{{ url_for('static', filename='img/lhexia_logo.png') }}?v=lhexia20260513f" alt="LhexIA ERP · www.lhexia.cl">
+                    <a href="{{ url_for('inicio') }}" class="app-brand-compact app-brand-compact--icon" title="LhexIA ERP · www.lhexia.cl">
+                        <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="LhexIA ERP · www.lhexia.cl">
                     </a>
                 </div>
                 

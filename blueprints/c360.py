@@ -32,6 +32,12 @@ def register_c360_routes(app):
         methods=['POST'],
     )
     app.add_url_rule(
+        '/api/c360/clientes/<int:cliente_id>/resumen',
+        'api_c360_cliente_resumen',
+        pr('gestionar_usuarios')(m.api_c360_cliente_resumen),
+        methods=['GET'],
+    )
+    app.add_url_rule(
         '/api/c360/worker-noche',
         'api_c360_worker_noche',
         m.api_c360_worker_noche,

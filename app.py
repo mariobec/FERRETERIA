@@ -161,6 +161,11 @@ if db_uri.startswith('postgresql'):
     # Refuerzo a nivel libpq por si la conexion se establece antes de aplicar client_encoding.
     os.environ.setdefault('PGCLIENTENCODING', 'UTF8')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
+app.config.setdefault('SESSION_COOKIE_HTTPONLY', True)
+app.config.setdefault('SESSION_COOKIE_SAMESITE', os.getenv('SESSION_COOKIE_SAMESITE', 'Lax'))
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
+    hours=int(os.getenv('SESSION_LIFETIME_HOURS', '12'))
+)
 # En desarrollo, recargar plantillas al guardar (sin depender de debug=True).
 # Desactivar explícitamente con FLASK_TEMPLATE_RELOAD=0 si no lo deseas.
 if os.getenv('FLASK_TEMPLATE_RELOAD', '1') != '0':
@@ -1527,10 +1532,29 @@ def load_user(user_id):
         uid = int(user_id)
     except (TypeError, ValueError):
         return None
-    try:
-        return db.session.get(Usuario, uid)
-    except Exception:
-        return None
+    ultimo_error = None
+    for intento in range(2):
+        try:
+            usuario = db.session.get(Usuario, uid)
+            if usuario is not None:
+                return usuario
+            if intento == 0:
+                db.session.rollback()
+                continue
+            return None
+        except (OperationalError, SATimeoutError, SQLAlchemyError) as exc:
+            ultimo_error = exc
+            db.session.rollback()
+            if intento == 0:
+                time.sleep(float(os.getenv('LOGIN_USER_RETRY_SEC', '0.15')))
+                continue
+        except Exception as exc:
+            ultimo_error = exc
+            db.session.rollback()
+            break
+    if ultimo_error is not None:
+        app.logger.warning('No se pudo rehidratar la sesion para uid=%s: %s', uid, ultimo_error)
+    return None
 
 # --- MODELOS DE BASE DE DATOS ---...............................................................
 def permisos_required(*permisos):
@@ -4275,6 +4299,24 @@ class C360ProactivaOferta(db.Model):
     cotizacion = db.relationship('Cotizacion', foreign_keys=[cotizacion_id])
 
 
+class ClientePrediccionLog(db.Model):
+    """Auditoría de sugerencias C360 para medir adopción y conversión posterior."""
+
+    __tablename__ = 'cliente_prediccion_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id', ondelete='CASCADE'), nullable=False, index=True)
+    tipo_recomendacion = db.Column(db.String(48), nullable=False, index=True)
+    payload_json = db.Column(db.Text, nullable=True)
+    usuario_origen = db.Column(db.String(100), nullable=True)
+    resultado = db.Column(db.String(32), nullable=False, default='ignorada')
+    venta_asociada_id = db.Column(db.Integer, db.ForeignKey('ventas.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    cliente = db.relationship('Cliente', backref=db.backref('predicciones_c360', lazy='dynamic'))
+    venta_asociada = db.relationship('Venta', foreign_keys=[venta_asociada_id])
+
+
 def _asegurar_tabla_c360_proactiva_ofertas():
     if app.config.get('_C360_PROACTIVA_TABLE_OK'):
         return True
@@ -4304,6 +4346,20 @@ def _asegurar_tabla_c360_llamadas_snapshot():
         return False
 
 
+def _asegurar_tabla_cliente_prediccion_log():
+    if app.config.get('_CLIENTE_PREDICCION_LOG_TABLE_OK'):
+        return True
+    try:
+        ClientePrediccionLog.__table__.create(bind=db.engine, checkfirst=True)
+        db.session.commit()
+        app.config['_CLIENTE_PREDICCION_LOG_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla cliente_prediccion_log: %s', ex)
+        return False
+
+
 from services import c360_service as _c360_service
 
 C360_FASE_OBRA_VALORES = _c360_service.C360_FASE_OBRA_VALORES
@@ -4318,6 +4374,12 @@ _c360_guardar_perfil_cliente = _c360_service.c360_guardar_perfil_cliente
 _c360_montos_por_fase_ultimos_dias = _c360_service.c360_montos_por_fase_ultimos_dias
 _c360_score_puntualidad_cliente = _c360_service.c360_score_puntualidad_cliente
 _c360_probabilidad_mora_cliente = _c360_service.c360_probabilidad_mora_cliente
+c360_regla_dias_siguiente_compra = _c360_service.c360_regla_dias_siguiente_compra
+_c360_siguiente_compra_cliente = _c360_service.c360_siguiente_compra_cliente
+_c360_ultimas_compras_cliente = _c360_service.c360_ultimas_compras_cliente
+_c360_resumen_actividad_cliente = _c360_service.c360_resumen_actividad_cliente
+_c360_predicciones_recientes_cliente = _c360_service.c360_predicciones_recientes_cliente
+_c360_registrar_prediccion_log = _c360_service.c360_registrar_prediccion_log
 c360_project_predictor_actualizar_cliente = _c360_service.c360_project_predictor_actualizar_cliente
 _c360_sum_cupo_sugerido_clientes_activos = _c360_service.c360_sum_cupo_sugerido_clientes_activos
 c360_ocr_mock_actualizar_si_fase_superior = _c360_service.c360_ocr_mock_actualizar_si_fase_superior
@@ -12646,14 +12708,16 @@ button {{ margin-top: 1rem; padding: .6rem 1rem; width: 100%; background: #19875
 
 def _home_por_perfil(usuario):
     """Elige la landing page segun permisos del usuario recien logueado."""
-    es_admin = _rol_es_administrador_por_nombre(getattr(usuario, 'rol', None))
+    rol = getattr(usuario, 'rol', None)
+    rol_permisos = getattr(rol, 'rol_permisos', []) if rol else []
+    es_admin = _rol_es_administrador_por_nombre(rol)
     def _tiene(p):
         if es_admin:
             return True
         try:
             return any(
                 rp.permiso and rp.permiso.nombre == p
-                for rp in (usuario.rol_obj.rol_permisos if usuario.rol_obj else [])
+                for rp in rol_permisos
             )
         except Exception:
             return False
@@ -12713,6 +12777,7 @@ def login():
                     flash("Tu cuenta está desactivada. Contacta al administrador.", "warning")
                     return redirect(url_for('login'))
                 login_user(usuario)
+                session.permanent = True
                 session['login_at'] = datetime.utcnow().isoformat()
                 if usuario_requiere_cambio_clave(usuario):
                     flash("Por seguridad, cambia tu contraseña temporal.", "warning")
@@ -13110,6 +13175,7 @@ def admin_clientes():
 def admin_cliente_c360(cliente_id):
     """Customer 360: predicción etapa obra, OCR simulado, recálculo motor."""
     _asegurar_columnas_customer_360_legacy()
+    _asegurar_tabla_cliente_prediccion_log()
     c = Cliente.query.get_or_404(cliente_id)
     if _cliente_es_sistema_final(c):
         flash('El cliente genérico del POS no usa Customer 360.', 'info')
@@ -13118,7 +13184,12 @@ def admin_cliente_c360(cliente_id):
         act = (request.form.get('action') or '').strip()
         if act == 'recalcular':
             try:
-                c360_project_predictor_actualizar_cliente(c.id, commit=True)
+                usuario_origen = (
+                    getattr(current_user, 'nombre', None)
+                    or getattr(current_user, 'correo', None)
+                    or 'Usuario ERP'
+                )
+                c360_project_predictor_actualizar_cliente(c.id, commit=True, usuario_origen=usuario_origen)
                 flash('Motor de predicción ejecutado (ventana 30 días).', 'success')
             except Exception as ex:
                 db.session.rollback()
@@ -13138,13 +13209,61 @@ def admin_cliente_c360(cliente_id):
         return redirect(url_for('admin_cliente_c360', cliente_id=c.id))
     perfil = _c360_perfil_dict_desde_cliente(c)
     agg = _c360_montos_por_fase_ultimos_dias(c.id, 30)
+    resumen_actividad = _c360_resumen_actividad_cliente(c.id, dias=90, limit_categorias=5)
+    compras_recientes = _c360_ultimas_compras_cliente(c.id, 6)
     return render_template(
         'admin_cliente_c360.html',
         cliente=c,
         perfil=perfil,
         agg=agg,
+        resumen_actividad=resumen_actividad,
+        compras_recientes=compras_recientes,
         c360_fases_obra=C360_FASE_OBRA_VALORES,
         c360_fase_labels=C360_FASE_OBRA_LABELS,
+    )
+
+
+def api_c360_cliente_resumen(cliente_id):
+    """Resumen 360 JSON: crédito, actividad 90d, compras recientes y predicciones."""
+    _asegurar_columnas_customer_360_legacy()
+    _asegurar_tabla_cliente_prediccion_log()
+    c = db.session.get(Cliente, cliente_id)
+    if not c:
+        return jsonify({'ok': False, 'error': 'cliente'}), 404
+    if _cliente_es_sistema_final(c):
+        return jsonify({'ok': False, 'error': 'cliente_pos'}), 400
+
+    recalcular = (request.args.get('recalcular') or '').strip().lower() in ('1', 'true', 'yes', 'si')
+    if recalcular:
+        try:
+            usuario_origen = (
+                getattr(current_user, 'nombre', None)
+                or getattr(current_user, 'correo', None)
+                or 'Usuario ERP'
+            )
+            c360_project_predictor_actualizar_cliente(c.id, commit=True, usuario_origen=usuario_origen)
+            db.session.refresh(c)
+        except Exception as ex:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': 'recalculo', 'detalle': str(ex)}), 500
+
+    return jsonify(
+        {
+            'ok': True,
+            'cliente': {
+                'id': c.id,
+                'rut': c.rut,
+                'nombre': c.nombre,
+                'telefono': c.telefono,
+                'correo': c.correo,
+                'estado_credito': c.estado_credito,
+                'etapa_actual': c.c360_etapa_actual,
+            },
+            'perfil': _c360_perfil_dict_desde_cliente(c),
+            'resumen': _c360_resumen_actividad_cliente(c.id, dias=90, limit_categorias=5),
+            'compras_recientes': _c360_ultimas_compras_cliente(c.id, 6),
+            'predicciones_recientes': _c360_predicciones_recientes_cliente(c.id, 5),
+        }
     )
 
 
@@ -18587,6 +18706,7 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_detalle_ventas_legacy()
         _asegurar_columnas_customer_360_legacy()
         _asegurar_tabla_c360_llamadas_snapshot()
+        _asegurar_tabla_cliente_prediccion_log()
         _asegurar_tabla_cobranza_whatsapp_log()
         _asegurar_tabla_erp_audit_log()
         _asegurar_tablas_web_analytics()

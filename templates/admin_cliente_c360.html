@@ -44,6 +44,34 @@
           <p class="small mb-1">Score puntualidad: <strong>{{ perfil.get('score_puntualidad') }}</strong> (cupo sugerido solo si &gt; 90)</p>
           <p class="small mb-1">Prob. mora (heurística): <strong>{{ perfil.get('probabilidad_mora') }}%</strong></p>
           <p class="small mb-1">Cupo sugerido próxima fase: <strong>${{ "{:,.0f}".format(perfil.get('cupo_sugerido_proxima_fase') or 0).replace(",", ".") }}</strong></p>
+          <p class="small mb-1">
+            Crédito proactivo:
+            {% if perfil.get('elegible_credito_proactivo') %}
+            <span class="badge text-bg-success">Elegible</span>
+            {% else %}
+            <span class="badge text-bg-secondary">No elegible</span>
+            {% endif %}
+          </p>
+          {% if perfil.get('motivo_no_elegible_credito_label') %}
+          <p class="small text-muted mb-1">{{ perfil.get('motivo_no_elegible_credito_label') }}</p>
+          {% endif %}
+          {% if perfil.get('fecha_estimada_siguiente_compra_label') %}
+          <p class="small mb-1">
+            Próxima compra estimada:
+            <strong>{{ perfil.get('fecha_estimada_siguiente_compra_label') }}</strong>
+            {% if perfil.get('dias_hasta_siguiente_compra') is not none %}
+            <span class="text-muted">({{ perfil.get('dias_hasta_siguiente_compra') }} días)</span>
+            {% endif %}
+          </p>
+          {% endif %}
+          {% if perfil.get('ultima_compra_clasificada_label') %}
+          <p class="small text-muted mb-1">
+            Última compra clasificada: {{ perfil.get('ultima_compra_clasificada_label') }}
+            {% if perfil.get('regla_dias_siguiente_compra') %}
+            · regla {{ perfil.get('regla_dias_siguiente_compra') }} días
+            {% endif %}
+          </p>
+          {% endif %}
           {% endif %}
           {% if perfil.get('alerta_oportunidad_credito') %}
           <div class="alert alert-info small mb-0 mt-2">{{ perfil.get('alerta_oportunidad_credito') }}</div>
@@ -77,6 +105,106 @@
           </ul>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card card-ds border-0 shadow-sm mt-3">
+    <div class="card-header fw-bold bg-light">Actividad 90 días</div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3 col-6">
+          <div class="small text-muted">Última compra</div>
+          <div class="fw-semibold">{{ resumen_actividad.ultima_compra_label or '—' }}</div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="small text-muted">Ventas 90d</div>
+          <div class="fw-semibold">{{ resumen_actividad.ventas_90d or 0 }}</div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="small text-muted">Ticket promedio</div>
+          <div class="fw-semibold">${{ "{:,.0f}".format(resumen_actividad.ticket_promedio_90d_clp or 0).replace(",", ".") }}</div>
+        </div>
+        <div class="col-md-3 col-6">
+          <div class="small text-muted">Frecuencia media</div>
+          <div class="fw-semibold">
+            {% if resumen_actividad.frecuencia_media_dias_90d is not none %}
+            {{ resumen_actividad.frecuencia_media_dias_90d }} días
+            {% else %}
+            —
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="small text-muted">Saldo deudor</div>
+          <div class="fw-semibold">${{ "{:,.0f}".format(resumen_actividad.saldo_deudor_clp or 0).replace(",", ".") }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted">Límite crédito</div>
+          <div class="fw-semibold">${{ "{:,.0f}".format(resumen_actividad.limite_credito_clp or 0).replace(",", ".") }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted">Cupo disponible</div>
+          <div class="fw-semibold">${{ "{:,.0f}".format(resumen_actividad.cupo_disponible_clp or 0).replace(",", ".") }}</div>
+        </div>
+      </div>
+      {% if resumen_actividad.categorias_top %}
+      <hr>
+      <div class="small text-muted mb-2">Familias compradas</div>
+      <div class="d-flex flex-wrap gap-2">
+        {% for item in resumen_actividad.categorias_top %}
+        <span class="badge rounded-pill text-bg-light border">
+          {{ item.categoria }} · ${{ "{:,.0f}".format(item.monto_clp or 0).replace(",", ".") }} · {{ item.participacion_pct }}%
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-ds border-0 shadow-sm mt-3">
+    <div class="card-header fw-bold bg-light">Compras recientes</div>
+    <div class="card-body">
+      {% if compras_recientes %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Venta</th>
+              <th>Fase dominante</th>
+              <th>Estado</th>
+              <th class="text-end">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for compra in compras_recientes %}
+            <tr>
+              <td>{{ compra.fecha_label }}</td>
+              <td>
+                <div class="fw-semibold">#{{ compra.venta_id }}</div>
+                {% if compra.punto_retiro %}
+                <div class="small text-muted">{{ compra.punto_retiro }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if compra.fase_dominante %}
+                <span class="badge text-bg-primary">{{ compra.fase_dominante_label }}</span>
+                {% else %}
+                <span class="badge text-bg-secondary">Sin clasificar</span>
+                {% endif %}
+              </td>
+              <td>{{ compra.estado }}</td>
+              <td class="text-end fw-semibold">${{ "{:,.0f}".format(compra.monto_total_clp or 0).replace(",", ".") }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="small text-muted mb-0">No hay compras recientes cobradas o pendientes para este cliente.</p>
+      {% endif %}
     </div>
   </div>
 
