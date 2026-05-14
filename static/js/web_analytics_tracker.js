@@ -106,6 +106,32 @@
         sentScrollMarks = {};
     }
 
+    function slugify(value, limit) {
+        const normalized = (value || '')
+            .toString()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .replace(/_+/g, '_')
+            .toLowerCase();
+        return normalized.slice(0, limit || 80);
+    }
+
+    function pageFamily(pathname) {
+        const path = pathname || '/';
+        if (path === '/') return 'home';
+        if (path === '/erp-ferreterias' || path === '/erp-retail-especializado') return 'money_page';
+        if (path === '/lhexia-vs-defontana' || path === '/alternativa-a-defontana') return 'comparison';
+        if (path === '/erp-con-bodega-por-voz' || path === '/como-reducir-quiebres-de-stock-en-ferreterias') return 'content_cluster';
+        if (path === '/fundador' || path === '/mensaje-del-fundador') return 'founder';
+        if (path === '/quienes-somos' || path === '/sobre-nosotros') return 'about';
+        if (path.indexOf('/login') === 0 || path.indexOf('/acceso') === 0) return 'login';
+        return 'other';
+    }
+
+    const currentPageFamily = pageFamily(window.location.pathname || '/');
+
     function basePayload() {
         return {
             visitor_key: visitorKey,
@@ -203,12 +229,73 @@
     }
 
     function describeTarget(el) {
-        if (!el) return { label: '', target: '' };
+        if (!el) return { label: '', target: '', ctaId: '', ctaGroup: '', ctaSurface: '', ctaText: '' };
         const text = (el.dataset.analyticsLabel || el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\s+/g, ' ');
         const label = text.slice(0, 160);
         const href = (el.getAttribute('href') || '').trim();
         const target = (href || el.id || el.name || '').slice(0, 300);
-        return { label: label, target: target };
+        const rawId = el.dataset.analyticsId || el.dataset.ctaId || '';
+        const rawGroup = el.dataset.analyticsGroup || '';
+        const rawSurface = el.dataset.analyticsSurface || '';
+        const haystack = (label + ' ' + target).toLowerCase();
+
+        let ctaId = slugify(rawId, 80);
+        let ctaGroup = slugify(rawGroup, 40);
+        let ctaSurface = slugify(rawSurface, 40) || currentPageFamily;
+
+        const navMap = {
+            '/erp-ferreterias': 'nav_erp_ferreterias',
+            '/erp-retail-especializado': 'nav_erp_retail_especializado',
+            '/lhexia-vs-defontana': 'nav_lhexia_vs_defontana',
+            '/alternativa-a-defontana': 'nav_alternativa_defontana',
+            '/erp-con-bodega-por-voz': 'nav_bodega_voz',
+            '/como-reducir-quiebres-de-stock-en-ferreterias': 'nav_quiebres_stock',
+            '/fundador': 'nav_fundador',
+            '/quienes-somos': 'nav_quienes_somos',
+            '/login': 'acceso_privado'
+        };
+
+        if (!ctaId) {
+            Object.keys(navMap).some(function (pathKey) {
+                if (target.indexOf(pathKey) === 0 || target.indexOf(pathKey) !== -1) {
+                    ctaId = navMap[pathKey];
+                    ctaGroup = ctaGroup || (ctaId.indexOf('nav_') === 0 ? 'navigation' : 'login');
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        if (!ctaId && (haystack.indexOf('whatsapp') !== -1 || haystack.indexOf('wa.me') !== -1)) {
+            ctaId = haystack.indexOf('diagnostico') !== -1 ? 'whatsapp_diagnostico' : 'whatsapp_contacto';
+            ctaGroup = ctaGroup || 'whatsapp';
+        }
+        if (!ctaId && haystack.indexOf('diagnostico') !== -1) {
+            ctaId = 'diagnostico_ia';
+            ctaGroup = ctaGroup || 'lead_capture';
+        }
+        if (!ctaId && (haystack.indexOf('login') !== -1 || haystack.indexOf('acceso privado') !== -1)) {
+            ctaId = 'acceso_privado';
+            ctaGroup = ctaGroup || 'login';
+        }
+        if (!ctaId && target.indexOf('#') === 0) {
+            ctaId = 'anchor_' + (slugify(target.slice(1), 40) || 'cta');
+            ctaGroup = ctaGroup || 'navigation';
+        }
+        if (!ctaId) {
+            const base = slugify(label || target || currentPageFamily || 'cta', 60) || 'cta';
+            ctaId = base.indexOf('cta_') === 0 || base.indexOf('nav_') === 0 ? base : ('cta_' + base);
+            ctaGroup = ctaGroup || 'generic';
+        }
+
+        return {
+            label: label,
+            target: target,
+            ctaId: ctaId,
+            ctaGroup: ctaGroup || 'generic',
+            ctaSurface: ctaSurface,
+            ctaText: label
+        };
     }
 
     document.addEventListener('click', function (ev) {
@@ -224,6 +311,11 @@
             label: meta.label,
             target: meta.target,
             meta: {
+                cta_id: meta.ctaId,
+                cta_group: meta.ctaGroup,
+                cta_surface: meta.ctaSurface,
+                cta_text: meta.ctaText,
+                page_family: currentPageFamily,
                 tag: (el.tagName || '').toLowerCase(),
                 id: (el.id || '').slice(0, 80),
                 classes: (el.className || '').toString().slice(0, 180)
@@ -236,7 +328,14 @@
                 conversion_type: 'whatsapp_click',
                 label: meta.label,
                 target: meta.target,
-                meta: { origin: 'cta' }
+                meta: {
+                    origin: 'cta',
+                    cta_id: meta.ctaId,
+                    cta_group: meta.ctaGroup,
+                    cta_surface: meta.ctaSurface,
+                    cta_text: meta.ctaText,
+                    page_family: currentPageFamily
+                }
             });
         }
     }, { passive: true });

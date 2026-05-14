@@ -569,6 +569,28 @@ def _leer_jsonl(path, limit=1000):
     return out
 
 
+def _parse_lhexia_datetime(value):
+    if isinstance(value, datetime):
+        return value
+    raw = (str(value or '').strip())
+    if not raw:
+        return None
+    for fmt in (
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%dT%H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%Y-%m-%d',
+    ):
+        try:
+            return datetime.strptime(raw[:len(fmt)], fmt)
+        except Exception:
+            continue
+    try:
+        return datetime.fromisoformat(raw)
+    except Exception:
+        return None
+
+
 def _map_lead_eventos(limit=3000):
     eventos = _leer_jsonl(_ruta_landing_lead_eventos(), limit=limit)
     by_lead = {}
@@ -633,11 +655,191 @@ def _safe_positive_int(value):
 
 
 _LIZ_SESSION_ID_RE = re.compile(r'^liz_s_[a-z0-9]{6,20}_[a-z0-9]{8,40}$')
+_WEB_ANALYTICS_ALLOWED_EVENTS = {
+    'page_view',
+    'heartbeat',
+    'scroll_depth',
+    'cta_click',
+    'nav_click',
+    'conversion',
+}
+_WEB_ANALYTICS_ALLOWED_CONVERSIONS = {
+    'whatsapp_click',
+    'landing_lead_submit',
+    'demo_request',
+    'contact_request',
+}
 
 
 def _es_session_id_liz_legitimo(session_id):
     sid = _web_analytics_clean(session_id, 64).lower()
     return bool(sid and _LIZ_SESSION_ID_RE.match(sid))
+
+
+def _web_analytics_slug(value, limit=80):
+    raw = unicodedata.normalize('NFKD', str(value or ''))
+    ascii_value = raw.encode('ascii', 'ignore').decode('ascii')
+    slug = re.sub(r'[^a-zA-Z0-9]+', '_', ascii_value).strip('_').lower()
+    slug = re.sub(r'_+', '_', slug)
+    return slug[:max(1, int(limit or 80))]
+
+
+def _web_analytics_normalize_event_name(raw):
+    slug = _web_analytics_slug(raw, 60)
+    aliases = {
+        'pageview': 'page_view',
+        'page_view': 'page_view',
+        'heartbeat': 'heartbeat',
+        'scroll': 'scroll_depth',
+        'scroll_depth': 'scroll_depth',
+        'cta': 'cta_click',
+        'click': 'cta_click',
+        'cta_click': 'cta_click',
+        'nav_click': 'nav_click',
+        'conversion': 'conversion',
+    }
+    normalized = aliases.get(slug, slug)
+    return normalized if normalized in _WEB_ANALYTICS_ALLOWED_EVENTS else ''
+
+
+def _web_analytics_normalize_conversion_type(raw):
+    slug = _web_analytics_slug(raw, 80)
+    aliases = {
+        'whatsapp': 'whatsapp_click',
+        'whatsapp_click': 'whatsapp_click',
+        'landing_lead': 'landing_lead_submit',
+        'landing_lead_submit': 'landing_lead_submit',
+        'lead_submit': 'landing_lead_submit',
+        'demo': 'demo_request',
+        'demo_request': 'demo_request',
+        'contact': 'contact_request',
+        'contact_request': 'contact_request',
+    }
+    normalized = aliases.get(slug, slug)
+    if not normalized:
+        return ''
+    if normalized in _WEB_ANALYTICS_ALLOWED_CONVERSIONS:
+        return normalized
+    return f"custom_{normalized[:70]}"
+
+
+def _web_analytics_page_family(path):
+    p = _web_analytics_clean(path, 240) or '/'
+    if p == '/':
+        return 'home'
+    if p in ('/erp-ferreterias', '/erp-retail-especializado'):
+        return 'money_page'
+    if p in ('/lhexia-vs-defontana', '/alternativa-a-defontana'):
+        return 'comparison'
+    if p in ('/erp-con-bodega-por-voz', '/como-reducir-quiebres-de-stock-en-ferreterias'):
+        return 'content_cluster'
+    if p in ('/fundador', '/mensaje-del-fundador'):
+        return 'founder'
+    if p in ('/quienes-somos', '/sobre-nosotros'):
+        return 'about'
+    if p.startswith('/login') or p.startswith('/acceso'):
+        return 'login'
+    if p.startswith('/catalogo') or p.startswith('/consulta-stock'):
+        return 'public_tool'
+    return 'other'
+
+
+def _web_analytics_infer_cta_taxonomy(path='', label='', target='', conversion_type='', meta=None):
+    meta = dict(meta or {})
+    clean_label = _web_analytics_clean(label, 180)
+    clean_target = _web_analytics_clean(target, 320)
+    haystack = ' '.join([
+        clean_label.lower(),
+        clean_target.lower(),
+        _web_analytics_clean(conversion_type, 80).lower(),
+        _web_analytics_clean(path, 240).lower(),
+    ])
+
+    cta_surface = _web_analytics_slug(meta.get('cta_surface') or meta.get('analytics_surface') or '', 40)
+    if not cta_surface:
+        cta_surface = _web_analytics_page_family(path)
+
+    nav_map = {
+        '/erp-ferreterias': 'nav_erp_ferreterias',
+        '/erp-retail-especializado': 'nav_erp_retail_especializado',
+        '/lhexia-vs-defontana': 'nav_lhexia_vs_defontana',
+        '/alternativa-a-defontana': 'nav_alternativa_defontana',
+        '/erp-con-bodega-por-voz': 'nav_bodega_voz',
+        '/como-reducir-quiebres-de-stock-en-ferreterias': 'nav_quiebres_stock',
+        '/fundador': 'nav_fundador',
+        '/quienes-somos': 'nav_quienes_somos',
+        '/login': 'acceso_privado',
+    }
+
+    for path_key, cta_id in nav_map.items():
+        if clean_target.startswith(path_key) or path_key in clean_target:
+            return {
+                'cta_id': cta_id,
+                'cta_group': 'navigation' if cta_id.startswith('nav_') else 'login',
+                'cta_surface': cta_surface,
+            }
+
+    if 'whatsapp' in haystack or 'wa.me' in haystack:
+        if 'diagnostico' in haystack:
+            return {'cta_id': 'whatsapp_diagnostico', 'cta_group': 'whatsapp', 'cta_surface': cta_surface}
+        return {'cta_id': 'whatsapp_contacto', 'cta_group': 'whatsapp', 'cta_surface': cta_surface}
+
+    if 'diagnostico' in haystack:
+        return {'cta_id': 'diagnostico_ia', 'cta_group': 'lead_capture', 'cta_surface': cta_surface}
+
+    if 'login' in haystack or 'acceso privado' in haystack:
+        return {'cta_id': 'acceso_privado', 'cta_group': 'login', 'cta_surface': cta_surface}
+
+    if clean_target.startswith('#'):
+        slug = _web_analytics_slug(clean_target.lstrip('#'), 50) or 'anchor'
+        return {'cta_id': f'anchor_{slug}', 'cta_group': 'navigation', 'cta_surface': cta_surface}
+
+    base = _web_analytics_slug(
+        meta.get('cta_id') or meta.get('analytics_id') or clean_label or clean_target or _web_analytics_page_family(path) or 'cta',
+        60,
+    ) or 'cta'
+    return {
+        'cta_id': f'cta_{base}' if not base.startswith(('cta_', 'nav_', 'anchor_')) else base,
+        'cta_group': _web_analytics_slug(meta.get('cta_group') or meta.get('analytics_group') or '', 40) or 'generic',
+        'cta_surface': cta_surface,
+    }
+
+
+def _web_analytics_apply_taxonomy(ctx):
+    ctx = dict(ctx or {})
+    meta = dict(ctx.get('meta') or {})
+    ctx['event_name'] = _web_analytics_normalize_event_name(ctx.get('event_name'))
+    ctx['conversion_type'] = _web_analytics_normalize_conversion_type(ctx.get('conversion_type'))
+    meta['event_version'] = 'v1'
+    meta['page_family'] = _web_analytics_page_family(ctx.get('path'))
+
+    if ctx['event_name'] in ('cta_click', 'nav_click', 'conversion'):
+        taxonomy = _web_analytics_infer_cta_taxonomy(
+            path=ctx.get('path') or '/',
+            label=ctx.get('label') or '',
+            target=ctx.get('target') or '',
+            conversion_type=ctx.get('conversion_type') or '',
+            meta=meta,
+        )
+        meta['cta_id'] = taxonomy.get('cta_id') or meta.get('cta_id') or ''
+        meta['cta_group'] = taxonomy.get('cta_group') or meta.get('cta_group') or ''
+        meta['cta_surface'] = taxonomy.get('cta_surface') or meta.get('cta_surface') or ''
+        meta['cta_text'] = _web_analytics_clean(meta.get('cta_text') or ctx.get('label') or '', 160)
+        if ctx['event_name'] in ('cta_click', 'nav_click') and meta.get('cta_id'):
+            ctx['label'] = meta['cta_id']
+
+    ctx['meta'] = meta
+    return ctx
+
+
+def _web_analytics_parse_json(raw):
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _web_analytics_domain(url):
@@ -733,7 +935,7 @@ def _web_analytics_event_context(payload, default_ip=None, default_user_agent=No
         utm_campaign=data.get('utm_campaign'),
     )
     session_id = _web_analytics_clean(data.get('session_id') or data.get('session_key'), 64).lower()
-    return {
+    ctx = {
         'visitor_key': _web_analytics_clean(data.get('visitor_key'), 64),
         'session_id': session_id,
         'session_key': session_id,
@@ -758,6 +960,7 @@ def _web_analytics_event_context(payload, default_ip=None, default_user_agent=No
         'user_agent': _web_analytics_clean(default_user_agent or request.headers.get('User-Agent'), 280),
         'is_bot': bool(data.get('is_bot')) or _web_analytics_is_bot(default_user_agent or request.headers.get('User-Agent')),
     }
+    return _web_analytics_apply_taxonomy(ctx)
 
 
 def _public_site_base_url():
@@ -2819,6 +3022,13 @@ def _validar_payload_analytics_track(eventos):
         session_id = _web_analytics_clean(raw.get('session_id') or '', 64).lower()
         if not _es_session_id_liz_legitimo(session_id):
             return False, 'session_id inválido'
+        event_name = _web_analytics_normalize_event_name(raw.get('event_name'))
+        if not event_name:
+            return False, 'event_name inválido'
+        if event_name == 'conversion':
+            conversion_type = _web_analytics_normalize_conversion_type(raw.get('conversion_type'))
+            if not conversion_type:
+                return False, 'conversion_type inválido'
     return True, ''
 
 
@@ -2901,6 +3111,7 @@ def _registrar_web_analytics_eventos(eventos, default_ip=None, default_user_agen
                 'target': ctx.get('target') or '',
                 'conversion_type': ctx.get('conversion_type') or '',
                 'scroll_depth': int(ctx.get('scroll_depth') or 0),
+                **(ctx.get('meta') or {}),
             }),
         )
         db.session.add(raw_row)
@@ -3534,6 +3745,11 @@ def _cobranza_sin_enviar_hoy_count(dias_horizonte=None, mora_atras_dias=None):
 def _cobranza_dispatch_cron_secret():
     """Token compartido para cron (sin cookie de sesión)."""
     return (os.getenv('COBRANZA_DISPATCH_CRON_SECRET') or os.getenv('WHATSAPP_DISPATCH_CRON_SECRET') or '').strip()
+
+
+def _observabilidad_cron_secret():
+    """Bearer para jobs periódicos de snapshot SEO y purge de telemetría."""
+    return (os.getenv('OBSERVABILIDAD_CRON_SECRET') or '').strip() or _cobranza_dispatch_cron_secret()
 
 
 def _wa_cloud_config():
@@ -4413,6 +4629,77 @@ def api_landing_lead():
     return jsonify(ok=True, lead_ts=lead.get("ts")), 201
 
 
+@app.route('/api/observabilidad/cron-diario', methods=['POST'])
+def api_observabilidad_cron_diario():
+    """
+    Endpoint pensado para cron/scheduler.
+
+    Ejecuta, en el mismo ciclo controlado:
+    - snapshot SEO local
+    - consolidación y purga de telemetría raw
+    - opcionalmente dispara la sync asíncrona de Search Console
+
+    Auth:
+      Authorization: Bearer <OBSERVABILIDAD_CRON_SECRET>
+      fallback a COBRANZA_DISPATCH_CRON_SECRET si no existe uno dedicado.
+    """
+    secret = _observabilidad_cron_secret()
+    if not secret:
+        return jsonify({'ok': False, 'error': 'observabilidad_cron_secret_not_configured'}), 503
+
+    tok = _bearer_token_from_request()
+    try:
+        token_ok = bool(tok) and hmac.compare_digest(tok, secret)
+    except (TypeError, ValueError):
+        token_ok = False
+    if not token_ok:
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+
+    body = request.get_json(silent=True) or {}
+    run_seo_snapshot = str(body.get('run_seo_snapshot', 'true')).strip().lower() not in ('0', 'false', 'no', 'off')
+    run_telemetry_purge = str(body.get('run_telemetry_purge', 'true')).strip().lower() not in ('0', 'false', 'no', 'off')
+    sync_gsc_async = str(body.get('sync_gsc_async', 'false')).strip().lower() in ('1', 'true', 'yes', 'on')
+    try:
+        retention_days = int(body.get('retention_days', 90))
+    except (TypeError, ValueError):
+        retention_days = 90
+    retention_days = max(30, min(retention_days, 3650))
+
+    result = {
+        'ok': True,
+        'seo_snapshot': None,
+        'telemetry_purge': None,
+        'gsc_sync_started': False,
+    }
+
+    if run_seo_snapshot:
+        try:
+            seo_result = _run_seo_snapshot()
+            result['seo_snapshot'] = seo_result
+            result['ok'] = bool(result['ok'] and seo_result.get('ok'))
+        except Exception as ex:
+            db.session.rollback()
+            app.logger.exception('Falló cron diario de observabilidad en snapshot SEO: %s', ex)
+            result['ok'] = False
+            result['seo_snapshot'] = {'ok': False, 'message': str(ex)}
+
+    if run_telemetry_purge:
+        try:
+            purge_result = consolidar_y_purgar_telemetria(retention_days=retention_days)
+            result['telemetry_purge'] = purge_result
+            result['ok'] = bool(result['ok'] and purge_result.get('ok'))
+        except Exception as ex:
+            db.session.rollback()
+            app.logger.exception('Falló cron diario de observabilidad en purge telemetría: %s', ex)
+            result['ok'] = False
+            result['telemetry_purge'] = {'ok': False, 'message': str(ex)}
+
+    if sync_gsc_async:
+        result['gsc_sync_started'] = bool(_sincronizar_google_search_console_async())
+
+    return jsonify(result), (200 if result['ok'] else 500)
+
+
 def _fmt_active_seconds(value):
     total = int(value or 0)
     if total >= 3600:
@@ -4447,13 +4734,26 @@ def _build_web_analytics_dashboard(days=30):
     pageviews_7 = [p for p in pageviews if (p.created_at or now) >= since_7]
     events_7 = [e for e in events if (e.created_at or now) >= since_7]
     conversions_7 = [c for c in conversions if (c.created_at or now) >= since_7]
+    leads = cargar_landing_leads_gestion(limit=1000)
+    leads_recent = []
+    for lead in leads:
+        ts = _parse_lhexia_datetime(lead.get('ts'))
+        if ts and ts >= since:
+            row = dict(lead)
+            row['_ts'] = ts
+            leads_recent.append(row)
+    leads_7 = [l for l in leads_recent if l.get('_ts') and l['_ts'] >= since_7]
 
     unique_visitors_7 = len({s.visitor_id for s in sessions_7 if s.visitor_id})
     avg_active_7 = round(sum(int(s.active_seconds or 0) for s in sessions_7) / len(sessions_7)) if sessions_7 else 0
     active_now = sum(1 for s in sessions if (s.last_seen_at or s.started_at or now) >= since_active)
     cta_clicks_7 = sum(1 for e in events_7 if (e.event_name or '') == 'cta_click')
     whatsapp_clicks_7 = sum(1 for c in conversions_7 if (c.conversion_type or '') == 'whatsapp_click')
+    lead_submit_7 = len(leads_7)
     conversion_rate_7 = round((len(conversions_7) / len(sessions_7)) * 100, 1) if sessions_7 else 0.0
+    visit_to_lead_rate_7 = round((lead_submit_7 / len(sessions_7)) * 100, 1) if sessions_7 else 0.0
+    visit_to_whatsapp_rate_7 = round((whatsapp_clicks_7 / len(sessions_7)) * 100, 1) if sessions_7 else 0.0
+    cta_to_lead_rate_7 = round((lead_submit_7 / cta_clicks_7) * 100, 1) if cta_clicks_7 else 0.0
 
     conv_by_path = defaultdict(int)
     for conv in conversions:
@@ -4496,13 +4796,43 @@ def _build_web_analytics_dashboard(days=30):
         if sess.id in conv_sessions:
             row['conversions'] += 1
     top_sources = sorted(source_stats.values(), key=lambda x: (x['conversions'], x['sessions']), reverse=True)[:8]
+    whatsapp_session_ids_7 = {c.session_id for c in conversions_7 if (c.conversion_type or '') == 'whatsapp_click' and c.session_id}
+    lead_session_keys_7 = {str(l.get('session_id') or l.get('session_key') or '').strip() for l in leads_7 if (l.get('session_id') or l.get('session_key'))}
+    funnel_source_stats = {}
+    for sess in sessions_7:
+        key = ((sess.source or 'direct').strip() or 'direct', (sess.medium or 'direct').strip() or 'direct')
+        row = funnel_source_stats.setdefault(key, {
+            'source': key[0],
+            'medium': key[1],
+            'visits': 0,
+            'whatsapp': 0,
+            'leads': 0,
+        })
+        row['visits'] += 1
+        if sess.id in whatsapp_session_ids_7:
+            row['whatsapp'] += 1
+        if (sess.session_key or '') in lead_session_keys_7:
+            row['leads'] += 1
+    funnel_sources = sorted(
+        funnel_source_stats.values(),
+        key=lambda x: (x['leads'], x['whatsapp'], x['visits']),
+        reverse=True,
+    )[:6]
 
     cta_stats = {}
     for ev in events:
         if (ev.event_name or '') != 'cta_click':
             continue
-        label = (ev.label or ev.target or 'CTA').strip()[:120] or 'CTA'
-        row = cta_stats.setdefault(label, {'label': label, 'clicks': 0})
+        meta = _web_analytics_parse_json(ev.meta_json)
+        cta_id = _web_analytics_clean(meta.get('cta_id') or ev.label or ev.target or 'cta', 80) or 'cta'
+        display_label = _web_analytics_clean(meta.get('cta_text') or '', 120) or cta_id
+        row = cta_stats.setdefault(cta_id, {
+            'cta_id': cta_id,
+            'label': display_label,
+            'group': _web_analytics_clean(meta.get('cta_group'), 40) or 'generic',
+            'surface': _web_analytics_clean(meta.get('cta_surface'), 40) or 'unknown',
+            'clicks': 0,
+        })
         row['clicks'] += 1
     top_ctas = sorted(cta_stats.values(), key=lambda x: x['clicks'], reverse=True)[:8]
 
@@ -4551,6 +4881,53 @@ def _build_web_analytics_dashboard(days=30):
             'label': ev.label or ev.target or 'Interacción',
         })
 
+    recent_leads = []
+    for lead in sorted(leads_recent, key=lambda x: x.get('_ts') or datetime.min, reverse=True)[:10]:
+        recent_leads.append({
+            'ts': lead.get('_ts'),
+            'empresa': lead.get('empresa') or '',
+            'nombre': lead.get('nombre') or '',
+            'estado': lead.get('estado') or 'Nuevo',
+            'source': lead.get('traffic_source') or 'direct',
+            'medium': lead.get('traffic_medium') or 'direct',
+            'session_id': lead.get('session_id') or '',
+            'id': lead.get('id') or '',
+        })
+
+    alerts = []
+    if len(sessions_7) >= 30 and cta_clicks_7 == 0:
+        alerts.append({
+            'severity': 'crit',
+            'title': 'Tráfico sin interacción comercial',
+            'detail': f"Hubo {len(sessions_7)} sesiones en 7 días y ningún CTA registrado.",
+        })
+    if cta_clicks_7 >= 12 and lead_submit_7 == 0 and whatsapp_clicks_7 == 0:
+        alerts.append({
+            'severity': 'crit',
+            'title': 'Interés sin captura',
+            'detail': f"Se detectaron {cta_clicks_7} clicks CTA pero ningún lead ni WhatsApp en 7 días.",
+        })
+    if len(sessions_7) >= 40 and conversion_rate_7 < 1.0:
+        alerts.append({
+            'severity': 'warn',
+            'title': 'Conversión baja por sesión',
+            'detail': f"La conversión total está en {conversion_rate_7}% con {len(sessions_7)} sesiones.",
+        })
+    for key_path in ('/erp-ferreterias', '/erp-retail-especializado', '/lhexia-vs-defontana'):
+        row = page_stats.get(key_path)
+        if row and int(row.get('sessions_count') or 0) >= 8 and int(row.get('conversions') or 0) == 0:
+            alerts.append({
+                'severity': 'warn',
+                'title': 'Landing estratégica con fuga',
+                'detail': f"{key_path} tuvo {row['sessions_count']} sesiones y 0 conversiones en la ventana actual.",
+            })
+    if not alerts:
+        alerts.append({
+            'severity': 'good',
+            'title': 'Sin alertas críticas',
+            'detail': 'La capa comercial no muestra fugas severas en esta ventana.',
+        })
+
     return {
         'wa_summary': {
             'sessions_7d': len(sessions_7),
@@ -4561,11 +4938,27 @@ def _build_web_analytics_dashboard(days=30):
             'active_now': active_now,
             'cta_clicks_7d': cta_clicks_7,
             'whatsapp_clicks_7d': whatsapp_clicks_7,
+            'lead_submit_7d': lead_submit_7,
             'conversion_rate_7': conversion_rate_7,
+            'visit_to_lead_rate_7': visit_to_lead_rate_7,
+            'visit_to_whatsapp_rate_7': visit_to_whatsapp_rate_7,
+            'cta_to_lead_rate_7': cta_to_lead_rate_7,
+        },
+        'wa_funnel': {
+            'visits': len(sessions_7),
+            'cta_clicks': cta_clicks_7,
+            'whatsapp_clicks': whatsapp_clicks_7,
+            'leads': lead_submit_7,
+            'visit_to_lead_rate': visit_to_lead_rate_7,
+            'visit_to_whatsapp_rate': visit_to_whatsapp_rate_7,
+            'cta_to_lead_rate': cta_to_lead_rate_7,
         },
         'wa_top_pages': top_pages,
         'wa_top_sources': top_sources,
+        'wa_funnel_sources': funnel_sources,
         'wa_top_ctas': top_ctas,
+        'wa_alerts': alerts[:6],
+        'wa_recent_leads': recent_leads,
         'wa_recent_conversions': recent_conversions,
         'wa_recent_events': recent_events,
         'wa_chart_labels': chart_labels,
@@ -4639,6 +5032,67 @@ def _build_seo_monitor_dashboard():
         if row.noindex:
             issues.append({'path': row.path, 'issue': 'Meta robots noindex'})
     issues = issues[:12]
+    alerts = []
+    if not latest_site:
+        alerts.append({
+            'severity': 'crit',
+            'title': 'Sin snapshot SEO reciente',
+            'detail': 'El dashboard todavía no tiene una foto técnica persistida del sitio.',
+        })
+    else:
+        if not latest_site.sitemap_ok:
+            alerts.append({
+                'severity': 'crit',
+                'title': 'Sitemap con problemas',
+                'detail': 'La última corrida no pudo validar correctamente el sitemap público.',
+            })
+        if not latest_site.robots_ok:
+            alerts.append({
+                'severity': 'warn',
+                'title': 'robots.txt requiere revisión',
+                'detail': 'La última corrida no marcó `robots.txt` como saludable.',
+            })
+        if float(latest_site.avg_page_score or 0) < 75:
+            alerts.append({
+                'severity': 'warn',
+                'title': 'Score SEO promedio bajo',
+                'detail': f"El score promedio del sitio está en {round(float(latest_site.avg_page_score or 0), 1)}.",
+            })
+        if int(latest_site.noindex_pages or 0) > 0:
+            alerts.append({
+                'severity': 'warn',
+                'title': 'Hay páginas noindex',
+                'detail': f"Se detectaron {int(latest_site.noindex_pages or 0)} páginas con `noindex`.",
+            })
+        if int(latest_site.organic_sessions_7d or 0) >= 20 and int(latest_site.organic_conversions_7d or 0) == 0:
+            alerts.append({
+                'severity': 'warn',
+                'title': 'Tráfico orgánico sin conversión',
+                'detail': f"Hay {int(latest_site.organic_sessions_7d or 0)} sesiones orgánicas 7d y 0 conversiones registradas.",
+            })
+    weak_pages = [row for row in page_rows if int(row.seo_score or 0) < 70]
+    if weak_pages:
+        alerts.append({
+            'severity': 'warn',
+            'title': 'Páginas con score débil',
+            'detail': f"{len(weak_pages)} páginas están bajo score 70 en el snapshot más reciente.",
+        })
+    high_priority_keywords = [
+        row for row in keyword_rows
+        if (row['target'].priority or '').upper() == 'ALTA' and row['status'] in ('bajo', 'sin_dato')
+    ]
+    if high_priority_keywords:
+        alerts.append({
+            'severity': 'warn',
+            'title': 'Keywords críticas sin tracción suficiente',
+            'detail': f"{len(high_priority_keywords)} keywords prioritarias siguen fuera de top 10 o sin dato.",
+        })
+    if not alerts:
+        alerts.append({
+            'severity': 'good',
+            'title': 'Sin alertas SEO críticas',
+            'detail': 'La última corrida muestra una base técnica estable para seguir iterando contenido y ranking.',
+        })
 
     snapshots = SeoSiteDailySnapshot.query.order_by(SeoSiteDailySnapshot.snapshot_date.desc()).limit(14).all()
     snapshots.reverse()
@@ -4667,6 +5121,7 @@ def _build_seo_monitor_dashboard():
         'seo_summary': summary,
         'seo_page_rows': page_rows,
         'seo_keyword_rows': keyword_rows,
+        'seo_alerts': alerts[:6],
         'seo_issues': issues,
         'seo_chart_labels': chart_labels,
         'seo_chart_scores': chart_scores,

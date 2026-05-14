@@ -808,6 +808,66 @@ class TestAnalyticsWeb:
         )
         assert r.status_code == 400
 
+    def test_api_analytics_track_normaliza_taxonomia_cta(self, app_client):
+        suffix = datetime.now().strftime('%H%M%S%f').lower()
+        visitor_key = f'liz_v_{suffix}_qactaabc123'
+        session_key = f'liz_s_{suffix}_qactasession12345'
+        pageview_key = f'liz_p_qacta{suffix}'
+
+        r = app_client.post(
+            '/api/analytics/track',
+            json={
+                'events': [
+                    {
+                        'visitor_key': visitor_key,
+                        'session_id': session_key,
+                        'session_key': session_key,
+                        'pageview_key': pageview_key,
+                        'event_name': 'cta_click',
+                        'path': '/erp-ferreterias',
+                        'label': 'Quiero mi Diagnóstico IA Gratis',
+                        'target': 'https://www.lhexia.cl/index#diagnostico',
+                        'meta': {
+                            'tag': 'a',
+                        },
+                    }
+                ]
+            },
+            follow_redirects=True,
+        )
+        assert r.status_code == 202
+
+        session = m.WebAnalyticsSession.query.filter_by(session_key=session_key).first()
+        event = (
+            m.WebAnalyticsEvent.query.join(m.WebAnalyticsSession)
+            .filter(m.WebAnalyticsSession.session_key == session_key, m.WebAnalyticsEvent.event_name == 'cta_click')
+            .order_by(m.WebAnalyticsEvent.id.desc())
+            .first()
+        )
+        assert session is not None
+        assert event is not None
+        assert event.label == 'diagnostico_ia'
+
+        meta = json.loads(event.meta_json or '{}')
+        assert meta.get('cta_id') == 'diagnostico_ia'
+        assert meta.get('cta_group') == 'lead_capture'
+        assert meta.get('page_family') == 'money_page'
+
+        raw_rows = m.ControlTraficoInterno.query.filter_by(session_id=session_key).all()
+        for raw in raw_rows:
+            db.session.delete(raw)
+        if event:
+            db.session.delete(event)
+        pageview = m.WebAnalyticsPageView.query.filter_by(pageview_key=pageview_key).first()
+        if pageview:
+            db.session.delete(pageview)
+        if session:
+            visitor = m.WebAnalyticsVisitor.query.filter_by(id=session.visitor_id).first()
+            db.session.delete(session)
+            if visitor:
+                db.session.delete(visitor)
+        db.session.commit()
+
     def test_consolidar_y_purgar_telemetria_archiva_y_elimina_raw(self):
         with m.app.app_context():
             m._asegurar_tablas_web_analytics()
@@ -838,6 +898,128 @@ class TestAnalyticsWeb:
             assert archive.tiempo_activo_segundos >= 35
             assert archive.conversiones_total >= 1
             assert m.ControlTraficoInterno.query.filter_by(session_id='liz_s_oldbucket_demo123456').first() is None
+
+    def test_api_observabilidad_cron_diario_ejecuta_snapshot_y_purga(self, app_client, monkeypatch):
+        monkeypatch.setenv('OBSERVABILIDAD_CRON_SECRET', 'qa-observabilidad-secret')
+
+        with m.app.app_context():
+            m._asegurar_tablas_web_analytics()
+            old_ts = datetime.now() - timedelta(days=120)
+            raw = m.ControlTraficoInterno(
+                created_at=old_ts,
+                visitor_key='liz_v_cron_demo123',
+                session_id='liz_s_cron_demo123456',
+                pageview_key='liz_p_cron123',
+                event_name='cta_click',
+                path='/erp-retail-especializado',
+                visits_count=1,
+                clicks_count=1,
+                active_seconds=20,
+                conversions_count=0,
+            )
+            db.session.add(raw)
+            db.session.commit()
+
+        r = app_client.post(
+            '/api/observabilidad/cron-diario',
+            headers={'Authorization': 'Bearer qa-observabilidad-secret'},
+            json={'run_seo_snapshot': True, 'run_telemetry_purge': True, 'retention_days': 90},
+            follow_redirects=False,
+        )
+        assert r.status_code == 200
+
+        payload = r.get_json()
+        assert payload is not None
+        assert payload.get('ok') is True
+        assert (payload.get('seo_snapshot') or {}).get('ok') is True
+        assert (payload.get('seo_snapshot') or {}).get('pages', 0) >= 5
+        assert (payload.get('telemetry_purge') or {}).get('deleted_rows', 0) >= 1
+
+        with m.app.app_context():
+            site = (
+                m.SeoSiteDailySnapshot.query
+                .order_by(m.SeoSiteDailySnapshot.snapshot_date.desc(), m.SeoSiteDailySnapshot.id.desc())
+                .first()
+            )
+            assert site is not None
+            assert m.ControlTraficoInterno.query.filter_by(session_id='liz_s_cron_demo123456').first() is None
+
+    def test_build_web_analytics_dashboard_incluye_embudo_y_alertas(self, monkeypatch):
+        suffix = datetime.now().strftime('%H%M%S%f').lower()
+        visitor_key = f'liz_v_{suffix}_qafunnelabc123'
+        session_key = f'liz_s_{suffix}_qafunnelsession12345'
+        pageview_key = f'liz_p_qafunnel{suffix}'
+
+        with m.app.app_context():
+            accepted = m._registrar_web_analytics_eventos([
+                {
+                    'visitor_key': visitor_key,
+                    'session_id': session_key,
+                    'session_key': session_key,
+                    'pageview_key': pageview_key,
+                    'event_name': 'page_view',
+                    'path': '/erp-retail-especializado',
+                    'full_url': 'https://www.lhexia.cl/erp-retail-especializado',
+                    'page_title': 'ERP retail',
+                    'source': 'google.com',
+                    'medium': 'organic',
+                },
+                {
+                    'visitor_key': visitor_key,
+                    'session_id': session_key,
+                    'session_key': session_key,
+                    'pageview_key': pageview_key,
+                    'event_name': 'cta_click',
+                    'path': '/erp-retail-especializado',
+                    'label': 'Quiero mi Diagnóstico IA Gratis',
+                    'target': 'https://www.lhexia.cl/index#diagnostico',
+                    'meta': {'tag': 'a'},
+                },
+            ], default_ip='127.0.0.1', default_user_agent='pytest')
+            assert accepted == 2
+
+            monkeypatch.setattr(m, 'cargar_landing_leads_gestion', lambda limit=800: [{
+                'id': f'L-{suffix}',
+                'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'empresa': 'QA Funnel Spa',
+                'nombre': 'QA Funnel',
+                'estado': 'Nuevo',
+                'traffic_source': 'google.com',
+                'traffic_medium': 'organic',
+                'session_id': session_key,
+                'session_key': session_key,
+            }])
+
+            dashboard = m._build_web_analytics_dashboard(days=30)
+            assert dashboard['wa_funnel']['visits'] >= 1
+            assert dashboard['wa_funnel']['cta_clicks'] >= 1
+            assert dashboard['wa_funnel']['leads'] >= 1
+            assert isinstance(dashboard['wa_alerts'], list)
+            assert isinstance(dashboard['wa_recent_leads'], list)
+
+            event = (
+                m.WebAnalyticsEvent.query.join(m.WebAnalyticsSession)
+                .filter(m.WebAnalyticsSession.session_key == session_key)
+                .order_by(m.WebAnalyticsEvent.id.desc())
+                .first()
+            )
+            raw_rows = m.ControlTraficoInterno.query.filter_by(session_id=session_key).all()
+            pageview = m.WebAnalyticsPageView.query.filter_by(pageview_key=pageview_key).first()
+            session = m.WebAnalyticsSession.query.filter_by(session_key=session_key).first()
+            visitor = m.WebAnalyticsVisitor.query.filter_by(visitor_key=visitor_key).first()
+
+            for raw in raw_rows:
+                db.session.delete(raw)
+            if event:
+                for ev in m.WebAnalyticsEvent.query.filter_by(session_id=session.id).all():
+                    db.session.delete(ev)
+            if pageview:
+                db.session.delete(pageview)
+            if session:
+                db.session.delete(session)
+            if visitor:
+                db.session.delete(visitor)
+            db.session.commit()
 
 
 class TestSeoMonitor:
@@ -901,6 +1083,14 @@ class TestSeoMonitor:
             assert metric.current_position == 5
             assert metric.clicks == 14
             assert metric.impressions == 120
+
+    def test_build_seo_monitor_dashboard_incluye_alertas(self):
+        with m.app.app_context():
+            m._run_seo_snapshot()
+            dashboard = m._build_seo_monitor_dashboard()
+            assert 'seo_alerts' in dashboard
+            assert isinstance(dashboard['seo_alerts'], list)
+            assert dashboard['seo_summary']['tracked_pages'] >= 5
 
 
 # =====================================================================

@@ -178,17 +178,34 @@
     <div class="col-lg-4">
       <div class="card card-ds seo-card h-100">
         <div class="card-header bg-white fw-bold">
-          <i class="fas fa-circle-exclamation text-danger me-1"></i> Hallazgos prioritarios
+          <i class="fas fa-circle-exclamation text-danger me-1"></i> Alertas ejecutivas y hallazgos
         </div>
         <div class="card-body">
-          {% for issue in seo_issues %}
+          {% for row in seo_alerts %}
+          <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="d-flex justify-content-between gap-2 align-items-start">
+              <div>
+                <div class="fw-semibold">{{ row.title }}</div>
+                <div class="seo-mini">{{ row.detail }}</div>
+              </div>
+              <span class="seo-chip {% if row.severity == 'good' %}good{% elif row.severity == 'crit' %}bad{% else %}warn{% endif %}">
+                {{ row.severity|upper }}
+              </span>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-0">Sin alertas ejecutivas en el último snapshot.</p>
+          {% endfor %}
+          {% if seo_issues %}
+          <hr>
+          <div class="seo-mini text-uppercase fw-bold mb-2">Hallazgos técnicos</div>
+          {% for issue in seo_issues[:5] %}
           <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
             <div class="fw-semibold"><code>{{ issue.path }}</code></div>
             <div class="seo-mini">{{ issue.issue }}</div>
           </div>
-          {% else %}
-          <p class="text-muted small mb-0">Sin hallazgos críticos en el último snapshot.</p>
           {% endfor %}
+          {% endif %}
         </div>
       </div>
     </div>

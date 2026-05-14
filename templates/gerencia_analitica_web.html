@@ -67,6 +67,21 @@
     font-weight: 700;
     color: #0d6efd;
   }
+  .wa-chip.good {
+    background: rgba(22, 163, 74, .1);
+    border-color: rgba(22, 163, 74, .18);
+    color: #15803d;
+  }
+  .wa-chip.warn {
+    background: rgba(245, 158, 11, .1);
+    border-color: rgba(245, 158, 11, .18);
+    color: #b45309;
+  }
+  .wa-chip.crit {
+    background: rgba(220, 38, 38, .08);
+    border-color: rgba(220, 38, 38, .16);
+    color: #b91c1c;
+  }
 </style>
 {% endblock %}
 
@@ -172,6 +187,10 @@
             <span>Clicks WhatsApp</span>
             <span class="wa-chip">{{ wa_summary.whatsapp_clicks_7d }}</span>
           </div>
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <span>Leads enviados</span>
+            <span class="wa-chip good">{{ wa_summary.lead_submit_7d }}</span>
+          </div>
           <div class="d-flex justify-content-between align-items-center py-2">
             <span>Conversión sesión</span>
             <span class="wa-chip">{{ wa_summary.conversion_rate_7 }}%</span>
@@ -179,6 +198,97 @@
           <p class="wa-mini mt-3 mb-0">
             Esta capa ya distingue sesiones activas, interacciones de CTA y conversiones de alto valor desde el sitio.
           </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-7">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-filter-circle-dollar text-success me-1"></i> Embudo ejecutivo 7 días</span>
+          <span class="wa-mini">Visita → CTA → WhatsApp / Lead</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+              <div class="p-3 rounded-3 border bg-light h-100">
+                <div class="wa-mini text-uppercase">Visitas</div>
+                <div class="fs-4 fw-bold">{{ wa_funnel.visits }}</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-3 rounded-3 border bg-light h-100">
+                <div class="wa-mini text-uppercase">CTA</div>
+                <div class="fs-4 fw-bold">{{ wa_funnel.cta_clicks }}</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-3 rounded-3 border bg-light h-100">
+                <div class="wa-mini text-uppercase">WhatsApp</div>
+                <div class="fs-4 fw-bold text-success">{{ wa_funnel.whatsapp_clicks }}</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="p-3 rounded-3 border bg-light h-100">
+                <div class="wa-mini text-uppercase">Leads</div>
+                <div class="fs-4 fw-bold text-primary">{{ wa_funnel.leads }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="wa-chip">Visita → lead {{ wa_funnel.visit_to_lead_rate }}%</span>
+            <span class="wa-chip">Visita → WhatsApp {{ wa_funnel.visit_to_whatsapp_rate }}%</span>
+            <span class="wa-chip">CTA → lead {{ wa_funnel.cta_to_lead_rate }}%</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Fuente</th>
+                  <th class="text-end">Visitas</th>
+                  <th class="text-end">WA</th>
+                  <th class="text-end">Leads</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in wa_funnel_sources %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ row.source }}</div>
+                    <div class="wa-mini">{{ row.medium }}</div>
+                  </td>
+                  <td class="text-end">{{ row.visits }}</td>
+                  <td class="text-end">{{ row.whatsapp }}</td>
+                  <td class="text-end fw-bold text-primary">{{ row.leads }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center text-muted py-3">Aún no hay suficientes señales para el embudo ejecutivo.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-siren-on text-danger me-1"></i> Alertas gerenciales
+        </div>
+        <div class="card-body">
+          {% for row in wa_alerts %}
+          <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
+            <div class="d-flex justify-content-between gap-2 align-items-start">
+              <div>
+                <div class="fw-semibold">{{ row.title }}</div>
+                <div class="wa-mini">{{ row.detail }}</div>
+              </div>
+              <span class="wa-chip {{ row.severity }}">{{ row.severity|upper }}</span>
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </div>
     </div>
@@ -257,7 +367,10 @@
         <div class="card-body">
           {% for row in wa_top_ctas %}
           <div class="d-flex justify-content-between align-items-center py-2 {% if not loop.last %}border-bottom{% endif %}">
-            <div class="fw-semibold text-truncate pe-3">{{ row.label }}</div>
+            <div class="pe-3">
+              <div class="fw-semibold text-truncate">{{ row.label }}</div>
+              <div class="wa-mini"><code>{{ row.cta_id }}</code> · {{ row.group }} · {{ row.surface }}</div>
+            </div>
             <span class="wa-chip">{{ row.clicks }}</span>
           </div>
           {% else %}
@@ -269,22 +382,104 @@
     <div class="col-lg-6">
       <div class="card card-ds wa-card h-100">
         <div class="card-header bg-white fw-bold">
-          <i class="fas fa-wave-square text-secondary me-1"></i> Eventos recientes de intención
+          <i class="fas fa-phone-volume text-success me-1"></i> Captura comercial rápida
         </div>
         <div class="card-body">
-          {% for row in wa_recent_events %}
-          <div class="py-2 {% if not loop.last %}border-bottom{% endif %}">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-              <div>
-                <div class="fw-semibold">{{ row.label }}</div>
-                <div class="wa-mini"><code>{{ row.path }}</code> · {{ row.event_name }}</div>
-              </div>
-              <span class="wa-mini text-nowrap">{{ row.created_at.strftime('%d/%m %H:%M') if row.created_at else '—' }}</span>
-            </div>
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <span>Lead submit 7 días</span>
+            <span class="wa-chip good">{{ wa_summary.lead_submit_7d }}</span>
           </div>
-          {% else %}
-          <p class="text-muted small mb-0">Sin eventos recientes de interacción todavía.</p>
-          {% endfor %}
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <span>Visita → lead</span>
+            <span class="wa-chip">{{ wa_summary.visit_to_lead_rate_7 }}%</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+            <span>Visita → WhatsApp</span>
+            <span class="wa-chip">{{ wa_summary.visit_to_whatsapp_rate_7 }}%</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center py-2">
+            <span>CTA → lead</span>
+            <span class="wa-chip">{{ wa_summary.cta_to_lead_rate_7 }}%</span>
+          </div>
+          <p class="wa-mini mt-3 mb-0">
+            Esta vista ya conecta captación, intención comercial y señales de contacto para tomar decisiones semanales con foco en conversión.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-user-check text-success me-1"></i> Leads recientes</span>
+          <span class="wa-mini">Captura comercial y estado actual</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 wa-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Empresa</th>
+                  <th>Estado</th>
+                  <th>Fuente</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in wa_recent_leads %}
+                <tr>
+                  <td class="small">{{ row.ts.strftime('%d/%m %H:%M') if row.ts else '—' }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ row.empresa or row.nombre or '—' }}</div>
+                    <div class="wa-mini">{{ row.id or 'sin-id' }}</div>
+                  </td>
+                  <td><span class="wa-chip">{{ row.estado }}</span></td>
+                  <td class="small">{{ row.source }} / {{ row.medium }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center text-muted py-4">Todavía no hay leads recientes registrados.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds wa-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-funnel-dollar text-success me-1"></i> Conversiones recientes</span>
+          <span class="wa-mini">Lead submit, WhatsApp y señales de alto valor</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 wa-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Página</th>
+                  <th>Empresa</th>
+                  <th>Lead</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in wa_recent_conversions %}
+                <tr>
+                  <td class="small">{{ row.created_at.strftime('%d/%m %H:%M') if row.created_at else '—' }}</td>
+                  <td><span class="badge text-bg-success">{{ row.conversion_type }}</span></td>
+                  <td><code>{{ row.path }}</code></td>
+                  <td>{{ row.empresa or row.nombre or '—' }}</td>
+                  <td class="small">{{ row.lead_id or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay conversiones registradas en la plataforma.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -292,8 +487,8 @@
 
   <div class="card card-ds wa-card">
     <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
-      <span><i class="fas fa-funnel-dollar text-success me-1"></i> Conversiones recientes</span>
-      <span class="wa-mini">Lead submit, WhatsApp y señales de alto valor</span>
+      <span><i class="fas fa-wave-square text-secondary me-1"></i> Eventos recientes de intención</span>
+      <span class="wa-mini">CTA, navegación e intención capturada</span>
     </div>
     <div class="card-body p-0">
       <div class="table-responsive">
@@ -301,25 +496,21 @@
           <thead class="table-light">
             <tr>
               <th>Fecha</th>
-              <th>Tipo</th>
+              <th>Evento</th>
               <th>Página</th>
-              <th>Empresa</th>
-              <th>Nombre</th>
-              <th>Lead</th>
+              <th>Detalle</th>
             </tr>
           </thead>
           <tbody>
-            {% for row in wa_recent_conversions %}
+            {% for row in wa_recent_events %}
             <tr>
               <td class="small">{{ row.created_at.strftime('%d/%m %H:%M') if row.created_at else '—' }}</td>
-              <td><span class="badge text-bg-success">{{ row.conversion_type }}</span></td>
+              <td><span class="badge text-bg-secondary">{{ row.event_name }}</span></td>
               <td><code>{{ row.path }}</code></td>
-              <td>{{ row.empresa or '—' }}</td>
-              <td>{{ row.nombre or '—' }}</td>
-              <td class="small">{{ row.lead_id or '—' }}</td>
+              <td>{{ row.label or '—' }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay conversiones registradas en la plataforma.</td></tr>
+            <tr><td colspan="4" class="text-center text-muted py-4">Todavía no hay eventos recientes de intención.</td></tr>
             {% endfor %}
           </tbody>
         </table>

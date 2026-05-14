@@ -602,6 +602,7 @@ gunicorn app:app  # ver render.yaml
 | `docs/BODEGA_ULTRA_PREMIUM.md` | Especificación módulo bodega (3 fases) |
 | `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` | Plan v2.0 cerrado |
 | `docs/roadmap_customer_360_ferreteria_2026.md` | Roadmap C360 por fases |
+| `docs/roadmap_observabilidad_lhexia_2026_2030.md` | Roadmap de analítica, SEO y growth intelligence |
 | `docs/manual_operacion_customer_360.md` | Manual operativo C360 |
 
 ---
