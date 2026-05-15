@@ -773,6 +773,7 @@ def _web_analytics_infer_cta_taxonomy(path='', label='', target='', conversion_t
         '/como-reducir-quiebres-de-stock-en-ferreterias': 'nav_quiebres_stock',
         '/fundador': 'nav_fundador',
         '/quienes-somos': 'nav_quienes_somos',
+        '/sobre-nosotros': 'nav_quienes_somos',
         '/login': 'acceso_privado',
     }
 
@@ -1053,6 +1054,27 @@ def _sitemap_entries():
             'changefreq': 'weekly',
             'priority': '0.8',
         },
+        {
+            'path': '/sobre-nosotros',
+            'loc': _absolute_public_url('/sobre-nosotros'),
+            'lastmod': today_iso,
+            'changefreq': 'weekly',
+            'priority': '0.85',
+        },
+        {
+            'path': '/catalogo',
+            'loc': _absolute_public_url('/catalogo'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.65',
+        },
+        {
+            'path': '/consulta-stock',
+            'loc': _absolute_public_url('/consulta-stock'),
+            'lastmod': today_iso,
+            'changefreq': 'daily',
+            'priority': '0.65',
+        },
     ]
 
 
@@ -1141,6 +1163,45 @@ def _notificar_cambio_a_google_async(changed_paths=None):
 def _usuario_autorizado_lhexia_interno():
     correo = (getattr(current_user, 'correo', None) or '').strip().lower()
     return correo == 'mariobec@gmail.com'
+
+
+def _ruta_registro_horas_csv():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs', 'registro_horas_desarrollo.csv')
+
+
+def _cargar_registro_horas_desde_csv():
+    """Lee docs/registro_horas_desarrollo.csv; filas más recientes primero en rh_rows."""
+    path = _ruta_registro_horas_csv()
+    rows = []
+    if os.path.exists(path):
+        with open(path, newline='', encoding='utf-8') as f:
+            for r in csv.DictReader(f):
+                rows.append({k: (v or '').strip() for k, v in r.items()})
+    total = 0.0
+    por_rol = defaultdict(float)
+    pendientes = 0
+    for r in rows:
+        h = (r.get('horas') or '').strip().replace(',', '.')
+        if not h:
+            pendientes += 1
+            continue
+        try:
+            v = float(h)
+        except ValueError:
+            pendientes += 1
+            continue
+        total += v
+        rol = (r.get('rol') or 'mixto').strip() or 'mixto'
+        por_rol[rol] += v
+    rows_rev = list(reversed(rows))
+    return {
+        'rh_rows': rows_rev,
+        'rh_total_horas': round(total, 2),
+        'rh_por_rol': dict(por_rol),
+        'rh_pendientes_sin_hora': pendientes,
+        'rh_total_entradas': len(rows),
+        'rh_csv_relpath': 'docs/registro_horas_desarrollo.csv',
+    }
 
 
 def _cargar_config_proveedores():
@@ -1378,6 +1439,9 @@ _NAV_MAP = [
             {'label': 'Analítica web', 'icon': 'fa-chart-area', 'endpoint': 'gerencia_analitica_web',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['gerencia_analitica_web']},
+            {'label': 'Reporte horas proyecto', 'icon': 'fa-clock-rotate-left', 'endpoint': 'gerencia_registro_horas',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['gerencia_registro_horas']},
             {'label': 'SEO y rankings', 'icon': 'fa-magnifying-glass-chart', 'endpoint': 'gerencia_seo_rankings',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['gerencia_seo_rankings', 'gerencia_seo_snapshot', 'gerencia_seo_keyword_metric']},
@@ -4542,6 +4606,7 @@ def index():
         'index.html',
         page_variant='home',
         page_canonical=_absolute_public_url('/'),
+        page_og_image=_absolute_public_url('/static/img/lhexia-brand-approved.png'),
     )
 
 
@@ -4576,15 +4641,25 @@ def como_reducir_quiebres_de_stock_en_ferreterias():
 
 
 @app.route('/sobre-nosotros')
-@app.route('/quienes-somos')
 def sobre_nosotros():
     return render_template('sobre_nosotros_2.html')
+
+
+def _redirect_canonical_sobre_nosotros():
+    return redirect(url_for('sobre_nosotros'), code=301)
+
+
+@app.route('/quienes-somos')
+def quienes_somos_redirect():
+    """Alias histórico: una sola URL canónica para SEO."""
+    return _redirect_canonical_sobre_nosotros()
 
 
 @app.route('/sobre-nosotros-origen')
 @app.route('/sobre_nosotros_v1')
 def sobre_nosotros_origen():
-    return render_template('sobre_nosotros.html')
+    """Versión antigua del copy: redirige a la página institucional actual."""
+    return _redirect_canonical_sobre_nosotros()
 
 
 @app.route('/sobre-nosotros-2')
@@ -4592,7 +4667,8 @@ def sobre_nosotros_origen():
 @app.route('/sobre_nosotros_2.html')
 @app.route('/sobre-nosotros_2.html')
 def sobre_nosotros_2():
-    return render_template('sobre_nosotros_2.html')
+    """Duplicados de URL del mismo HTML; canónica /sobre-nosotros."""
+    return _redirect_canonical_sobre_nosotros()
 
 
 @app.route('/mensaje-del-fundador')
@@ -4637,6 +4713,9 @@ def robots_txt():
         'Allow: /erp-con-bodega-por-voz',
         'Allow: /como-reducir-quiebres-de-stock-en-ferreterias',
         'Allow: /fundador',
+        'Allow: /sobre-nosotros',
+        'Allow: /catalogo',
+        'Allow: /consulta-stock',
         'Allow: /static/',
         'Disallow: /api/admin/',
         'Disallow: /demo/',
@@ -5040,6 +5119,66 @@ def gerencia_analitica_web():
     return render_template('gerencia_analitica_web.html', **dashboard)
 
 
+@app.route('/gerencia/registro-horas', methods=['GET', 'POST'])
+@login_required
+@permisos_required('ver_gerencia', 'panel_gerencia', 'gestionar_usuarios')
+def gerencia_registro_horas():
+    if not _usuario_autorizado_lhexia_interno():
+        flash('Acceso restringido al módulo interno LhexIA.', 'warning')
+        return redirect(url_for('inicio'))
+    path = _ruta_registro_horas_csv()
+    if request.method == 'POST':
+        fecha = (request.form.get('fecha') or '').strip()
+        rol = (request.form.get('rol') or '').strip()
+        horas_raw = (request.form.get('horas') or '').strip()
+        tema = (request.form.get('tema') or '').strip()
+        referencia = (request.form.get('referencia') or '').strip()
+        notas = (request.form.get('notas') or '').strip()
+        if not re.match(r'^\d{4}-\d{2}-\d{2}$', fecha):
+            flash('Fecha inválida (use AAAA-MM-DD).', 'danger')
+            return redirect(url_for('gerencia_registro_horas'))
+        try:
+            datetime.strptime(fecha, '%Y-%m-%d')
+        except ValueError:
+            flash('Fecha inválida.', 'danger')
+            return redirect(url_for('gerencia_registro_horas'))
+        if rol not in ('desarrollador', 'ia_cursor', 'mixto'):
+            flash('Rol inválido.', 'danger')
+            return redirect(url_for('gerencia_registro_horas'))
+
+        def _one_line(s, max_len):
+            return ' '.join((s or '').splitlines()).strip()[:max_len]
+
+        tema = _one_line(tema, 500)
+        referencia = _one_line(referencia, 240)
+        notas = _one_line(notas, 2000)
+        if len(tema) < 2:
+            flash('El tema es obligatorio (mínimo 2 caracteres).', 'danger')
+            return redirect(url_for('gerencia_registro_horas'))
+        horas_cell = ''
+        if horas_raw:
+            try:
+                hv = float(horas_raw.replace(',', '.'))
+                if hv < 0 or hv > 999:
+                    raise ValueError()
+                horas_cell = f'{hv:g}'
+            except ValueError:
+                flash('Horas inválidas (número entre 0 y 999; puede usar coma decimal).', 'danger')
+                return redirect(url_for('gerencia_registro_horas'))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        new_file = not os.path.exists(path)
+        with open(path, 'a', newline='', encoding='utf-8') as f:
+            w = csv.writer(f)
+            if new_file:
+                w.writerow(['fecha', 'rol', 'horas', 'tema', 'referencia', 'notas'])
+            w.writerow([fecha, rol, horas_cell, tema, referencia, notas])
+        flash('Registro agregado al CSV del proyecto.', 'success')
+        return redirect(url_for('gerencia_registro_horas'))
+    ctx = _cargar_registro_horas_desde_csv()
+    ctx['rh_fecha_default'] = date.today().isoformat()
+    return render_template('gerencia_registro_horas.html', **ctx)
+
+
 def _build_seo_monitor_dashboard():
     """
     Dashboard SEO local-only.
@@ -5358,6 +5497,11 @@ def catalogo_publico():
         mostrar_precio_publico=mostrar_precio_publico,
         mostrar_stock_exacto_publico=mostrar_stock_exacto_publico,
         wa_base=wa_base,
+        page_canonical=_absolute_public_url('/catalogo'),
+        page_meta_description=(
+            'Catálogo público de productos con búsqueda por nombre o código de barras. '
+            'Consulta disponibilidad orientada a clientes.'
+        ),
     )
 
 
@@ -5388,6 +5532,11 @@ def consulta_stock_publica():
         mostrar_precio_publico=mostrar_precio_publico,
         mostrar_stock_exacto_publico=mostrar_stock_exacto_publico,
         wa_base=wa_base,
+        page_canonical=_absolute_public_url('/consulta-stock'),
+        page_meta_description=(
+            'Consulta rápida de stock por nombre o código de barras. '
+            'Herramienta pública de disponibilidad para clientes.'
+        ),
     )
 # --- INICIO - DASHBOARD ---........................................................................
 @app.route('/inicio')

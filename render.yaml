@@ -9,6 +9,8 @@ services:
     envVars:
       - key: SECRET_KEY
         generateValue: true
+      - key: PUBLIC_SITE_URL
+        value: "https://www.lhexia.cl"
       - key: FLASK_DEBUG
         value: "0"
       - key: PUBLICO_MUESTRA_PRECIO

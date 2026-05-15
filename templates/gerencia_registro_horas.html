@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .rh-hero {
+    background: linear-gradient(135deg, #1a1033 0%, #2d1b4e 40%, #1e3a5f 78%, #0d4f4a 100%);
+    color: #f8fafc;
+    border-radius: 18px;
+    padding: 1.4rem 1.5rem;
+    border: 1px solid rgba(148, 163, 184, .24);
+    box-shadow: 0 22px 55px rgba(15, 23, 42, .34);
+    position: relative;
+    overflow: hidden;
+  }
+  .rh-hero::after {
+    content: "";
+    position: absolute;
+    right: -60px;
+    top: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(167, 139, 250, .22), transparent 70%);
+  }
+  .rh-hero h2 { font-weight: 800; letter-spacing: -0.02em; }
+  .rh-kpi {
+    background: rgba(15, 23, 42, .48);
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 14px;
+    padding: 1rem 1.05rem;
+    height: 100%;
+    backdrop-filter: blur(8px);
+  }
+  .rh-kpi .lbl {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: rgba(221, 214, 254, .95);
+  }
+  .rh-kpi .val {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .rh-card {
+    border-radius: 16px;
+    border: 1px solid rgba(15, 23, 42, .08);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .08);
+  }
+  .rh-mini { font-size: .78rem; color: var(--bs-secondary-color); }
+  .rh-table td, .rh-table th { vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1320px;">
+  <div class="rh-hero mb-4">
+    <div class="position-relative" style="z-index:1;">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+          <div class="small text-info fw-bold text-uppercase mb-1">LhexIA · Control de proyecto</div>
+          <h2 class="mb-2"><i class="fas fa-clock-rotate-left me-2"></i>Reporte de horas de proyecto</h2>
+          <p class="mb-0" style="max-width: 58rem; color: rgba(226, 232, 240, .92);">
+            Libro de horas interno: sesiones de desarrollo humano, asistidas por IA (Cursor) o mixtas.
+            Los datos viven en <code class="text-warning">{{ rh_csv_relpath }}</code> en el repositorio; esta vista solo los lee y permite agregar filas.
+          </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('gerencia_analitica_web') }}" class="btn btn-outline-light btn-sm">
+            <i class="fas fa-chart-area me-1"></i> Analítica web
+          </a>
+          <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm" target="_blank" rel="noopener">
+            <i class="fas fa-globe me-1"></i> Sitio público
+          </a>
+        </div>
+      </div>
+
+      <div class="row g-2 g-md-3">
+        <div class="col-6 col-lg-3">
+          <div class="rh-kpi">
+            <div class="lbl">Horas registradas (suma)</div>
+            <div class="val">{{ rh_total_horas }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="rh-kpi">
+            <div class="lbl">Entradas en el CSV</div>
+            <div class="val">{{ rh_total_entradas }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="rh-kpi">
+            <div class="lbl">Horas rol ia_cursor</div>
+            <div class="val">{{ rh_por_rol.get('ia_cursor', 0) }}</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="rh-kpi">
+            <div class="lbl">Sin hora anotada</div>
+            <div class="val">{{ rh_pendientes_sin_hora }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-5">
+      <div class="card card-ds rh-card h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-plus-circle text-primary me-1"></i> Nueva entrada
+        </div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('gerencia_registro_horas') }}" class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Fecha</label>
+              <input type="date" name="fecha" class="form-control" required value="{{ rh_fecha_default }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Rol</label>
+              <select name="rol" class="form-select" required>
+                <option value="mixto" selected>mixto (humano + IA)</option>
+                <option value="ia_cursor">ia_cursor</option>
+                <option value="desarrollador">desarrollador</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Horas <span class="text-muted fw-normal">(opcional)</span></label>
+              <input type="text" name="horas" class="form-control" placeholder="ej. 2.5 o 1,25" inputmode="decimal" autocomplete="off">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Tema</label>
+              <input type="text" name="tema" class="form-control" required maxlength="500" placeholder="Qué se trabajó en este bloque">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Referencia</label>
+              <input type="text" name="referencia" class="form-control" maxlength="240" placeholder="Commit, ruta, ticket…">
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">Notas</label>
+              <textarea name="notas" class="form-control" rows="2" maxlength="2000" placeholder="Detalle opcional"></textarea>
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary fw-bold">
+                <i class="fas fa-save me-1"></i> Guardar en CSV
+              </button>
+            </div>
+          </form>
+          <p class="rh-mini mb-0 mt-2">Tras desplegar en servidor, las filas nuevas quedan en el disco de esa instancia (no se sincronizan solas con Git).</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card card-ds rh-card h-100">
+        <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-table me-1 text-secondary"></i> Registro (más reciente arriba)</span>
+          {% if rh_por_rol %}
+          <span class="rh-mini">
+            {% for k, v in rh_por_rol.items() %}
+              <span class="badge text-bg-light border me-1">{{ k }}: {{ v }} h</span>
+            {% endfor %}
+          </span>
+          {% endif %}
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 rh-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Fecha</th>
+                  <th>Rol</th>
+                  <th class="text-end">Horas</th>
+                  <th>Tema</th>
+                  <th>Ref.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in rh_rows %}
+                <tr>
+                  <td class="text-nowrap">{{ row.fecha }}</td>
+                  <td><span class="badge text-bg-secondary">{{ row.rol }}</span></td>
+                  <td class="text-end fw-semibold">{% if row.horas %}{{ row.horas }}{% else %}—{% endif %}</td>
+                  <td>{{ row.tema }}</td>
+                  <td class="rh-mini">{{ row.referencia }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No hay filas en el CSV todavía.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

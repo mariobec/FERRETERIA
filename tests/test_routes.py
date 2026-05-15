@@ -37,6 +37,17 @@ class TestRutasPublicas:
         r = app_client.get('/')
         assert r.status_code in (200, 302)
 
+    def test_sobre_nosotros_canonical_200(self, app_client):
+        r = app_client.get('/sobre-nosotros')
+        assert r.status_code == 200
+
+    def test_alias_sobre_nosotros_redirige_301(self, app_client):
+        for path in ('/quienes-somos', '/sobre-nosotros-2', '/sobre_nosotros_2.html', '/sobre-nosotros-origen'):
+            r = app_client.get(path, follow_redirects=False)
+            assert r.status_code == 301, path
+            loc = (r.headers.get('Location') or '')
+            assert 'sobre-nosotros' in loc, (path, loc)
+
 
 @pytest.mark.smoke
 class TestRutasDashboard:

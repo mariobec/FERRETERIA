@@ -252,6 +252,7 @@
             '/como-reducir-quiebres-de-stock-en-ferreterias': 'nav_quiebres_stock',
             '/fundador': 'nav_fundador',
             '/quienes-somos': 'nav_quienes_somos',
+            '/sobre-nosotros': 'nav_quienes_somos',
             '/login': 'acceso_privado'
         };
 

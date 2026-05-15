@@ -13,6 +13,9 @@
     <meta property="og:title" content="{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente para retail y ferreterías{% else %}LhexIA ERP | El mejor ERP para ferreterías y retail especializado en 2026{% endif %}">
     <meta property="og:description" content="{% if is_vs_defontana %}Descubre qué diferencia a LhexIA de un ERP tradicional: IA predictiva, operación por voz, foco en margen y control real para ferreterías y retail.{% else %}Agentes inteligentes, POS ultra-rápido, bodega por voz, Customer 360, cobranza automática y rentabilidad protegida para ferreterías ambiciosas.{% endif %}">
     <meta property="og:url" content="{{ page_canonical or 'https://www.lhexia.cl/' }}">
+    {% set _og_img = page_og_image|default('https://www.lhexia.cl/static/img/lhexia-brand-approved.png', true) %}
+    <meta property="og:image" content="{{ _og_img }}">
+    <meta name="twitter:image" content="{{ _og_img }}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente{% else %}LhexIA ERP para ferreterías{% endif %}">
     <meta name="twitter:description" content="{% if is_vs_defontana %}Conoce por qué LhexIA va más allá de un ERP tradicional con IA aplicada, voz, Customer 360 y foco en rentabilidad.{% else %}El ERP premium que vende, cobra, protege margen y acelera la bodega con agentes inteligentes 24/7.{% endif %}">
