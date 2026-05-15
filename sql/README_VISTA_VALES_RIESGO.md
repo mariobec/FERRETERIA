@@ -36,3 +36,8 @@ WHERE horas_desde_ref >= 48
 ORDER BY ref_despacho_o_emision ASC
 LIMIT 100;
 ```
+
+## Verificación en despliegue
+
+- En `GET /api/sistema/salud` (usuario con permiso `gestionar_usuarios`) el campo **`vista_riesgo_despacho_instalada`** debe ser `true` tras ejecutar el script en esa base.
+- Los campos **`bodega_voice_*_auditoria_24h`** reflejan uso reciente del endpoint de voz (auditoría `erp_audit_log`); no sustituyen esta vista.

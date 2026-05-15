@@ -16101,16 +16101,55 @@ def bodega_despachos():
     return render_template('bodega_despachos.html', vales=vales)
 
 
+def _audit_bodega_voice_fallo(code, usuario_nom=None, extra=None):
+    """Audita fallo de comando de voz sin guardar audio ni transcripción (solo códigos)."""
+    if not _asegurar_tabla_erp_audit_log():
+        return
+    try:
+        nom = (usuario_nom or (current_user.nombre if current_user.is_authenticated else '') or 'Bodega')[:120]
+        chunk = {'code': str(code or '')[:80]}
+        if isinstance(extra, dict):
+            for k in ('accion', 'vale_id', 'parse_err', 'exc'):
+                if k in extra and extra[k] is not None:
+                    val = extra[k]
+                    chunk[k] = str(val)[:400] if k in ('parse_err', 'exc') else val
+        _audit_log('bodega_voice_fallo', 'bodega_voice', None, usuario=nom, datos_despues=chunk)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _audit_bodega_voice_consulta_ok(accion, usuario_nom=None, extra=None):
+    """Audita consulta de voz exitosa sin mutación (p. ej. verificar_stock)."""
+    if not _asegurar_tabla_erp_audit_log():
+        return
+    try:
+        nom = (usuario_nom or (current_user.nombre if current_user.is_authenticated else '') or 'Bodega')[:120]
+        chunk = {'accion': str(accion or '')[:40]}
+        if isinstance(extra, dict):
+            for k, v in list(extra.items())[:6]:
+                if v is not None:
+                    chunk[str(k)[:24]] = v
+        _audit_log('bodega_voice_consulta_ok', 'bodega_voice', None, usuario=nom, datos_despues=chunk)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def api_bodega_voice_command():
+    usuario_nom = (current_user.nombre if current_user.is_authenticated else '') or 'Bodega'
     if not _usuario_puede_bodega_voice():
+        _audit_bodega_voice_fallo('sin_permiso', usuario_nom)
         return (
             jsonify({'ok': False, 'error': 'sin_permiso', 'speak': 'No tienes permiso de operador de bodega.'}),
             403,
         )
     if not _asegurar_columnas_ventas_bodega_despacho():
+        _audit_bodega_voice_fallo('db_columnas', usuario_nom)
         return jsonify({'ok': False, 'error': 'db_columnas', 'speak': 'Error de base de datos.'}), 500
 
     if not _openai_api_key():
+        _audit_bodega_voice_fallo('openai_key_missing', usuario_nom)
         return jsonify(
             {
                 'ok': False,
@@ -16121,17 +16160,21 @@ def api_bodega_voice_command():
 
     fs = request.files.get('audio') or request.files.get('file')
     if not fs or not (fs.filename or '').strip():
+        _audit_bodega_voice_fallo('sin_audio', usuario_nom)
         return jsonify({'ok': False, 'error': 'sin_audio', 'speak': 'No recibí audio.'}), 400
     raw = fs.read()
     if not raw or len(raw) < 256:
+        _audit_bodega_voice_fallo('audio_vacio', usuario_nom)
         return jsonify({'ok': False, 'error': 'audio_vacio', 'speak': 'El audio está vacío.'}), 400
     if len(raw) > 6 * 1024 * 1024:
+        _audit_bodega_voice_fallo('audio_muy_grande', usuario_nom)
         return jsonify({'ok': False, 'error': 'audio_muy_grande', 'speak': 'El audio es demasiado grande.'}), 400
 
     fn = secure_filename(fs.filename or '') or 'audio.webm'
 
     transcript, err = _bodega_whisper_transcribe(raw, fn)
     if err or not transcript:
+        _audit_bodega_voice_fallo(err or 'whisper_sin_texto', usuario_nom)
         return jsonify(
             {
                 'ok': False,
@@ -16142,6 +16185,11 @@ def api_bodega_voice_command():
 
     parsed, err2 = _bodega_gpt_parse_comando(transcript)
     if err2 or not isinstance(parsed, dict):
+        _audit_bodega_voice_fallo(
+            'gpt_parse',
+            usuario_nom,
+            extra={'parse_err': (str(err2)[:400] if err2 else '')},
+        )
         return jsonify(
             {
                 'ok': False,
@@ -16151,12 +16199,12 @@ def api_bodega_voice_command():
             }
         ), 422
 
-    usuario_nom = (current_user.nombre if current_user.is_authenticated else '') or 'Bodega'
     try:
         out = _bodega_voice_ejecutar(parsed, usuario_nom)
     except Exception as ex:
         db.session.rollback()
         app.logger.exception('api_bodega_voice_command: %s', ex)
+        _audit_bodega_voice_fallo('ejecucion', usuario_nom, extra={'exc': str(ex)[:240]})
         return jsonify(
             {
                 'ok': False,
@@ -16166,6 +16214,19 @@ def api_bodega_voice_command():
                 'speak': f'Error al ejecutar: {str(ex)[:120]}',
             }
         ), 500
+
+    if out.get('ok'):
+        acc_raw = (parsed.get('accion') or '').strip().lower().replace('-', '_')
+        acc_raw = re.sub(r'_+', '_', acc_raw.replace(' ', '_')).strip('_')
+        if acc_raw == 'verificar_stock':
+            n_hits = len((out.get('data') or {}).get('hits') or [])
+            _audit_bodega_voice_consulta_ok('verificar_stock', usuario_nom, extra={'hits': n_hits})
+    else:
+        _audit_bodega_voice_fallo(
+            str(out.get('error') or 'negocio'),
+            usuario_nom,
+            extra={'accion': parsed.get('accion')},
+        )
 
     code = 200 if out.get('ok') else 400
     body = {'ok': out.get('ok'), 'transcript': transcript, 'parsed': parsed, 'speak': out.get('speak')}

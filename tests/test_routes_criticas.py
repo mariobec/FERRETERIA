@@ -1241,6 +1241,8 @@ class TestMiscCoverage:
             if data and data.get('ok') is True:
                 assert 'openai_key_configured' in data
                 assert 'bodega_voice_despachos_auditoria_24h' in data
+                assert 'bodega_voice_fallos_auditoria_24h' in data
+                assert 'bodega_voice_consultas_ok_auditoria_24h' in data
 
     def test_api_cobranza_sugerencias(self, app_client):
         r = app_client.get('/api/creditos/cobranza/sugerencias')
