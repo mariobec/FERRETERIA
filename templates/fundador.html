@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mensaje del Fundador | LhexIA ERP</title>
     <meta name="description" content="Conoce la visión de Mario Becerra Olea, fundador de LhexIA ERP, sobre el futuro del retail, las ferreterías, constructoras y las operaciones intensivas en SKU.">
-    <link rel="canonical" href="https://www.lhexia.cl/mensaje-del-fundador">
+    <link rel="canonical" href="{{ public_site_url }}/mensaje-del-fundador">
     <meta property="og:locale" content="es_CL">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="LhexIA ERP">
     <meta property="og:title" content="Mensaje del Fundador | LhexIA ERP">
     <meta property="og:description" content="Una visión sobre tecnología útil, inteligencia operativa y crecimiento real para retail, ferreterías, constructoras y empresas con alto volumen de SKU.">
-    <meta property="og:url" content="https://www.lhexia.cl/mensaje-del-fundador">
+    <meta property="og:url" content="{{ public_site_url }}/mensaje-del-fundador">
     <meta property="og:image" content="{{ public_og_image_url }}">
     <meta name="twitter:image" content="{{ public_og_image_url }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -25,8 +25,8 @@
         {
           "@type": "Organization",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-approved.png"
+          "url": "{{ public_site_url }}/",
+          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png"
         },
         {
           "@type": "Person",
@@ -47,7 +47,7 @@
         {
           "@type": "WebSite",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
+          "url": "{{ public_site_url }}/",
           "inLanguage": "es-CL"
         },
         {
@@ -57,13 +57,13 @@
               "@type": "ListItem",
               "position": 1,
               "name": "Inicio",
-              "item": "https://www.lhexia.cl/"
+              "item": "{{ public_site_url }}/"
             },
             {
               "@type": "ListItem",
               "position": 2,
               "name": "Mensaje del Fundador",
-              "item": "https://www.lhexia.cl/mensaje-del-fundador"
+              "item": "{{ public_site_url }}/mensaje-del-fundador"
             }
           ]
         }
@@ -959,7 +959,7 @@
                 </section>
 
                 <footer class="manifest-footer">
-                    © 2026 LhexIA ERP · <a href="https://www.lhexia.cl">www.lhexia.cl</a> ·
+                    © 2026 LhexIA ERP · <a href="{{ public_site_url }}">www.lhexia.cl</a> ·
                     <a href="{{ url_for('sobre_nosotros') }}">Quiénes somos</a> ·
                     <a href="{{ url_for('mensaje_del_fundador') }}">Mensaje del fundador</a> ·
                     Tecnología para retail, ferreterías y operaciones complejas

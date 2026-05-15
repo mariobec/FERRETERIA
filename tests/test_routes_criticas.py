@@ -1236,6 +1236,11 @@ class TestMiscCoverage:
     def test_api_sistema_salud(self, app_client):
         r = app_client.get('/api/sistema/salud')
         assert r.status_code in (200, 302)
+        if r.status_code == 200:
+            data = r.get_json(silent=True)
+            if data and data.get('ok') is True:
+                assert 'openai_key_configured' in data
+                assert 'bodega_voice_despachos_auditoria_24h' in data
 
     def test_api_cobranza_sugerencias(self, app_client):
         r = app_client.get('/api/creditos/cobranza/sugerencias')

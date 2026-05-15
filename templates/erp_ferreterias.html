@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERP para ferreterías en Chile | LhexIA ERP</title>
     <meta name="description" content="LhexIA es un ERP para ferreterías en Chile con IA, bodega por voz, Customer 360, caja, POS ultra-rápido y foco real en margen, stock y cobranza.">
-    <link rel="canonical" href="https://www.lhexia.cl/erp-ferreterias">
+    <link rel="canonical" href="{{ public_site_url }}/erp-ferreterias">
     <meta property="og:locale" content="es_CL">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="LhexIA ERP">
     <meta property="og:title" content="ERP para ferreterías en Chile | LhexIA ERP">
     <meta property="og:description" content="ERP inteligente para ferreterías con POS, bodega por voz, IA aplicada y foco en rentabilidad, stock y velocidad operativa.">
-    <meta property="og:url" content="https://www.lhexia.cl/erp-ferreterias">
+    <meta property="og:url" content="{{ public_site_url }}/erp-ferreterias">
     <meta property="og:image" content="{{ public_og_image_url }}">
     <meta name="twitter:image" content="{{ public_og_image_url }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -25,13 +25,13 @@
         {
           "@type": "Organization",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-approved.png"
+          "url": "{{ public_site_url }}/",
+          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png"
         },
         {
           "@type": "WebSite",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
+          "url": "{{ public_site_url }}/",
           "inLanguage": "es-CL"
         },
         {
@@ -41,13 +41,13 @@
               "@type": "ListItem",
               "position": 1,
               "name": "Inicio",
-              "item": "https://www.lhexia.cl/"
+              "item": "{{ public_site_url }}/"
             },
             {
               "@type": "ListItem",
               "position": 2,
               "name": "ERP para ferreterías",
-              "item": "https://www.lhexia.cl/erp-ferreterias"
+              "item": "{{ public_site_url }}/erp-ferreterias"
             }
           ]
         },
@@ -275,7 +275,7 @@
     </main>
 
     <div class="index-footer landing-footer">
-        © 2026 LhexIA ERP · ERP para ferreterías en Chile · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a>
+        © 2026 LhexIA ERP · ERP para ferreterías en Chile · <a href="{{ public_site_url }}" class="text-white-50 text-decoration-none">www.lhexia.cl</a>
     </div>
 
     {% include '_web_analytics_tracker.html' %}

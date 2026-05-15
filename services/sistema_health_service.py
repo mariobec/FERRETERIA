@@ -41,6 +41,7 @@ def collect_sistema_salud_metrics():
 
     audit_ok = bool(m._asegurar_tabla_erp_audit_log())
     audit_eventos_24h = None
+    bodega_voice_despachos_auditoria_24h = None
     if audit_ok:
         try:
             since = datetime.now() - timedelta(hours=24)
@@ -50,9 +51,20 @@ def collect_sistema_salud_metrics():
                 .scalar()
                 or 0
             )
+            bodega_voice_despachos_auditoria_24h = int(
+                m.db.session.query(func.count(m.ErpAuditLog.id))
+                .filter(
+                    m.ErpAuditLog.created_at >= since,
+                    m.ErpAuditLog.evento == 'bodega_despacho_voz',
+                )
+                .scalar()
+                or 0
+            )
         except Exception:
             audit_eventos_24h = None
+            bodega_voice_despachos_auditoria_24h = None
 
+    openai_key_configured = bool(m._openai_api_key())
     return {
         'server_time': datetime.now().isoformat(timespec='seconds'),
         'vales_despacho_bodega_sin_cobro_sobre_umbral': n_riesgo,
@@ -60,6 +72,8 @@ def collect_sistema_salud_metrics():
         'vista_riesgo_despacho_instalada': m._vista_vales_riesgo_despacho_existe(),
         'erp_audit_log_tabla_ok': audit_ok,
         'erp_audit_eventos_24h': audit_eventos_24h,
+        'bodega_voice_despachos_auditoria_24h': bodega_voice_despachos_auditoria_24h,
+        'openai_key_configured': openai_key_configured,
         'slack_webhook_configured': bool((os.getenv('SLACK_WEBHOOK_URL') or os.getenv('ERP_SLACK_WEBHOOK_URL') or '').strip()),
     }
 

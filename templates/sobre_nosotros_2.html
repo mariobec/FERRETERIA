@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sobre Nosotros | LhexIA ERP para retail, ferretería y operaciones intensivas en SKU</title>
     <meta name="description" content="Conoce el origen de LhexIA, una plataforma ERP para retail, ferreterías, constructoras y operaciones con alto volumen de SKU, creada desde más de 20 años de experiencia en SAP, BI, prevención de pérdidas e Inteligencia Artificial aplicada.">
-    <link rel="canonical" href="https://www.lhexia.cl/sobre-nosotros">
+    <link rel="canonical" href="{{ public_site_url }}/sobre-nosotros">
     <meta property="og:locale" content="es_CL">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="LhexIA ERP">
     <meta property="og:title" content="Sobre Nosotros | LhexIA ERP para retail, ferretería y operaciones intensivas en SKU">
     <meta property="og:description" content="Una solución creada desde experiencia real en retail, constructoras, ERP, prevención de pérdidas, sistema POS bodega, Customer 360 e Inteligencia Artificial aplicada al negocio.">
-    <meta property="og:url" content="https://www.lhexia.cl/sobre-nosotros">
+    <meta property="og:url" content="{{ public_site_url }}/sobre-nosotros">
     <meta property="og:image" content="{{ public_og_image_url }}">
     <meta name="twitter:image" content="{{ public_og_image_url }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -25,8 +25,8 @@
         {
           "@type": "Organization",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-approved.png",
+          "url": "{{ public_site_url }}/",
+          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png",
           "description": "ERP para retail, ferreterías, constructoras y operaciones intensivas en SKU con sistema POS bodega, Customer 360 e Inteligencia Artificial aplicada."
         },
         {
@@ -49,7 +49,7 @@
         {
           "@type": "WebSite",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
+          "url": "{{ public_site_url }}/",
           "inLanguage": "es-CL"
         },
         {
@@ -59,13 +59,13 @@
               "@type": "ListItem",
               "position": 1,
               "name": "Inicio",
-              "item": "https://www.lhexia.cl/"
+              "item": "{{ public_site_url }}/"
             },
             {
               "@type": "ListItem",
               "position": 2,
               "name": "Sobre Nosotros",
-              "item": "https://www.lhexia.cl/sobre-nosotros"
+              "item": "{{ public_site_url }}/sobre-nosotros"
             }
           ]
         }
@@ -792,7 +792,7 @@
     </main>
 
     <div class="index-footer landing-footer">
-        © 2026 LhexIA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para retail, ferreterías y operaciones complejas
+        © 2026 LhexIA ERP · <a href="{{ public_site_url }}" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para retail, ferreterías y operaciones complejas
     </div>
 
     {% include '_web_analytics_tracker.html' %}

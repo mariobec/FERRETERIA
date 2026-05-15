@@ -6,13 +6,13 @@
     {% set is_vs_defontana = page_variant == 'lhexia_vs_defontana' %}
     <title>{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente para retail y ferreterías{% else %}LhexIA ERP | El mejor ERP para ferreterías y retail especializado en 2026{% endif %}</title>
     <meta name="description" content="{% if is_vs_defontana %}Compara LhexIA vs Defontana y descubre por qué un ERP inteligente con IA, despacho por voz, Customer 360 y foco en margen puede transformar retail y ferreterías.{% else %}LhexIA ERP es la máquina de generar y proteger dinero para ferreterías y retail especializado: agentes inteligentes, POS ultra-rápido, bodega por voz, cobranza WhatsApp, Customer 360 y multi-almacén real.{% endif %}">
-    <link rel="canonical" href="{{ page_canonical or 'https://www.lhexia.cl/' }}">
+    <link rel="canonical" href="{{ page_canonical or (public_site_url + '/') }}">
     <meta property="og:locale" content="es_CL">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="LhexIA ERP">
     <meta property="og:title" content="{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente para retail y ferreterías{% else %}LhexIA ERP | El mejor ERP para ferreterías y retail especializado en 2026{% endif %}">
     <meta property="og:description" content="{% if is_vs_defontana %}Descubre qué diferencia a LhexIA de un ERP tradicional: IA predictiva, operación por voz, foco en margen y control real para ferreterías y retail.{% else %}Agentes inteligentes, POS ultra-rápido, bodega por voz, Customer 360, cobranza automática y rentabilidad protegida para ferreterías ambiciosas.{% endif %}">
-    <meta property="og:url" content="{{ page_canonical or 'https://www.lhexia.cl/' }}">
+    <meta property="og:url" content="{{ page_canonical or (public_site_url + '/') }}">
     <meta property="og:image" content="{{ public_og_image_url }}">
     <meta name="twitter:image" content="{{ public_og_image_url }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -27,7 +27,7 @@
       "applicationCategory": "BusinessApplication",
       "operatingSystem": "Web",
       "description": "{% if is_vs_defontana %}Comparativa entre LhexIA y Defontana para retail y ferreterías con foco en Inteligencia Artificial, operación por voz, Customer 360 y rentabilidad.{% else %}ERP premium para ferreterías con agentes inteligentes, POS, caja, inventario multi-almacén, Customer 360, cobranzas por WhatsApp y bodega asistida por voz.{% endif %}",
-      "url": "{{ page_canonical or 'https://www.lhexia.cl/' }}",
+      "url": "{{ page_canonical or (public_site_url + '/') }}",
       "audience": {
         "@type": "Audience",
         "audienceType": "Ferreterías, materiales de construcción y retail especializado"
@@ -46,14 +46,14 @@
         {
           "@type": "Organization",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-approved.png",
+          "url": "{{ public_site_url }}/",
+          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png",
           "description": "ERP inteligente para retail, ferreterías, constructoras y operaciones con alto volumen de SKU."
         },
         {
           "@type": "WebSite",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
+          "url": "{{ public_site_url }}/",
           "inLanguage": "es-CL"
         }
       ]
@@ -815,7 +815,7 @@
     </div>
 
     <div class="index-footer landing-footer">
-        © 2026 <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para ferreterías y retail especializado
+        © 2026 <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP · <a href="{{ public_site_url }}" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para ferreterías y retail especializado
     </div>
 
     <!-- Bootstrap JS Local -->

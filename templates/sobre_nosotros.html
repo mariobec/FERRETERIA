@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sobre Nosotros | Origen de LhexIA ERP</title>
     <meta name="description" content="Conoce el origen de LhexIA ERP: una solución creada desde más de 20 años de experiencia en transformación digital, retail, ERP e Inteligencia Artificial aplicada a operaciones.">
-    <link rel="canonical" href="https://www.lhexia.cl/sobre-nosotros">
+    <link rel="canonical" href="{{ public_site_url }}/sobre-nosotros">
     <meta property="og:locale" content="es_CL">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="LhexIA ERP">
     <meta property="og:title" content="Sobre Nosotros | Origen de LhexIA ERP">
     <meta property="og:description" content="LhexIA nace desde la experiencia real en ERP, Business Intelligence, retail e Inteligencia Artificial aplicada a la operación.">
-    <meta property="og:url" content="https://www.lhexia.cl/sobre-nosotros">
+    <meta property="og:url" content="{{ public_site_url }}/sobre-nosotros">
     <meta property="og:image" content="{{ public_og_image_url }}">
     <meta name="twitter:image" content="{{ public_og_image_url }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -24,13 +24,13 @@
         {
           "@type": "Organization",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
-          "logo": "https://www.lhexia.cl/static/img/lhexia-brand-approved.png"
+          "url": "{{ public_site_url }}/",
+          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png"
         },
         {
           "@type": "WebSite",
           "name": "LhexIA ERP",
-          "url": "https://www.lhexia.cl/",
+          "url": "{{ public_site_url }}/",
           "inLanguage": "es-CL"
         },
         {
@@ -40,13 +40,13 @@
               "@type": "ListItem",
               "position": 1,
               "name": "Inicio",
-              "item": "https://www.lhexia.cl/"
+              "item": "{{ public_site_url }}/"
             },
             {
               "@type": "ListItem",
               "position": 2,
               "name": "Sobre Nosotros",
-              "item": "https://www.lhexia.cl/sobre-nosotros"
+              "item": "{{ public_site_url }}/sobre-nosotros"
             }
           ]
         }
@@ -295,7 +295,7 @@
     </main>
 
     <div class="index-footer landing-footer">
-        © 2026 LhexIA ERP · <a href="https://www.lhexia.cl" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · Tecnología creada desde experiencia real para retail y ferreterías
+        © 2026 LhexIA ERP · <a href="{{ public_site_url }}" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · Tecnología creada desde experiencia real para retail y ferreterías
     </div>
 {% include '_web_analytics_tracker.html' %}
 </body>
