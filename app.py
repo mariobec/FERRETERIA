@@ -1568,6 +1568,22 @@ def inject_session_uptime():
         return {'session_login_ms': None}
 
 
+@app.context_processor
+def inject_public_seo_urls():
+    """Base canónica e imagen OG absoluta (respeta PUBLIC_SITE_URL) para plantillas públicas."""
+    try:
+        base = _public_site_base_url()
+        return {
+            'public_site_url': base,
+            'public_og_image_url': f'{base}/static/img/lhexia-brand-approved.png',
+        }
+    except Exception:
+        return {
+            'public_site_url': 'https://www.lhexia.cl',
+            'public_og_image_url': 'https://www.lhexia.cl/static/img/lhexia-brand-approved.png',
+        }
+
+
 @app.before_request
 def _autocompletar_login_at():
     """Si un usuario ya autenticado no tiene login_at en sesion (p. ej. tras reinicio del server),
@@ -4606,7 +4622,6 @@ def index():
         'index.html',
         page_variant='home',
         page_canonical=_absolute_public_url('/'),
-        page_og_image=_absolute_public_url('/static/img/lhexia-brand-approved.png'),
     )
 
 
