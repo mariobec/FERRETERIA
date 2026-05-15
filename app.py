@@ -1485,6 +1485,8 @@ _NAV_MAP = [
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_empresa']},
             {'label': 'Usuarios y roles', 'icon': 'fa-users-cog', 'endpoint': 'usuarios',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['usuarios', 'editar_usuario']},
+            {'label': 'Log auditoría ERP', 'icon': 'fa-scroll', 'endpoint': 'admin_erp_audit_log',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_erp_audit_log']},
         ],
     },
 ]
@@ -14026,6 +14028,30 @@ def admin_catalogo():
         sin_catalogo=sin_catalogo,
         opciones_hojas=opciones_hojas,
         jerarquia_catalogo=jerarquia_catalogo,
+    )
+
+
+@app.route('/admin/erp-audit-log')
+@login_required
+@permisos_required('gestionar_usuarios')
+def admin_erp_audit_log():
+    """Listado reciente de erp_audit_log (caja, bodega, voz, cron, etc.)."""
+    if not _asegurar_tabla_erp_audit_log():
+        flash('No se pudo acceder a la tabla de auditoría ERP.', 'danger')
+        return redirect(url_for('inicio'))
+    raw_ev = (request.args.get('evento') or '').strip()
+    q_event = re.sub(r'[%_\s]+', ' ', raw_ev)[:60].strip()
+    lim = request.args.get('limite', 120, type=int) or 120
+    lim = max(20, min(int(lim), 500))
+    query = ErpAuditLog.query
+    if q_event:
+        query = query.filter(ErpAuditLog.evento.ilike(f'%{q_event}%'))
+    rows = query.order_by(ErpAuditLog.id.desc()).limit(lim).all()
+    return render_template(
+        'admin_erp_audit_log.html',
+        rows=rows,
+        filtro_evento=raw_ev[:80],
+        limite=lim,
     )
 
 

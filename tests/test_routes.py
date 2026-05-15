@@ -200,6 +200,11 @@ class TestRutasAdmin:
         r = app_client.get('/admin/catalogo')
         assert r.status_code in (200, 302)
 
+    @pytest.mark.smoke
+    def test_admin_erp_audit_log(self, app_client):
+        r = app_client.get('/admin/erp-audit-log')
+        assert r.status_code in (200, 302)
+
 
 class TestRutasBI:
 

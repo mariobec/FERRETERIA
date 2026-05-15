@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1400px;">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h3 class="page-title mb-0"><i class="fas fa-scroll text-secondary me-2"></i>Log auditoría ERP</h3>
+    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-6 col-lg-4">
+          <label class="form-label small text-muted mb-0">Filtrar por evento (contiene)</label>
+          <input type="text" name="evento" class="form-control form-control-sm" value="{{ filtro_evento }}"
+                 placeholder="ej. bodega_voice, despacho, caja" maxlength="80" autocomplete="off">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label small text-muted mb-0">Límite filas</label>
+          <input type="number" name="limite" class="form-control form-control-sm" min="20" max="500" value="{{ limite }}">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+        </div>
+      </form>
+      <p class="small text-muted mb-0 mt-2">Solo lectura. Incluye cobros, anulaciones, despacho voz (<code>bodega_despacho_voz</code>), fallos de voz (<code>bodega_voice_fallo</code>), consultas de stock por voz, cron de alertas, etc.</p>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Fecha</th>
+              <th>Evento</th>
+              <th>Entidad</th>
+              <th>Usuario</th>
+              <th>IP</th>
+              <th>Detalle</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td class="text-muted">#{{ r.id }}</td>
+              <td class="small text-nowrap">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else '—' }}</td>
+              <td><code class="small">{{ r.evento }}</code></td>
+              <td class="small">{{ r.entidad_tipo }}{% if r.entidad_id %} · #{{ r.entidad_id }}{% endif %}</td>
+              <td class="small">{{ r.usuario or '—' }}</td>
+              <td class="small text-muted">{{ r.ip or '—' }}</td>
+              <td class="small" style="max-width: 28rem;">
+                {% if r.datos_despues %}
+                <span class="text-break font-monospace" style="font-size: 0.72rem;">{{ (r.datos_despues or '')[:420] }}{% if ((r.datos_despues or '')|length) > 420 %}…{% endif %}</span>
+                {% elif r.datos_antes %}
+                <span class="text-break font-monospace text-muted" style="font-size: 0.72rem;">{{ (r.datos_antes or '')[:420] }}{% if ((r.datos_antes or '')|length) > 420 %}…{% endif %}</span>
+                {% else %}
+                —
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-muted py-4">Sin registros con los filtros actuales.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
