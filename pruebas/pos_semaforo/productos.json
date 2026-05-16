@@ -1,0 +1,88 @@
+{
+  "version": "2026-05-20",
+  "prefijo_codigo": "POS-SEM-",
+  "categoria": "PRUEBA_POS",
+  "marca": "PRUEBA POS",
+  "items": [
+    {
+      "id": "POS-SEM-001",
+      "codigo_barra": "POS-SEM-V1",
+      "nombre": "[PRUEBA POS] Semáforo VERDE — solo tienda",
+      "precio_venta": 4990,
+      "stock_tienda": 15,
+      "stock_bodega": 0,
+      "semaforo_esperado": "verde",
+      "comportamiento": "Agregar sin banner a pedido; luz verde; fila carro normal."
+    },
+    {
+      "id": "POS-SEM-002",
+      "codigo_barra": "POS-SEM-V2",
+      "nombre": "[PRUEBA POS] Semáforo VERDE — tienda y bodega",
+      "precio_venta": 7990,
+      "stock_tienda": 8,
+      "stock_bodega": 35,
+      "semaforo_esperado": "verde",
+      "comportamiento": "Texto stock dual (Tienda X / Bodega Y); orden prioritario en lista."
+    },
+    {
+      "id": "POS-SEM-003",
+      "codigo_barra": "POS-SEM-A1",
+      "nombre": "[PRUEBA POS] Semáforo AMARILLO — solo bodega",
+      "precio_venta": 6490,
+      "stock_tienda": 0,
+      "stock_bodega": 22,
+      "semaforo_esperado": "amarillo",
+      "comportamiento": "Luz amarilla; agrega al carro sin flujo a pedido. Visible en búsqueda si «Solo vendibles» está OFF."
+    },
+    {
+      "id": "POS-SEM-004",
+      "codigo_barra": "POS-SEM-A2",
+      "nombre": "[PRUEBA POS] Semáforo AMARILLO — bodega baja",
+      "precio_venta": 2990,
+      "stock_tienda": 0,
+      "stock_bodega": 3,
+      "semaforo_esperado": "amarillo",
+      "comportamiento": "Ordena después de verdes; tarjeta sin atenuar agotado."
+    },
+    {
+      "id": "POS-SEM-005",
+      "codigo_barra": "POS-SEM-Z1",
+      "nombre": "[PRUEBA POS] Semáforo AZUL — venta en verde",
+      "precio_venta": 12990,
+      "stock_tienda": 0,
+      "stock_bodega": 0,
+      "semaforo_esperado": "azul",
+      "comportamiento": "Toast + banner; segundo Enter/Confirmar; a_pedido en carro; no valida stock al emitir."
+    },
+    {
+      "id": "POS-SEM-006",
+      "codigo_barra": "POS-SEM-Z2",
+      "nombre": "[PRUEBA POS] AZUL — sin stock (alias búsqueda martillo)",
+      "precio_venta": 15990,
+      "stock_tienda": 0,
+      "stock_bodega": 0,
+      "semaforo_esperado": "azul",
+      "comportamiento": "Mismo flujo Z1; probar búsqueda «martillo sem» junto a V1 para orden semáforo."
+    },
+    {
+      "id": "POS-SEM-007",
+      "codigo_barra": "POS-SEM-Q1",
+      "nombre": "[PRUEBA POS] Límite stock tienda — 2 unidades",
+      "precio_venta": 1990,
+      "stock_tienda": 2,
+      "stock_bodega": 50,
+      "semaforo_esperado": "verde",
+      "comportamiento": "Tercer escaneo en mismo vale debe bloquear (sin_stock); no usar a pedido."
+    },
+    {
+      "id": "POS-SEM-008",
+      "codigo_barra": "POS-SEM-Q2",
+      "nombre": "[PRUEBA POS] Sin stock visual — agotado en lista",
+      "precio_venta": 990,
+      "stock_tienda": 0,
+      "stock_bodega": 0,
+      "semaforo_esperado": "azul",
+      "comportamiento": "Tarjeta atenuada pos-search-card--sin-stock; permite venta verde si config activa."
+    }
+  ]
+}

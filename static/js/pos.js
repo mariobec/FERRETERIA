@@ -72,8 +72,23 @@
       return it && String(it.semaforo || "").toLowerCase() === "azul";
     }
 
+    /** Venta en verde: semáforo azul o sin stock en tienda/bodega con flag habilitado. */
+    function debeAgregarComoApedido(it) {
+      if (!it || it.permite_venta_verde === false) return false;
+      if (esSemaforoAzul(it)) return true;
+      return itemSinStock(it);
+    }
+
     function requiereConfirmacionApedido(it) {
-      return esSemaforoAzul(it) && it.permite_venta_verde !== false;
+      return debeAgregarComoApedido(it);
+    }
+
+    function avisoToastApedido(it) {
+      const dias = Number((it && it.dias_entrega_estimado) || 5);
+      mostrarPosToast(
+        "Producto a pedido. Confirme tiempo estimado con el cliente (~" + dias + " días hábiles).",
+        { delay: 3200, variant: "info" }
+      );
     }
 
     function mostrarBannerApedido(it) {
@@ -81,24 +96,38 @@
       const dias = Number(it.dias_entrega_estimado || 5);
       bannerApedido.innerHTML =
         '<div class="pos-banner-apedido__inner">' +
-        '<strong>Venta en verde (a pedido)</strong> — Entrega estimada: ' +
+        '<strong>Paso 2 — Agregar a pedido</strong> — Entrega estimada: ' +
         dias +
-        " días hábiles. Confirme con el cliente y pulse <kbd>Enter</kbd> o «Confirmar»." +
-        '<button type="button" class="btn btn-sm btn-primary ms-2" id="posBtnConfirmarApedido">Confirmar</button>' +
+        " días hábiles. Confirme con el cliente y pulse " +
+        '<button type="button" class="btn btn-sm btn-primary ms-1" id="posBtnConfirmarApedido">Confirmar y agregar</button>' +
         '<button type="button" class="btn btn-sm btn-link" id="posBtnCancelarApedido">Cancelar</button>' +
+        " (o Enter / segundo clic en la tarjeta)." +
         "</div>";
       bannerApedido.classList.remove("d-none");
+      panel.querySelectorAll(".pos-search-card").forEach(function (el, i) {
+        el.classList.toggle("pos-search-card--apedido-pendiente", pendingApedidoIdx === i);
+      });
       const btnOk = document.getElementById("posBtnConfirmarApedido");
       const btnNo = document.getElementById("posBtnCancelarApedido");
       if (btnOk) {
-        btnOk.addEventListener("click", function () {
-          seleccionarItem(pendingApedidoIdx, true);
+        btnOk.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (pendingApedidoIdx !== null) seleccionarItem(pendingApedidoIdx, true);
         });
+        setTimeout(function () {
+          btnOk.focus();
+        }, 40);
       }
       if (btnNo) {
-        btnNo.addEventListener("click", function () {
+        btnNo.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
           pendingApedidoIdx = null;
           bannerApedido.classList.add("d-none");
+          panel.querySelectorAll(".pos-search-card").forEach(function (el) {
+            el.classList.remove("pos-search-card--apedido-pendiente");
+          });
         });
       }
     }
@@ -321,7 +350,12 @@
         card.addEventListener("mousedown", function (e) {
           e.preventDefault();
           const idx = parseInt(card.getAttribute("data-idx"), 10);
-          if (!isNaN(idx)) seleccionarItem(idx);
+          if (isNaN(idx)) return;
+          if (pendingApedidoIdx === idx) {
+            seleccionarItem(idx, true);
+          } else {
+            seleccionarItem(idx, false);
+          }
         });
       });
     }
@@ -342,6 +376,9 @@
       if (!it || it.producto_id == null) return;
       if (requiereConfirmacionApedido(it) && !confirmadoApedido) {
         pendingApedidoIdx = idx;
+        activeIndex = idx;
+        marcarActivo();
+        avisoToastApedido(it);
         mostrarBannerApedido(it);
         return;
       }
@@ -350,7 +387,8 @@
       hidePanel();
       input.value = "";
       input.blur();
-      const opts = confirmadoApedido ? { a_pedido: true } : null;
+      const opts =
+        confirmadoApedido && debeAgregarComoApedido(it) ? { a_pedido: true } : null;
       posEscanearYAgregar(String(it.producto_id), true, opts);
     }
 
@@ -430,12 +468,14 @@
         e.preventDefault();
         activeIndex = Math.max(0, activeIndex - 1);
         marcarActivo();
-      } else if (e.key === "Enter" && activeIndex >= 0) {
+      } else if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        const confirmar =
-          pendingApedidoIdx === activeIndex && pendingApedidoIdx !== null;
-        seleccionarItem(activeIndex, confirmar);
+        if (pendingApedidoIdx !== null) {
+          seleccionarItem(pendingApedidoIdx, true);
+        } else if (activeIndex >= 0) {
+          seleccionarItem(activeIndex, false);
+        }
       }
     }
 
@@ -610,10 +650,18 @@
       const data = await res.json().catch(function () { return {}; });
       if (res.ok && data.ok) {
         const nom = data.producto_nombre || "producto";
-        const msg = data.linea_incrementada
-          ? "Cantidad " + (data.cantidad_en_vale || "") + ": " + nom
-          : "Agregado: " + nom;
-        mostrarPosToast(msg);
+        const esApedido = !!(opts && opts.a_pedido) || !!data.a_pedido;
+        let msg;
+        if (esApedido) {
+          msg = data.linea_incrementada
+            ? "A pedido · cant. " + (data.cantidad_en_vale || "") + ": " + nom
+            : "A pedido agregado: " + nom;
+        } else {
+          msg = data.linea_incrementada
+            ? "Cantidad " + (data.cantidad_en_vale || "") + ": " + nom
+            : "Agregado: " + nom;
+        }
+        mostrarPosToast(msg, { delay: esApedido ? 2800 : 1500 });
         window.location.reload();
         return;
       }
@@ -712,6 +760,13 @@
   function validarStockLinea(detalleId) {
     const cantidadEl = document.getElementById("cantidad_" + detalleId);
     if (!cantidadEl) return false;
+    const rowApedido = document.getElementById("pos_row_" + detalleId);
+    if (rowApedido && rowApedido.getAttribute("data-a-pedido") === "1") {
+      const alertSkip = document.getElementById("stock_alert_" + detalleId);
+      if (rowApedido) rowApedido.classList.remove("pos-row-stock-error");
+      if (alertSkip) alertSkip.classList.add("d-none");
+      return false;
+    }
     const cantidad = parseFloat(cantidadEl.value) || 0;
     const factorStock = parseFloat(cantidadEl.dataset.factorStock || "1") || 1;
     const stockDisponible = parseFloat(cantidadEl.dataset.stockDisponible || "0") || 0;
@@ -789,13 +844,18 @@
     actualizarSubtotal(detalleId, precioUnitario);
   }
 
-  function mostrarPosToast(mensaje) {
+  function mostrarPosToast(mensaje, opts) {
+    opts = opts || {};
     const body = document.getElementById("posToastBody");
     if (!body) return;
     body.innerText = mensaje;
     const toastEl = document.getElementById("posToast");
     if (!toastEl || typeof bootstrap === "undefined") return;
-    const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 1500 });
+    toastEl.classList.remove("text-bg-info", "text-bg-dark");
+    toastEl.classList.add(opts.variant === "info" ? "text-bg-info" : "text-bg-dark");
+    const toast = bootstrap.Toast.getOrCreateInstance(toastEl, {
+      delay: typeof opts.delay === "number" ? opts.delay : 1500,
+    });
     toast.show();
   }
 

@@ -92,6 +92,13 @@ Cada casuística tiene un **ID** estable. Los tests automatizados referencian el
 - **Pasos:** Emitir vale → revisar pantalla ticket.
 - **Esperado:** Bloques con separadores, prefijos **`[T]` `/ [B]` / `[D]`**, líneas **`TOTAL TIENDA`**, **`TOTAL BODEGA`**, **`TOTAL DESPACHO`** (si aplica) y **`TOTAL A PAGAR`**; tabla **PICKING BODEGA** sólo si hay líneas bodega.
 
+### POS-SEM — Set productos semáforo / venta en verde
+- **Prioridad:** P1
+- **Datos:** `python scripts/seed_pos_semaforo_pruebas.py` → códigos `POS-SEM-*`
+- **Checklist:** `pruebas/pos_semaforo/CHECKLIST.md` (IDs POS-SEM-001 … 010)
+- **Automatizado:** `tests/test_pos_semaforo_catalogo.py` (JSON) · búsqueda en `test_pos_busqueda_semaforo.py`
+- **Nota:** con **Solo vendibles** activo en POS, solo aparecen verdes en el dropdown; amarillo/azul requieren desmarcar el filtro o escanear código.
+
 ### POS-013 — QR despacho opcional en ticket (misma URL para todos)
 - **Prioridad:** P2
 - **Automatizado:** manual

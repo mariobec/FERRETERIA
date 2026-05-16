@@ -742,6 +742,12 @@ body .card.card-ds > .card-header {
     font-size: 0.88rem;
 }
 
+.pos-search-card--apedido-pendiente {
+    outline: 2px solid #0ea5e9;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.2);
+}
+
 .pos-badge-apedido {
     background: #dbeafe !important;
     color: #1e40af !important;
@@ -749,11 +755,13 @@ body .card.card-ds > .card-header {
     letter-spacing: 0.02em;
 }
 
-.pos-row-apedido {
-    background: linear-gradient(90deg, rgba(219, 234, 254, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
+.pos-row-apedido,
+.table-light-blue {
+    background: linear-gradient(90deg, rgba(13, 202, 240, 0.06) 0%, rgba(255, 255, 255, 0) 100%);
 }
 
-.pos-row-apedido td {
+.pos-row-apedido td,
+.table-light-blue td {
     border-top-color: rgba(147, 197, 253, 0.35);
 }
 

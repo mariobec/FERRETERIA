@@ -600,12 +600,12 @@
           <tbody>
             {% for d in detalles %}
             {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
-            <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido{% endif %}">
+            <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido table-light-blue{% endif %}" data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}">
               <td><span class="badge bg-secondary">{{ d.producto.codigo_barra }}</span></td>
               <td>
                 {{ d.producto.nombre }}
                 {% if d.a_pedido %}
-                <span class="badge pos-badge-apedido ms-1">A pedido</span>
+                <span class="badge bg-info text-dark ms-2 pos-badge-apedido" style="font-size: 0.75rem;"><i class="fas fa-clock" aria-hidden="true"></i> A pedido</span>
                 {% endif %}
               </td>
               {% if pos_retiro_por_linea %}
@@ -992,7 +992,7 @@
   'pos_retiro_por_linea': pos_retiro_por_linea,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-semaforo-luz-20260519b"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-apedido-paso2-20260520b"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
