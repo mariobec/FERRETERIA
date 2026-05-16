@@ -12157,20 +12157,34 @@ def finalizar_venta():
                     db.session.flush()
 
             pendientes = Venta.query.filter_by(estado="Pendiente").count()
-            venta.prioridad = pendientes + 1
-            venta.cliente_id = cliente.id
-            venta.estado = "Pendiente"
-            if mixto_emp:
-                for d in venta.detalles or []:
-                    d.punto_retiro_linea = ((getattr(d, 'punto_retiro_linea', None) or '') or 'Tienda').strip()
-            venta.punto_retiro = pr_final
+            prioridad = pendientes + 1
+
+            from core.application.bootstrap import build_finalizar_venta_use_case
+            from core.application.ventas.commands import FinalizarVentaCommand
+
+            build_finalizar_venta_use_case(transaccion_critica=None, validar_stock=False).execute(
+                FinalizarVentaCommand(
+                    venta_id=venta.id,
+                    cliente_id=cliente.id,
+                    punto_retiro=pr_final,
+                    usuario_vendedor=vendedor_actual,
+                    prioridad_cola=prioridad,
+                    retiro_por_linea=mixto_emp,
+                )
+            )
+            venta = Venta.query.get(venta.id)
         db.session.commit()
     except _GuardarVentaAbort as ab:
         db.session.rollback()
         flash(ab.message, ab.category)
         return redirect(url_for('punto_venta'))
     except Exception as ex:
+        from core.domain.venta.exceptions import VentaDomainError
+
         db.session.rollback()
+        if isinstance(ex, VentaDomainError):
+            flash(str(ex), 'warning')
+            return redirect(url_for('punto_venta'))
         app.logger.exception('finalizar_venta: %s', ex)
         flash(f'No se pudo emitir el vale: {ex}', 'danger')
         return redirect(url_for('punto_venta'))
@@ -13292,52 +13306,10 @@ def procesar_cobro_caja(id):
     total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
 
     try:
-        # Preparamos y validamos todas las líneas antes de mutar venta/stock.
-        lineas_stock = []
-        agrupado_tienda = _stock_service.consumo_tienda_agrupado_por_producto(venta)
-        for pid, info in agrupado_tienda.items():
-            if info.get('invalido'):
-                raise ValueError(f"Conversión inválida para {info.get('nombre') or pid}.")
-            need = int(info.get('consumo') or 0)
-            if need <= 0:
-                continue
-            producto = Producto.query.get(pid)
-            if not producto:
-                raise ValueError('Producto no encontrado en línea de venta.')
-            disp = stock_disponible_venta_tienda(producto)
-            if disp < need:
-                raise ValueError(
-                    f"Stock insuficiente para {producto.nombre} "
-                    f"(disponible tienda: {disp}, requerido: {need})."
-                )
-        for d in list(venta.detalles or []):
-            producto = Producto.query.get(d.id_producto)
-            if not producto:
-                raise ValueError(f"Producto no encontrado en línea #{d.id}.")
-            factor_venta_stock = _factor_venta_a_stock(producto)
-            consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
-            if consumo_stock <= 0:
-                raise ValueError(f"Conversión inválida para {producto.nombre}.")
-            ya_bod = _venta_consumo_ya_despachado_bodega(venta, d.id)
-            pr_line = (_detalle_punto_retiro_efectivo(d, venta) or '').strip()
-            if pr_line == 'Bodega':
-                consumo_tienda = 0
-                necesita_bod = max(0, consumo_stock - ya_bod)
-                if necesita_bod > 0:
-                    disp_b = stock_disponible_bodega(producto)
-                    if disp_b < necesita_bod:
-                        raise ValueError(
-                            f"Stock insuficiente en bodega para {producto.nombre} (hay {disp_b}, requiere {necesita_bod})."
-                        )
-            else:
-                consumo_tienda = max(0, consumo_stock - ya_bod)
-            lineas_stock.append({
-                'detalle_id': d.id,
-                'producto_id': producto.id,
-                'cantidad_venta': d.cantidad or 0,
-                'consumo_stock': consumo_stock,
-                'consumo_tienda': consumo_tienda,
-            })
+        from core.application.bootstrap import build_descontar_stock_cobro_service
+
+        stock_cobro_svc = build_descontar_stock_cobro_service()
+        lineas_stock = stock_cobro_svc.preparar_lineas(venta.id)
 
         # Partimos la transacción real desde un estado limpio. Esto evita que
         # un SELECT/validación previa deje Postgres en InFailedSqlTransaction.
@@ -13371,29 +13343,35 @@ def procesar_cobro_caja(id):
         usr_cobro = (current_user.nombre or '')[:120] if current_user.is_authenticated else None
 
         with transaccion_critica():
-            venta.metodo_pago = metodo
-            venta.tipo_documento = tipo_doc
-            venta.caja_id = caja_activa.id
+            from core.application.bootstrap import build_procesar_cobro_use_case
+            from core.application.ventas.commands import ProcesarCobroCommand
+
+            plan_cuotas = None
+            if metodo == "Credito":
+                plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
+
+            build_procesar_cobro_use_case(transaccion_critica=None).execute(
+                ProcesarCobroCommand(
+                    venta_id=venta.id,
+                    caja_id=caja_activa.id,
+                    metodo_pago=metodo,
+                    tipo_documento=tipo_doc,
+                    monto_recibido=monto_recibido,
+                    saldo_favor_usado=saldo_favor_usado,
+                    credito_plan_codigo=plan_cuotas,
+                    usuario_cobro=usr_cobro,
+                )
+            )
+            venta = Venta.query.options(joinedload(Venta.detalles)).filter_by(id=venta.id).first()
             venta.fecha = datetime.now()
-            venta.desglosar_iva()
 
             if metodo == "Credito":
-                venta.estado = "Pendiente"
-                venta.monto_recibido = 0
-                venta.vuelto = 0
-                venta.saldo_favor_usado = 0
-                plan_cuotas = _plan_cuotas_credito_valido(request.form.get('credito_plan_cuotas'))
-                venta.credito_plan_codigo = plan_cuotas or None
                 VentaCuotaCredito.query.filter_by(venta_id=venta.id).delete(synchronize_session=False)
                 if plan_cuotas:
                     _registrar_cuotas_credito_venta(venta, plan_cuotas, venta.fecha)
                 if venta.cliente:
                     venta.cliente.saldo_deudor = (venta.cliente.saldo_deudor or 0) + venta.monto_total
             else:
-                venta.estado = "Pagado"
-                venta.monto_recibido = monto_recibido
-                venta.vuelto = monto_recibido - total_a_pagar
-                venta.saldo_favor_usado = saldo_favor_usado
                 if saldo_favor_usado > 0:
                     _aplicar_mov_saldo_favor(
                         venta.cliente_id,
@@ -13412,28 +13390,12 @@ def procesar_cobro_caja(id):
                     venta.bodega_preparacion_at = None
                     venta.bodega_preparacion_cobrado_at = datetime.now()
 
-            for linea in lineas_stock:
-                producto = Producto.query.get(linea['producto_id'])
-                if not producto:
-                    raise ValueError(f"Producto no encontrado en línea #{linea['detalle_id']}.")
-                consumo_tienda = int(linea.get('consumo_tienda', linea['consumo_stock']) or 0)
-                if consumo_tienda <= 0:
-                    continue
-                err_st = descontar_stock_venta_tienda(producto, consumo_tienda)
-                if err_st:
-                    raise ValueError(f"{producto.nombre}: {err_st}")
-                registrar_movimiento_kardex(
-                    producto.id,
-                    'SALIDA',
-                    consumo_tienda,
-                    f"Cobro vale/venta #{venta.id} ({metodo})"
-                    f" ({linea['cantidad_venta']} {producto.unidad_venta_final} -> {consumo_tienda} stock tienda)",
-                    usuario=current_user.nombre,
-                    id_almacen=id_almacen_tienda() or 1,
-                    referencia_tipo='venta',
-                    referencia_id=venta.id,
-                    stock_saldo=None,
-                )
+            stock_cobro_svc.aplicar_descontos(
+                venta.id,
+                lineas_stock,
+                metodo,
+                usr_cobro or (current_user.nombre if current_user.is_authenticated else None),
+            )
 
             _audit_log(
                 'cobro_vale',
@@ -13538,8 +13500,15 @@ def procesar_cobro_caja(id):
                 )
             )
 
-    except Exception as e: # <--- Ahora este except sí tiene su try
+    except Exception as e:  # <--- Ahora este except sí tiene su try
+        from core.domain.venta.exceptions import VentaDomainError
+
         db.session.rollback()
+        if isinstance(e, VentaDomainError):
+            if _cobro_respuesta_json_solicitada():
+                return jsonify({'exito': False, 'error': str(e)}), 400
+            flash(str(e), 'warning')
+            return redirect(url_for('caja_pendientes'))
         app.logger.exception('procesar_cobro_caja FALLO vale #%s: %s', id, e)
         if _cobro_respuesta_json_solicitada():
             return jsonify({'exito': False, 'error': str(e)}), 500

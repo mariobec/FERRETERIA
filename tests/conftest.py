@@ -333,30 +333,42 @@ def crear_venta_pendiente(productos_cantidades, caja, cliente, punto_retiro='Tie
 
 
 def cobrar_venta_efectivo(venta, caja):
+    """Cobro QA alineado a producción: use case core + descontar stock/kardex."""
+    from core.application.bootstrap import (
+        build_descontar_stock_cobro_service,
+        build_procesar_cobro_use_case,
+    )
+    from core.application.ventas.commands import ProcesarCobroCommand
     from services.venta_service import transaccion_critica
+
+    monto_rec = float(venta.monto_total or 0) + 10
+    stock_svc = build_descontar_stock_cobro_service()
+    lineas = stock_svc.preparar_lineas(venta.id)
+
     with transaccion_critica():
-        venta.estado = 'Pagado'
-        venta.metodo_pago = 'Efectivo'
-        venta.tipo_documento = 'Boleta'
-        venta.monto_recibido = venta.monto_total + 10
-        venta.vuelto = venta.monto_recibido - venta.monto_total
-        aid_t = m.id_almacen_tienda() or 1
-        for det in venta.detalles:
-            prod = db.session.get(m.Producto, det.id_producto)
-            factor = m._factor_venta_a_stock(prod)
-            consumo = int(det.cantidad * factor)
-            err = m.descontar_stock_venta_tienda(prod, consumo)
-            assert err is None, f'Error descontando stock: {err}'
-            m.registrar_movimiento_kardex(
-                id_producto=prod.id, tipo_movimiento='SALIDA',
-                cantidad=consumo, motivo=f'Cobro QA #{venta.id}',
-                usuario=QA_USER, id_almacen=aid_t,
-                referencia_tipo='venta', referencia_id=venta.id)
-        db.session.add(m.MovimientoCaja(
-            caja_id=caja.id, tipo='Ingreso',
-            concepto=f'Cobro vale #{venta.id} (QA test)',
-            monto=venta.monto_total, usuario_registro=QA_USER))
+        build_procesar_cobro_use_case(transaccion_critica=None).execute(
+            ProcesarCobroCommand(
+                venta_id=venta.id,
+                caja_id=caja.id,
+                metodo_pago='Efectivo',
+                tipo_documento='Boleta',
+                monto_recibido=monto_rec,
+                saldo_favor_usado=0.0,
+            )
+        )
+        stock_svc.aplicar_descontos(venta.id, lineas, 'Efectivo', QA_USER)
+        vr = db.session.get(m.Venta, venta.id)
+        db.session.add(
+            m.MovimientoCaja(
+                caja_id=caja.id,
+                tipo='Ingreso',
+                concepto=f'Cobro vale #{venta.id} (QA test)',
+                monto=vr.monto_total,
+                usuario_registro=QA_USER,
+            )
+        )
     db.session.commit()
+    db.session.refresh(venta)
 
 
 def cobrar_venta_efectivo_con_audit(venta, caja):
