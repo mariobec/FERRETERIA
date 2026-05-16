@@ -33,6 +33,300 @@
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(valor);
   }
 
+  /**
+   * Asistente de búsqueda manual: input único + panel de tarjetas (sin Select2 visible).
+   */
+  function initPosManualSearch(buscarUrl) {
+    const panel = document.getElementById("pos-search-suggestions");
+    const input = document.getElementById("posBuscarManual");
+    const hero = document.querySelector(".pos-manual-search-hero");
+    if (!panel || !input || !buscarUrl) return null;
+
+    function setSuggestOpen(open) {
+      if (hero) hero.classList.toggle("pos-manual-search-hero--suggest-open", !!open);
+    }
+
+    let activeIndex = -1;
+    let lastItems = [];
+    let debounceTimer = null;
+    let fetchCtrl = null;
+    function posSoloVendiblesActivo() {
+      const chk = document.getElementById("posSoloVendibles");
+      return !!(chk && chk.checked);
+    }
+
+    function hidePanel() {
+      panel.classList.add("d-none");
+      panel.innerHTML = "";
+      activeIndex = -1;
+      lastItems = [];
+      setSuggestOpen(false);
+    }
+
+    function escapeHtml(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function badgeClass(tipo) {
+      const t = String(tipo || "").toLowerCase();
+      if (t === "economica" || t === "premium" || t === "tienda" || t === "bodega" || t === "sin_stock") {
+        return "pos-search-badge pos-search-badge--" + t;
+      }
+      return "pos-search-badge";
+    }
+
+    function stockLinea(it) {
+      const u = escapeHtml(it.unidad || "un");
+      const st = Number(it.stock_tienda || 0);
+      const sb = Number(it.stock_bodega || 0);
+      const tot = Number(it.stock_total != null ? it.stock_total : st + sb);
+      if (st > 0 && sb > 0) {
+        return (
+          "Stock: <strong>" + tot + " " + u + "</strong> (Tienda: " + st + " / Bodega: " + sb + ")"
+        );
+      }
+      if (st > 0) {
+        return "Stock: <strong>" + st + " " + u + "</strong> (Tienda)";
+      }
+      if (sb > 0) {
+        return "Stock: <strong>" + sb + " " + u + "</strong> (Bodega)";
+      }
+      return 'Stock: <strong class="text-danger">0</strong> ' + u;
+    }
+
+    function renderItems(items) {
+      if (!items.length) {
+        panel.innerHTML =
+          '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
+          '<div class="pos-search-suggestions__empty">Sin coincidencias. Pruebe otro término o use Catálogo.</div>';
+        panel.classList.remove("d-none");
+        setSuggestOpen(true);
+        return;
+      }
+      const html = items
+        .map(function (it, idx) {
+          const badges = (it.badges || [])
+            .map(function (b) {
+              return (
+                '<span class="' +
+                badgeClass(b.tipo) +
+                '">' +
+                escapeHtml(b.label || "") +
+                "</span>"
+              );
+            })
+            .join("");
+          const marca = (it.marca || "").trim();
+          const meta = "SKU: " + escapeHtml(it.codigo || "") + (marca ? " · Marca: " + escapeHtml(marca) : "");
+          return (
+            '<article class="pos-search-card' +
+            (idx === activeIndex ? " is-active" : "") +
+            '" role="option" data-idx="' +
+            idx +
+            '" data-producto-id="' +
+            escapeHtml(it.producto_id) +
+            '" aria-selected="' +
+            (idx === activeIndex ? "true" : "false") +
+            '">' +
+            '<div class="pos-search-card__main">' +
+            '<p class="pos-search-card__title">' +
+            escapeHtml(it.nombre || it.text || "") +
+            "</p>" +
+            '<p class="pos-search-card__meta">' +
+            meta +
+            "</p>" +
+            '<p class="pos-search-card__stock">' +
+            stockLinea(it) +
+            "</p>" +
+            "</div>" +
+            '<div class="pos-search-card__right">' +
+            '<div class="pos-search-card__price-label">P. LISTA</div>' +
+            '<div class="pos-search-card__price">' +
+            escapeHtml(it.precio_fmt || formatoCLP(it.precio || 0)) +
+            "</div>" +
+            (badges ? '<div class="pos-search-card__badges">' + badges + "</div>" : "") +
+            '<div class="pos-search-card__add"><i class="fas fa-plus"></i> Agregar</div>' +
+            "</div>" +
+            "</article>"
+          );
+        })
+        .join("");
+      panel.innerHTML =
+        '<div class="pos-search-suggestions__head">Asistente de precios · ' +
+        items.length +
+        " resultado" +
+        (items.length === 1 ? "" : "s") +
+        "</div>" +
+        html;
+      panel.classList.remove("d-none");
+      setSuggestOpen(true);
+      panel.querySelectorAll(".pos-search-card").forEach(function (card) {
+        card.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          const idx = parseInt(card.getAttribute("data-idx"), 10);
+          if (!isNaN(idx)) seleccionarItem(idx);
+        });
+      });
+    }
+
+    function marcarActivo() {
+      panel.querySelectorAll(".pos-search-card").forEach(function (el, i) {
+        el.classList.toggle("is-active", i === activeIndex);
+        el.setAttribute("aria-selected", i === activeIndex ? "true" : "false");
+      });
+      const active = panel.querySelector(".pos-search-card.is-active");
+      if (active && typeof active.scrollIntoView === "function") {
+        active.scrollIntoView({ block: "nearest" });
+      }
+    }
+
+    function seleccionarItem(idx) {
+      const it = lastItems[idx];
+      if (!it || it.producto_id == null) return;
+      hidePanel();
+      input.value = "";
+      posEscanearYAgregar(String(it.producto_id), true);
+    }
+
+    function ejecutarBusqueda(term) {
+      const q = (term || "").trim();
+      if (q.length < 3) {
+        hidePanel();
+        return;
+      }
+      if (fetchCtrl) fetchCtrl.abort();
+      fetchCtrl = new AbortController();
+      panel.innerHTML =
+        '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
+        '<div class="pos-search-suggestions__loading"><i class="fas fa-spinner fa-spin me-1"></i> Buscando…</div>';
+      panel.classList.remove("d-none");
+      setSuggestOpen(true);
+
+      const params = new URLSearchParams({
+        q: q,
+        origen: "pos",
+        enriquecido: "1",
+        solo_vendibles: posSoloVendiblesActivo() ? "1" : "0",
+      });
+      fetch(buscarUrl + "?" + params.toString(), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: fetchCtrl.signal,
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          lastItems = data && Array.isArray(data.results) ? data.results : [];
+          activeIndex = lastItems.length ? 0 : -1;
+          if (lastItems.length) {
+            renderItems(lastItems);
+          } else {
+            panel.innerHTML =
+              '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
+              '<div class="pos-search-suggestions__empty">Sin coincidencias. Pruebe otro término o use Catálogo.</div>';
+            panel.classList.remove("d-none");
+            setSuggestOpen(true);
+          }
+        })
+        .catch(function (err) {
+          if (err && err.name === "AbortError") return;
+          panel.innerHTML =
+            '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
+            '<div class="pos-search-suggestions__empty">No se pudo cargar la búsqueda.</div>';
+          panel.classList.remove("d-none");
+        });
+    }
+
+    function onInputKeydown(e) {
+      if (e.key === "Escape") {
+        if (!panel.classList.contains("d-none")) {
+          e.preventDefault();
+          hidePanel();
+        }
+        return;
+      }
+      if (panel.classList.contains("d-none") || !lastItems.length) {
+        if (e.key === "Enter") {
+          const q = (input.value || "").trim();
+          if (q.length >= 3) {
+            e.preventDefault();
+            ejecutarBusqueda(q);
+          }
+        }
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        activeIndex = Math.min(lastItems.length - 1, activeIndex + 1);
+        marcarActivo();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        activeIndex = Math.max(0, activeIndex - 1);
+        marcarActivo();
+      } else if (e.key === "Enter" && activeIndex >= 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        seleccionarItem(activeIndex);
+      }
+    }
+
+
+    input.addEventListener("input", function () {
+      clearTimeout(debounceTimer);
+      const term = (input.value || "").trim();
+      if (term.length < 3) {
+        hidePanel();
+        return;
+      }
+      debounceTimer = setTimeout(function () {
+        ejecutarBusqueda(term);
+      }, 280);
+    });
+
+    input.addEventListener("focus", function () {
+      const term = (input.value || "").trim();
+      if (term.length >= 3 && !lastItems.length) {
+        ejecutarBusqueda(term);
+      }
+    });
+
+    input.addEventListener("keydown", onInputKeydown);
+
+    document.addEventListener("click", function (e) {
+      if (!hero) return;
+      if (hero.contains(e.target)) return;
+      hidePanel();
+    });
+
+    const formBusqueda = document.getElementById("formAgregarProductoBusqueda");
+    if (formBusqueda) {
+      formBusqueda.addEventListener("submit", function (e) {
+        const hidPid = document.getElementById("posSeleccionProductoId");
+        if (hidPid && hidPid.value) return;
+        if (lastItems.length && activeIndex >= 0) {
+          e.preventDefault();
+          seleccionarItem(activeIndex);
+          return;
+        }
+        const q = (input.value || "").trim();
+        e.preventDefault();
+        if (q.length >= 3) {
+          ejecutarBusqueda(q);
+          mostrarPosToast("Elija un producto de la lista (flechas y Enter).");
+        } else {
+          mostrarPosToast("Escriba al menos 3 caracteres para buscar.");
+        }
+      });
+    }
+
+    return { hidePanel: hidePanel, focusInput: function () { input.focus(); input.select(); } };
+  }
+
   function actualizarTotalesVisuales(total) {
     const rounded = Math.round(total || 0);
     const totalFmt = formatoCLP(rounded);
@@ -1407,7 +1701,12 @@
       btnBuscarSim.addEventListener("click", function () {
         if (posModalProductoNoEncontrado) posModalProductoNoEncontrado.hide();
         const term = posUltimoCodigoEscaneado || "";
-        if ($("#buscarProducto").length) {
+        const inpManual = document.getElementById("posBuscarManual");
+        if (inpManual) {
+          inpManual.value = term;
+          inpManual.focus();
+          inpManual.dispatchEvent(new Event("input", { bubbles: true }));
+        } else if ($("#buscarProducto").length) {
           const $sel = $("#buscarProducto");
           const opt = new Option(term, term, true, true);
           $sel.append(opt).trigger("change");
@@ -1420,85 +1719,86 @@
       btnGuardarAlta.addEventListener("click", guardarPosProductoAltaRapida);
     }
 
-    if ($("#buscarProducto").length) {
-      function posSoloVendiblesActivo() {
+    let posManualSearchApi = null;
+    const inpBuscarManual = document.getElementById("posBuscarManual");
+    if (inpBuscarManual && u.buscar_producto) {
+      posManualSearchApi = initPosManualSearch(u.buscar_producto);
+    }
+
+    const chkVend = document.getElementById("posSoloVendibles");
+    function syncPosFiltroBusquedaBotones() {
+      const bV = document.getElementById("posBtnFiltroVenta");
+      const bC = document.getElementById("posBtnFiltroCatalogo");
+      if (!chkVend || !bV || !bC) return;
+      const strict = !!chkVend.checked;
+      bV.classList.toggle("btn-primary", strict);
+      bV.classList.toggle("btn-outline-secondary", !strict);
+      bC.classList.toggle("btn-primary", !strict);
+      bC.classList.toggle("btn-outline-secondary", strict);
+    }
+    function limpiarBusquedaManualPos() {
+      if (inpBuscarManual) inpBuscarManual.value = "";
+      if (posManualSearchApi && posManualSearchApi.hidePanel) posManualSearchApi.hidePanel();
+    }
+    if (chkVend) {
+      chkVend.addEventListener("change", function () {
+        syncPosFiltroBusquedaBotones();
+        limpiarBusquedaManualPos();
+        const term = inpBuscarManual ? (inpBuscarManual.value || "").trim() : "";
+        if (term.length >= 3 && inpBuscarManual) {
+          inpBuscarManual.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
+    }
+    const bVenta = document.getElementById("posBtnFiltroVenta");
+    const bCat = document.getElementById("posBtnFiltroCatalogo");
+    if (chkVend && bVenta && bCat) {
+      bVenta.addEventListener("click", function () {
+        chkVend.checked = true;
+        chkVend.dispatchEvent(new Event("change"));
+      });
+      bCat.addEventListener("click", function () {
+        chkVend.checked = false;
+        chkVend.dispatchEvent(new Event("change"));
+      });
+      syncPosFiltroBusquedaBotones();
+    }
+
+    if ($("#buscarProducto").length && u.buscar_producto) {
+      function posSoloVendiblesDeck() {
         const chk = document.getElementById("posSoloVendibles");
         return !!(chk && chk.checked);
       }
-
       $("#buscarProducto").select2({
         theme: "bootstrap-5",
-        placeholder: "Nombre, código de barras, interno o referencia…",
+        placeholder: "Buscar producto…",
         allowClear: true,
-        minimumInputLength: 2,
-        language: {
-          inputTooShort: () => "Por favor, introduzca 2 o más caracteres",
-          noResults: () => "No se encontraron productos",
-          searching: () => "Buscando...",
-        },
+        minimumInputLength: 3,
         ajax: {
           url: u.buscar_producto,
           dataType: "json",
           delay: 280,
-          timeout: 25000,
           data: function (params) {
             return {
               q: params.term || "",
-              solo_vendibles: posSoloVendiblesActivo() ? "1" : "0",
+              solo_vendibles: posSoloVendiblesDeck() ? "1" : "0",
               origen: "pos",
             };
           },
           processResults: function (data) {
-            try {
-              return { results: data && Array.isArray(data.results) ? data.results : [] };
-            } catch (e) {
-              return { results: [] };
-            }
+            return { results: data && Array.isArray(data.results) ? data.results : [] };
           },
           cache: false,
         },
       });
-
-      const hidPid = document.getElementById("posSeleccionProductoId");
+      const hidPidDeck = document.getElementById("posSeleccionProductoId");
       $("#buscarProducto").on("select2:select", function (e) {
         const d = e.params && e.params.data;
-        if (hidPid && d && d.producto_id != null) hidPid.value = String(d.producto_id);
+        if (hidPidDeck && d && d.producto_id != null) hidPidDeck.value = String(d.producto_id);
       });
       $("#buscarProducto").on("select2:clear", function () {
-        if (hidPid) hidPid.value = "";
+        if (hidPidDeck) hidPidDeck.value = "";
       });
-
-      const chkVend = document.getElementById("posSoloVendibles");
-      function syncPosFiltroBusquedaBotones() {
-        const bV = document.getElementById("posBtnFiltroVenta");
-        const bC = document.getElementById("posBtnFiltroCatalogo");
-        if (!chkVend || !bV || !bC) return;
-        const strict = !!chkVend.checked;
-        bV.classList.toggle("btn-primary", strict);
-        bV.classList.toggle("btn-outline-secondary", !strict);
-        bC.classList.toggle("btn-primary", !strict);
-        bC.classList.toggle("btn-outline-secondary", strict);
-      }
-      if (chkVend) {
-        chkVend.addEventListener("change", function () {
-          syncPosFiltroBusquedaBotones();
-          const $sel = $("#buscarProducto");
-          $sel.val(null).trigger("change");
-        });
-      }
-      const bVenta = document.getElementById("posBtnFiltroVenta");
-      const bCat = document.getElementById("posBtnFiltroCatalogo");
-      if (chkVend && bVenta && bCat) {
-        bVenta.addEventListener("click", function () {
-          chkVend.checked = true;
-          chkVend.dispatchEvent(new Event("change"));
-        });
-        bCat.addEventListener("click", function () {
-          chkVend.checked = false;
-          chkVend.dispatchEvent(new Event("change"));
-        });
-        syncPosFiltroBusquedaBotones();
-      }
     }
 
     const sumLineas = posSumarSubtotalesFilasBrutas();
@@ -1695,7 +1995,13 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "F2") {
         e.preventDefault();
-        $("#buscarProducto").select2("open");
+        const inp = document.getElementById("posBuscarManual");
+        if (inp) {
+          inp.focus();
+          inp.select();
+        } else if ($("#buscarProducto").length) {
+          $("#buscarProducto").select2("open");
+        }
       }
       if (e.key === "F3") {
         if (isTypingInField(e.target)) return;

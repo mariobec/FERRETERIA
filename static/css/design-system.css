@@ -458,6 +458,147 @@ body .card.card-ds > .card-header {
     border-bottom: 1px solid var(--ds-border);
 }
 
+/* POS — panel de sugerencias de búsqueda manual (asistente precios/alternativas) */
+.pos-search-suggestions {
+    position: relative;
+    width: 100%;
+    z-index: 2;
+    max-height: min(420px, 52vh);
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--ds-surface);
+    border: 2px solid rgba(124, 58, 237, 0.22);
+    border-radius: var(--ds-radius-md);
+    box-shadow: var(--ds-shadow-md);
+    padding: 0.35rem;
+}
+
+.pos-search-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem 1rem;
+    align-items: center;
+    padding: 0.7rem 0.75rem;
+    border-radius: var(--ds-radius-sm);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.pos-search-card:hover,
+.pos-search-card.is-active {
+    background: #fff7ed;
+    border-color: rgba(243, 112, 33, 0.35);
+}
+
+.pos-search-card__title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ds-text);
+    line-height: 1.25;
+    margin: 0 0 0.2rem;
+}
+
+.pos-search-card__meta {
+    font-size: 0.78rem;
+    color: var(--ds-text-muted);
+    margin: 0;
+}
+
+.pos-search-card__stock {
+    font-size: 0.8rem;
+    color: #334155;
+    margin: 0.25rem 0 0;
+}
+
+.pos-search-card__stock strong {
+    color: var(--ds-text);
+}
+
+.pos-search-card__right {
+    text-align: right;
+    min-width: 7.5rem;
+}
+
+.pos-search-card__price-label {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ds-text-muted);
+    margin-bottom: 0.1rem;
+}
+
+.pos-search-card__price {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--ds-primary);
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.pos-search-card__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    justify-content: flex-end;
+    margin-top: 0.35rem;
+}
+
+.pos-search-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--ds-border);
+    background: var(--ds-surface-muted);
+    color: var(--ds-text-muted);
+}
+
+.pos-search-badge--economica {
+    background: #ecfdf5;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.pos-search-badge--premium {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1e40af;
+}
+
+.pos-search-badge--tienda {
+    background: #fff7ed;
+    border-color: #fdba74;
+    color: #9a3412;
+}
+
+.pos-search-badge--bodega {
+    background: #f5f3ff;
+    border-color: #c4b5fd;
+    color: #5b21b6;
+}
+
+.pos-search-badge--sin_stock {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+.pos-search-card__add {
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ds-primary-strong);
+}
+
+.pos-search-suggestions__empty,
+.pos-search-suggestions__loading {
+    padding: 0.85rem 0.75rem;
+    font-size: 0.85rem;
+    color: var(--ds-text-muted);
+}
+
 /* Sidebar: menos altura útil (zoom, portátil, ventana no maximizada) — compacta sin perder legibilidad. */
 @media (max-height: 780px) {
     .app-sidebar-header--compact {

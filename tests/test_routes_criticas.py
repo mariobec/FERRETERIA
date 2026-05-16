@@ -590,6 +590,21 @@ class TestRutasAltoTrafico:
         assert 'results' in data
         assert len(data['results']) >= 1
 
+    def test_buscar_producto_pos_enriquecido(self, app_client, productos_con_stock):
+        p = productos_con_stock[0]
+        r = app_client.get(
+            f'/buscar_producto?q={p.nombre[:6]}&origen=pos&enriquecido=1&solo_vendibles=0'
+        )
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data['results']
+        row = data['results'][0]
+        for key in (
+            'nombre', 'codigo', 'precio', 'precio_fmt', 'marca',
+            'stock_tienda', 'stock_bodega', 'stock_total', 'badges',
+        ):
+            assert key in row
+
     def test_buscar_producto_por_codigo_barra(self, app_client, productos_con_stock):
         p = productos_con_stock[0]
         r = app_client.get(f'/api/buscar_producto/{p.codigo_barra}')

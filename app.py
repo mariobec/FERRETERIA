@@ -2465,6 +2465,64 @@ def stock_tienda_por_producto_ids(ids):
     return {p.id: int(p.stock or 0) for p in prods}
 
 
+def stock_bodega_por_producto_ids(ids):
+    """Mapa id_producto -> stock en BODEGA."""
+    ids = [int(x) for x in ids if x is not None]
+    if not ids:
+        return {}
+    bid = id_almacen_bodega()
+    if bid and _tablas_inventario_almacen_existen():
+        rows = (
+            db.session.query(StockPorAlmacen.id_producto, StockPorAlmacen.cantidad)
+            .filter(
+                StockPorAlmacen.id_almacen == bid,
+                StockPorAlmacen.id_producto.in_(ids),
+            )
+            .all()
+        )
+        por_id = {int(pid): int(cant or 0) for pid, cant in rows}
+        for pid in ids:
+            por_id.setdefault(int(pid), 0)
+        return por_id
+    return {int(i): 0 for i in ids}
+
+
+def _fmt_clp_busqueda_pos(valor):
+    return f"${int(round(float(valor or 0))):,}".replace(",", ".")
+
+
+def _producto_marca_desde_row(row, cols):
+    for key in ("marca", "fabricante", "categoria", "subcategoria"):
+        if key in cols:
+            txt = (row.get(key) or "").strip()
+            if txt:
+                return txt[:64]
+    return ""
+
+
+def _precio_lista_desde_row_producto(row):
+    return max(float(row.get("precio_venta") or 0), float(row.get("precio_mayoreo") or 0))
+
+
+def _badges_busqueda_pos(item, precio_min, precio_max):
+    badges = []
+    st_t = int(item.get("stock_tienda") or 0)
+    st_b = int(item.get("stock_bodega") or 0)
+    precio = float(item.get("precio") or 0)
+    if st_t > 0:
+        badges.append({"tipo": "tienda", "label": "En mostrador"})
+    elif st_b > 0:
+        badges.append({"tipo": "bodega", "label": "Retiro bodega"})
+    else:
+        badges.append({"tipo": "sin_stock", "label": "Sin stock"})
+    if precio_max > precio_min:
+        if precio <= precio_min:
+            badges.append({"tipo": "economica", "label": "Alternativa económica"})
+        elif precio >= precio_max:
+            badges.append({"tipo": "premium", "label": "Gama premium"})
+    return badges
+
+
 def _stock_ui_producto(producto):
     """Resumen consistente para vistas de inventario: maestro vs almacenes."""
     total_maestro = int(producto.stock or 0)
@@ -13559,8 +13617,16 @@ def buscar_producto():
         if not {'id', 'nombre'}.issubset(cols):
             return jsonify({"results": []})
 
+        enriquecido = request.args.get('enriquecido', '').strip().lower() in (
+            '1', 'true', 'si', 'yes', 'on'
+        )
+
         campos = ['id', 'nombre']
-        for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat', 'precio_venta', 'precio_mayoreo', 'stock'):
+        for c in (
+            'codigo_barra', 'codigo_interno', 'codigo_chilemat',
+            'precio_venta', 'precio_mayoreo', 'stock', 'unidad', 'unidad_venta',
+            'marca', 'fabricante', 'categoria', 'subcategoria',
+        ):
             if c in cols:
                 campos.append(c)
 
@@ -13578,14 +13644,14 @@ def buscar_producto():
 
         if _substr_match:
             filtros = [_substr_match('nombre')]
-            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat'):
+            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat', 'marca', 'fabricante', 'categoria', 'subcategoria'):
                 if c in cols:
                     filtros.append(_substr_match(c))
         else:
             like = f"%{q}%"
             params['like'] = like
             filtros = ["LOWER(nombre) LIKE LOWER(:like)"]
-            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat'):
+            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat', 'marca', 'fabricante', 'categoria', 'subcategoria'):
                 if c in cols:
                     filtros.append(f"LOWER({c}) LIKE LOWER(:like)")
 
@@ -13624,13 +13690,15 @@ def buscar_producto():
         app.logger.exception("buscar_producto falló; devolviendo lista vacía para no romper Select2: %s", ex)
         return jsonify({"results": []})
 
-    if solo_vendibles and productos:
-        pid_list = [int(r['id']) for r in productos if r.get('id') is not None]
-        stock_t = stock_tienda_por_producto_ids(pid_list)
-        productos = [r for r in productos if stock_t.get(int(r['id']), 0) > 0]
+    pid_list = [int(r['id']) for r in productos if r.get('id') is not None]
+    stock_t_map = stock_tienda_por_producto_ids(pid_list) if pid_list else {}
+    stock_b_map = stock_bodega_por_producto_ids(pid_list) if pid_list else {}
 
-    results = []
-    out_lim = 28
+    if solo_vendibles and productos:
+        productos = [r for r in productos if stock_t_map.get(int(r['id']), 0) > 0]
+
+    out_lim = 15 if enriquecido else 28
+    candidatos = []
     for p in productos:
         pid = int(p.get('id'))
         codigo = (
@@ -13640,15 +13708,38 @@ def buscar_producto():
         )
         nombre = (p.get('nombre') or '').strip()
         sufijo = codigo if codigo else f"id {pid}"
-        results.append({
+        item = {
             "id": str(pid),
             "producto_id": pid,
             "text": f"{nombre} ({sufijo})",
-        })
-        if len(results) >= out_lim:
+        }
+        if enriquecido:
+            st_t = int(stock_t_map.get(pid, 0))
+            st_b = int(stock_b_map.get(pid, 0))
+            precio = _precio_lista_desde_row_producto(p)
+            unidad = (p.get('unidad_venta') or p.get('unidad') or 'un').strip() or 'un'
+            item.update({
+                "nombre": nombre,
+                "codigo": codigo or f"id {pid}",
+                "precio": precio,
+                "precio_fmt": _fmt_clp_busqueda_pos(precio),
+                "marca": _producto_marca_desde_row(p, cols),
+                "stock_tienda": st_t,
+                "stock_bodega": st_b,
+                "stock_total": st_t + st_b,
+                "unidad": unidad,
+            })
+        candidatos.append(item)
+        if len(candidatos) >= out_lim:
             break
 
-    return jsonify({"results": results})
+    if enriquecido and candidatos:
+        precios = [float(c.get('precio') or 0) for c in candidatos]
+        pmin, pmax = min(precios), max(precios)
+        for c in candidatos:
+            c['badges'] = _badges_busqueda_pos(c, pmin, pmax)
+
+    return jsonify({"results": candidatos})
 
 # proceso de apertura de caja desde pantalla de caja........................................................................
 

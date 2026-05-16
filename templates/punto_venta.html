@@ -42,9 +42,15 @@
   .pos-sale-card,
   .pos-customer-card {
     border-radius: 22px;
-    overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.16);
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  }
+  .pos-sale-card,
+  .pos-customer-card {
+    overflow: hidden;
+  }
+  .pos-command-card {
+    overflow: visible;
   }
   .pos-command-card .card-body,
   .pos-sale-card .card-body,
@@ -353,23 +359,42 @@
     letter-spacing: 0.01em;
   }
 
-  .pos-manual-search-hero .select2-container--bootstrap-5 .select2-selection {
-    min-height: 2.85rem !important;
-    border: 2px solid rgba(124, 58, 237, 0.32) !important;
-    border-radius: 12px !important;
-    box-shadow: 0 2px 10px rgba(91, 33, 182, 0.08);
-    background: #ffffff;
-  }
-
-  .pos-manual-search-hero .select2-container--bootstrap-5.select2-container--focus .select2-selection,
-  .pos-manual-search-hero .select2-container--bootstrap-5.select2-container--open .select2-selection {
-    border-color: rgba(109, 40, 217, 0.75) !important;
-    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
-  }
-
   .pos-manual-search-hero .btn-link {
     font-weight: 700;
     color: #7c3aed !important;
+  }
+
+  /* Buscador manual: un solo input (sin caja Select2 duplicada) */
+  .pos-buscar-manual-input {
+    min-height: 2.85rem;
+    border: 2px solid rgba(124, 58, 237, 0.32) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 10px rgba(91, 33, 182, 0.08);
+    font-size: 1rem;
+  }
+  .pos-buscar-manual-input:focus {
+    border-color: rgba(109, 40, 217, 0.75) !important;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  }
+  .pos-manual-search-hero--suggest-open {
+    padding-bottom: 0.35rem;
+  }
+  .pos-manual-search-hero .pos-search-suggestions {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    width: 100%;
+    margin-top: 0.75rem;
+    z-index: 2;
+  }
+  .pos-search-suggestions__head {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b21a8;
+    padding: 0.35rem 0.5rem 0.15rem;
   }
 
   .pos-manual-submit {
@@ -502,7 +527,7 @@
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div class="d-flex flex-wrap align-items-center gap-2">
               <span class="pos-manual-kicker"><i class="fas fa-magnifying-glass"></i> Búsqueda manual</span>
-              <p class="pos-manual-hint mb-0 d-none d-md-inline">Pistoleo arriba no la reemplaza: haga clic aquí o pulse <strong>F2</strong> para buscar por nombre o código.</p>
+              <p class="pos-manual-hint mb-0 d-none d-md-inline">Pistoleo arriba no la reemplaza: <strong>F2</strong> abre el buscador; con 3+ letras verá precio y stock (flechas ↑↓, Enter agrega, Esc cierra).</p>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
               <div class="btn-group btn-group-sm" role="group" aria-label="Filtro listado POS">
@@ -514,17 +539,20 @@
           </div>
           <p class="pos-manual-hint mb-0 d-md-none mt-2">Toque el buscador o <strong>F2</strong> para nombre / código (el pistoleo sigue arriba).</p>
         </div>
-        <div class="col-md-10">
-          <label class="form-label fw-bold" for="buscarProducto">Buscar producto</label>
-          <select id="buscarProducto" class="form-select" style="width:100%">
-            <option value=""></option>
-          </select>
+        <div class="col-md-10 pos-manual-search-wrap position-relative">
+          <label class="form-label fw-bold" for="posBuscarManual">Buscar producto</label>
+          <input type="text" id="posBuscarManual" class="form-control pos-buscar-manual-input" autocomplete="off"
+                 autocorrect="off" spellcheck="false"
+                 placeholder="Nombre, código de barras, interno o referencia…">
         </div>
         <div class="col-md-2 d-grid">
           <label class="form-label invisible">Acción</label>
           <button type="submit" class="btn fw-bold pos-manual-submit">
             <i class="fas fa-plus me-1"></i> Agregar
           </button>
+        </div>
+        <div class="col-12">
+          <div id="pos-search-suggestions" class="pos-search-suggestions d-none" role="listbox" aria-label="Sugerencias de productos"></div>
         </div>
       </form>
       </div>
@@ -944,7 +972,7 @@
   'pos_retiro_por_linea': pos_retiro_por_linea,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-manual-input-20260518"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
