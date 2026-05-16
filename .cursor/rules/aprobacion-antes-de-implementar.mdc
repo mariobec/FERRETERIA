@@ -1,0 +1,11 @@
+---
+description: Pide confirmación al usuario antes de implementar soluciones propuestas
+globs:
+alwaysApply: true
+---
+
+# Aprobación antes de implementar
+
+- **Antes de implementar** cualquier solución propuesta (código, refactors, migraciones, cambios de comportamiento), el asistente debe **preguntar explícitamente** si el usuario está de acuerdo con el enfoque o el alcance.
+- **No aplicar cambios** en el repositorio hasta recibir confirmación, salvo que el usuario haya pedido de forma explícita ejecutar ya la tarea (p. ej. "aplícalo", "haz el commit", "implementa lo anterior").
+- Si la petición es ambigua, **resumir la propuesta en 2–4 frases** y pedir OK antes de editar archivos.

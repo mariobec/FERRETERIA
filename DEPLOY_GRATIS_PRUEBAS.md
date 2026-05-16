@@ -1,5 +1,7 @@
 # Deploy Gratis de Pruebas (Render + Neon)
 
+Guía detallada (Neon, Render, `pg_dump` / datos, checklist): **[docs/MIGRACION_RENDER_NEON.md](docs/MIGRACION_RENDER_NEON.md)** — incluye **§0 Paridad** (misma Neon en local y Render vs espejo Postgres local + Neon).
+
 ## 1) Qué modelo usar
 
 - **App Web:** Render (plan free)
@@ -28,14 +30,10 @@ Este repo ya queda preparado con:
    - New + Blueprint
    - conecta tu repo de GitHub
    - Render detecta `render.yaml`.
-5. En variables de entorno del servicio Render, agrega:
-   - `DATABASE_URL` = URL de Neon
-   - `BOOTSTRAP_ADMIN_EMAIL` = correo admin inicial
-   - `BOOTSTRAP_ADMIN_PASSWORD` = clave admin inicial
-   - `BOOTSTRAP_ADMIN_NAME` = nombre admin (opcional)
-6. Deploy.
+5. Render pedirá las variables marcadas como secretas en `render.yaml` (`DATABASE_URL`, `BOOTSTRAP_*`, `PUBLIC_SITE_URL`). Complétalas (URL de Neon, admin inicial, URL pública tipo `https://….onrender.com`).
+6. Deploy. En cada despliegue corre `preDeployCommand: python init_db.py` antes de Gunicorn.
 
-Cuando levante, `init_db.py` crea tablas y usuario admin inicial.
+Cuando levante, el esquema queda alineado con los modelos y se crea el usuario admin si definiste `BOOTSTRAP_*`.
 
 ---
 
@@ -46,7 +44,7 @@ Para iterar rápido:
 1. Tú me pides cambios aquí.
 2. Yo te dejo el código listo en local.
 3. Haces `git push`.
-4. Render despliega solo (autoDeploy=true).
+4. Render despliega en cada `push` (`autoDeployTrigger: commit` en el blueprint).
 5. Validamos en URL pública.
 
 ---

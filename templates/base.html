@@ -34,7 +34,7 @@
                 </div>
                 
                 <!-- Links del Menú (generado desde _NAV_MAP filtrado por permisos) -->
-                <div class="app-sidebar-nav mt-3 flex-grow-1">
+                <div class="app-sidebar-nav flex-grow-1">
                     <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-home"></i> Inicio</a>
                     {% for grupo in nav_menu %}
                     {% set ns = namespace(open=false) %}

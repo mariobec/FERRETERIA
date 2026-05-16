@@ -1,3 +1,17 @@
 {
-  "telefono": "56923739904"
+  "nombre_comercial": "Ferretería Santo Domingo",
+  "razon_social": "Ferretería Santo Domingo",
+  "eslogan": "Chilemat®",
+  "telefono": "56923739904",
+  "correo": "",
+  "direccion": "",
+  "mod_ventas": "1",
+  "mod_caja": "1",
+  "mod_inventario": "1",
+  "mod_bi": "1",
+  "mod_ia": "1",
+  "pos_rut_obligatorio": "1",
+  "pos_retiro_por_linea": "1",
+  "pos_ticket_qr_despacho": "1",
+  "pos_autoprint_ticket_emitido": "1"
 }

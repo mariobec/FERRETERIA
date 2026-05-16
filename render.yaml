@@ -4,16 +4,36 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
+    # Migra/crea tablas y roles antes de levantar Gunicorn (idempotente con schema_sync).
+    preDeployCommand: python init_db.py
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 90 --graceful-timeout 20 --access-logfile -
-    autoDeploy: true
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
     envVars:
+      # Neon: pegar la connection string (pooler recomendado). No commitear secretos.
+      - key: DATABASE_URL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: BOOTSTRAP_ADMIN_NAME
+        sync: false
+      # Ej: https://TU-SERVICIO.onrender.com
+      - key: PUBLIC_SITE_URL
+        sync: false
+      # Misma clave en .env.local y Render si usás TV cliente / enlaces firmados (Live Wall).
+      # Si usás generateValue, copiá el valor generado desde el dashboard de Render a .env.local.
       - key: SECRET_KEY
         generateValue: true
-      - key: PUBLIC_SITE_URL
-        value: "https://www.lhexia.cl"
       - key: FLASK_DEBUG
         value: "0"
       - key: PUBLICO_MUESTRA_PRECIO
         value: "0"
       - key: PUBLICO_MUESTRA_STOCK_EXACTO
         value: "0"
+      # Paridad con defaults de app.py / tienda (opcional; mismo texto que en .env.local).
+      - key: EMPRESA_NOMBRE_COMERCIAL
+        sync: false
+      - key: EMPRESA_RUT
+        sync: false

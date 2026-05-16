@@ -38,6 +38,29 @@
                     Ir a cobrar/resolver vales
                 </a>
             </div>
+            {% if usuario_tiene_permiso('gestionar_usuarios') %}
+            <hr class="my-3">
+            <p class="small mb-2">
+                <strong>Administrador:</strong> si son borradores del POS o vales que el cliente <em>no</em> va a pagar,
+                puede anularlos en lote (quedan como anulados; no se borran de la base).
+                <strong>No use esto</strong> en ventas que aún deba cobrar.
+            </p>
+            <form method="post" action="{{ url_for('limpiar_cola_cierre_caja') }}" class="border rounded p-3 bg-white"
+                  onsubmit="return confirm('¿Anular {{ (vales_pendientes_cierre|length) + (tickets_abiertos_cierre|length) }} documento(s) que bloquean el cierre? Solo para descartes.');">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="confirmar" value="1" id="chkLimpiarCola" required>
+                    <label class="form-check-label small" for="chkLimpiarCola">
+                        Confirmo que son descartes / no se cobrarán
+                    </label>
+                </div>
+                <label class="form-label small fw-semibold mb-1">Motivo (auditoría)</label>
+                <input type="text" name="motivo" class="form-control form-control-sm mb-2"
+                       maxlength="500" value="Limpieza cola cierre — descartes / no cobrados">
+                <button type="submit" class="btn btn-sm btn-outline-dark fw-bold w-100">
+                    <i class="fas fa-broom me-1"></i> Anular todos los que bloquean el cierre ({{ (vales_pendientes_cierre|length) + (tickets_abiertos_cierre|length) }})
+                </button>
+            </form>
+            {% endif %}
         </div>
         {% endif %}
 

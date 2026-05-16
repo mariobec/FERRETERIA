@@ -1,0 +1,61 @@
+{% if ticket_modal_impresion_url and pos_autoprint_ticket_emitido %}
+<script>
+(function () {
+  function stripTicketIframeQuery() {
+    try {
+      var u = new URL(window.location.href);
+      if (!u.searchParams.has('ticket_iframe')) return;
+      u.searchParams.delete('ticket_iframe');
+      var q = u.searchParams.toString();
+      history.replaceState(null, '', u.pathname + (q ? '?' + q : '') + u.hash);
+    } catch (e) {}
+  }
+  stripTicketIframeQuery();
+
+  var baseUrl = {{ ticket_modal_impresion_url | tojson }};
+  if (!baseUrl || !document.body) return;
+
+  var sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+  var ticketUrl = baseUrl + sep + 'pos_autoprint=1';
+
+  var ifr = document.createElement('iframe');
+  ifr.setAttribute('title', 'Impresión vale');
+  ifr.setAttribute('aria-hidden', 'true');
+  ifr.style.cssText = 'position:fixed;width:0;height:0;left:0;bottom:0;border:0;opacity:0;pointer-events:none;';
+
+  var removed = false;
+  function cleanup() {
+    if (removed) return;
+    removed = true;
+    try {
+      if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
+    } catch (e) {}
+  }
+
+  var fallbackRm = setTimeout(cleanup, 120000);
+
+  ifr.onload = function () {
+    try {
+      var w = ifr.contentWindow;
+      if (w && w.addEventListener) {
+        w.addEventListener(
+          'afterprint',
+          function () {
+            clearTimeout(fallbackRm);
+            cleanup();
+          },
+          { once: true }
+        );
+      }
+    } catch (e) {}
+  };
+  ifr.onerror = function () {
+    clearTimeout(fallbackRm);
+    cleanup();
+  };
+
+  ifr.src = ticketUrl;
+  document.body.appendChild(ifr);
+})();
+</script>
+{% endif %}

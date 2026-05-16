@@ -38,6 +38,10 @@ storage/dtes/pruebas_sii/*.xml
 storage/dtes/pruebas_sii/*.zip
 !storage/dtes/pruebas_sii/.gitkeep
 
+# DTE emitidos / firmados en servidor (cola hasta envío SII)
+storage/dtes/emitidos/**/*.xml
+!storage/dtes/emitidos/.gitkeep
+
 # Artefactos locales / reportes generados
 .coverage
 docs/test_report_*.txt

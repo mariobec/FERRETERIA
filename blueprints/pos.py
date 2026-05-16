@@ -26,9 +26,31 @@ def _wrap_pos_api_emitir(fn):
     return login_required(m.permisos_required('pos_emitir_vale')(fn))
 
 
+def _wrap_pos_despacho_vale(fn):
+    m = app_module()
+    return m.permisos_required(
+        'pos_emitir_vale', 'bodega_operador', 'caja_cobrar_vale', 'gestionar_usuarios'
+    )(fn)
+
+
+def _wrap_pos_ticket_vale(fn):
+    m = app_module()
+    return login_required(
+        m.caja_requerida(
+            m.permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')(fn)
+        )
+    )
+
+
 def register_pos_routes(app):
     m = app_module()
     app.add_url_rule('/punto_venta', 'punto_venta', _wrap_pos_emitir_caja(m.punto_venta), methods=['GET'])
+    app.add_url_rule(
+        '/pos/command-deck',
+        'pos_command_deck',
+        _wrap_pos_emitir_caja(m.pos_command_deck),
+        methods=['GET'],
+    )
     app.add_url_rule('/guardar_venta', 'guardar_venta', _wrap_guardar_venta(m.guardar_venta), methods=['POST'])
     app.add_url_rule(
         '/agregar_producto_venta',
@@ -43,6 +65,18 @@ def register_pos_routes(app):
         methods=['POST'],
     )
     app.add_url_rule('/finalizar_venta', 'finalizar_venta', _wrap_pos_emitir_caja(m.finalizar_venta), methods=['POST'])
+    app.add_url_rule(
+        '/pos/ticket/<int:venta_id>',
+        'pos_ticket_vale',
+        _wrap_pos_ticket_vale(m.pos_ticket_vale),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/pos/despacho/vale/<int:vid>',
+        'pos_despacho_vale',
+        _wrap_pos_despacho_vale(m.pos_despacho_vale),
+        methods=['GET'],
+    )
     app.add_url_rule('/actualizar_item', 'actualizar_item', _wrap_pos_emitir_caja(m.actualizar_item), methods=['POST'])
     app.add_url_rule(
         '/pos/usuarios_autorizar_descuento',
@@ -63,6 +97,12 @@ def register_pos_routes(app):
         methods=['POST'],
     )
     app.add_url_rule(
+        '/api/pos/rut-obligatorio-toggle',
+        'api_pos_rut_obligatorio_toggle',
+        _wrap_pos_api_emitir(m.api_pos_rut_obligatorio_toggle),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/api/pos/cross-sell-reject',
         'api_pos_cross_sell_reject',
         _wrap_pos_api_emitir(m.api_pos_cross_sell_reject),
@@ -72,5 +112,47 @@ def register_pos_routes(app):
         '/api/pos/identificar-producto-foto',
         'api_pos_identificar_producto_foto',
         _wrap_pos_api_emitir(m.api_pos_identificar_producto_foto),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/pos/live-wall/staff',
+        'pos_live_wall_staff',
+        _wrap_pos_emitir_caja(m.pos_live_wall_staff),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/pos/live-wall/cliente',
+        'pos_live_wall_cliente',
+        m.pos_live_wall_cliente,
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/pos/experience-wall',
+        'pos_experience_wall',
+        m.pos_experience_wall,
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/live-wall/snapshot',
+        'api_pos_live_wall_snapshot',
+        m.api_pos_live_wall_snapshot,
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/vincular-cliente',
+        'api_pos_vincular_cliente',
+        _wrap_pos_api_emitir(m.api_pos_vincular_cliente),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/escanear-agregar',
+        'api_pos_escanear_agregar',
+        _wrap_pos_api_emitir(m.api_pos_escanear_agregar),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/producto-alta-rapida',
+        'api_pos_producto_alta_rapida',
+        _wrap_pos_api_emitir(m.api_pos_producto_alta_rapida),
         methods=['POST'],
     )

@@ -2,120 +2,348 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Vale Emitido</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if ticket_es_borrador %}BORRADOR POS — Vale N°{% else %}Vale N°{% endif %} {{ venta.id }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Courier New', monospace; font-size: 14px; background: #f8f9fa; }
-        .ticket { width: 300px; margin: auto; border: 2px solid #28a745; border-radius: 8px; padding: 10px; background: #fff; }
-        .header { text-align: center; margin-bottom: 10px; }
-        .header h2 { margin: 0; font-size: 18px; color: #28a745; }
-        .info { text-align: center; font-size: 13px; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { text-align: left; padding: 2px; font-size: 13px; }
-        th { border-bottom: 1px solid #000; }
-        .total { text-align: right; font-size: 16px; font-weight: bold; margin-top: 10px; color: #007bff; }
-        .pendiente { text-align: center; font-size: 15px; font-weight: bold; color: #dc3545; margin-top: 15px; }
-        .acciones { text-align: center; margin-top: 20px; }
-        .btn { display: inline-block; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 5px; text-decoration: none; }
-        .btn-primary { background: #007bff; color: #fff; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-success { background: #198754; color: #fff; }
-        .btn-success:hover { background: #157347; }
-        .toolbar { text-align: center; margin: 8px 0 14px; }
-        @media print { .no-print { display: none !important; } }
+        :root {
+            --vale-green: #16a34a;
+            --vale-green-dark: #14532d;
+            --vale-ink: #0f172a;
+            --vale-muted: #64748b;
+            --vale-paper: #fffef9;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'DM Sans', system-ui, sans-serif;
+            background: #ecece8;
+            color: var(--vale-ink);
+        }
+        .vale-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.85rem 1rem;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.55rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 700;
+            border-radius: 999px;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary { background: #2563eb; color: #fff; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35); }
+        .btn-success { background: var(--vale-green); color: #fff; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.35); }
+        .btn-ghost { background: #fff; color: var(--vale-ink); border: 1px solid #e2e8f0; }
+
+        .vale-vista-previa-leyenda {
+            max-width: 300px;
+            margin: 0 auto 0.65rem;
+            padding: 0 0.75rem;
+            font-size: 0.8rem;
+            line-height: 1.35;
+            color: var(--vale-muted);
+            text-align: center;
+        }
+        .vale-vista-previa-leyenda kbd {
+            display: inline-block;
+            padding: 0.06rem 0.3rem;
+            font-size: 0.72rem;
+            font-family: inherit;
+            background: #e2e8f0;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .vale-emit-wrap {
+            display: block;
+            max-width: 340px;
+            margin: 0 auto;
+            padding: 0 0.75rem 1.5rem;
+        }
+
+        .vale-ticket-stage {
+            perspective: none;
+            display: block;
+        }
+        .ticket {
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-size: 12px;
+            background: #fff;
+            border: none;
+            border-radius: 0;
+            padding: 10px 12px 14px;
+            box-shadow: none;
+            position: relative;
+            opacity: 1;
+            transform: none;
+            animation: none !important;
+        }
+        .ticket.is-settled {
+            animation: none !important;
+        }
+        .ticket::before,
+        .ticket::after {
+            display: none;
+        }
+
+        .ticket .header { text-align: center; margin-bottom: 8px; }
+        .ticket .header h2 {
+            margin: 0;
+            font-size: 15px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 800;
+            color: var(--vale-green);
+        }
+        .ticket .info { text-align: center; font-size: 11px; color: #475569; line-height: 1.45; }
+        .ticket .info p { margin: 2px 0; }
+        .ticket table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .ticket th, .ticket td { text-align: left; padding: 2px 0; font-size: 11px; }
+        .ticket th { border-bottom: 1px solid #0f172a; font-weight: 600; }
+        .ticket .ticket-total {
+            text-align: right;
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px dashed #94a3b8;
+            color: #0f172a;
+        }
+        .ticket .pendiente {
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #dc2626;
+            margin-top: 12px;
+            padding: 6px;
+            background: #fef2f2;
+            border-radius: 4px;
+        }
+        .ticket-sep {
+            margin: 8px 0 6px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-align: center;
+            color: #0f172a;
+        }
+        .ticket-sep-bar {
+            border: none;
+            border-top: 3px double #0f172a;
+            margin: 4px 0 10px;
+        }
+        .ticket-line-meta { font-size: 10px; color: #475569; }
+        .ticket-qr-wrap { text-align: center; margin: 12px 0 6px; }
+        .ticket-qr-wrap img { max-width: 140px; height: auto; }
+        .ticket-qr-caption { font-size: 10px; color: #475569; margin-top: 4px; }
+        .ticket-picking { margin-top: 10px; font-size: 10px; }
+        .ticket-picking th { font-size: 10px; }
+
+        .ticket .acciones {
+            display: none;
+        }
+
+        @media print {
+            body { background: #fff; }
+            .no-print { display: none !important; }
+            .vale-emit-wrap {
+                display: block;
+                max-width: none;
+                padding: 0;
+            }
+            .vale-ticket-stage { display: block; }
+            .ticket {
+                max-width: 300px;
+                margin: 0 auto;
+                border: none;
+                box-shadow: none;
+                background: #fff;
+                padding: 8px 10px 12px;
+            }
+            .ticket::before,
+            .ticket::after {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="toolbar no-print">
-        <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">POS</a>
-        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">CAJA</a>
-        <button onclick="window.print()" class="btn btn-primary">IMPRIMIR</button>
+    {% set ticket_es_borrador = ticket_es_borrador|default(false) %}
+    <div class="vale-toolbar no-print">
+        <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">➕ Nueva venta</a>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">💳 Ir a caja</a>
+        <button type="button" class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
     </div>
-    <div class="ticket">
-        <div class="header">
-            <h2>✔ Vale Emitido</h2>
-        </div>
-        <div class="info">
-            <p>Vale N° {{ venta.id }}</p>
-            <p>Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
-            <p>Vendedor: {{ venta.usuario }}</p>
-            <p>Turno: {{ venta.prioridad }}</p>
-            {% if cotizacion_origen %}
-            <p><strong>Origen:</strong> Cotización {{ cotizacion_origen.numero }}</p>
-            {% endif %}
-            <p><strong>Retiro:</strong> {{ venta.punto_retiro or 'Bodega' }}</p>
-            <p>Cliente: {{ cliente.nombre if cliente else '---' }}</p>
-            <div style="text-align:center;margin:6px 0;">
-                <svg id="barcodeFolio" jsbarcode-format="CODE128" jsbarcode-value="VL{{ '%06d' % venta.id }}" jsbarcode-width="1.6" jsbarcode-height="36" jsbarcode-displayvalue="true" jsbarcode-fontsize="11" jsbarcode-margin="0"></svg>
+
+    {% set total_fmt = "{:,.0f}".format(venta.monto_total).replace(",", ".") %}
+    {% set empresa_nom = (empresa_cfg.nombre_comercial or empresa_cfg.razon_social or 'Ferretería') if empresa_cfg is defined else 'Ferretería' %}
+
+    <p class="vale-vista-previa-leyenda no-print">
+        Lo que ves abajo es la <strong>misma composición</strong> que se envía a la impresora térmica.
+        Vale N° <strong>{{ venta.id }}</strong> · Total <strong>${{ total_fmt }}</strong>
+        {% if ticket_es_borrador %}· <strong>Borrador POS</strong> (aún no emitido a cobro){% endif %}
+        · <kbd>Ctrl+P</kbd> o <strong>Imprimir</strong>
+    </p>
+
+    <div class="vale-emit-wrap">
+        <section class="vale-ticket-stage">
+            <div class="ticket" id="valeTicketAnim">
+                <div class="header">
+                    <h2>✔ {{ empresa_nom }}</h2>
+                </div>
+                <div class="info">
+                    <p><strong>VALE N° {{ venta.id }}</strong></p>
+                    <p>{{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
+                    <p>Turno: {{ venta.prioridad }} · {{ venta.usuario }}</p>
+                    {% if cotizacion_origen %}
+                    <p>Origen: Cot. {{ cotizacion_origen.numero }}</p>
+                    {% endif %}
+                    <p><strong>Retiro vale:</strong> {{ venta.punto_retiro or '—' }}</p>
+                    <p>{{ cliente.nombre if cliente else '—' }}</p>
+                    <div style="text-align:center;margin:6px 0;">
+                        <svg id="barcodeFolio" jsbarcode-format="CODE128" jsbarcode-value="VL{{ '%06d' % venta.id }}" jsbarcode-width="1.6" jsbarcode-height="36" jsbarcode-displayvalue="true" jsbarcode-fontsize="11" jsbarcode-margin="0"></svg>
+                    </div>
+                    {% if pos_ticket_qr_despacho and qr_ticket_src %}
+                    <div class="ticket-qr-wrap">
+                      <img src="{{ qr_ticket_src }}" width="132" height="132" alt="Código QR despacho">
+                      <div class="ticket-qr-caption">QR despacho · mismo código para tienda y bodega</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if usar_bloques_por_retiro %}
+                    {% set bloques_nom = [('Tienda', 'PRODUCTOS DE TIENDA'), ('Bodega', 'PRODUCTOS DE BODEGA'), ('Despacho', 'PRODUCTOS DESPACHO')] %}
+                    {% for key, tit in bloques_nom %}
+                      {% set rows = ticket_buckets.get(key) %}
+                      {% if rows %}
+                      <hr class="ticket-sep-bar">
+                      <div class="ticket-sep">{{ tit }}</div>
+                      <hr class="ticket-sep-bar">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Producto</th>
+                            <th>Ct</th>
+                            <th>$</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for d in rows %}
+                          <tr>
+                            <td>{{ ticket_line_etiqueta.get(d.id, '[T]') }} {{ (d.producto.nombre[:24] ~ ('…' if d.producto.nombre|length > 24 else '')) if d.producto else '—' }}</td>
+                            <td>{{ d.cantidad }}</td>
+                            <td>{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
+                          </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                      {% endif %}
+                    {% endfor %}
+                    <hr class="ticket-sep-bar">
+                    <div class="ticket-sep">RESUMEN</div>
+                    {% if ticket_subtotales.get('Tienda', 0) > 0 %}
+                    <p class="ticket-line-meta"><strong>TOTAL TIENDA:</strong> ${{ "{:,.0f}".format(ticket_subtotales['Tienda']).replace(",", ".") }}</p>
+                    {% endif %}
+                    {% if ticket_subtotales.get('Bodega', 0) > 0 %}
+                    <p class="ticket-line-meta"><strong>TOTAL BODEGA:</strong> ${{ "{:,.0f}".format(ticket_subtotales['Bodega']).replace(",", ".") }}</p>
+                    {% endif %}
+                    {% if ticket_subtotales.get('Despacho', 0) > 0 %}
+                    <p class="ticket-line-meta"><strong>TOTAL DESPACHO:</strong> ${{ "{:,.0f}".format(ticket_subtotales['Despacho']).replace(",", ".") }}</p>
+                    {% endif %}
+                {% else %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Ct</th>
+                            <th>$</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in detalles %}
+                        <tr>
+                            <td>{{ ticket_line_etiqueta.get(d.id, '') }} {{ d.producto.nombre[:26] }}{% if d.producto.nombre|length > 26 %}…{% endif %}</td>
+                            <td>{{ d.cantidad }}</td>
+                            <td>{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                {% if detalles_picking %}
+                <table class="ticket-picking">
+                    <thead>
+                        <tr><th colspan="3">PICKING BODEGA</th></tr>
+                        <tr><th>Ubc</th><th>Producto</th><th>Ct</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for d in detalles_picking %}
+                        <tr>
+                            <td>{{ d.producto.ubicacion_codigo if d.producto and d.producto.ubicacion_codigo else '—' }}</td>
+                            <td>{{ (d.producto.nombre[:22] + '…') if d.producto and d.producto.nombre|length > 22 else (d.producto.nombre if d.producto else '—') }}</td>
+                            <td>{{ d.cantidad }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                <div class="ticket-total">
+                  {% if usar_bloques_por_retiro %}<span class="ticket-line-meta" style="display:block;margin-bottom:4px;">TOTAL A PAGAR</span>{% endif %}
+                  ${{ total_fmt }}
+                </div>
+                {% if ticket_es_borrador %}
+                <div class="pendiente" style="background:#fff7ed;color:#9a3412;border:1px dashed #fdba74;">*** BORRADOR POS — EMITA EL VALE DESDE EL PUNTO DE VENTA ***</div>
+                {% else %}
+                <div class="pendiente">*** PENDIENTE DE COBRO EN CAJA ***</div>
+                {% endif %}
             </div>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Producto</th>
-                    <th>Cant</th>
-                    <th>Precio</th>
-                    <th>Subt.</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for d in detalles %}
-                <tr>
-                    <td>{{ d.producto.nombre }}</td>
-                    <td>{{ d.cantidad }}</td>
-                    <td>${{ "{:,.0f}".format(d.precio_unitario).replace(",", ".") }}</td>
-                    <td>${{ "{:,.0f}".format(d.cantidad * d.precio_unitario).replace(",", ".") }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <table style="margin-top:12px;">
-            <thead>
-                <tr>
-                    <th colspan="3">PICKING BODEGA (Ordenado por ubicación)</th>
-                </tr>
-                <tr>
-                    <th>Ubicación</th>
-                    <th>Producto</th>
-                    <th>Cant.</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for d in detalles_picking %}
-                <tr>
-                    <td>{{ d.producto.ubicacion_codigo if d.producto and d.producto.ubicacion_codigo else 'SIN UBIC.' }}</td>
-                    <td>{{ d.producto.nombre if d.producto else '—' }}</td>
-                    <td>{{ d.cantidad }} {{ d.producto.unidad_venta_final if d.producto else '' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <div class="total">
-            TOTAL: ${{ "{:,.0f}".format(venta.monto_total).replace(",", ".") }}
-        </div>
-
-        <div class="pendiente">
-            *** VALE PENDIENTE DE COBRO EN CAJA ***
-        </div>
-
-        <div class="acciones">
-            <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">
-                ➕ Nueva Venta
-            </a>
-            <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">
-                💳 Ir a Caja
-            </a>
-        </div>
+        </section>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
     <script>
-      window.addEventListener('load', function () {
-        try { if (window.JsBarcode) { JsBarcode("#barcodeFolio").init(); } } catch (e) {}
-        setTimeout(function () { window.print(); }, 250);
-      });
+      (function () {
+        window.addEventListener('load', function () {
+          try {
+            if (window.JsBarcode) {
+              JsBarcode('#barcodeFolio').init();
+            }
+          } catch (e) {}
+        });
+      })();
     </script>
+{% if request.args.get('pos_autoprint') == '1' %}
+    <script>
+      (function () {
+        function runPrint() {
+          try {
+            window.print();
+          } catch (e) {}
+        }
+        function schedule() {
+          setTimeout(runPrint, 450);
+        }
+        if (document.readyState === 'complete') schedule();
+        else window.addEventListener('load', schedule);
+      })();
+    </script>
+{% endif %}
 </body>
 </html>
-

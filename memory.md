@@ -7,6 +7,7 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 - **Al arrancar una sesión en Cursor:** pedir *“lee memory.md y sigue desde ahí”* o adjuntar `@memory.md`.
 - **Cuando terminemos un bloque de trabajo:** pedir *“actualiza memory.md con lo que hicimos hoy”* para dejar constancia.
 - El agente **no inventa** historial: solo documenta lo que consta en el chat o en el código que tocamos.
+- **Transcripción del chat:** Cursor conserva tus conversaciones en la interfaz; aquí **no** se replica el chat palabra por palabra. Esta memoria es el **extracto técnico** entre sesiones/desarrolladores (comandá *“actualiza memory.md”* cuando quieras cerrar el día).
 
 ## Alcance de esta memoria (importante)
 
@@ -67,6 +68,8 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 | `ClienteSaldoFavor`, `MovimientoSaldoFavor` | Saldo a favor del cliente. |
 | `AuditoriaInventario`, `DetalleAuditoria` | Auditorías/conteos. |
 | `AbonoCredito` | Abonos a cuenta crédito. |
+| `Caf` | Folios autorizados SII (CAF XML). |
+| Columnas FE en `Venta` | `dte_tipo`, `dte_estado`, `dte_track_id`, `caf_id`, `nro_documento` (folio DTE). |
 
 ---
 
@@ -155,8 +158,8 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 
 ### 11. Caja (apertura, arqueo, movimientos, historial)
 
-- **Rutas:** `/abrir_caja`, `/movimiento_caja`, `/cerrar_caja`, `/caja/historial_cierres`, tickets cierre, `/caja/vales_pendientes`, `/procesar_cobro_caja`, `/caja/vale_retiro/<id>` (ticket cobro), `/caja/vales/<id>/anular`.
-- **Lógica:** una caja **`Abierta`** a la vez en práctica (última por id); **`cerrar_caja`** bloquea si hay vales **`Pendiente`** sin método en esa caja o ventas **`Abierta`** en esa caja. **`caja_pendientes`** arma **`cola_combined`**: borradores **`Abierta`** de la caja actual + vales **`Pendiente`** sin método (orden práctico: borradores primero). Cierre cuadrado con columnas **`_asegurar_columnas_caja_cuadratura`**; `confirmar_cierre` / `ticket_cierre` desglosa efectivo, débito, **`TarjetaCredito`**, transferencia; **`Credito`** (fiado) informativo; efectivo teórico en gaveta sin incluir medios electrónicos.
+- **Rutas:** `/abrir_caja`, `/movimiento_caja`, `/cerrar_caja`, `/caja/historial_cierres`, tickets cierre, `/caja/vales_pendientes`, `/procesar_cobro_caja`, `/caja/vale_retiro/<id>` (ticket cobro), `/caja/vales/<id>/anular`, **`POST /caja/limpiar_cola_cierre`** (admin, solo descartes).
+- **Lógica:** una caja **`Abierta`** a la vez en práctica (última por id); **`cerrar_caja`** bloquea si hay vales **`Pendiente`** sin método en esa caja o ventas **`Abierta`** en esa caja (`_documentos_bloquean_cierre_caja`). **`caja_pendientes`** arma **`cola_combined`**: borradores **`Abierta`** de la caja actual + vales **`Pendiente`** sin método (orden: borradores primero). **Anular** (no borrar): deja **`Anulada`** + auditoría; no revierte stock tienda si no estaba cobrado. **Limpieza masiva:** en pantalla **Cerrar caja**, admin marca confirmación y anula todos los bloqueantes de la caja abierta. Cierre cuadrado con **`_asegurar_columnas_caja_cuadratura`**; `confirmar_cierre` / `ticket_cierre` desglosa efectivo, débito, **`TarjetaCredito`**, transferencia; **`Credito`** (fiado) informativo.
 
 ### 12. Cambios de productos y saldos a favor
 
@@ -165,8 +168,21 @@ Tablas/modelos usados como columna vertebral (no exhaustivo de cada campo):
 
 ### 13. Admin maestro
 
-- **Rutas:** `/admin/empresa`, `/admin/almacenes`, `/admin/clientes`, `/admin/roles-permisos`, `/admin/unidades`, `/admin/catalogo`.
-- **Lógica:** empresa desde JSON/config; almacenes activos/códigos tienda-bodega; clientes y créditos admin; roles ↔ permisos; unidades/conversiones; catálogo jerárquico categoría/subcategoría y asignación masiva de productos (**`_sincronizar_producto_desde_subcatalogo`**).
+- **Rutas:** `/admin/empresa`, `/admin/almacenes`, `/admin/clientes`, `/admin/roles-permisos`, `/admin/unidades`, `/admin/catalogo`, **`/admin/facturacion/caf`**, **`/admin/facturacion/cola`**, **`/admin/facturacion/dte-xml/<venta_id>`**, **`/admin/facturacion/reintentar/<venta_id>`**.
+- **Lógica:** empresa desde JSON/config; almacenes activos/códigos tienda-bodega; clientes y créditos admin; roles ↔ permisos; unidades/conversiones; catálogo jerárquico categoría/subcategoría y asignación masiva de productos (**`_sincronizar_producto_desde_subcatalogo`**). Enlaces FE desde **Empresa** (CAF + cola DTE).
+
+### 13b. Facturación electrónica (SII) — Fase 1 ERP
+
+- **Servicios:** `facturacion_electronica_service.py` (post-cobro, firma, stub SOAP), `facturacion_caf_service.py`, `facturacion_dte_storage.py`, `facturacion_sii_certificacion.py`.
+- **Rutas API:** `GET/POST /api/admin/facturacion/emitir-prueba`, `GET/POST /api/admin/facturacion/cafs`, `POST /api/admin/facturacion/reintentar/<venta_id>`.
+- **Flujo:** tras cobro **`Pagado`** (≠ crédito) → savepoint asigna folio CAF → XML (Fase 1) → firma `.pfx` si configurado → guarda XML en **`storage/dtes/emitidos/`** → `dte_estado` **`PENDIENTE_ENVIO`** si SOAP stub. **No bloquea cobro.**
+- **Env:** `SII_CERT_PFX_PATH`, `SII_CERT_PFX_PASSWORD` o `SII_CERT_PFX_PASSWORD_FILE`, `SII_AMBIENTE`.
+- **Pendiente SII:** TED real, XSD, envío Zeep/WSDL. Tests: `tests/test_facturacion_caf.py`, `test_facturacion_dte_storage.py`, `test_facturacion_dte_e2e.py`.
+
+### 13c. POS Live Wall
+
+- **Rutas:** `/pos/live-wall/staff`, `/pos/live-wall/cliente?t=…`, `GET /api/pos/live-wall/snapshot`.
+- **Lógica:** token firmado por venta abierta; polling KPIs tienda + cola bodega (staff); mensaje cliente en TV. Tests: `tests/test_pos_live_wall.py`.
 
 ### 14. Auditorías y kardex
 
@@ -285,6 +301,27 @@ Referencias `L####` = línea aproximada en `app.py` para ubicar la vista rápido
 | 2026-05-14 | **Facturación electrónica — diagnóstico de certificación:** existe base **Fase 1** (`services/facturacion_electronica_service.py`, ruta admin `GET/POST /api/admin/facturacion/emitir-prueba`, migración `sql/2026_05_12_facturacion_electronica_fase1.sql`). En esta máquina el `.pfx` sí existe en `instance/certs/emisor.pfx` y `SII_AMBIENTE=certificacion`, pero la firma falla con **`Invalid password or PKCS12 data`**; la clave hoy entra por `SII_CERT_PFX_PASSWORD` (4 caracteres) y debe revisarse como **clave de exportación del `.pfx`** o pasar a `SII_CERT_PFX_PASSWORD_FILE`. Además, tabla **`cafs`** está vacía (`33/39/61 = 0`) y el envío SOAP al SII sigue en **stub** (`enviar_dte_soap`). Mientras se consigue la clave correcta, continuar otros frentes sin bloquear caja/POS. |
 | 2026-05-14 | **Customer 360 P0 — avance real en código:** se agregó auditoría **`cliente_prediccion_log`** (modelo en `app.py` + migración `sql/2026_05_14_cliente_prediccion_log.sql` + auto-ensure), el motor ahora guarda **`fecha_estimada_siguiente_compra`** y **`ultima_compra_clasificada`** (regla default 21 días vía `C360_SIGUIENTE_COMPRA_DIAS`), calcula **`elegible_credito_proactivo`** / motivo de no elegibilidad y evita duplicar logs idénticos el mismo día. La ficha `admin_cliente_c360.html` ahora muestra próxima compra estimada, elegibilidad de crédito y **compras recientes**. Cobertura mínima agregada en `tests/test_customer_360.py` (2 tests verdes). |
 | 2026-05-14 | **Customer 360 P0.1 — backend resumen/API:** se añadió resumen 90 días en `services/c360_service.py` (`c360_resumen_actividad_cliente`) con última compra, ventas 90d, ticket promedio, frecuencia media, saldo/límite/cupo y familias compradas por `Producto.categoria`; también `c360_predicciones_recientes_cliente`. Nueva API protegida **`GET /api/c360/clientes/<id>/resumen`** (opción `?recalcular=1`) expone `cliente`, `perfil`, `resumen`, `compras_recientes` y `predicciones_recientes`. La ficha `admin_cliente_c360.html` ahora incorpora bloque **“Actividad 90 días”**. Tests ampliados a **3 verdes** en `tests/test_customer_360.py`. |
+| 2026-05-15 | **FE Fase 1 (ERP):** CAF admin/API, post-cobro `post_cobro_emision_fe`, persistencia XML `facturacion_dte_storage`, cola DTE UI, reintento API/HTML, fix firma **signxml 4.x** (`cert=[certificate]`), E2E cobro→XML `test_facturacion_dte_e2e.py`. |
+| 2026-05-15 | **POS Live Wall:** staff + cliente (token) + snapshot API; tests `test_pos_live_wall.py`. |
+| 2026-05-15 | **POS / Caja (UX operativa):** filtros vendibles/catálogo alineados a stock **tienda** (`stock_tienda_por_producto_ids`); Command Deck con panel sugerencias y filtros; vale ticket QR revisar empresa + deps `qrcode`/Pillow; **`POST /caja/vales/anular_lote`** (selección en cola) + admin limpieza bloqueo cierre con **`return_to=pendientes`**; cola explica vales **globales** vs lote que solo cubre **esta caja**; **`posFocusBarcodeWedgeSoon()`** tras RUT con cliente **existente** (`static/js/pos.js`). |
+| 2026-05-16 | **Plan cierre módulos v3** en `docs/ERP_MAESTRO.md` §18 (matriz, sprints, checklists operativos y QA). Suite ~**242** tests. |
+
+---
+
+## Plan de cierre de módulos v3 (mayo 2026)
+
+**Fuente de verdad detallada:** `docs/ERP_MAESTRO.md` **§18** (matriz, checklists, definición de “módulo cerrado”).
+
+**Prioridad inmediata (Sprint A — tienda):** POS + Caja + Stock + Bodega → todos ✅ en matriz; validar en ferretería con checklist §18.1.
+
+**Siguiente (Sprint D):** Facturación SII 🟡 — operativo interno (folio, XML, cola); falta envío real al SII.
+
+**Comando QA rápido antes de release:**
+
+```bash
+pytest tests/ -m smoke -q --tb=no
+pytest tests/test_routes_criticas.py tests/test_facturacion_dte_e2e.py -q
+```
 
 ---
 
@@ -298,4 +335,4 @@ El documento **`docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`** quedó **cerra
 
 ---
 
-*Última actualización del contenido estructural: 2026-05-14 (diagnóstico FE certificación pendiente de clave `.pfx`).*
+*Última actualización del contenido estructural: 2026-05-15 (memoria: chat vs repo; fila historial POS/caja UX).*

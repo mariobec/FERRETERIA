@@ -34,6 +34,10 @@
     border-color: #cbd5e1;
     color: #475569;
   }
+  .pos-cliente-summary {
+    background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+  }
   .pos-command-card,
   .pos-sale-card,
   .pos-customer-card {
@@ -175,6 +179,244 @@
     box-shadow: inset 0 0 0 2px rgba(220, 53, 69, 0.5);
     background-color: rgba(220, 53, 69, 0.08);
   }
+  .pos-checkout-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 1040;
+    margin-top: 1.25rem;
+    border-radius: 22px 22px 0 0;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.97) 0%, #0f172a 100%);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-bottom: 0;
+    box-shadow: 0 -20px 50px rgba(15, 23, 42, 0.35);
+    color: #e2e8f0;
+    padding: 1rem 1.25rem 1.1rem;
+  }
+  .pos-dock-grid {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(200px, 1.4fr) auto;
+    gap: 1rem 1.25rem;
+    align-items: center;
+  }
+  @media (max-width: 991px) {
+    .pos-dock-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .pos-dock-total-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #94a3b8;
+    font-weight: 700;
+  }
+  .pos-dock-total strong {
+    display: block;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+  .pos-dock-meta {
+    display: block;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-top: 0.2rem;
+  }
+  .pos-dock-cliente .pos-cliente-summary {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(34, 197, 94, 0.35) !important;
+    color: #f8fafc;
+    padding: 0.65rem 0.85rem !important;
+  }
+  .pos-dock-cliente .pos-cliente-panel p.small.text-muted {
+    color: #94a3b8 !important;
+    margin: 0;
+  }
+  .pos-dock-cliente #posClienteKnownNombre {
+    font-size: 1.05rem !important;
+  }
+  .pos-dock-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+  .pos-dock-actions .btn-ds-primary {
+    min-width: 11rem;
+    font-size: 1.05rem;
+  }
+  .pos-dock-alerts {
+    margin-bottom: 0.65rem;
+  }
+  .pos-dock-alerts .alert {
+    margin: 0;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+  }
+  .pos-sale-card .pos-total-box {
+    display: none;
+  }
+  .pos-cross-sell-compact {
+    margin-top: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+  .pos-scan-hero {
+    border-radius: 16px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    border: 2px solid rgba(56, 189, 248, 0.35);
+    padding: 1rem 1.15rem;
+    margin-bottom: 1rem;
+  }
+  .pos-scan-hero label {
+    color: #e2e8f0;
+    margin-bottom: 0.35rem;
+  }
+  .pos-scan-hero .form-control {
+    font-size: 1.15rem;
+    padding: 0.65rem 0.85rem;
+    border: 2px solid rgba(56, 189, 248, 0.5);
+    background: #fff;
+  }
+  .pos-scan-hero .form-text {
+    color: #94a3b8;
+    margin-top: 0.35rem;
+    margin-bottom: 0;
+  }
+
+  /* Búsqueda manual — segmento destacado (visible frente al pistoleo siempre en foco) */
+  .pos-manual-search-hero {
+    margin-top: 0.25rem;
+    border-radius: 18px;
+    padding: 1.05rem 1.2rem 1.15rem;
+    background:
+      radial-gradient(120% 80% at 0% 0%, rgba(251, 191, 36, 0.16), transparent 50%),
+      radial-gradient(90% 60% at 100% 0%, rgba(167, 139, 250, 0.2), transparent 45%),
+      linear-gradient(165deg, #fafeff 0%, #f8f5ff 38%, #f3fffa 100%);
+    border: 2px solid rgba(139, 92, 246, 0.42);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.85) inset,
+      0 8px 32px rgba(91, 33, 182, 0.1),
+      0 2px 12px rgba(245, 158, 11, 0.08);
+  }
+
+  .pos-manual-head {
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
+    border-bottom: 1px dashed rgba(124, 58, 237, 0.25);
+  }
+
+  .pos-manual-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 800;
+    font-size: 0.8rem;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+    color: #5b21b6;
+    background: linear-gradient(135deg, #ede9fe 0%, #e0f2fe 100%);
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    box-shadow: 0 2px 8px rgba(109, 40, 217, 0.12);
+  }
+
+  .pos-manual-kicker i {
+    color: #7c3aed;
+    opacity: 0.95;
+  }
+
+  .pos-manual-hint {
+    font-size: 0.78rem !important;
+    color: #6b21a8 !important;
+    font-weight: 600;
+    max-width: min(420px, 100%);
+    line-height: 1.35;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    padding: 0.25rem 0.55rem !important;
+    border: 1px solid rgba(167, 139, 250, 0.28);
+    margin-bottom: 0;
+  }
+
+  .pos-manual-search-hero .btn-group-sm .btn {
+    font-weight: 700;
+  }
+
+  .pos-manual-search-hero label.fw-bold:not(.invisible) {
+    color: #3730a3;
+    letter-spacing: 0.01em;
+  }
+
+  .pos-manual-search-hero .select2-container--bootstrap-5 .select2-selection {
+    min-height: 2.85rem !important;
+    border: 2px solid rgba(124, 58, 237, 0.32) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 2px 10px rgba(91, 33, 182, 0.08);
+    background: #ffffff;
+  }
+
+  .pos-manual-search-hero .select2-container--bootstrap-5.select2-container--focus .select2-selection,
+  .pos-manual-search-hero .select2-container--bootstrap-5.select2-container--open .select2-selection {
+    border-color: rgba(109, 40, 217, 0.75) !important;
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+  }
+
+  .pos-manual-search-hero .btn-link {
+    font-weight: 700;
+    color: #7c3aed !important;
+  }
+
+  .pos-manual-submit {
+    background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%) !important;
+    border: none !important;
+    color: #fff !important;
+    border-radius: 12px !important;
+    letter-spacing: 0.03em;
+    box-shadow:
+      0 4px 16px rgba(109, 40, 217, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+
+  .pos-manual-submit:hover {
+    filter: brightness(1.06);
+    color: #fff !important;
+  }
+
+  .pos-manual-submit:focus-visible {
+    box-shadow:
+      0 0 0 3px rgba(167, 139, 250, 0.5),
+      0 4px 16px rgba(109, 40, 217, 0.35);
+  }
+
+  .pos-identify-card .card-body {
+    padding: 0.85rem 1rem;
+  }
+  .pos-rut-toggle-btn.is-on {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    border-color: #1d4ed8;
+    color: #fff;
+  }
+  .pos-rut-toggle-btn.is-off {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #64748b;
+  }
+  .pos-rut-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+    max-width: 14rem;
+  }
+  .pos-toolbar-actions .btn {
+    white-space: nowrap;
+  }
 </style>
 {% endblock %}
 
@@ -183,12 +425,23 @@
   <div class="page-header pos-page-header">
     <div>
       <h3 class="page-title"><i class="fas fa-cash-register text-success me-2"></i>Punto de Venta</h3>
-      <p class="page-subtitle">Armado rápido de pedido, sugerencias comerciales opcionales y emisión de vale para cobro en caja.</p>
+      <p class="page-subtitle mb-0 small">Escanee arriba, arme el vale, emita abajo. Cliente y TV opcionales.</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2 pos-toolbar-actions">
       <button type="button" class="btn btn-outline-secondary btn-sm pos-switch-btn {% if pos_cross_sell_enabled %}is-on{% else %}is-off{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
         <i class="fas fa-wand-magic-sparkles me-1"></i><span id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias ON{% else %}Sugerencias OFF{% endif %}</span>
       </button>
+      <a href="{{ url_for('pos_command_deck') }}" class="btn btn-success btn-sm" title="POS premium pantalla completa">
+        <i class="fas fa-layer-group me-1"></i> Command Deck
+      </a>
+      {% if experience_wall_url %}
+      <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-info btn-sm text-white" title="Abrir pantalla del cliente en TV">
+        <i class="fas fa-tv me-1"></i> TV Cliente
+      </a>
+      {% endif %}
+      <a href="{{ url_for('pos_live_wall_staff') }}" target="_blank" rel="noopener" class="btn btn-dark btn-sm" title="Monitor vendedor: stock y enlace TV">
+        <i class="fas fa-display me-1"></i> Live Wall
+      </a>
       <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">
         <i class="fas fa-home me-1"></i> Inicio
       </a>
@@ -213,49 +466,68 @@
   </div>
   {% endif %}
 
+  <div class="card card-ds mb-3 border-info border-opacity-25 pos-identify-card">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <button type="button" class="btn btn-sm pos-rut-toggle-btn fw-bold {% if pos_rut_obligatorio %}is-on{% else %}is-off{% endif %}" id="posToggleRutObligatorioBtn" data-obligatorio="{{ 1 if pos_rut_obligatorio else 0 }}" title="Fidelización: pedir RUT al cliente">
+          <i class="fas fa-id-card me-1"></i><span id="posToggleRutObligatorioText">{% if pos_rut_obligatorio %}RUT obligatorio{% else %}Sin RUT{% endif %}</span>
+        </button>
+        <span class="small fw-bold text-nowrap"><i class="fas fa-tv text-info me-1"></i>TV</span>
+        <input type="text" class="form-control form-control-sm" style="max-width:11rem" id="posIdentRutQuick" placeholder="{% if pos_rut_obligatorio %}RUT cliente{% else %}RUT si lo entrega{% endif %}"
+               value="{{ cliente.rut if cliente else '' }}">
+        <div id="posTvClienteBadge" class="d-flex flex-wrap gap-1"></div>
+        <span class="pos-rut-hint d-none d-lg-inline" id="posRutHintText">{% if pos_rut_obligatorio %}Fidelización activa: identifique al cliente.{% else %}Cliente no quiso RUT — vale sin datos.{% endif %}</span>
+        <div class="d-flex flex-wrap gap-1 ms-md-auto">
+          <button type="button" class="btn btn-sm btn-info text-white" id="posBtnIdentificarTv" title="Identificar en TV"><i class="fas fa-user-check"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnClienteFinalTv" title="Cliente final"><i class="fas fa-user"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-danger" id="posBtnQuitarClienteTv" title="Quitar TV"><i class="fas fa-times"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Buscador de productos con Select2 -->
   <div class="card card-ds mb-4 pos-command-card">
     <div class="card-body">
-      <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="row g-2 align-items-center">
+      <div class="pos-scan-hero">
+        <label class="form-label fw-bold mb-1" for="posBarcodeWedge"><i class="fas fa-barcode me-1"></i> Escanear producto</label>
+        <input type="text" id="posBarcodeWedge" class="form-control font-monospace" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Código de barras — Enter agrega al vale">
+        <div class="form-text">Mantenga el foco aquí. Si el código no existe, se abrirá alta rápida o búsqueda.</div>
+      </div>
+      <div class="pos-manual-search-hero">
+      <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="row g-2 align-items-end" id="formAgregarProductoBusqueda">
         <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
-        <div class="col-12">
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-            <span class="small fw-bold text-muted text-uppercase">Filtro búsqueda</span>
-            <div class="btn-group" role="group" aria-label="Filtro listado POS">
-              <button type="button" class="btn btn-sm btn-primary" id="posBtnFiltroVenta">Solo vendibles (tienda + precio)</button>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnFiltroCatalogo">Catálogo amplio</button>
+        <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
+        <div class="col-12 pos-manual-head">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <span class="pos-manual-kicker"><i class="fas fa-magnifying-glass"></i> Búsqueda manual</span>
+              <p class="pos-manual-hint mb-0 d-none d-md-inline">Pistoleo arriba no la reemplaza: haga clic aquí o pulse <strong>F2</strong> para buscar por nombre o código.</p>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="btn-group btn-group-sm" role="group" aria-label="Filtro listado POS">
+                <button type="button" class="btn btn-primary" id="posBtnFiltroVenta" title="Solo activos con precio y stock &gt; 0 en tienda (mostrador)">Vendibles</button>
+                <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroCatalogo" title="Todo el catálogo con precio: incluye sin stock en tienda (venta especial / cotizar)">Catálogo</button>
+              </div>
+              <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">Foto (demo)</button>
             </div>
           </div>
-          <p class="small text-muted mb-2 mb-md-0">
-            Por defecto solo aparecen productos con <strong>precio de venta o mayoreo</strong> y <strong>stock en tienda</strong>.
-            Use <em>Catálogo amplio</em> para localizar ítems sin stock o sin precio (agregar a la venta sigue validando stock en tienda y precio).
-          </p>
-          <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
-        </div>
-        <div class="col-12">
-          <label class="form-label fw-bold" for="posBarcodeWedge"><i class="fas fa-barcode text-secondary me-1"></i>Lector código de barras</label>
-          <input type="text" id="posBarcodeWedge" class="form-control font-monospace" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Haga clic aquí y escanee — se agrega al vale al terminar (Enter)">
-          <div class="form-text">Si la pistola hace bip pero no agrega ítems, mantenga el foco en este campo (no en cantidad ni en el buscador). Use también el buscador abajo para nombre o código.</div>
-        </div>
-        <div class="col-12">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">
-            <i class="fas fa-camera me-1"></i> Identificar por foto (demo)
-          </button>
-          <span class="small text-muted ms-2">Simulación: sugiere un SKU de catálogo con stock alto.</span>
+          <p class="pos-manual-hint mb-0 d-md-none mt-2">Toque el buscador o <strong>F2</strong> para nombre / código (el pistoleo sigue arriba).</p>
         </div>
         <div class="col-md-10">
-          <label class="form-label fw-bold">Buscar producto</label>
+          <label class="form-label fw-bold" for="buscarProducto">Buscar producto</label>
           <select id="buscarProducto" class="form-select" style="width:100%">
             <option value=""></option>
           </select>
         </div>
         <div class="col-md-2 d-grid">
           <label class="form-label invisible">Acción</label>
-          <button type="submit" class="btn btn-primary fw-bold">
+          <button type="submit" class="btn fw-bold pos-manual-submit">
             <i class="fas fa-plus me-1"></i> Agregar
           </button>
         </div>
       </form>
+      </div>
     </div>
   </div>
 
@@ -272,6 +544,9 @@
             <tr>
               <th>Código</th>
               <th>Descripción</th>
+              {% if pos_retiro_por_linea %}
+              <th class="text-nowrap" title="Verde=mostrador · Amarillo=bodega">Retiro</th>
+              {% endif %}
               <th>Cantidad</th>
               <th>Precio Unitario</th>
               <th>Descuento (%)</th>
@@ -285,6 +560,20 @@
             <tr id="pos_row_{{ d.id }}">
               <td><span class="badge bg-secondary">{{ d.producto.codigo_barra }}</span></td>
               <td>{{ d.producto.nombre }}</td>
+              {% if pos_retiro_por_linea %}
+              <td class="align-middle" style="min-width:9rem;">
+                {% set rline = (d.punto_retiro_linea or 'Tienda') %}
+                <form method="POST" action="{{ url_for('actualizar_item') }}" class="m-0">
+                  <input type="hidden" name="actualizar" value="{{ d.id }}">
+                  <input type="hidden" name="solo_retiro_linea" value="1">
+                  <select name="punto_retiro_linea" class="form-select form-select-sm" style="max-width:11rem;" onchange="this.form.submit()" title="Tienda=mostrador · Bodega=pickeo bodega">
+                    <option value="Tienda" {% if rline == 'Tienda' %}selected{% endif %}>Tienda</option>
+                    <option value="Bodega" {% if rline == 'Bodega' %}selected{% endif %}>Bodega</option>
+                    <option value="Despacho" {% if rline == 'Despacho' %}selected{% endif %}>Despacho</option>
+                  </select>
+                </form>
+              </td>
+              {% endif %}
               <td>
                 {% set factor_stock = factores_stock.get(d.id, 1) %}
                 <div class="input-group input-group-sm">
@@ -339,160 +628,175 @@
             </tr>
             {% else %}
             <tr>
-              <td colspan="7" class="text-center text-muted py-4">No hay productos agregados a la venta.</td>
+              <td colspan="{% if pos_retiro_por_linea %}8{% else %}7{% endif %}" class="text-center text-muted py-4">No hay productos agregados a la venta.</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      <hr>
-      <div class="pos-total-box">
-        <div>
-          <small>Total a emitir</small>
-          <div class="text-white-50">Se cobra luego en caja</div>
+      <div class="pos-cross-sell-compact" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <div class="small fw-bold"><i class="fas fa-bolt text-warning me-1"></i>Sugerencias <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span></div>
+          <span class="small text-muted" id="posCrossSellStateText">{% if pos_cross_sell_enabled %}Activas{% else %}Off{% endif %}</span>
         </div>
-        <strong id="monto_total">{{ venta.total }}</strong>
-      </div>
-    </div>
-  </div>
-<!-- CIERRE OPERATIVO POS: resumen + cliente -->
-<div class="row g-3 mt-2">
-  <div class="col-xl-4 col-lg-5">
-    <div class="card card-ds h-100 pos-summary-sticky pos-cockpit-card">
-      <div class="card-header d-flex justify-content-between align-items-center gap-2">
-        <span>Cabina de caja</span>
-        <span class="badge rounded-pill text-bg-light">Vista rápida</span>
-      </div>
-      <div class="card-body">
-        <div class="pos-cockpit-total">
-          <span class="pos-cockpit-total-label">Total venta actual</span>
-          <strong class="pos-cockpit-total-amount" id="monto_total_cockpit">{{ venta.total }}</strong>
-        </div>
-        <div class="pos-cockpit-stat">
-          <span>Items en venta</span>
-          <strong>{{ detalles|length }}</strong>
-        </div>
-        <div class="pos-cockpit-stat">
-          <span>Vendedor</span>
-          <strong>{{ current_user.nombre }}</strong>
-        </div>
-        <div class="pos-cockpit-stat">
-          <span>Estado de salida</span>
-          <span class="badge bg-warning text-dark">Vale Pendiente</span>
-        </div>
-        <div class="alert alert-info small mb-2">
-          El método de pago se registra en <strong>Caja</strong>, no en Punto de Venta.
-        </div>
-        <div id="stockValidationAlert" class="alert alert-danger small d-none mb-2">
-          Hay items con consumo mayor al stock disponible. Ajusta cantidades antes de emitir el vale.
-        </div>
-        {% if usuario_tiene_permiso('autorizar_descuento_pos') %}
-        <p class="small mb-0 pos-help-inline">La <strong>cantidad</strong> se guarda sola al editar. El <strong>descuento</strong> se aplica en pantalla al instante, pero debe pulsar <strong>Actualizar</strong> para guardarlo en el servidor. Con su permiso de supervisor <strong>no</strong> se pide otra credencial al subir el descuento.</p>
-        {% else %}
-        <p class="small mb-0 pos-help-inline">La <strong>cantidad</strong> se guarda sola al editar. Para <strong>aumentar</strong> el descuento, pulse <strong>Actualizar</strong>: se listan supervisores desde el sistema; elige o escribe y luego la contraseña.</p>
-        {% endif %}
-
-        <div class="pos-cross-sell-card" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
-          <div class="d-flex justify-content-between align-items-start gap-2">
-            <div>
-              <h6><i class="fas fa-bolt me-1 text-warning"></i>Ventas sugeridas</h6>
-              <div class="small" id="posCrossSellStateText">{% if pos_cross_sell_enabled %}Activas para esta sesión de caja{% else %}Desactivadas para esta sesión de caja{% endif %}</div>
-            </div>
-            <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span>
+        <div id="posCrossSellContent" class="mt-2 small">
+          {% if pos_cross_sell_panel and pos_cross_sell_panel['items'] %}
+          <div class="d-flex flex-wrap gap-1">
+            {% for it in pos_cross_sell_panel['items'] %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}"><i class="fas fa-plus me-1"></i>{{ it.nombre }}</a>
+            {% endfor %}
           </div>
-          <div id="posCrossSellContent" class="mt-2">
-            {% if not pos_cross_sell_enabled %}
-            <p class="small mb-0">Las sugerencias están apagadas. Puedes reactivarlas con el botón superior.</p>
-            {% elif pos_cross_sell_panel and pos_cross_sell_panel['items'] %}
-            <p class="small mb-2">{{ pos_cross_sell_panel.mensaje or 'Complementos sugeridos para aumentar ticket y ayudar al cajero.' }}</p>
-            <div class="pos-cross-sell-actions">
-              {% for it in pos_cross_sell_panel['items'] %}
-              <a class="btn btn-sm btn-outline-light" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}">
-                <i class="fas fa-plus me-1"></i>{{ it.nombre }}
-              </a>
-              {% endfor %}
-            </div>
-            {% else %}
-            <p class="small mb-0">Aún no hay sugerencias para los productos del vale actual.</p>
-            {% endif %}
-          </div>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
 
-  <div class="col-xl-8 col-lg-7">
-    <div class="card card-ds pos-customer-card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0 fw-bold"><i class="fas fa-user-check me-2"></i>Cliente para el Vale</h5>
-        <small class="text-muted">F2: buscar producto | F3: cliente final | F4: emitir vale</small>
+<footer class="pos-checkout-dock">
+  <form id="formEmitirVale" method="POST" action="{{ url_for('finalizar_venta') }}">
+    <input type="hidden" name="pos_emit_origen" value="punto_venta">
+    <input type="checkbox" id="cliente_final" name="cliente_final" value="1" class="d-none">
+    <input type="hidden" id="posExigirRutVenta" name="pos_exigir_rut" value="{{ 1 if pos_rut_obligatorio else 0 }}">
+    <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">
+    <input type="hidden" id="cliente_rut" name="cliente_rut" value="{{ cliente.rut if cliente else (cotizacion_origen.cliente_rut if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_nombre" name="cliente_nombre" value="{{ cliente.nombre if cliente else (cotizacion_origen.cliente_nombre if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_direccion" name="cliente_direccion" value="{{ cliente.direccion if cliente else (cotizacion_origen.cliente_direccion if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_giro" name="cliente_giro" value="{{ cliente.giro if cliente else (cotizacion_origen.cliente_giro if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_telefono" name="cliente_telefono" value="{{ cliente.telefono if cliente else (cotizacion_origen.cliente_telefono if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_correo" name="cliente_correo" value="{{ cliente.correo if cliente else (cotizacion_origen.cliente_correo if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_comuna" name="cliente_comuna" value="{{ cliente.comuna if cliente else (cotizacion_origen.cliente_comuna if cotizacion_origen else '') }}">
+    <input type="hidden" id="cliente_ciudad" name="cliente_ciudad" value="{{ cliente.ciudad if cliente else (cotizacion_origen.cliente_ciudad if cotizacion_origen else '') }}">
+    <div id="rut_error" class="d-none"></div>
+    <button type="button" id="buscarClienteBtn" class="d-none" aria-hidden="true"></button>
+    <div id="clienteStatus" class="d-none"></div>
+    <div class="pos-dock-alerts">
+      <div id="stockValidationAlert" class="alert alert-danger d-none">Hay ítems sin stock en tienda. Ajuste cantidades antes de emitir.</div>
+    </div>
+    <div class="pos-dock-grid">
+      <div class="pos-dock-total">
+        <span class="pos-dock-total-label">Total a emitir</span>
+        <strong id="monto_total" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</strong>
+        <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</span>
+        <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems · {{ current_user.nombre }} · cobro en caja</small>
       </div>
-      <div class="card-body">
-        <form id="formEmitirVale" method="POST" action="{{ url_for('finalizar_venta') }}">
-          <div class="row g-3">
-            <div class="col-12">
-              <div class="form-check form-switch border rounded px-3 py-2 bg-light">
-                <input class="form-check-input" type="checkbox" id="cliente_final" name="cliente_final" value="1">
-                <label class="form-check-label fw-semibold" for="cliente_final">Cliente final / boleta sin datos (sin RUT)</label>
-                <div class="small text-muted mt-1">Usa el cliente genérico del sistema para ventas mostrador sin identificación del cliente.</div>
+      <div class="pos-dock-cliente">
+        <div id="posClientePanelIdle" class="pos-cliente-panel">
+          <p class="small mb-0 opacity-75"><i class="fas fa-user me-1"></i>Cliente opcional — identifique arriba para la TV</p>
+        </div>
+        <div id="posClientePanelKnown" class="pos-cliente-panel d-none">
+          <div class="pos-cliente-summary border rounded">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="text-success small fw-bold mb-0"><i class="fas fa-check-circle me-1"></i>Cliente</div>
+                <div class="fw-bold" id="posClienteKnownNombre">—</div>
+                <div class="small opacity-75" id="posClienteKnownRut"></div>
               </div>
+              <button type="button" class="btn btn-sm btn-outline-light" id="posBtnCambiarCliente">Cambiar</button>
             </div>
-            <div class="col-md-5">
-              <label class="form-label fw-bold">RUT Cliente</label>
-              <input type="text" id="cliente_rut" name="cliente_rut" class="form-control" placeholder="12.345.678-5" value="{{ cliente.rut if cliente else (cotizacion_origen.cliente_rut if cotizacion_origen else '') }}" required>
-              <div id="rut_error" class="text-danger small mt-1 d-none">RUT inválido, verifique el número.</div>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-bold">Nombre</label>
-              <input type="text" id="cliente_nombre" name="cliente_nombre" class="form-control" placeholder="Nombre cliente" value="{{ cliente.nombre if cliente else (cotizacion_origen.cliente_nombre if cotizacion_origen else '') }}">
-            </div>
-            <div class="col-md-3 d-grid align-items-end">
-              <button type="button" id="buscarClienteBtn" class="btn btn-outline-primary">
-                <i class="fas fa-search me-1"></i> Buscar cliente
-              </button>
-            </div>
-
-            <div class="col-12">
-              <div id="clienteStatus" class="small text-muted"></div>
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Dirección</label>
-              <input type="text" id="cliente_direccion" name="cliente_direccion" class="form-control" value="{{ cliente.direccion if cliente else (cotizacion_origen.cliente_direccion if cotizacion_origen else '') }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Giro</label>
-              <input type="text" id="cliente_giro" name="cliente_giro" class="form-control" value="{{ cliente.giro if cliente else (cotizacion_origen.cliente_giro if cotizacion_origen else '') }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Teléfono</label>
-              <input type="text" id="cliente_telefono" name="cliente_telefono" class="form-control" value="{{ cliente.telefono if cliente else (cotizacion_origen.cliente_telefono if cotizacion_origen else '') }}">
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Correo</label>
-              <input type="email" id="cliente_correo" name="cliente_correo" class="form-control" value="{{ cliente.correo if cliente else (cotizacion_origen.cliente_correo if cotizacion_origen else '') }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Comuna</label>
-              <input type="text" id="cliente_comuna" name="cliente_comuna" class="form-control" maxlength="80" placeholder="Ej: Copiapó" value="{{ cliente.comuna if cliente else (cotizacion_origen.cliente_comuna if cotizacion_origen else '') }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Ciudad</label>
-              <input type="text" id="cliente_ciudad" name="cliente_ciudad" class="form-control" maxlength="80" placeholder="Ej: Copiapó" value="{{ cliente.ciudad if cliente else (cotizacion_origen.cliente_ciudad if cotizacion_origen else '') }}">
-            </div>
-
-            <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">
-            <div class="col-12 d-flex justify-content-end gap-2 pt-1">
-              <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary">
-                <i class="fas fa-cash-register me-1"></i> Ir a Caja
-              </a>
-              <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary btn-lg fw-bold px-4">
-                <i class="fas fa-file-invoice-dollar me-2"></i> Emitir Vale
-              </button>
-            </div>
+            <div id="posClienteKnownExtras" class="mt-1"></div>
           </div>
-        </form>
+        </div>
+        <div id="posClientePanelFinal" class="pos-cliente-panel d-none">
+          <p class="small mb-0"><i class="fas fa-user me-1"></i> Cliente final (boleta sin datos)</p>
+        </div>
+      </div>
+      <div class="pos-dock-actions">
+        <small class="text-muted d-none d-xl-block align-self-center">F2 · F3 · F4</small>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-cash-register me-1"></i> Caja</a>
+        <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary fw-bold px-4"><i class="fas fa-file-invoice-dollar me-2"></i> Emitir vale</button>
+      </div>
+    </div>
+  </form>
+</footer>
+
+<div class="modal fade" id="modalPosProductoNoEncontrado" tabindex="-1" aria-labelledby="modalPosProductoNoEncontradoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-warning-subtle">
+        <h5 class="modal-title" id="modalPosProductoNoEncontradoLabel"><i class="fas fa-barcode me-2"></i>Código no registrado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2">El código escaneado <strong id="posScanCodigoMostrar" class="font-monospace"></strong> no existe en el catálogo.</p>
+        <p class="small text-muted mb-3">Puede darlo de alta en segundos o buscarlo por nombre. La venta sigue abierta.</p>
+        <div id="posScanSugerencias" class="mb-3 d-none">
+          <p class="small fw-semibold mb-1">¿Quiso decir?</p>
+          <div id="posScanSugerenciasLista" class="d-flex flex-wrap gap-1"></div>
+        </div>
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-ds-primary" id="posBtnAltaRapidaProducto"><i class="fas fa-plus-circle me-1"></i> Alta rápida y agregar al vale</button>
+          <button type="button" class="btn btn-outline-primary" id="posBtnBuscarSimilar"><i class="fas fa-search me-1"></i> Buscar por nombre en catálogo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalPosProductoAltaRapida" tabindex="-1" aria-labelledby="modalPosProductoAltaRapidaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalPosProductoAltaRapidaLabel"><i class="fas fa-box-open me-2 text-primary"></i>Alta rápida de producto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Se creará en catálogo, con stock en tienda, y se agregará a este vale.</p>
+        <div id="posProductoAltaError" class="alert alert-danger py-2 small d-none"></div>
+        <div class="mb-3">
+          <label class="form-label fw-bold" for="posAltaCodigo">Código de barras</label>
+          <input type="text" class="form-control font-monospace" id="posAltaCodigo" readonly>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold" for="posAltaNombre">Nombre <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="posAltaNombre" placeholder="Ej: Tornillo 1/2 x 50 mm">
+        </div>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label fw-bold" for="posAltaPrecio">Precio venta <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="posAltaPrecio" min="1" step="1" placeholder="990">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="posAltaStock">Stock tienda</label>
+            <input type="number" class="form-control" id="posAltaStock" min="0" step="1" value="1">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-ds-primary" id="posBtnGuardarAltaProducto"><i class="fas fa-check me-1"></i> Guardar y agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalPosClienteNuevo" tabindex="-1" aria-labelledby="modalPosClienteNuevoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalPosClienteNuevoLabel"><i class="fas fa-user-plus me-2 text-warning"></i>Cliente nuevo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">Este RUT no está en el sistema. Complete los datos mínimos; al guardar quedará registrado y visible en la TV.</p>
+        <div id="posClienteModalError" class="alert alert-danger py-2 small d-none" role="alert"></div>
+        <div class="mb-3">
+          <label class="form-label fw-bold" for="posClienteModalRut">RUT</label>
+          <input type="text" class="form-control" id="posClienteModalRut" readonly>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold" for="posClienteModalNombre">Nombre o razón social <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="posClienteModalNombre" placeholder="Ej: Juan Pérez / Constructora XYZ" autocomplete="name">
+        </div>
+        <div class="mb-0">
+          <label class="form-label fw-semibold" for="posClienteModalTelefono">Teléfono (opcional)</label>
+          <input type="text" class="form-control" id="posClienteModalTelefono" placeholder="+56 9 …" autocomplete="tel">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-ds-primary" id="posBtnGuardarClienteNuevo">
+          <i class="fas fa-check me-1"></i> Guardar y cerrar
+        </button>
       </div>
     </div>
   </div>
@@ -602,6 +906,8 @@
   </div>
 </div>
 
+{% include 'pos/includes/ticket_emitido_autoprint.html' %}
+
 <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
   <div id="posToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="d-flex">
@@ -626,8 +932,17 @@
     'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento'),
     'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
     'cross_sell_toggle': url_for('api_pos_cross_sell_toggle'),
-    'cross_sell_reject': url_for('api_pos_cross_sell_reject')
-  }
+    'rut_obligatorio_toggle': url_for('api_pos_rut_obligatorio_toggle'),
+    'cross_sell_reject': url_for('api_pos_cross_sell_reject'),
+    'vincular_cliente': url_for('api_pos_vincular_cliente'),
+    'escanear_agregar': url_for('api_pos_escanear_agregar'),
+    'producto_alta_rapida': url_for('api_pos_producto_alta_rapida')
+  },
+  'cliente_vitrina': cliente_vitrina,
+  'cliente_ui': cliente_ui,
+  'pos_rut_obligatorio': pos_rut_obligatorio,
+  'pos_retiro_por_linea': pos_retiro_por_linea,
+  'from_command_deck': false
 } | tojson }}</script>
 <script src="{{ url_for('static', filename='js/pos.js') }}"></script>
 {% if pos_cross_sell %}

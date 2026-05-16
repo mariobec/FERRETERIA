@@ -1,0 +1,15 @@
+---
+description: Antes o después de cambios drásticos de flujo o UI, dejar un punto de restauración en git.
+alwaysApply: true
+---
+
+# Puntos de restauración (cambios drásticos)
+
+Cuando el alcance sea **flujo crítico de negocio** o **UI visible al usuario en POS/TV/caja** (redirecciones, pantallas completas, impresión, permisos):
+
+1. **Antes** de implementar: proponer o crear un **checkpoint en git**, por ejemplo:
+   - `git tag checkpoint/pos-ticket-YYYY-MM-DD` en un commit estable, o
+   - rama corta `checkpoint/nombre-tarea` desde `main`/`master` actual.
+2. **Después** de validar: si el cambio queda bien, el tag queda como referencia histórica; si no, `git checkout` al tag o merge revert documentado.
+
+No sustituye tests ni PR; es **ancla humana** para recuperar el estado exacto si hubo malentendido de requisitos.

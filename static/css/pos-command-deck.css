@@ -1,0 +1,189 @@
+/* LhexIA Command Deck — dark premium POS */
+:root {
+  --deck-bg: #0a0a0a;
+  --deck-panel: #111318;
+  --deck-border: rgba(148, 163, 184, 0.14);
+  --deck-neon: #00ff9f;
+  --deck-blue: #00b4ff;
+  --deck-violet: #a78bfa;
+  --deck-text: #f1f5f9;
+  --deck-muted: #94a3b8;
+}
+
+html.deck-fullscreen,
+html.deck-fullscreen body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body.deck-body {
+  margin: 0;
+  background: var(--deck-bg);
+  color: var(--deck-text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.deck-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 22%) 1fr minmax(280px, 30%);
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  gap: 0;
+}
+
+.deck-topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(90deg, #0f172a 0%, #0a0a0a 60%);
+  border-bottom: 1px solid var(--deck-border);
+}
+
+.deck-brand {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-size: 1.15rem;
+}
+.deck-brand span { color: var(--deck-neon); }
+
+.deck-panel {
+  padding: 1rem 1.1rem;
+  border-right: 1px solid var(--deck-border);
+  overflow: auto;
+  background: var(--deck-panel);
+}
+.deck-panel:last-child { border-right: none; border-left: 1px solid var(--deck-border); }
+
+.deck-panel h6 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--deck-muted);
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+}
+
+.deck-input {
+  background: #0a0a0f;
+  border: 1px solid var(--deck-border);
+  color: var(--deck-text);
+}
+.deck-input:focus {
+  border-color: var(--deck-neon);
+  box-shadow: 0 0 0 2px rgba(0, 255, 159, 0.15);
+  color: var(--deck-text);
+}
+
+.deck-cart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding-right: 0.25rem;
+}
+
+.deck-line {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--deck-border);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.deck-line.deck-line-new {
+  animation: deckPop 0.35s ease;
+}
+@keyframes deckPop {
+  from { transform: scale(0.97); border-color: var(--deck-neon); }
+  to { transform: scale(1); }
+}
+
+.deck-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #0f172a;
+  border: 1px solid var(--deck-border);
+}
+
+.deck-total-box {
+  margin-top: auto;
+  padding: 1.25rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(0, 255, 159, 0.12), rgba(0, 180, 255, 0.08));
+  border: 1px solid rgba(0, 255, 159, 0.35);
+  text-align: center;
+}
+.deck-total-box .label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--deck-muted);
+}
+.deck-total-box .amount {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 30px rgba(0, 255, 159, 0.35);
+}
+
+.deck-kpi {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.45rem 0;
+  border-bottom: 1px dashed var(--deck-border);
+  font-size: 0.9rem;
+}
+.deck-kpi strong { color: var(--deck-neon); }
+
+.deck-assistant {
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: rgba(167, 139, 250, 0.08);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  margin-bottom: 1rem;
+}
+
+.deck-btn-neon {
+  background: linear-gradient(135deg, var(--deck-neon), #00d4aa);
+  color: #04120c;
+  font-weight: 800;
+  border: none;
+}
+.deck-btn-neon:hover { filter: brightness(1.05); color: #04120c; }
+
+.deck-stock-ok { color: var(--deck-neon); }
+.deck-stock-low { color: #fbbf24; }
+.deck-stock-out { color: #f87171; }
+
+.select2-container--bootstrap-5 .select2-selection {
+  background: #0a0a0f !important;
+  border-color: var(--deck-border) !important;
+  color: var(--deck-text) !important;
+}
+
+.pos-rut-toggle-btn.is-on {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  border-color: #1d4ed8;
+  color: #fff;
+}
+.pos-rut-toggle-btn.is-off {
+  background: var(--deck-panel);
+  border: 1px solid var(--deck-border);
+  color: var(--deck-muted);
+}
+
+@media (max-width: 1100px) {
+  .deck-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+    height: auto;
+    min-height: 100vh;
+  }
+  .deck-panel { border-right: none; border-bottom: 1px solid var(--deck-border); max-height: 40vh; }
+}

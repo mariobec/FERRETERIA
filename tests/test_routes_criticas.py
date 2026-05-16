@@ -216,6 +216,27 @@ class TestCajaCritica:
         }, follow_redirects=True)
         assert r.status_code in (200, 302)
 
+    def test_anular_vales_caja_lote(self, app_client, productos_con_stock, caja_abierta, cliente_final):
+        """Anulación masiva desde POST /caja/vales/anular_lote (permiso anular_vale_caja)."""
+        from werkzeug.datastructures import ImmutableMultiDict
+
+        p = productos_con_stock[1]
+        v1, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        v2, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        fd = ImmutableMultiDict(
+            [
+                ('motivo', 'QA test anulacion lote HTTP'),
+                ('venta_ids', str(v1.id)),
+                ('venta_ids', str(v2.id)),
+            ]
+        )
+        r = app_client.post('/caja/vales/anular_lote', data=fd, follow_redirects=True)
+        assert r.status_code == 200
+
+        db.session.expire_all()
+        assert db.session.get(m.Venta, v1.id).estado == 'Anulada'
+        assert db.session.get(m.Venta, v2.id).estado == 'Anulada'
+
     def test_cobro_ya_pagado_rechaza(self, app_client, productos_con_stock, caja_abierta, cliente_final):
         p = productos_con_stock[0]
         venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)

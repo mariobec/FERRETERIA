@@ -8,6 +8,14 @@ def register_bodega_routes(app):
     """Debe llamarse al final de la carga de `app` (después de definir vistas y decoradores)."""
     m = app_module()
     permisos_required = m.permisos_required
+    view_qr_vals = login_required(permisos_required('bodega_operador')(m.bodega_despacho_qr_vales))
+    app.add_url_rule(
+        '/bodega/despacho-qr-vales',
+        'bodega_despacho_qr_vales',
+        view_qr_vals,
+        methods=['GET'],
+    )
+
     view_despachos = login_required(permisos_required('bodega_operador')(m.bodega_despachos))
     app.add_url_rule('/bodega/despachos', 'bodega_despachos', view_despachos, methods=['GET'])
 

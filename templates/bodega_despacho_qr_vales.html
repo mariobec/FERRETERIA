@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+      <h4 class="fw-bold mb-1"><i class="fas fa-qrcode me-2 text-success"></i>Despacho ticket (QR)</h4>
+      <p class="text-muted mb-0 small">Vales <strong>pendientes de cobro</strong> de la caja abierta que incluyen retiro en bodega (o mixto con líneas bodega). Mismo token que imprime el ticket.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-clipboard-list me-1"></i>Plataforma retiro</a>
+      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-info btn-sm"><i class="fas fa-microphone me-1"></i>Despachos voz</a>
+    </div>
+  </div>
+
+  {% if sin_caja_abierta %}
+  <div class="alert alert-warning border-0 shadow-sm">
+    <strong>Sin caja abierta.</strong> Abra caja para listar solo los vales del turno actual.
+  </div>
+  {% elif caja %}
+  <p class="small text-muted mb-3">Filtrado por <strong>caja N°{{ caja.id }}</strong> abierta.</p>
+  {% endif %}
+
+  {% if not sin_caja_abierta %}
+  <div class="card card-ds shadow-sm">
+    <div class="table-responsive">
+      <table class="table table-hover table-ds mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Vale</th>
+            <th>Turno</th>
+            <th>Cliente</th>
+            <th>Total</th>
+            <th>Retiro</th>
+            <th class="text-end pe-3">Despacho</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vales %}
+          <tr>
+            <td class="ps-3"><span class="badge bg-dark">#{{ v.id }}</span></td>
+            <td>{{ v.prioridad }}</td>
+            <td>{{ v.cliente.nombre if v.cliente else '—' }}</td>
+            <td class="fw-bold text-success">${{ "{:,.0f}".format(v.monto_total or 0).replace(",", ".") }}</td>
+            <td><span class="small">{{ v.punto_retiro or '—' }}</span></td>
+            <td class="text-end pe-3">
+              {% set tok = tokens.get(v.id) %}
+              {% if tok %}
+              <a class="btn btn-sm btn-success rounded-pill" href="{{ url_for('pos_despacho_vale', vid=v.id, t=tok) }}">
+                <i class="fas fa-truck me-1"></i>Abrir lista
+              </a>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-5">No hay vales en cola con retiro bodega para esta caja.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

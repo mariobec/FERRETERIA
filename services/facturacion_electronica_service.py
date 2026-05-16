@@ -36,6 +36,28 @@ DTE_ESTADO_ERROR_FIRMA = 'ERROR_FIRMA'
 DTE_ESTADO_ERROR_ENVIO = 'ERROR_ENVIO'
 
 
+def _persist_xml_dte_firmado_safe(
+    erp_root: Optional[str],
+    ambiente: str,
+    venta_id: int,
+    folio: int,
+    dte_tipo: int,
+    xml_firma: bytes,
+) -> None:
+    """Guarda copia local del XML firmado (no bloquea emisión si falla el disco)."""
+    root = (erp_root or '').strip()
+    if not root or not xml_firma or int(venta_id) <= 0:
+        return
+    try:
+        from services import facturacion_dte_storage as _st
+
+        _st.persistir_xml_dte_firmado(
+            root, ambiente or 'certificacion', int(venta_id), int(folio), int(dte_tipo), xml_firma
+        )
+    except Exception:
+        _logger_fe.warning('No se pudo persistir XML DTE firmado (venta_id=%s)', venta_id, exc_info=True)
+
+
 def _resolver_ruta_pfx(raw: str) -> str:
     """
     Normaliza la ruta al .pfx: absoluta tal cual; relativa respecto a la raíz del ERP
@@ -225,7 +247,8 @@ def firmar_xml_dte(xml_bytes: bytes) -> Tuple[bytes, str]:
 
         root = etree.fromstring(xml_bytes)
         signer = XMLSigner(method=methods.enveloped, signature_algorithm='rsa-sha256')
-        signed_root = signer.sign(root, key=private_key, cert=certificate)
+        # signxml 4.x: `cert` debe ser lista (cadena de certificados), no un solo Certificate.
+        signed_root = signer.sign(root, key=private_key, cert=[certificate])
         root_bytes = etree.tostring(
             signed_root, xml_declaration=True, encoding='utf-8', pretty_print=True
         )
@@ -359,6 +382,8 @@ def post_cobro_emision_fe(
     caf_model: Any,
     obtener_config_empresa: Callable[[], Dict[str, str]],
     logger: Any,
+    *,
+    erp_root: Optional[str] = None,
 ) -> str:
     """
     Emisión FE tras commit del cobro: savepoint aísla folio CAF; si falla firma/SOAP
@@ -382,13 +407,19 @@ def post_cobro_emision_fe(
             if (estado_firma or '').startswith('ERROR_FIRMA'):
                 raise RuntimeError(estado_firma)
             ambiente = (obtener_config_certificado().get('ambiente') or '').strip()
+            _persist_xml_dte_firmado_safe(
+                erp_root, ambiente, int(getattr(venta, 'id', 0) or 0), int(folio), int(dte_tipo), xml_firma
+            )
             track_id, estado_envio = enviar_dte_soap(xml_firma, ambiente=ambiente)
-            if estado_envio != 'ok' or not (track_id or '').strip():
-                raise RuntimeError(estado_envio or 'soap_sin_track')
             venta.dte_tipo = int(dte_tipo)
-            venta.dte_estado = DTE_ESTADO_ENVIADO
-            venta.dte_track_id = (track_id or '')[:50]
-        return str(getattr(venta, 'dte_estado', None) or DTE_ESTADO_ENVIADO)
+            if estado_envio == 'ok' and (track_id or '').strip():
+                venta.dte_estado = DTE_ESTADO_ENVIADO
+                venta.dte_track_id = (track_id or '')[:50]
+            else:
+                # Fase 1: SOAP aún stub o SII no disponible — se conserva folio CAF y se marca cola.
+                venta.dte_estado = DTE_ESTADO_PENDIENTE_ENVIO
+                venta.dte_track_id = None
+        return str(getattr(venta, 'dte_estado', None) or DTE_ESTADO_PENDIENTE_ENVIO)
     except Exception as ex:
         try:
             db_session.refresh(venta)
@@ -475,6 +506,67 @@ def emitir_prueba_xml(dte_tipo: int, folio: int = 1) -> Dict[str, Any]:
     }
 
 
+def reintentar_emision_fe_venta(
+    db_session: Any,
+    venta_id: int,
+    venta_model: Any,
+    caf_model: Any,
+    obtener_config_empresa: Callable[[], Dict[str, str]],
+    logger: Any,
+    *,
+    erp_root: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Reintenta emisión para venta en PENDIENTE_ENVIO (misma lógica que post-cobro).
+    Si no hay folio reservado, asigna CAF; si ya hay nro_documento+caf_id, reutiliza.
+    """
+    venta = db_session.query(venta_model).filter_by(id=int(venta_id)).first()
+    if not venta:
+        return {'ok': False, 'motivo': 'venta_no_encontrada'}
+    if (getattr(venta, 'dte_estado', None) or '') != DTE_ESTADO_PENDIENTE_ENVIO:
+        return {'ok': False, 'motivo': 'estado_no_pendiente', 'dte_estado': getattr(venta, 'dte_estado', None)}
+    dte_tipo = resolver_dte_tipo_por_tipo_documento(getattr(venta, 'tipo_documento', None))
+    try:
+        with db_session.begin_nested():
+            folio = getattr(venta, 'nro_documento', None)
+            caf_id = getattr(venta, 'caf_id', None)
+            if not folio or not caf_id:
+                pair = asignar_folio_disponible(db_session, caf_model, dte_tipo)
+                if not pair:
+                    raise ValueError('sin_caf_o_folios')
+                folio, caf_id = pair
+                venta.nro_documento = int(folio)
+                venta.caf_id = int(caf_id)
+            ctx = construir_contexto_desde_venta(venta, int(folio), dte_tipo, obtener_config_empresa)
+            xml_raw = generar_xml_dte_prueba_lxml(ctx)
+            xml_firma, estado_firma = firmar_xml_dte(xml_raw)
+            if (estado_firma or '').startswith('ERROR_FIRMA'):
+                raise RuntimeError(estado_firma)
+            ambiente = (obtener_config_certificado().get('ambiente') or '').strip()
+            _persist_xml_dte_firmado_safe(
+                erp_root, ambiente, int(venta.id), int(folio), int(dte_tipo), xml_firma
+            )
+            track_id, estado_envio = enviar_dte_soap(xml_firma, ambiente=ambiente)
+            venta.dte_tipo = int(dte_tipo)
+            if estado_envio == 'ok' and (track_id or '').strip():
+                venta.dte_estado = DTE_ESTADO_ENVIADO
+                venta.dte_track_id = (track_id or '')[:50]
+            else:
+                venta.dte_estado = DTE_ESTADO_PENDIENTE_ENVIO
+                venta.dte_track_id = None
+        return {
+            'ok': True,
+            'venta_id': venta.id,
+            'dte_estado': getattr(venta, 'dte_estado', None),
+            'nro_documento': getattr(venta, 'nro_documento', None),
+        }
+    except Exception as ex:
+        db_session.rollback()
+        logger.exception('reintentar_emision_fe_venta venta_id=%s', venta_id)
+        return {'ok': False, 'motivo': str(ex)[:200]}
+
+
 def reintentar_envio_dte_venta(venta_id: int) -> Dict[str, Any]:
-    """Reservado para worker / panel admin (Fase 2)."""
-    return {'ok': False, 'venta_id': venta_id, 'motivo': 'no_implementado_fase1'}
+    """Reservado: usar `reintentar_emision_fe_venta` desde la capa Flask con modelos."""
+    _ = venta_id
+    return {'ok': False, 'venta_id': venta_id, 'motivo': 'invocar_reintentar_emision_fe_venta_desde_app'}

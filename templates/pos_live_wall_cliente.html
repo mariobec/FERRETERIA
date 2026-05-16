@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <title>{{ empresa_cfg.get('nombre_comercial') or 'LhexIA' }} — Su compra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=DM+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260215ew10">
+</head>
+<body class="ew-body">
+  <div class="ew-bg" aria-hidden="true"></div>
+
+  {% if error == 'invalid_token' %}
+  <div class="ew-error">
+    <h2 class="ew-error-title">Enlace no válido o expirado</h2>
+    <p class="ew-error-text">Pida al mostrador un nuevo enlace para esta pantalla.</p>
+  </div>
+  {% elif error == 'no_venta' %}
+  <div class="ew-error">
+    <h2 class="ew-error-title">Venta no encontrada</h2>
+  </div>
+  {% else %}
+  <div class="ew-shell" id="ewShell">
+    <header class="ew-topbar">
+      <div class="ew-brand">
+        <div class="ew-brand-mark"><i class="fas fa-receipt"></i></div>
+        <div>
+          <div class="ew-brand-line">LhexIA <span>Experience</span></div>
+          {% if empresa_cfg.get('nombre_comercial') %}
+          <div class="ew-store-name">{{ empresa_cfg.nombre_comercial }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="ew-live"><span class="ew-live-dot"></span> En vivo</div>
+    </header>
+
+    <section class="ew-hero">
+      <div id="ewGreeting" class="ew-greeting d-none"></div>
+      <h1>Su compra</h1>
+      <p id="ewClienteNombre" class="ew-cliente-nombre d-none" aria-live="polite"></p>
+      <p id="ewSub">Actualizando en vivo…</p>
+    </section>
+
+    <div id="ewShopping" class="ew-shopping">
+      <div class="ew-total-card" id="ewTotalCard">
+        <div class="ew-total-label">Total estimado</div>
+        <div class="ew-total" id="ewTotal">$0</div>
+      </div>
+
+      <div id="ewItems" class="ew-items" aria-live="polite" aria-label="Productos en el vale"></div>
+
+      <div id="ewIdlePanel" class="ew-empty ew-idle-panel">
+        <div class="ew-empty-icon" aria-hidden="true"><i class="fas fa-handshake"></i></div>
+        <h2>Listos para atenderle</h2>
+        <p>Pantalla preparada para la próxima compra.</p>
+      </div>
+    </div>
+
+    <div id="ewThanks" class="ew-thanks-panel d-none">
+      <div class="ew-thanks-icon"><i class="fas fa-circle-check"></i></div>
+      <h2 id="ewThanksText">¡Gracias por su compra!</h2>
+      <p>Le atenderemos en el mostrador para el pago y retiro.</p>
+    </div>
+
+    <footer class="ew-footer" id="ewFoot"></footer>
+  </div>
+
+  {# Ticket compacto al emitir vale (no sustituye la vista principal) #}
+  <div id="ewValeCorner" class="ew-vale-corner d-none" role="status" aria-live="polite">
+    <div class="ew-vale-corner-header">
+      <span class="ew-vale-corner-title"><i class="fas fa-receipt me-1"></i>Vale para caja</span>
+      <button type="button" class="ew-vale-corner-close" id="ewValeCornerClose" aria-label="Cerrar">&times;</button>
+    </div>
+    <div class="ew-vale-corner-scroll">
+      <div id="ewValeCornerInner" class="ew-ticket ew-ticket--corner-preview"></div>
+    </div>
+  </div>
+
+  <script id="ew-snap-config" type="application/json">{{ {'url': api_snapshot_url} | tojson }}</script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260215ew10"></script>
+  {% endif %}
+</body>
+</html>

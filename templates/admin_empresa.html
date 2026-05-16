@@ -67,6 +67,50 @@
           </div>
           <div class="col-12">
             <hr>
+            <label class="form-label fw-semibold mb-2">Punto de venta</label>
+            <label class="form-check border rounded p-3 w-100">
+              <input class="form-check-input me-2" type="checkbox" name="pos_rut_obligatorio" value="1"
+                     {% if (empresa.pos_rut_obligatorio or '1') == '1' %}checked{% endif %}>
+              <span class="form-check-label">
+                <strong>Exigir RUT por defecto al abrir el POS</strong>
+                <span class="d-block small text-muted mt-1">
+                  Valor inicial de cada sesión de caja. La vendedora puede activar o desactivar «RUT obligatorio» en pantalla si el cliente no quiere entregar datos.
+                </span>
+              </span>
+            </label>
+            <label class="form-check border rounded p-3 w-100 mt-2">
+              <input class="form-check-input me-2" type="checkbox" name="pos_retiro_por_linea" value="1"
+                     {% if (empresa.pos_retiro_por_linea or '0') == '1' %}checked{% endif %}>
+              <span class="form-check-label">
+                <strong>Retiro por línea en el POS (Tienda / Bodega / Despacho)</strong>
+                <span class="d-block small text-muted mt-1">
+                  Actívelo si vende en un solo vale productos que salen de mostrador y de bodega (como el resaltador verde/amarillo en el vale físico). Si lo desactiva, un solo punto de retiro aplica a todo el vale (modo tradicional).
+                </span>
+              </span>
+            </label>
+            <label class="form-check border rounded p-3 w-100 mt-2">
+              <input class="form-check-input me-2" type="checkbox" name="pos_ticket_qr_despacho" value="1"
+                     {% if (empresa.pos_ticket_qr_despacho or '0') == '1' %}checked{% endif %}>
+              <span class="form-check-label">
+                <strong>Código QR en el ticket del vale (enlace a despacho por rol)</strong>
+                <span class="d-block small text-muted mt-1">
+                  Mismo QR: con permiso POS/caja se priorizan líneas de tienda; con permiso bodega, líneas de bodega. Opcional según ferretería; desactívelo si imprime solo papel tradicional.
+                </span>
+              </span>
+            </label>
+            <label class="form-check border rounded p-3 w-100 mt-2">
+              <input class="form-check-input me-2" type="checkbox" name="pos_autoprint_ticket_emitido" value="1"
+                     {% if (empresa.pos_autoprint_ticket_emitido or '0') == '1' %}checked{% endif %}>
+              <span class="form-check-label">
+                <strong>Abrir cuadro de impresión al emitir vale (automático)</strong>
+                <span class="d-block small text-muted mt-1">
+                  Si está activo, al emitir vale el navegador abre la ventana de impresión en segundo plano. Desactive si prefiere solo mostrar mensaje en pantalla y reimprimir desde Caja («Ticket vale»).
+                </span>
+              </span>
+            </label>
+          </div>
+          <div class="col-12">
+            <hr>
             <label class="form-label fw-semibold mb-2">Módulos activos (ERP componible) <span class="kpi-help" data-bs-toggle="tooltip" title="Activa o desactiva módulos visibles para la empresa sin eliminar datos históricos.">?</span></label>
             <div class="row g-2">
               <div class="col-md-4">
@@ -110,6 +154,13 @@
       </form>
       <div class="alert alert-info mt-4 mb-0">
         Esta configuración es operativa y de marca. La administración técnica (infraestructura, respaldos, actualizaciones y seguridad avanzada) sigue bajo control del proveedor del servicio.
+      </div>
+      <div class="alert alert-secondary mt-3 mb-0">
+        <i class="fas fa-file-invoice me-2"></i>
+        <strong>Facturación electrónica (SII):</strong>
+        <a href="{{ url_for('admin_facturacion_caf') }}">Cargar CAF (folios)</a>
+        ·
+        <a href="{{ url_for('admin_facturacion_cola') }}">Cola DTE / descarga XML</a>
       </div>
     </div>
   </div>

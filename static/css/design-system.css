@@ -23,27 +23,45 @@ html, body {
     background: var(--ds-bg);
     color: var(--ds-text);
     font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .app-shell {
     min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* Fila principal: misma altura útil en toda la ventana (evita sidebar corto en pestañas altas). */
+.app-shell > .row {
+    min-height: 100vh;
+    min-height: 100dvh;
+    align-items: stretch;
 }
 
 .app-sidebar {
     height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
     position: sticky;
     top: 0;
-    display: flex;
-    flex-direction: column;
+    /* Grid + minmax(0,1fr): la fila del menú tiene altura acotada y overflow-y:auto sí hace scroll
+       (con solo flex + hijos largos, algunos navegadores no acotan bien y se corta el menú). */
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
     background: var(--ds-sidebar);
     box-shadow: 4px 0 16px rgba(0, 0, 0, 0.12);
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* El scroll va solo en .app-sidebar-nav; así Cerrar sesión queda siempre visible abajo. */
+    overflow: hidden;
 }
 
 .app-sidebar-header {
     padding: 20px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
 }
 
 /* Sidebar: logo amplio (marca lhexa.cl). El comercio va en la topbar. */
@@ -84,7 +102,23 @@ html, body {
 
 .app-sidebar-nav {
     min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(203, 213, 225, 0.55) rgba(15, 23, 42, 0.35);
+    padding-top: 1rem;
     padding-bottom: 10px;
+}
+
+/* El padre es grid; ignoramos flex-grow de Bootstrap en esta celda (solo hace falta min-height:0 + scroll). */
+.app-sidebar .app-sidebar-nav.flex-grow-1 {
+    flex-grow: 0 !important;
+    min-height: 0;
 }
 
 .app-sidebar-nav::-webkit-scrollbar {
@@ -92,14 +126,13 @@ html, body {
 }
 
 .app-sidebar-nav::-webkit-scrollbar-thumb {
-    background: rgba(203, 213, 225, 0.35);
+    background: rgba(203, 213, 225, 0.55);
     border-radius: 999px;
 }
 
 .app-sidebar-footer {
-    margin-top: auto;
-    position: sticky;
-    bottom: 0;
+    flex-shrink: 0;
+    margin-top: 0;
     z-index: 3;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     border-bottom: 0;
@@ -252,7 +285,23 @@ html, body {
 }
 
 .app-main {
+    box-sizing: border-box;
+    min-height: 100vh;
+    min-height: 100dvh;
     padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    /* Misma base que body: sin “hueco” distinto bajo el panel blanco cuando el contenido es corto. */
+    background: var(--ds-bg);
+}
+
+.app-main > .app-topbar {
+    flex-shrink: 0;
+}
+
+.app-main > .alert {
+    flex-shrink: 0;
 }
 
 .app-topbar {
@@ -339,12 +388,17 @@ html, body {
 }
 
 .app-content {
+    flex: 1 1 auto;
+    /* No usar min-height: 0 aquí: en columna flex hace que el panel pueda “encogerse” bajo su
+       contenido y el final del formulario quede cortado sin scroll (se pierde el pie). */
+    min-height: auto;
+    display: flex;
+    flex-direction: column;
     background: var(--ds-surface);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-lg);
     box-shadow: var(--ds-shadow-md);
     padding: 24px;
-    min-height: calc(100vh - 130px);
 }
 
 .page-header {
@@ -402,4 +456,29 @@ body .card.card-ds > .card-header {
     font-size: 0.78rem;
     text-transform: uppercase;
     border-bottom: 1px solid var(--ds-border);
+}
+
+/* Sidebar: menos altura útil (zoom, portátil, ventana no maximizada) — compacta sin perder legibilidad. */
+@media (max-height: 780px) {
+    .app-sidebar-header--compact {
+        padding: 12px 12px 14px;
+    }
+    .app-brand-compact--icon img {
+        max-height: 56px;
+    }
+    .app-nav-link {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+    .app-nav-group > summary {
+        padding: 8px 16px;
+        font-size: 0.74rem;
+    }
+    .app-nav-group-body .app-nav-link {
+        font-size: 0.88rem;
+    }
+    .logout-premium {
+        padding: 8px 10px;
+        font-size: 0.9rem;
+    }
 }

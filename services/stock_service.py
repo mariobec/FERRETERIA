@@ -479,6 +479,103 @@ def incrementar_stock_venta_bodega(producto, consumo_stock):
     return None
 
 
+def _consumo_tienda_linea(venta, detalle, factor_venta_stock):
+    """Unidades stock base que esa línea exige de TIENDA (misma regla que cobro)."""
+    consumo_stock = int(round((detalle.cantidad or 0) * factor_venta_stock))
+    if consumo_stock <= 0:
+        return 0
+    if (venta.punto_retiro or '').strip() == 'Bodega':
+        return 0
+    ya_bod = venta_consumo_ya_despachado_bodega(venta, detalle.id)
+    return max(0, consumo_stock - ya_bod)
+
+
+def consumo_stock_comprometido_tienda_producto(producto, excluir_venta_id=None, caja_id=None):
+    """
+    Stock base en tienda ya comprometido en otros vales Abierta o Pendiente (sin cobrar).
+    No cuenta la venta excluida (vale POS actual). Opcional: solo la misma caja.
+    """
+    import app as m
+
+    DetalleVenta = m.DetalleVenta
+    Venta = m.Venta
+    if not producto:
+        return 0
+    factor = m._factor_venta_a_stock(producto)
+    if factor <= 0:
+        return 0
+    pid = int(producto.id)
+    q = (
+        m.db.session.query(DetalleVenta, Venta)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(
+            DetalleVenta.id_producto == pid,
+            Venta.estado.in_(('Pendiente', 'Abierta')),
+        )
+    )
+    if caja_id:
+        q = q.filter(Venta.caja_id == int(caja_id))
+    if excluir_venta_id:
+        q = q.filter(Venta.id != int(excluir_venta_id))
+    total = 0
+    for det, venta in q.all():
+        total += _consumo_tienda_linea(venta, det, factor)
+    return int(total)
+
+
+def venta_pendiente_con_producto(producto_id, excluir_venta_id=None, caja_id=None):
+    """Primer vale Pendiente en cola de caja que incluye el producto (aviso POS)."""
+    import app as m
+
+    q = (
+        m.db.session.query(m.Venta)
+        .join(m.DetalleVenta, m.DetalleVenta.id_venta == m.Venta.id)
+        .filter(
+            m.DetalleVenta.id_producto == int(producto_id),
+            m.Venta.estado == 'Pendiente',
+        )
+        .order_by(m.Venta.prioridad.asc().nulls_last(), m.Venta.id.asc())
+    )
+    if caja_id:
+        q = q.filter(m.Venta.caja_id == int(caja_id))
+    if excluir_venta_id:
+        q = q.filter(m.Venta.id != int(excluir_venta_id))
+    return q.first()
+
+
+def consumo_tienda_agrupado_por_producto(venta):
+    """
+    Suma consumo en tienda (unidades stock base) por id_producto en el vale.
+    Retorna dict {producto_id: {'consumo': int, 'nombre': str}}.
+    """
+    import app as m
+    from collections import defaultdict
+
+    Producto = m.Producto
+    agrupado = defaultdict(lambda: {'consumo': 0, 'nombre': ''})
+    if not venta:
+        return {}
+    try:
+        detalles = list(venta.detalles or [])
+    except Exception:
+        m.db.session.rollback()
+        return {}
+    for d in detalles:
+        producto = d.producto or Producto.query.get(d.id_producto)
+        if not producto:
+            continue
+        factor_venta_stock = m._factor_venta_a_stock(producto)
+        consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
+        consumo_tienda = _consumo_tienda_linea(venta, d, factor_venta_stock)
+        if consumo_stock <= 0:
+            agrupado[producto.id]['invalido'] = True
+            agrupado[producto.id]['nombre'] = producto.nombre
+            continue
+        agrupado[producto.id]['consumo'] += consumo_tienda
+        agrupado[producto.id]['nombre'] = producto.nombre
+    return dict(agrupado)
+
+
 def venta_validar_stock_tienda(venta):
     """Lista de mensajes de faltantes para cobrar vale en tienda (vacía si ok)."""
     import app as m
@@ -488,7 +585,7 @@ def venta_validar_stock_tienda(venta):
     if not venta:
         return faltantes
     try:
-        detalles = list(venta.detalles or [])
+        agrupado = consumo_tienda_agrupado_por_producto(venta)
     except Exception as ex:
         m.db.session.rollback()
         m.app.logger.exception(
@@ -497,28 +594,31 @@ def venta_validar_stock_tienda(venta):
             ex,
         )
         return ['No se pudo validar stock del vale (revise detalle).']
-    for d in detalles:
+    for pid, info in agrupado.items():
         try:
-            producto = d.producto or Producto.query.get(d.id_producto)
+            if info.get('invalido'):
+                faltantes.append(f'{info.get("nombre") or pid}: conversión inválida.')
+                continue
+            need = int(info.get('consumo') or 0)
+            if need <= 0:
+                continue
+            producto = Producto.query.get(pid)
             if not producto:
                 faltantes.append('Producto no encontrado en línea de venta.')
                 continue
-            factor_venta_stock = m._factor_venta_a_stock(producto)
-            consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
-            ya_bod = venta_consumo_ya_despachado_bodega(venta, d.id)
-            consumo_tienda = max(0, consumo_stock - ya_bod)
-            if consumo_stock <= 0:
-                faltantes.append(f'{producto.nombre}: conversión inválida.')
-                continue
-            if consumo_tienda <= 0:
-                continue
             disp = stock_disponible_venta_tienda(producto)
-            if disp < consumo_tienda:
+            comprometido = consumo_stock_comprometido_tienda_producto(
+                producto,
+                excluir_venta_id=getattr(venta, 'id', None),
+                caja_id=getattr(venta, 'caja_id', None),
+            )
+            if disp < comprometido + need:
                 faltantes.append(
-                    f'{producto.nombre} (disponible tienda: {disp}, requerido tras despacho bodega: {consumo_tienda})'
+                    f'{producto.nombre} (disponible tienda: {disp}, '
+                    f'comprometido otros vales: {comprometido}, requerido este vale: {need})'
                 )
         except Exception as ex:
             m.db.session.rollback()
-            m.app.logger.exception('No se pudo validar stock de línea %s: %s', getattr(d, 'id', None), ex)
+            m.app.logger.exception('No se pudo validar stock producto %s: %s', pid, ex)
             faltantes.append('No se pudo validar una línea del vale.')
     return faltantes

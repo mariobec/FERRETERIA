@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es" class="deck-fullscreen">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LhexIA Command Deck</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/select2/select2.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/select2/select2-bootstrap-5-theme.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-command-deck.css') }}">
+</head>
+<body class="deck-body">
+<div class="deck-shell">
+  <header class="deck-topbar">
+    <div class="deck-brand">LhexIA <span>Command Deck</span></div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="badge rounded-pill text-bg-dark border border-secondary">Vale #{{ venta.id }}</span>
+      <span class="small text-secondary">{{ current_user.nombre }}</span>
+      <button type="button" class="btn btn-sm btn-outline-light" id="deckBtnFullscreen" title="F11">
+        <i class="fas fa-expand"></i>
+      </button>
+      <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-outline-secondary">POS clásico</a>
+      <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-secondary">Inicio</a>
+    </div>
+  </header>
+
+  <aside class="deck-panel">
+    <h6><i class="fas fa-barcode me-1"></i> Entrada rápida</h6>
+    <label class="form-label small text-secondary mb-1">Lector / código</label>
+    <input type="text" id="posBarcodeWedge" class="form-control form-control-sm deck-input font-monospace mb-3" autocomplete="off" placeholder="Escanee aquí…">
+
+    <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="mb-3">
+      <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
+      <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
+      <label class="form-label small text-secondary mb-1">Buscar producto</label>
+      <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Filtro búsqueda">
+        <button type="button" class="btn btn-primary" id="posBtnFiltroVenta" title="Stock tienda disponible">Vendibles</button>
+        <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroCatalogo" title="Catálogo (puede estar sin stock tienda)">Catálogo</button>
+      </div>
+      <select id="buscarProducto" class="form-select form-select-sm deck-input" style="width:100%"></select>
+      <button type="submit" class="btn btn-sm deck-btn-neon w-100 mt-2">
+        <i class="fas fa-plus me-1"></i> Agregar
+      </button>
+    </form>
+
+    <h6 class="mt-3"><i class="fas fa-user me-1"></i> Cliente <span class="text-secondary fw-normal">(TV)</span></h6>
+    <button type="button" class="btn btn-sm w-100 mb-2 pos-rut-toggle-btn fw-bold {% if pos_rut_obligatorio %}is-on{% else %}is-off{% endif %}" id="posToggleRutObligatorioBtn" data-obligatorio="{{ 1 if pos_rut_obligatorio else 0 }}">
+      <i class="fas fa-id-card me-1"></i><span id="posToggleRutObligatorioText">{% if pos_rut_obligatorio %}RUT obligatorio{% else %}Sin RUT{% endif %}</span>
+    </button>
+    <p class="small text-secondary mb-2" id="posRutHintText">{% if pos_rut_obligatorio %}Fidelización activa.{% else %}Cliente no quiso RUT.{% endif %}</p>
+    <div class="input-group input-group-sm mb-2">
+      <input type="text" id="deckClienteRutQuick" class="form-control deck-input" placeholder="{% if pos_rut_obligatorio %}RUT cliente{% else %}RUT si lo entrega{% endif %}"
+             value="{{ cliente.rut if cliente else '' }}">
+      <button type="button" class="btn btn-outline-info" id="buscarClienteBtn" title="Buscar">
+        <i class="fas fa-search"></i>
+      </button>
+    </div>
+    <div class="d-flex flex-wrap gap-1 mb-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnClienteFinalTv">Cliente final</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" id="posBtnQuitarClienteTv">Quitar TV</button>
+    </div>
+    <div id="posTvClienteBadge" class="mb-2"></div>
+    <input type="checkbox" id="cliente_final" class="d-none" value="1">
+    <div id="clienteStatus" class="small text-secondary mb-0"></div>
+  </aside>
+
+  <main class="deck-panel d-flex flex-column" style="background:#0a0a0a;border-right:none;">
+    <h6><i class="fas fa-cart-shopping me-1"></i> Carrito</h6>
+    <div id="stockValidationAlert" class="alert alert-danger py-2 small d-none mb-2">
+      Hay ítems sin stock suficiente en tienda.
+    </div>
+    <div class="deck-cart flex-grow-1 overflow-auto" id="deckCartHost">
+      {% for d in detalles %}
+      {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
+      {% set img = (d.producto.imagen_url or '') if d.producto else '' %}
+      <article class="deck-line" id="pos_row_{{ d.id }}">
+        {% if img %}
+        <img src="{{ img }}" alt="" class="deck-thumb" loading="lazy" onerror="this.style.opacity=0.25">
+        {% else %}
+        <div class="deck-thumb d-flex align-items-center justify-content-center text-secondary"><i class="fas fa-box"></i></div>
+        {% endif %}
+        <div>
+          <div class="fw-bold small">{{ d.producto.nombre }}</div>
+          <div class="text-secondary small">{{ d.producto.codigo_barra }}</div>
+          {% if pos_retiro_por_linea %}
+          {% set rline = (d.punto_retiro_linea or 'Tienda') %}
+          <form method="POST" action="{{ url_for('actualizar_item') }}" class="mt-1 mb-1">
+            <input type="hidden" name="actualizar" value="{{ d.id }}">
+            <input type="hidden" name="solo_retiro_linea" value="1">
+            <input type="hidden" name="from_command_deck" value="1">
+            <label class="visually-hidden" for="retiro_linea_{{ d.id }}">Retiro</label>
+            <select id="retiro_linea_{{ d.id }}" name="punto_retiro_linea" class="form-select form-select-sm deck-input" style="max-width:11rem;" onchange="this.form.submit()" title="Tienda · Bodega · Despacho">
+              <option value="Tienda" {% if rline == 'Tienda' %}selected{% endif %}>Tienda</option>
+              <option value="Bodega" {% if rline == 'Bodega' %}selected{% endif %}>Bodega</option>
+              <option value="Despacho" {% if rline == 'Despacho' %}selected{% endif %}>Despacho</option>
+            </select>
+          </form>
+          {% endif %}
+          <div class="input-group input-group-sm mt-1" style="max-width:140px">
+            <button type="button" class="btn btn-outline-secondary btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="-1" data-precio="{{ d.precio_unitario }}">−</button>
+            <input type="number" id="cantidad_{{ d.id }}" value="{{ d.cantidad }}" min="1"
+                   class="form-control text-center cantidad-input deck-input"
+                   data-detalle-id="{{ d.id }}" data-precio="{{ d.precio_unitario }}"
+                   data-factor-stock="{{ factores_stock.get(d.id, 1) }}"
+                   data-stock-disponible="{{ st_tienda_linea }}">
+            <button type="button" class="btn btn-outline-secondary btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="1" data-precio="{{ d.precio_unitario }}">+</button>
+          </div>
+          <small class="text-danger d-none" id="stock_alert_{{ d.id }}">Sin stock tienda</small>
+          <input type="hidden" id="descuento_{{ d.id }}" value="{{ d.descuento or 0 }}"
+                 class="descuento-input" data-detalle-id="{{ d.id }}" data-precio="{{ d.precio_unitario }}"
+                 data-descuento-servidor="{{ (d.descuento or 0)|float }}">
+        </div>
+        <div class="text-end">
+          <div class="fw-bold text-success" id="subtotal_{{ d.id }}">{{ d.subtotal }}</div>
+          <span id="precio_unitario_{{ d.id }}" class="small text-secondary d-none">{{ d.precio_unitario }}</span>
+          <form method="POST" action="{{ url_for('eliminar_detalle', id=d.id) }}" class="mt-1">
+            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2"><i class="fas fa-trash"></i></button>
+          </form>
+        </div>
+      </article>
+      {% else %}
+      <p class="text-center text-secondary py-5">Escanee o busque productos para comenzar.</p>
+      {% endfor %}
+    </div>
+
+    <div class="deck-total-box mt-3">
+      <div class="label">Total vale</div>
+      <div class="amount" id="monto_total" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</div>
+      <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</span>
+    </div>
+  </main>
+
+  <aside class="deck-panel">
+    <h6><i class="fas fa-sparkles me-1"></i> LhexIA Assistant</h6>
+    <button type="button" class="btn btn-outline-light btn-sm w-100 mb-2 fw-bold {% if pos_cross_sell_enabled %}border-success{% else %}border-secondary{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
+      <span id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias ON{% else %}Sugerencias OFF{% endif %}</span>
+    </button>
+    <div class="deck-assistant" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <span class="small fw-semibold"><i class="fas fa-bolt text-warning me-1"></i>Sugerencias <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span></span>
+        <span class="small text-secondary" id="posCrossSellStateText">{% if pos_cross_sell_enabled %}Activas{% else %}Off{% endif %}</span>
+      </div>
+      <div id="posCrossSellContent">
+      {% if pos_cross_sell_panel and pos_cross_sell_panel.get('items') %}
+      <p class="small mb-2">{{ pos_cross_sell_panel.get('mensaje') or 'Complementos sugeridos' }}</p>
+      <div class="d-flex flex-column gap-1">
+      {% for it in pos_cross_sell_panel['items'] %}
+      <a class="btn btn-sm btn-outline-light w-100 text-start" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}">
+        <i class="fas fa-plus me-1 text-warning"></i>{{ it.nombre }}
+      </a>
+      {% endfor %}
+      </div>
+      {% else %}
+      <p class="small text-secondary mb-0">Agregue productos para ver sugerencias.</p>
+      {% endif %}
+      </div>
+    </div>
+
+    <h6 class="mt-3">Cliente & KPIs</h6>
+    {% if cliente %}
+    <div class="small mb-2">
+      <strong>{{ cliente.nombre }}</strong><br>
+      <span class="text-secondary">{{ cliente.rut }}</span><br>
+      Saldo a favor: <strong class="text-info">${{ "{:,.0f}".format(saldo_favor_cliente).replace(",", ".") }}</strong>
+    </div>
+    {% else %}
+    <p class="small text-secondary">Sin cliente asignado aún.</p>
+    {% endif %}
+    <div class="deck-kpi"><span>Mis ventas hoy</span><strong>${{ "{:,.0f}".format(vendedor_kpis.monto).replace(",", ".") }}</strong></div>
+    <div class="deck-kpi"><span>Documentos hoy</span><strong>{{ vendedor_kpis.documentos }}</strong></div>
+    <div class="deck-kpi"><span>Tienda hoy</span><strong>${{ "{:,.0f}".format(tienda_kpis.ventas_hoy_monto).replace(",", ".") }}</strong></div>
+
+    <h6 class="mt-4">Acciones</h6>
+    {% if experience_wall_url %}
+    <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info w-100 mb-2">
+      <i class="fas fa-tv me-1"></i> Abrir Experience Wall (TV)
+    </a>
+    {% endif %}
+    <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-secondary w-100 mb-2">Ir a caja</a>
+
+    <form id="formEmitirVale" method="POST" action="{{ url_for('finalizar_venta') }}" class="mt-2">
+      <input type="hidden" name="pos_emit_origen" value="command_deck">
+      <input type="hidden" id="posExigirRutVenta" name="pos_exigir_rut" value="{{ 1 if pos_rut_obligatorio else 0 }}">
+      <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">
+      <input type="hidden" id="cliente_rut" name="cliente_rut" value="{{ cliente.rut if cliente else '' }}">
+      <input type="hidden" name="cliente_nombre" id="cliente_nombre" value="{{ cliente.nombre if cliente else '' }}">
+      <input type="hidden" name="cliente_direccion" id="cliente_direccion" value="{{ cliente.direccion if cliente else '' }}">
+      <input type="hidden" name="cliente_giro" id="cliente_giro" value="{{ cliente.giro if cliente else '' }}">
+      <input type="hidden" name="cliente_telefono" id="cliente_telefono" value="{{ cliente.telefono if cliente else '' }}">
+      <input type="hidden" name="cliente_correo" id="cliente_correo" value="{{ cliente.correo if cliente else '' }}">
+      <input type="hidden" name="cliente_comuna" id="cliente_comuna" value="{{ cliente.comuna if cliente else '' }}">
+      <input type="hidden" name="cliente_ciudad" id="cliente_ciudad" value="{{ cliente.ciudad if cliente else '' }}">
+      <button type="submit" id="emitirValeBtn" class="btn deck-btn-neon w-100 btn-lg">
+        <i class="fas fa-file-invoice-dollar me-1"></i> Emitir vale
+      </button>
+    </form>
+    <p class="small text-secondary mt-2 mb-0">F2 buscar · F3 cliente final · F4 emitir · F11 pantalla completa</p>
+  </aside>
+</div>
+
+<div class="modal fade" id="modalConfirmarPuntoRetiro" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title">Punto de retiro</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <select id="puntoRetiroModalSelect" class="form-select deck-input">
+          <option value="__PENDIENTE__">Seleccione…</option>
+          <option value="Tienda">Tienda / Mostrador</option>
+          <option value="Bodega">Bodega</option>
+          <option value="Despacho">Despacho</option>
+        </select>
+        <div id="puntoRetiroModalError" class="text-danger small mt-2 d-none">Seleccione punto de retiro.</div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn deck-btn-neon" id="confirmarPuntoRetiroBtn">Confirmar y emitir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include 'pos/includes/ticket_emitido_autoprint.html' %}
+
+<script id="pos-config" type="application/json">{{ {
+  'descuento_libre': usuario_tiene_permiso('autorizar_descuento_pos'),
+  'cross_sell_enabled': pos_cross_sell_enabled,
+  'producto_ids': pids,
+  'urls': {
+    'buscar_producto': url_for('buscar_producto'),
+    'agregar_producto': url_for('agregar_producto_venta'),
+    'actualizar_item': url_for('actualizar_item'),
+    'consultar_cliente': url_for('consultar_cliente'),
+    'usuarios_autorizar_descuento': url_for('pos_usuarios_autorizar_descuento'),
+    'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
+    'cross_sell_toggle': url_for('api_pos_cross_sell_toggle'),
+    'rut_obligatorio_toggle': url_for('api_pos_rut_obligatorio_toggle'),
+    'cross_sell_reject': url_for('api_pos_cross_sell_reject'),
+    'vincular_cliente': url_for('api_pos_vincular_cliente'),
+    'escanear_agregar': url_for('api_pos_escanear_agregar'),
+    'producto_alta_rapida': url_for('api_pos_producto_alta_rapida')
+  },
+  'cliente_vitrina': cliente_vitrina,
+  'cliente_ui': cliente_ui,
+  'pos_rut_obligatorio': pos_rut_obligatorio,
+  'pos_retiro_por_linea': pos_retiro_por_linea,
+  'from_command_deck': true
+} | tojson }}</script>
+<script id="deck-config" type="application/json">{{ {
+  'snapshot_url': url_for('api_pos_live_wall_snapshot'),
+  'venta_id': venta.id
+} | tojson }}</script>
+<script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/bootstrap.bundle.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/select2/select2.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pos-command-deck.js') }}"></script>
+</body>
+</html>

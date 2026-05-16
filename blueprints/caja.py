@@ -76,6 +76,18 @@ def register_caja_routes(app):
         methods=['POST'],
     )
     app.add_url_rule(
+        '/caja/vales/anular_lote',
+        'anular_vales_caja_lote',
+        _wrap_anular_vale(m.anular_vales_caja_lote),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/caja/limpiar_cola_cierre',
+        'limpiar_cola_cierre_caja',
+        login_required(m.permisos_required('gestionar_usuarios')(m.limpiar_cola_cierre_caja)),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/procesar_cobro_caja/<int:id>',
         'procesar_cobro_caja',
         _wrap_caja_vale(m.procesar_cobro_caja),

@@ -140,17 +140,72 @@
         </div>
     </div>
 
+    {% if usuario_tiene_permiso('gestionar_usuarios') and bloquean_cierre_total %}
+    <div class="alert alert-warning border-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="small mb-0">
+            <strong>Administrador:</strong> hay <strong>{{ bloquean_cierre_total }}</strong> documento(s) de <em>esta caja abierta</em> que bloquean el cierre de caja (pendientes sin método + borradores POS).
+            La cola de abajo puede listar también vales de otras cajas; este botón solo anula los que bloquean <strong>el cierre del turno actual</strong>.
+        </div>
+        <form method="post" action="{{ url_for('limpiar_cola_cierre_caja') }}" class="d-flex flex-wrap align-items-center gap-2"
+              onsubmit="return confirm('¿Anular {{ bloquean_cierre_total }} documento(s) que bloquean el cierre de ESTA caja? Solo descartes / no cobrados.');">
+            <input type="hidden" name="return_to" value="pendientes">
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" name="confirmar" value="1" id="chkLimpiarColaDesdePendientes" required>
+                <label class="form-check-label small" for="chkLimpiarColaDesdePendientes">Confirmo descartes</label>
+            </div>
+            <input type="text" name="motivo" class="form-control form-control-sm" style="min-width:200px;max-width:280px;"
+                   maxlength="500" value="Limpieza cola cierre — descartes / no cobrados">
+            <button type="submit" class="btn btn-sm btn-dark fw-bold text-nowrap">
+                <i class="fas fa-broom me-1"></i>Anular los que bloquean cierre ({{ bloquean_cierre_total }})
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- 4. TABLA -->
+    {% set puede_lote_anular = usuario_tiene_permiso('anular_vale_caja') %}
     <div class="card card-ds">
         <div class="card-header py-2">
             <h6 class="mb-0 fw-bold"><i class="fas fa-list me-2 text-success"></i>Cola de cobro</h6>
-            <p class="small text-muted mb-0 mt-1">Vales pendientes y borradores POS (<span class="text-warning">Abierta</span>) de esta caja que bloquean el cierre.</p>
+            <p class="small text-muted mb-0 mt-1">Borradores POS (<span class="text-warning">Abierta</span>) de <strong>esta caja</strong> y vales <strong>Pendiente</strong> sin método de pago (pueden incluir otras cajas / turnos).</p>
         </div>
+        {% if puede_lote_anular %}
+        <form method="post" action="{{ url_for('anular_vales_caja_lote') }}" id="formAnularLoteCaja" onsubmit="return window._cajaPendientesConfirmarAnularLote(event);">
+        <div class="card-body border-bottom py-2 bg-body-tertiary">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5 col-lg-4">
+                    <label class="form-label small mb-0 fw-semibold" for="motivoAnularLote">Motivo (todos los seleccionados)</label>
+                    <select name="motivo" id="motivoAnularLote" class="form-select form-select-sm" required>
+                        <option value="" disabled selected>Seleccione…</option>
+                        <option value="Cliente no retorna a pagar / se fue">Cliente no retorna a pagar / se fue</option>
+                        <option value="Cliente se arrepiente del pedido">Cliente se arrepiente del pedido</option>
+                        <option value="Error en productos o montos del vale">Error en productos o montos del vale</option>
+                        <option value="Vale duplicado o emitido por error">Vale duplicado o emitido por error</option>
+                        <option value="Prueba o capacitación">Prueba o capacitación</option>
+                        <option value="Limpieza cola — descartes no cobrados">Limpieza cola — descartes no cobrados</option>
+                    </select>
+                </div>
+                <div class="col-md-5 col-lg-4 d-flex flex-wrap gap-2 align-items-center">
+                    <button type="submit" class="btn btn-sm btn-danger fw-bold">
+                        <i class="fas fa-ban me-1"></i>Anular seleccionados
+                    </button>
+                    <span class="small text-muted" id="lblAnularLoteCount">0 seleccionados</span>
+                </div>
+            </div>
+            <p class="small text-muted mb-0 mt-2">Solo se anulan filas elegibles (mismo criterio que el botón Anular por fila). Vales con despacho en bodega requieren permiso adicional.</p>
+        </div>
+        </form>
+        {% endif %}
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0 table-ds">
                     <thead>
                         <tr>
+                            {% if puede_lote_anular %}
+                            <th class="ps-3 py-3 text-center" style="width:2.5rem" title="Seleccionar para anular en lote">
+                                <input type="checkbox" class="form-check-input" id="chkAnularLoteTodos" aria-label="Seleccionar todos">
+                            </th>
+                            {% endif %}
                             <th class="ps-4 py-3">N° VALE</th>
                             <th>HORA</th>
                             <th>VENDEDOR</th>
@@ -161,6 +216,16 @@
                     <tbody>
                         {% for v in cola_combined %}
                         <tr>
+                            {% if puede_lote_anular %}
+                            {% set puede_anular_dsp_chk = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
+                            <td class="ps-3 text-center">
+                                {% if puede_anular_dsp_chk %}
+                                <input type="checkbox" name="venta_ids" value="{{ v.id }}" class="form-check-input chk-anular-vale-lote" form="formAnularLoteCaja">
+                                {% else %}
+                                <span class="text-muted small" title="Requiere permiso anular vale con despacho bodega">—</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
                             <td class="ps-4">
                                 <span class="badge bg-light text-dark border">#{{ v.id }}</span>
                                 {% if v.cola_es_borrador %}
@@ -194,6 +259,12 @@
                                     <button type="button" class="btn btn-secondary fw-bold px-3 rounded-pill" disabled title="{{ v.stock_alerta }}">
                                         SIN STOCK
                                     </button>
+                                    {% endif %}
+                                    {% set puede_reimprimir_ticket = usuario_tiene_permiso('caja_cobrar_vale') or usuario_tiene_permiso('pos_emitir_vale') or usuario_tiene_permiso('gestionar_usuarios') %}
+                                    {% if puede_reimprimir_ticket %}
+                                    <a href="{{ url_for('pos_ticket_vale', venta_id=v.id) }}" class="btn btn-outline-secondary btn-sm rounded-pill" title="Vista del vale (mismo formato que al emitir); use Imprimir o Ctrl+P">
+                                        <i class="fas fa-receipt me-1"></i>Ticket vale
+                                    </a>
                                     {% endif %}
                                     {% if usuario_tiene_permiso('anular_vale_caja') %}
                                     {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
@@ -350,7 +421,7 @@
                         {% endif %}
                         {% endif %}
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-5 text-muted">No hay documentos en cola de cobro.</td></tr>
+                        <tr><td colspan="{% if puede_lote_anular %}6{% else %}5{% endif %}" class="text-center py-5 text-muted">No hay documentos en cola de cobro.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -467,6 +538,53 @@
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> PROCESANDO...';
     return true;
 }
+
+    window._cajaPendientesConfirmarAnularLote = function (ev) {
+        var form = document.getElementById('formAnularLoteCaja');
+        if (!form) return true;
+        var n = document.querySelectorAll('input.chk-anular-vale-lote:checked').length;
+        if (n < 1) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            alert('Seleccione al menos un documento para anular en lote.');
+            return false;
+        }
+        if (!confirm('¿Anular ' + n + ' documento(s) seleccionado(s)? Quedarán en estado Anulada (trazabilidad en auditoría).')) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            return false;
+        }
+        return true;
+    };
+
+    function _cajaPendientesRefreshLoteCount() {
+        var lbl = document.getElementById('lblAnularLoteCount');
+        if (!lbl) return;
+        var n = document.querySelectorAll('input.chk-anular-vale-lote:checked').length;
+        lbl.textContent = n + ' seleccionado' + (n === 1 ? '' : 's');
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var master = document.getElementById('chkAnularLoteTodos');
+        if (master) {
+            master.addEventListener('change', function () {
+                document.querySelectorAll('input.chk-anular-vale-lote').forEach(function (cb) {
+                    cb.checked = master.checked;
+                });
+                _cajaPendientesRefreshLoteCount();
+            });
+        }
+        document.querySelectorAll('input.chk-anular-vale-lote').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                _cajaPendientesRefreshLoteCount();
+                var master2 = document.getElementById('chkAnularLoteTodos');
+                var all = document.querySelectorAll('input.chk-anular-vale-lote');
+                var chk = document.querySelectorAll('input.chk-anular-vale-lote:checked');
+                if (master2 && all.length) {
+                    master2.checked = chk.length === all.length;
+                }
+            });
+        });
+        _cajaPendientesRefreshLoteCount();
+    });
 
 </script>
 {% if request.args.get('ultima_venta') and vuelto_ultima_js > 0 %}

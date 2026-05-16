@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Wall — Equipo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-live-wall-staff.css') }}">
+</head>
+<body class="lw-body" data-snapshot-url="{{ url_for('api_pos_live_wall_snapshot') }}">
+  <div class="lw-bg" aria-hidden="true"></div>
+  <div class="lw-wrap">
+    <div class="lw-top">
+      <div>
+        <h1 class="lw-title"><i class="fas fa-display me-2" style="color:var(--lw-accent)"></i>Live Wall <span>Equipo</span></h1>
+        <p class="lw-sub">Segundo monitor: líneas, stock y enlace para la TV del cliente.</p>
+        {% if empresa_cfg.get('nombre_comercial') %}
+        <p class="lw-store mb-0">{{ empresa_cfg.nombre_comercial }}</p>
+        {% endif %}
+      </div>
+      <div class="lw-actions">
+        <a class="lw-btn" href="{{ url_for('punto_venta') }}"><i class="fas fa-cash-register me-1"></i> POS</a>
+        <a class="lw-btn" href="{{ url_for('pos_command_deck') }}"><i class="fas fa-layer-group me-1"></i> Command Deck</a>
+        {% if cliente_wall_url %}
+        <a class="lw-btn lw-btn-primary" href="{{ cliente_wall_url }}" target="_blank" rel="noopener"><i class="fas fa-tv me-1"></i> Abrir TV cliente</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="lw-kpi-row">
+      <div class="lw-kpi"><label>Ventas hoy</label><strong id="lwKpiMonto">$0</strong></div>
+      <div class="lw-kpi"><label>Documentos hoy</label><strong id="lwKpiDocs">0</strong></div>
+      <div class="lw-kpi"><label>Cola retiro bodega</label><strong id="lwKpiBodega">0</strong></div>
+    </div>
+    {% if usuario_tiene_permiso('bodega_operador') %}
+    <div class="lw-bodega-links">
+      <a class="lw-btn lw-btn-primary" href="{{ url_for('bodega_plataforma') }}" target="_blank" rel="noopener"><i class="fas fa-dolly me-1"></i>Plataforma retiros</a>
+      <a class="lw-btn" href="{{ url_for('bodega_cuadro_mando') }}" target="_blank" rel="noopener"><i class="fas fa-table-columns me-1"></i>Cuadro de mando</a>
+      <a class="lw-btn" href="{{ url_for('bodega_cuadro_mando_fullscreen') }}" target="_blank" rel="noopener"><i class="fas fa-expand me-1"></i>TV bodega</a>
+    </div>
+    {% endif %}
+
+    <div class="lw-grid">
+      <div class="lw-card">
+        <h2>Vale actual</h2>
+        <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-2 mb-2" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem">
+          <span class="lw-badge" id="lwEstado">—</span>
+          <div class="lw-total" id="lwTotal">$0</div>
+        </div>
+        <div id="lwLineas"><div class="lw-empty">Cargando…</div></div>
+      </div>
+      <div class="lw-card">
+        <h2>Contexto</h2>
+        <div class="lw-cliente" id="lwCliente">Sin cliente en el vale.</div>
+        <div id="lwSugerenciaWrap" class="d-none lw-sugerencia"></div>
+        {% if cliente_wall_url %}
+        <div class="lw-tv-box">
+          <label>URL TV (sigue el vale abierto de este mostrador)</label>
+          <input class="lw-url" readonly id="lwTvUrl" value="{{ cliente_wall_url }}">
+          <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button type="button" class="lw-btn lw-btn-primary" id="lwCopyBtn"><i class="fas fa-copy me-1"></i>Copiar enlace</button>
+          </div>
+        </div>
+        {% else %}
+        <p class="lw-empty mb-0">Abra un vale en el POS para generar el enlace de TV.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/pos-live-wall-staff.js') }}"></script>
+</body>
+</html>

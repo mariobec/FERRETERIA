@@ -2,9 +2,10 @@
 
 > Sistema ERP integral para ferretería. Gestión de ventas (POS + formulario), caja, inventario multi-almacén, bodega con despacho por voz (IA), compras, créditos, BI, y Customer 360.
 
-**Última actualización:** 2026-05-11  
-**Versión del plan:** v2.0 (cerrado)  
-**Líneas de código `app.py`:** ~16,076  
+**Última actualización:** 2026-05-16  
+**Versión operativa:** v2.0 (cerrado) + **cierre de módulos v3** (en curso)  
+**Líneas de código `app.py`:** ~20,800  
+**Suite de tests:** ~242 tests (`pytest tests/`)  
 
 ---
 
@@ -47,8 +48,8 @@ sistema_ventas_limpio/
 │
 ├── blueprints/               # Registro de rutas por dominio
 │   ├── bodega.py             #   11 rutas (despacho, plataforma, voz, SLA, TV)
-│   ├── caja.py               #   13 rutas (cobro, cambios, saldos, cierres)
-│   ├── pos.py                #   10 rutas (punto de venta, finalizar, items)
+│   ├── caja.py               #   14 rutas (cobro, cambios, saldos, cierres, limpiar cola)
+│   ├── pos.py                #   12+ rutas (POS, finalizar, live wall staff/cliente)
 │   └── c360.py               #    9 rutas (Customer 360, IA, ofertas proactivas)
 │
 ├── services/                 # Lógica de negocio extraída
@@ -59,7 +60,11 @@ sistema_ventas_limpio/
 │   ├── audit_service.py      #   erp_audit_log (eventos críticos)
 │   ├── unidades_service.py   #   Unidades de medida, factores conversión
 │   ├── c360_service.py       #   Customer 360, predicción compra, scoring
-│   └── sistema_health_service.py  # GET /api/sistema/salud
+│   ├── sistema_health_service.py  # GET /api/sistema/salud
+│   ├── facturacion_electronica_service.py  # FE Chile: XML, firma PKCS#12, post-cobro, cola DTE
+│   ├── facturacion_caf_service.py          # Parseo e inserción CAF (folios SII)
+│   ├── facturacion_dte_storage.py          # Persistencia XML firmado en storage/dtes/emitidos/
+│   └── facturacion_sii_certificacion.py    # Set de prueba certificación SII (XML casos 33/39/61)
 │
 ├── templates/                # 89 templates Jinja2
 │   ├── base.html             #   Layout principal (sidebar dinámico por permisos)
@@ -314,8 +319,49 @@ sistema_ventas_limpio/
 | GET/POST | `/admin/unidades` | Unidades medida | `gestionar_usuarios` |
 | GET/POST | `/admin/catalogo` | Categorías | `gestionar_usuarios` |
 | GET | `/usuarios` | Lista usuarios | `gestionar_usuarios` |
+| GET/POST | `/admin/facturacion/caf` | Carga CAF (folios SII) | `gestionar_usuarios` |
+| GET | `/admin/facturacion/cola` | Cola DTE (estados, descarga XML) | `gestionar_usuarios` |
+| GET | `/admin/facturacion/dte-xml/<venta_id>` | Descarga XML firmado guardado | `gestionar_usuarios` |
+| POST | `/admin/facturacion/reintentar/<venta_id>` | Reintento emisión FE (HTML redirect) | `gestionar_usuarios` |
+| GET/POST | `/api/admin/facturacion/emitir-prueba` | XML mock / set certificación SII | `gestionar_usuarios` |
+| GET/POST | `/api/admin/facturacion/cafs` | API CAF | `gestionar_usuarios` |
+| POST | `/api/admin/facturacion/reintentar/<venta_id>` | API reintento FE | `gestionar_usuarios` |
 
-### 4.13 APIs internas
+### 4.13 Facturación electrónica (Chile / SII) — Fase 1 operativa ERP
+
+| Componente | Estado | Notas |
+|---|---|---|
+| Tabla `cafs` + columnas DTE en `ventas` | ✅ | Auto-migración `_asegurar_tabla_cafs_y_columnas_ventas_fe()` |
+| Carga CAF (admin) | ✅ | UI + API; rango folios 33/39 |
+| Post-cobro FE | ✅ | Tras `procesar_cobro_caja` (no crédito): folio CAF, XML, firma, estado |
+| Persistencia XML | ✅ | `storage/dtes/emitidos/{certificacion\|produccion}/V{id}_T{tipo}_F{folio}.xml` |
+| Cola / reintento | ✅ | `PENDIENTE_ENVIO` si SOAP stub; panel cola + API reintento |
+| Firma PKCS#12 | ✅ | `SII_CERT_PFX_PATH`, password o `SII_CERT_PFX_PASSWORD_FILE`; signxml 4.x (`cert=[certificate]`) |
+| Envío SOAP SII real | ⏳ | `enviar_dte_soap` stub; falta Zeep + WSDL + TrackId |
+| TED timbre CAF | ⏳ | XML aún Fase 1 / `StubFase1`; no válido ante SII hasta XSD+TED |
+| Certificación SII oficial | ⏳ | Set casos en `storage/dtes/pruebas_sii/` vía `emitir-prueba?modo=set_certificacion` |
+
+**Variables de entorno:** `SII_CERT_PFX_PATH`, `SII_CERT_PFX_PASSWORD` o `SII_CERT_PFX_PASSWORD_FILE`, `SII_AMBIENTE` (`certificacion` \| `produccion`).
+
+**Política:** el cobro **no se revierte** si falla FE; la venta queda en cola para reintento.
+
+### 4.14 POS Live Wall (segundo monitor / TV cliente)
+
+| Ruta | Función |
+|---|---|
+| GET `/pos/live-wall/staff` | Panel cajero/vendedor: KPIs tienda + cola bodega |
+| GET `/pos/live-wall/cliente` | TV cliente: token firmado en query (`?t=`) |
+| GET `/api/pos/live-wall/snapshot` | JSON estado venta abierta + KPIs (staff autenticado o token válido) |
+
+Token: `itsdangerous` (`pos_live_wall_token_create`), TTL configurable. Tests: `tests/test_pos_live_wall.py`.
+
+### 4.15 Caja — limpieza cola cierre
+
+| Método | Ruta | Función |
+|---|---|---|
+| POST | `/caja/limpiar_cola_cierre` | Admin: anula en lote vales **Pendiente** sin método + borradores **Abierta** de la caja abierta (no borra filas; auditoría). UI en `confirmar_cierre.html`. |
+
+### 4.16 APIs internas
 
 | Método | Ruta | Función |
 |---|---|---|
@@ -590,6 +636,11 @@ gunicorn app:app  # ver render.yaml
 | 2026-05-11 | Redirección inteligente por perfil al login |
 | 2026-05-11 | Fix: `grupo['items']` en Jinja2 (colisión con `dict.items`) |
 | 2026-05-12 | Suite QA v4: 43 tests e2e + rutas HTTP + coverage + CI/CD + guardia anti-prod |
+| 2026-05-14 | Customer 360 P0: predicción 21d, log predicciones, API resumen |
+| 2026-05-15 | FE Fase 1 ERP: CAF, post-cobro, storage XML, cola DTE, firma signxml 4.x, tests FE |
+| 2026-05-15 | POS Live Wall staff/cliente + snapshot API |
+| 2026-05-15 | Caja: `POST /caja/limpiar_cola_cierre` (anulación masiva admin para desbloquear cierre) |
+| 2026-05-16 | **Plan cierre módulos v3** documentado (§18); ERP maestro + memory actualizados |
 
 ---
 
@@ -691,11 +742,93 @@ python scripts/seed_demo_data.py --clean   # limpia datos DEMO
 - [ ] Columna `version` (optimistic locking) en ventas
 - [ ] Email alertas (complemento a Slack/WA)
 - [ ] Más blueprints: BI/gerencia, admin, inventario
-- [ ] Customer 360 Fase 1: ficha cliente, predicción compra, scoring
+- [ ] Customer 360 P1+: CDP, worker llamadas, portal cliente
 - [ ] Smart dropzone + OCR mejorado
-- [ ] Worker cron "llamadas recomendadas"
+- [ ] FE: TED real desde CAF + XSD SII + SOAP Zeep producción/certificación
 - [ ] Portal cliente (autoservicio)
 
 ---
 
-*Generado automáticamente desde el código fuente y `memory.md` — 2026-05-11*
+## 18. Plan de cierre de módulos v3 (operación correcta)
+
+> **Objetivo:** cada módulo queda **cerrado** cuando cumple: flujo feliz + errores controlados + permisos + tests smoke/E2E mínimos + checklist operativo firmado en tienda.
+
+### Leyenda de estado
+
+| Símbolo | Significado |
+|---|---|
+| ✅ | Cerrado para operación diaria |
+| 🟡 | Operativo con deuda técnica documentada |
+| ⏳ | En trabajo / no listo para producción |
+
+### Matriz de módulos (2026-05-16)
+
+| # | Módulo | Estado | Criterio de cierre |
+|---|---|---|---|
+| 1 | Auth / usuarios / RBAC | ✅ | Login, roles, `_NAV_MAP`, tests rutas |
+| 2 | POS + vale | ✅ | Abierta→Pendiente→cobro; live wall; tests E2E T1 |
+| 3 | Caja (cobro, cierre, cambios) | ✅ | Cola, anular, cierre cuadratura, limpiar cola admin |
+| 4 | Stock / kardex / multi-almacén | ✅ | Invariante, `transaccion_critica`, tests T5/T17 |
+| 5 | Bodega + voz | ✅ | Despacho, SLA, TV, tests bodega |
+| 6 | Compras OC + recepciones | 🟡 | Requiere migraciones SQL en BD legacy |
+| 7 | Créditos + abonos | ✅ | Cupo, cuotas 30/60/90, abonos caja |
+| 8 | Cotizaciones | ✅ | Convertir a POS, PDF |
+| 9 | Productos / precios / inventario UI | ✅ | CRUD, revisión precios, enrolamiento |
+| 10 | BI / gerencia / observabilidad web | 🟡 | Dashboards OK; SEO sync externo stub |
+| 11 | Customer 360 | 🟡 | P0 en código; P1+ roadmap |
+| 12 | Facturación electrónica SII | 🟡 | ERP listo hasta XML+firma+cola; **envío SII pendiente** |
+| 13 | Admin (empresa, almacenes, catálogo) | ✅ | Incluye enlaces FE (CAF, cola DTE) |
+| 14 | Público / SEO / landing | ✅ | Desplegado; leads JSONL |
+
+### Orden de trabajo recomendado (sprints)
+
+1. **Sprint A — Operación tienda (cerrar ✅):** Caja + POS + stock + bodega → ejecutar checklist §18.1 en ferretería 1 día.
+2. **Sprint B — Comercial financiero:** Créditos + cotizaciones + cierre caja histórico.
+3. **Sprint C — Abastecimiento:** OC/recepciones en BD con migraciones aplicadas.
+4. **Sprint D — FE SII:** CAF reales, certificado, TED+SOAP, certificación Maullín.
+5. **Sprint E — C360 + BI:** según `docs/roadmap_customer_360_ferreteria_2026.md`.
+
+### §18.1 Checklist operativo — Caja + POS (copiar en cierre de sprint A)
+
+- [ ] Abrir caja con monto inicial correcto.
+- [ ] Emitir vale POS → aparece en cola pendientes.
+- [ ] Cobrar efectivo + boleta → stock tienda baja, venta `Pagado`.
+- [ ] Intentar cerrar con borrador POS abierto → bloqueo; anular borrador o cobrar.
+- [ ] Anular vale no cobrado (motivo) → desaparece de bloqueo.
+- [ ] Admin: limpiar cola cierre solo para descartes masivos.
+- [ ] Cerrar caja: cuadratura efectivo vs teórico; ticket cierre.
+- [ ] Caja día anterior: puede cobrar/anular vales exentos sin quedar en callejón.
+
+### §18.2 Checklist — Facturación electrónica (antes de “producción SII”)
+
+- [ ] CAF tipo 39 (y 33 si factura) cargado en `/admin/facturacion/caf`.
+- [ ] `.pfx` en `instance/certs/` (gitignored) + variables `SII_CERT_*`.
+- [ ] Cobro prueba → venta con `nro_documento`, `dte_estado`, XML descargable en cola.
+- [ ] `pytest tests/test_facturacion_dte_e2e.py` verde en BD QA.
+- [ ] Envío SOAP real + aceptación SII (pendiente desarrollo).
+- [ ] Certificación set casos SII ejecutado y archivado.
+
+### §18.3 Checklist — Suite QA (antes de cada release)
+
+```bash
+pytest tests/ -m smoke -q --tb=no
+pytest tests/test_routes_criticas.py -q
+pytest tests/test_facturacion_*.py tests/test_pos_live_wall.py -q
+```
+
+- [ ] Sin `ALLOW_TESTS_ON_REMOTE` salvo BD QA dedicada.
+- [ ] CI GitHub Actions verde en `main`.
+
+### §18.4 Definición de “módulo cerrado”
+
+Un módulo se considera **cerrado** cuando:
+
+1. Flujos documentados en `docs/FLUJOS_CRITICOS.md` o sección de este maestro.
+2. Permisos RBAC asignados a perfiles reales (`gerente`, `cajero`, etc.).
+3. Al menos un test smoke o E2E que toque el happy path.
+4. Checklist §18.x firmado por operador o dueño.
+5. Deuda técnica ⏳ listada en §16 sin sorpresas.
+
+---
+
+*Última revisión maestra: 2026-05-16 — alineado con `memory.md` y código en `main`/working tree.*

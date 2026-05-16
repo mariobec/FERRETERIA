@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title"><i class="fas fa-inbox me-2 text-primary"></i>Cola DTE</h2>
+      <p class="page-subtitle">
+        Últimas ventas con estado de facturación electrónica. Descargue el XML firmado guardado en el servidor
+        o reintente la emisión si quedó en <strong>PENDIENTE_ENVIO</strong>.
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('admin_facturacion_caf') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-signature me-1"></i> CAF</a>
+      <a href="{{ url_for('admin_empresa') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-building me-1"></i> Empresa</a>
+      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home me-1"></i> Inicio</a>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold"><i class="fas fa-list me-2"></i>Ventas con DTE (últimas 200)</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-ds table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Venta</th>
+              <th>Estado DTE</th>
+              <th>Tipo</th>
+              <th>Folio</th>
+              <th>Track ID</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in ventas_dte %}
+            <tr>
+              <td class="font-monospace">#{{ v.id }}</td>
+              <td><span class="badge bg-secondary">{{ v.dte_estado or '—' }}</span></td>
+              <td>{{ v.dte_tipo or '—' }}</td>
+              <td>{{ v.nro_documento or '—' }}</td>
+              <td class="small text-muted">{{ (v.dte_track_id or '—')[:24] }}{% if v.dte_track_id and v.dte_track_id|length > 24 %}…{% endif %}</td>
+              <td class="text-end text-nowrap">
+                <a href="{{ url_for('admin_facturacion_dte_xml', venta_id=v.id) }}" class="btn btn-sm btn-outline-secondary">
+                  <i class="fas fa-download me-1"></i> XML
+                </a>
+                {% if (v.dte_estado or '') == 'PENDIENTE_ENVIO' %}
+                <form method="post" action="{{ url_for('admin_facturacion_reintentar', venta_id=v.id) }}" class="d-inline">
+                  <button type="submit" class="btn btn-sm btn-ds-primary"><i class="fas fa-redo me-1"></i> Reintentar</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No hay ventas con estado DTE registrado.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card-footer text-muted small mb-0">
+      Reintento vía API: <code>POST /api/admin/facturacion/reintentar/&lt;venta_id&gt;</code> (mismo permiso que prueba de facturación).
+    </div>
+  </div>
+</div>
+{% endblock %}

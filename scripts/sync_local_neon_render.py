@@ -1,13 +1,23 @@
 """
-Sincroniza base local -> Neon/Render para mantener ambas iguales.
+Neon igual que Postgres local (y Render igual que local si usa esa Neon).
 
-Pasos:
-1) Aplica migraciones SQL en local y en Neon.
-2) Clona todas las tablas public comunes desde local hacia Neon.
-3) Muestra conteos de verificación en tablas clave.
+Render no guarda otra base: si en Render la variable DATABASE_URL es la misma Neon que
+NEON_DATABASE_URL aquí, al copiar local -> Neon Render muestra los mismos datos que tu PC.
+
+.env.local en la raiz del repo:
+  DATABASE_URL        = Postgres en tu PC (origen)
+  NEON_DATABASE_URL   = Neon (destino; misma URL que DATABASE_URL en Render)
+
+Pasos del script:
+  1) Migraciones SQL en local y en Neon
+  2) TRUNCATE tablas comunes en Neon y copia desde local
+  3) Conteos de verificacion
 
 Uso:
+  cd <raiz_repo>
   python scripts/sync_local_neon_render.py
+
+Cuidado: pisa datos en Neon en esas tablas. Backup antes si dudas.
 """
 
 from __future__ import annotations
