@@ -491,6 +491,31 @@ body .card.card-ds > .card-header {
     border-color: rgba(243, 112, 33, 0.35);
 }
 
+.pos-search-card--sin-stock {
+    opacity: 0.52;
+}
+
+.pos-search-card--sin-stock:hover,
+.pos-search-card--sin-stock.is-active {
+    opacity: 0.72;
+    background: #fef2f2;
+    border-color: rgba(220, 38, 38, 0.22);
+}
+
+.pos-search-card--sin-stock .pos-search-card__title,
+.pos-search-card--sin-stock .pos-search-card__price {
+    color: #94a3b8;
+}
+
+.pos-search-card__stock--agotado {
+    color: #dc2626 !important;
+    font-weight: 600;
+}
+
+.pos-search-card__stock--agotado strong {
+    color: #b91c1c !important;
+}
+
 .pos-search-card__title {
     font-weight: 700;
     font-size: 0.95rem;

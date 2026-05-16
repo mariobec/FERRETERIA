@@ -601,9 +601,27 @@ class TestRutasAltoTrafico:
         row = data['results'][0]
         for key in (
             'nombre', 'codigo', 'precio', 'precio_fmt', 'marca',
-            'stock_tienda', 'stock_bodega', 'stock_total', 'badges',
+            'stock_tienda', 'stock_bodega', 'stock_total', 'sin_stock', 'badges',
         ):
             assert key in row
+        assert row['precio_fmt'].startswith('$')
+
+    def test_buscar_producto_enriquecido_orden_stock_primero(self, app_client, productos_con_stock):
+        """Con stock disponible debe aparecer antes que filas sin stock (modo catálogo)."""
+        p = productos_con_stock[0]
+        pref = (p.nombre or 'TEST')[:4]
+        r = app_client.get(
+            f'/buscar_producto?q={pref}&origen=pos&enriquecido=1&solo_vendibles=0'
+        )
+        assert r.status_code == 200
+        results = r.get_json().get('results') or []
+        assert len(results) >= 2
+        con_stock = [x for x in results if int(x.get('stock_total') or 0) > 0]
+        sin_stock = [x for x in results if x.get('sin_stock')]
+        if con_stock and sin_stock:
+            idx_ok = results.index(con_stock[0])
+            idx_no = results.index(sin_stock[0])
+            assert idx_ok < idx_no
 
     def test_buscar_producto_por_codigo_barra(self, app_client, productos_con_stock):
         p = productos_con_stock[0]

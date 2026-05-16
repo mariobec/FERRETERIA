@@ -2487,6 +2487,43 @@ def stock_bodega_por_producto_ids(ids):
     return {int(i): 0 for i in ids}
 
 
+def stock_tienda_bodega_por_producto_ids(ids):
+    """Tienda + bodega en una consulta a stock_por_almacen (POS / búsqueda enriquecida)."""
+    ids = [int(x) for x in ids if x is not None]
+    if not ids:
+        return {}, {}
+    tid = id_almacen_tienda()
+    bid = id_almacen_bodega()
+    almacenes = [a for a in (tid, bid) if a]
+    stock_t = {int(i): 0 for i in ids}
+    stock_b = {int(i): 0 for i in ids}
+    if almacenes and _tablas_inventario_almacen_existen():
+        rows = (
+            db.session.query(
+                StockPorAlmacen.id_producto,
+                StockPorAlmacen.id_almacen,
+                StockPorAlmacen.cantidad,
+            )
+            .filter(
+                StockPorAlmacen.id_producto.in_(ids),
+                StockPorAlmacen.id_almacen.in_(almacenes),
+            )
+            .all()
+        )
+        for pid, aid, cant in rows:
+            pid = int(pid)
+            q = int(cant or 0)
+            if tid and int(aid) == int(tid):
+                stock_t[pid] = q
+            elif bid and int(aid) == int(bid):
+                stock_b[pid] = q
+        return stock_t, stock_b
+    if not tid and not bid:
+        prods = Producto.query.filter(Producto.id.in_(ids)).all()
+        return {p.id: int(p.stock or 0) for p in prods}, stock_b
+    return stock_t, stock_b
+
+
 def _fmt_clp_busqueda_pos(valor):
     return f"${int(round(float(valor or 0))):,}".replace(",", ".")
 
@@ -13691,8 +13728,10 @@ def buscar_producto():
         return jsonify({"results": []})
 
     pid_list = [int(r['id']) for r in productos if r.get('id') is not None]
-    stock_t_map = stock_tienda_por_producto_ids(pid_list) if pid_list else {}
-    stock_b_map = stock_bodega_por_producto_ids(pid_list) if pid_list else {}
+    if pid_list:
+        stock_t_map, stock_b_map = stock_tienda_bodega_por_producto_ids(pid_list)
+    else:
+        stock_t_map, stock_b_map = {}, {}
 
     if solo_vendibles and productos:
         productos = [r for r in productos if stock_t_map.get(int(r['id']), 0) > 0]
@@ -13716,6 +13755,7 @@ def buscar_producto():
         if enriquecido:
             st_t = int(stock_t_map.get(pid, 0))
             st_b = int(stock_b_map.get(pid, 0))
+            st_tot = st_t + st_b
             precio = _precio_lista_desde_row_producto(p)
             unidad = (p.get('unidad_venta') or p.get('unidad') or 'un').strip() or 'un'
             item.update({
@@ -13726,20 +13766,27 @@ def buscar_producto():
                 "marca": _producto_marca_desde_row(p, cols),
                 "stock_tienda": st_t,
                 "stock_bodega": st_b,
-                "stock_total": st_t + st_b,
+                "stock_total": st_tot,
+                "sin_stock": st_tot <= 0,
                 "unidad": unidad,
             })
         candidatos.append(item)
-        if len(candidatos) >= out_lim:
-            break
 
     if enriquecido and candidatos:
         precios = [float(c.get('precio') or 0) for c in candidatos]
         pmin, pmax = min(precios), max(precios)
         for c in candidatos:
             c['badges'] = _badges_busqueda_pos(c, pmin, pmax)
+        candidatos.sort(
+            key=lambda c: (
+                1 if c.get('sin_stock') else 0,
+                -int(c.get('stock_tienda') or 0),
+                -int(c.get('stock_bodega') or 0),
+                -int(c.get('stock_total') or 0),
+            )
+        )
 
-    return jsonify({"results": candidatos})
+    return jsonify({"results": candidatos[:out_lim]})
 
 # proceso de apertura de caja desde pantalla de caja........................................................................
 

@@ -79,23 +79,77 @@
       return "pos-search-badge";
     }
 
+    function itemSinStock(it) {
+      if (it && it.sin_stock === true) return true;
+      const st = Number(it.stock_tienda || 0);
+      const sb = Number(it.stock_bodega || 0);
+      const tot = Number(it.stock_total != null ? it.stock_total : st + sb);
+      return tot <= 0;
+    }
+
+    function precioFmtLista(it) {
+      const p = Number(it.precio);
+      if (!isNaN(p) && p > 0) return formatoCLP(Math.round(p));
+      if (it.precio_fmt) return String(it.precio_fmt);
+      return formatoCLP(0);
+    }
+
+    function indicePrimeroConStock(items) {
+      for (let i = 0; i < items.length; i++) {
+        if (!itemSinStock(items[i])) return i;
+      }
+      return items.length ? 0 : -1;
+    }
+
     function stockLinea(it) {
       const u = escapeHtml(it.unidad || "un");
       const st = Number(it.stock_tienda || 0);
       const sb = Number(it.stock_bodega || 0);
       const tot = Number(it.stock_total != null ? it.stock_total : st + sb);
+      const agotado = itemSinStock(it);
+      const cls = agotado ? " pos-search-card__stock--agotado" : "";
       if (st > 0 && sb > 0) {
         return (
-          "Stock: <strong>" + tot + " " + u + "</strong> (Tienda: " + st + " / Bodega: " + sb + ")"
+          '<span class="' +
+          cls.trim() +
+          '">Stock: <strong>' +
+          tot +
+          " " +
+          u +
+          "</strong> (Tienda: " +
+          st +
+          " / Bodega: " +
+          sb +
+          ")</span>"
         );
       }
       if (st > 0) {
-        return "Stock: <strong>" + st + " " + u + "</strong> (Tienda)";
+        return (
+          '<span class="' +
+          cls.trim() +
+          '">Stock: <strong>' +
+          st +
+          " " +
+          u +
+          "</strong> (Tienda)</span>"
+        );
       }
       if (sb > 0) {
-        return "Stock: <strong>" + sb + " " + u + "</strong> (Bodega)";
+        return (
+          '<span class="' +
+          cls.trim() +
+          '">Stock: <strong>' +
+          sb +
+          " " +
+          u +
+          "</strong> (Bodega)</span>"
+        );
       }
-      return 'Stock: <strong class="text-danger">0</strong> ' + u;
+      return (
+        '<span class="pos-search-card__stock--agotado">Sin stock en tienda ni bodega · <strong>0</strong> ' +
+        u +
+        "</span>"
+      );
     }
 
     function renderItems(items) {
@@ -122,8 +176,10 @@
             .join("");
           const marca = (it.marca || "").trim();
           const meta = "SKU: " + escapeHtml(it.codigo || "") + (marca ? " · Marca: " + escapeHtml(marca) : "");
+          const sinStock = itemSinStock(it);
           return (
             '<article class="pos-search-card' +
+            (sinStock ? " pos-search-card--sin-stock" : "") +
             (idx === activeIndex ? " is-active" : "") +
             '" role="option" data-idx="' +
             idx +
@@ -146,7 +202,7 @@
             '<div class="pos-search-card__right">' +
             '<div class="pos-search-card__price-label">P. LISTA</div>' +
             '<div class="pos-search-card__price">' +
-            escapeHtml(it.precio_fmt || formatoCLP(it.precio || 0)) +
+            escapeHtml(precioFmtLista(it)) +
             "</div>" +
             (badges ? '<div class="pos-search-card__badges">' + badges + "</div>" : "") +
             '<div class="pos-search-card__add"><i class="fas fa-plus"></i> Agregar</div>' +
@@ -189,6 +245,7 @@
       if (!it || it.producto_id == null) return;
       hidePanel();
       input.value = "";
+      input.blur();
       posEscanearYAgregar(String(it.producto_id), true);
     }
 
@@ -222,7 +279,7 @@
         })
         .then(function (data) {
           lastItems = data && Array.isArray(data.results) ? data.results : [];
-          activeIndex = lastItems.length ? 0 : -1;
+          activeIndex = indicePrimeroConStock(lastItems);
           if (lastItems.length) {
             renderItems(lastItems);
           } else {
