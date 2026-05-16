@@ -22,7 +22,7 @@
 
     {% block extra_css %}{% endblock %}
 </head>
-<body{% if current_user.is_authenticated and usuario_tiene_permiso('bodega_operador') %} data-bodega-poll="1" data-bodega-plataforma-url="{{ url_for('bodega_plataforma') }}" data-bodega-mando-url="{{ url_for('bodega_cuadro_mando') }}" data-bodega-snapshot-url="{{ url_for('api_bodega_retiros_cola_snapshot') }}"{% endif %}>
+<body class="{% block body_class %}{% endblock %}"{% if current_user.is_authenticated and usuario_tiene_permiso('bodega_operador') %} data-bodega-poll="1" data-bodega-plataforma-url="{{ url_for('bodega_plataforma') }}" data-bodega-mando-url="{{ url_for('bodega_cuadro_mando') }}" data-bodega-snapshot-url="{{ url_for('api_bodega_retiros_cola_snapshot') }}"{% endif %}>
     <div class="container-fluid app-shell">
         <div class="row">
             <!-- Menú Lateral -->

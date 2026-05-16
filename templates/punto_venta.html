@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
 
+{% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth{% endif %}{% endblock %}
+
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-premium-20260520">
 <style>
   @media (min-width: 992px) {
     .pos-summary-sticky {
@@ -505,6 +508,21 @@
   </div>
   {% endif %}
 
+  <div class="pos-premium-shell">
+    {% if pos_layout_fullwidth %}
+    <nav class="pos-premium-mininav" aria-label="Accesos rápidos POS">
+      <span class="small fw-bold text-secondary">LhexIA POS</span>
+      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-success"><i class="fas fa-cash-register me-1"></i>Caja</a>
+      {% if experience_wall_url %}
+      <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info"><i class="fas fa-tv me-1"></i>TV</a>
+      {% endif %}
+      <a href="{{ url_for('pos_command_deck') }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-layer-group me-1"></i>Deck</a>
+      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger ms-md-auto"><i class="fas fa-sign-out-alt me-1"></i>Salir</a>
+    </nav>
+    {% endif %}
+    <div class="pos-premium-grid">
+      <div class="pos-premium-col pos-premium-col--tools">
+
   <div class="card card-ds mb-3 border-info border-opacity-25 pos-identify-card">
     <div class="card-body">
       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -536,7 +554,7 @@
       <div class="pos-manual-search-hero">
       <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="row g-2 align-items-end" id="formAgregarProductoBusqueda">
         <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
-        <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
+        <input type="hidden" id="posFiltroBusqueda" value="operativo" autocomplete="off">
         <div class="col-12 pos-manual-head">
           <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div class="d-flex flex-wrap align-items-center gap-2">
@@ -545,8 +563,9 @@
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
               <div class="btn-group btn-group-sm" role="group" aria-label="Filtro listado POS">
-                <button type="button" class="btn btn-primary" id="posBtnFiltroVenta" title="Solo activos con precio y stock &gt; 0 en tienda (mostrador)">Vendibles</button>
-                <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroCatalogo" title="Todo el catálogo con precio: incluye sin stock en tienda (venta especial / cotizar)">Catálogo</button>
+                <button type="button" class="btn btn-primary" id="posBtnFiltroOperativo" title="Tienda, bodega y a pedido (semáforo completo)">Operativo</button>
+                <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroTienda" title="Solo stock en mostrador (entrega inmediata)">Solo tienda</button>
+                <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroCatalogo" title="Todo el catálogo con precio (sin filtro de stock)">Catálogo</button>
               </div>
               <button type="button" class="btn btn-sm btn-link" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">Foto (demo)</button>
             </div>
@@ -561,7 +580,7 @@
         </div>
         <div class="col-md-2 d-grid">
           <label class="form-label invisible">Acción</label>
-          <button type="submit" class="btn fw-bold pos-manual-submit">
+          <button type="button" class="btn fw-bold pos-manual-submit" id="posBtnAgregarManual">
             <i class="fas fa-plus me-1"></i> Agregar
           </button>
         </div>
@@ -573,6 +592,26 @@
       </div>
     </div>
   </div>
+
+      {% include 'pos/includes/premium_historial_hoy.html' %}
+      <div class="pos-cross-sell-compact" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <div class="small fw-bold"><i class="fas fa-bolt text-warning me-1"></i>Sugerencias <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span></div>
+          <span class="small text-muted" id="posCrossSellStateText">{% if pos_cross_sell_enabled %}Activas{% else %}Off{% endif %}</span>
+        </div>
+        <div id="posCrossSellContent" class="mt-2 small">
+          {% if pos_cross_sell_panel and pos_cross_sell_panel['items'] %}
+          <div class="d-flex flex-wrap gap-1">
+            {% for it in pos_cross_sell_panel['items'] %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}"><i class="fas fa-plus me-1"></i>{{ it.nombre }}</a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      </div>
+
+      <div class="pos-premium-col pos-premium-col--cart">
 
   <!-- Tabla de productos en la venta -->
   <div class="card card-ds mb-4 pos-sale-card">
@@ -600,7 +639,7 @@
           <tbody>
             {% for d in detalles %}
             {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
-            <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido table-light-blue{% endif %}" data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}">
+            <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido table-light-blue{% endif %}" data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}" data-detalle-id="{{ d.id }}" data-producto-nombre="{{ d.producto.nombre|e }}">
               <td><span class="badge bg-secondary">{{ d.producto.codigo_barra }}</span></td>
               <td>
                 {{ d.producto.nombre }}
@@ -682,27 +721,18 @@
           </tbody>
         </table>
       </div>
-      <div class="pos-cross-sell-compact" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
-        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-          <div class="small fw-bold"><i class="fas fa-bolt text-warning me-1"></i>Sugerencias <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span></div>
-          <span class="small text-muted" id="posCrossSellStateText">{% if pos_cross_sell_enabled %}Activas{% else %}Off{% endif %}</span>
-        </div>
-        <div id="posCrossSellContent" class="mt-2 small">
-          {% if pos_cross_sell_panel and pos_cross_sell_panel['items'] %}
-          <div class="d-flex flex-wrap gap-1">
-            {% for it in pos_cross_sell_panel['items'] %}
-            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('agregar_producto_venta', producto_id=it.id) }}"><i class="fas fa-plus me-1"></i>{{ it.nombre }}</a>
-            {% endfor %}
-          </div>
-          {% endif %}
-        </div>
-      </div>
     </div>
   </div>
 
 <footer class="pos-checkout-dock">
   <form id="formEmitirVale" method="POST" action="{{ url_for('finalizar_venta') }}">
     <input type="hidden" name="pos_emit_origen" value="punto_venta">
+    <input type="hidden" name="compromiso_confirmado" id="compromisoConfirmado" value="">
+    <input type="hidden" name="fecha_entrega_prometida" id="compromisoFechaPrometida" value="">
+    <input type="hidden" name="telefono_notificacion" id="compromisoTelefonoHidden" value="">
+    <input type="hidden" name="notificar_whatsapp" id="compromisoWhatsappHidden" value="0">
+    <input type="hidden" name="compromiso_retiro_tienda" id="compromisoRetiroTiendaHidden" value="1">
+    <input type="hidden" name="compromiso_despacho" id="compromisoDespachoHidden" value="0">
     <input type="checkbox" id="cliente_final" name="cliente_final" value="1" class="d-none">
     <input type="hidden" id="posExigirRutVenta" name="pos_exigir_rut" value="{{ 1 if pos_rut_obligatorio else 0 }}">
     <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">
@@ -749,13 +779,18 @@
         </div>
       </div>
       <div class="pos-dock-actions">
-        <small class="text-muted d-none d-xl-block align-self-center">F2 · F3 · F4</small>
+        <small class="text-muted d-none d-xl-block align-self-center">F2 · F3 · <span class="pos-dock-kbd">F8</span> emitir · <span class="pos-dock-kbd">F4</span> cotizar</small>
+        <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Nueva cotización (F4)"><i class="fas fa-file-alt me-1"></i> Cotizar</a>
         <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-cash-register me-1"></i> Caja</a>
-        <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary fw-bold px-4"><i class="fas fa-file-invoice-dollar me-2"></i> Emitir vale</button>
+        <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary fw-bold px-4"><i class="fas fa-file-invoice-dollar me-2"></i> Emitir vale <span class="pos-dock-kbd ms-1">F8</span></button>
       </div>
     </div>
   </form>
 </footer>
+
+      </div>
+    </div>
+  </div>
 
 <div class="modal fade" id="modalPosProductoNoEncontrado" tabindex="-1" aria-labelledby="modalPosProductoNoEncontradoLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -925,6 +960,8 @@
   </div>
 </div>
 
+{% include 'pos/includes/compromiso_entrega_modal.html' %}
+
 <div class="modal fade" id="modalConfirmarPuntoRetiro" tabindex="-1" aria-labelledby="modalConfirmarPuntoRetiroLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -984,15 +1021,18 @@
     'cross_sell_reject': url_for('api_pos_cross_sell_reject'),
     'vincular_cliente': url_for('api_pos_vincular_cliente'),
     'escanear_agregar': url_for('api_pos_escanear_agregar'),
-    'producto_alta_rapida': url_for('api_pos_producto_alta_rapida')
+    'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
+    'vales_hoy': url_for('api_pos_vales_hoy'),
+    'cotizacion_nueva': url_for('cotizacion_nueva')
   },
   'cliente_vitrina': cliente_vitrina,
   'cliente_ui': cliente_ui,
   'pos_rut_obligatorio': pos_rut_obligatorio,
   'pos_retiro_por_linea': pos_retiro_por_linea,
+  'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-apedido-paso2-20260520b"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260520g"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

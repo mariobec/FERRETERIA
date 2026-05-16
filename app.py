@@ -4165,6 +4165,29 @@ class DetalleVenta(db.Model):
     producto = db.relationship('Producto')
 
 
+class VentaAPedido(db.Model):
+    """Seguimiento de líneas venta en verde (compromiso de entrega / OC futura)."""
+    __tablename__ = 'ventas_a_pedido'
+
+    id = db.Column(db.Integer, primary_key=True)
+    venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=False, index=True)
+    detalle_venta_id = db.Column(db.Integer, db.ForeignKey('detalle_ventas.id'), nullable=False, unique=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False, default=1)
+    fecha_promesa = db.Column(db.Date, nullable=False)
+    estado_entrega = db.Column(db.String(32), nullable=False, default='por_pedir')
+    retiro_tienda = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    despacho_domicilio = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    notificar_whatsapp = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    telefono_notificacion = db.Column(db.String(30), nullable=True)
+    usuario = db.Column(db.String(80), nullable=True)
+    creado_en = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+
+    venta = db.relationship('Venta', backref=db.backref('items_a_pedido', lazy='dynamic'))
+    detalle = db.relationship('DetalleVenta', backref=db.backref('registro_a_pedido', uselist=False))
+    producto = db.relationship('Producto')
+
+
 # --- COTIZACIONES (LhexIA IA ERP) ---
 
 class Cotizacion(db.Model):
@@ -10576,6 +10599,32 @@ def _asegurar_columnas_detalle_ventas_legacy():
         return False
 
 
+def _asegurar_tabla_ventas_a_pedido():
+    """Tabla ventas_a_pedido (compromiso entrega / Fase 2 POS)."""
+    if app.config.get('_VENTAS_A_PEDIDO_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'ventas_a_pedido' not in set(insp.get_table_names()):
+            VentaAPedido.__table__.create(db.engine, checkfirst=True)
+        app.config['_VENTAS_A_PEDIDO_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar tabla ventas_a_pedido: %s', ex)
+        return False
+
+
+def _venta_tiene_lineas_a_pedido(venta) -> bool:
+    try:
+        for d in list(venta.detalles or []):
+            if getattr(d, 'a_pedido', False):
+                return True
+    except Exception:
+        db.session.rollback()
+    return False
+
+
 def _asegurar_columnas_caja_cuadratura():
     """Asegura columnas de cuadratura/cierre en `caja` para bases legacy."""
     if app.config.get('_CAJA_CUADRATURA_OK'):
@@ -10704,8 +10753,22 @@ def _pos_enlazar_cliente_desde_cotizacion(venta, cotizacion_origen):
         db.session.commit()
 
 
+def _pos_layout_fullwidth_vendedor() -> bool:
+    """POS premium: ocultar sidebar ERP para vendedores (no administradores)."""
+    try:
+        if not current_user.is_authenticated:
+            return False
+        if usuario_tiene_permiso('gestionar_usuarios'):
+            return False
+        return bool(usuario_tiene_permiso('pos_emitir_vale'))
+    except Exception:
+        return False
+
+
 def _pos_pagina_context():
     """Contexto compartido punto_venta / Command Deck."""
+    from services.pos_busqueda_service import pos_dias_entrega_estimado
+
     caja = obtener_caja_activa()
     if not caja:
         return None
@@ -10784,6 +10847,8 @@ def _pos_pagina_context():
         'pos_rut_obligatorio': _pos_rut_obligatorio_session(),
         'pos_retiro_por_linea': _pos_retiro_por_linea_empresa(),
         'pos_autoprint_ticket_emitido': _pos_autoprint_ticket_emitido_empresa(),
+        'pos_dias_entrega_a_pedido': pos_dias_entrega_estimado(),
+        'pos_layout_fullwidth': _pos_layout_fullwidth_vendedor(),
     }
 
 
@@ -10794,6 +10859,9 @@ def punto_venta():
         return redirect(url_for('mostrar_ventas'))
     if not _asegurar_columnas_detalle_ventas_legacy():
         flash("No se pudo preparar detalle de ventas (columnas POS). Revise permisos de BD.", "danger")
+        return redirect(url_for('mostrar_ventas'))
+    if not _asegurar_tabla_ventas_a_pedido():
+        flash("No se pudo preparar seguimiento de ventas a pedido. Revise permisos de BD.", "danger")
         return redirect(url_for('mostrar_ventas'))
     if not _asegurar_columnas_ventas_legacy():
         flash("No se pudo preparar la tabla de ventas (campos legacy). Revise permisos de BD.", "danger")
@@ -10823,6 +10891,9 @@ def pos_command_deck():
         return redirect(url_for('mostrar_ventas'))
     if not _asegurar_columnas_detalle_ventas_legacy():
         flash('No se pudo preparar detalle de ventas (columnas POS). Revise permisos de BD.', 'danger')
+        return redirect(url_for('mostrar_ventas'))
+    if not _asegurar_tabla_ventas_a_pedido():
+        flash('No se pudo preparar seguimiento de ventas a pedido. Revise permisos de BD.', 'danger')
         return redirect(url_for('mostrar_ventas'))
     if not _asegurar_columnas_ventas_legacy():
         flash('No se pudo preparar la tabla de ventas (campos legacy). Revise permisos de BD.', 'danger')
@@ -11716,6 +11787,60 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
     }
 
 
+def api_pos_vales_hoy():
+    """Últimos vales del vendedor en la caja abierta (hoy) para panel POS premium."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'error': 'sin_permiso', 'items': []}), 403
+    caja = obtener_caja_activa()
+    if not caja:
+        return jsonify({'ok': True, 'items': []})
+    vendedor = _nombre_usuario_pos_actual()
+    from datetime import time as dt_time
+
+    hoy = datetime.now().date()
+    inicio = datetime.combine(hoy, dt_time.min)
+    fin = datetime.combine(hoy, dt_time.max)
+    try:
+        filas = (
+            Venta.query.filter(
+                Venta.caja_id == caja.id,
+                Venta.usuario == vendedor,
+                Venta.fecha >= inicio,
+                Venta.fecha <= fin,
+            )
+            .order_by(Venta.id.desc())
+            .limit(15)
+            .all()
+        )
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_pos_vales_hoy: %s', ex)
+        return jsonify({'ok': False, 'error': 'consulta', 'items': []}), 500
+    items = []
+    for v in filas:
+        try:
+            n_det = len(list(v.detalles or []))
+        except Exception:
+            db.session.rollback()
+            n_det = 0
+        total = int(round(float(v.monto_total or 0)))
+        hora = ''
+        if getattr(v, 'fecha', None):
+            try:
+                hora = v.fecha.strftime('%H:%M')
+            except Exception:
+                hora = ''
+        items.append({
+            'id': int(v.id),
+            'estado': (v.estado or '').strip(),
+            'total': total,
+            'total_fmt': f'${total:,}'.replace(',', '.'),
+            'lineas': n_det,
+            'hora': hora,
+        })
+    return jsonify({'ok': True, 'items': items})
+
+
 def api_pos_escanear_agregar():
     """JSON: escaneo de código → agrega línea al vale o indica producto no encontrado."""
     if not usuario_tiene_permiso('pos_emitir_vale'):
@@ -12201,6 +12326,14 @@ def finalizar_venta():
         )
         return redirect(url_for('punto_venta'))
 
+    if _venta_tiene_lineas_a_pedido(venta):
+        if str(request.form.get('compromiso_confirmado', '')).strip() != '1':
+            flash(
+                'Confirme el compromiso de entrega para los productos a pedido antes de emitir el vale.',
+                'warning',
+            )
+            return redirect(url_for('punto_venta'))
+
     nombre = request.form.get('cliente_nombre')
     direccion = request.form.get('cliente_direccion')
     giro = request.form.get('cliente_giro')
@@ -12304,6 +12437,10 @@ def finalizar_venta():
                 )
             )
             venta = Venta.query.get(venta.id)
+            if _venta_tiene_lineas_a_pedido(venta):
+                from services.pos_compromiso_entrega_service import persistir_ventas_a_pedido
+
+                persistir_ventas_a_pedido(venta, request.form, vendedor_actual)
         db.session.commit()
     except _GuardarVentaAbort as ab:
         db.session.rollback()
@@ -13675,15 +13812,13 @@ def buscar_producto():
     if not _asegurar_columnas_productos_legacy():
         return jsonify({"results": []})
 
-    raw_sv = request.args.get('solo_vendibles')
-    if raw_sv is not None and str(raw_sv).strip() != '':
-        solo_vendibles = str(raw_sv).strip().lower() in ('1', 'true', 'si', 'yes', 'on')
-    else:
-        # POS envía origen=pos; si falta el flag (JS viejo, proxy), filtrar por defecto
-        solo_vendibles = request.args.get('origen', '').strip().lower() == 'pos'
+    from services.pos_busqueda_service import resolver_filtro_busqueda_pos
 
-    # Vendibles: traemos más candidatos y filtramos por stock TIENDA (StockPorAlmacen), no columna legacy productos.stock
-    fetch_limit = 260 if solo_vendibles else 80
+    filtro_pos = resolver_filtro_busqueda_pos(request.args)
+    filtro_estricto_stock = filtro_pos in ('operativo', 'tienda')
+
+    # Operativo/tienda: más candidatos SQL y filtro por stock; catálogo: lista amplia
+    fetch_limit = 260 if filtro_estricto_stock else 80
     try:
         insp = sa_inspect(db.engine)
         cols = {c['name'] for c in insp.get_columns('productos')}
@@ -13731,7 +13866,7 @@ def buscar_producto():
         where_parts = [f"({' OR '.join(filtros)})"]
         if 'activo' in cols:
             where_parts.insert(0, "(activo IS NULL OR activo = TRUE)")
-        if solo_vendibles:
+        if filtro_estricto_stock:
             precio_exprs = []
             if 'precio_venta' in cols:
                 precio_exprs.append("COALESCE(precio_venta, 0)")
@@ -13769,16 +13904,18 @@ def buscar_producto():
     else:
         stock_t_map, stock_b_map = {}, {}
 
-    if solo_vendibles and productos:
-        productos = [r for r in productos if stock_t_map.get(int(r['id']), 0) > 0]
-
     from services.pos_busqueda_service import (
         construir_badges_semaforo,
         enriquecer_item_busqueda_pos,
+        filtrar_productos_por_filtro_pos,
         ordenar_candidatos_busqueda,
     )
 
     cfg_emp = obtener_config_empresa()
+    if filtro_estricto_stock and productos:
+        productos = filtrar_productos_por_filtro_pos(
+            productos, stock_t_map, stock_b_map, filtro_pos, cfg_emp
+        )
     out_lim = 15 if enriquecido else 28
     candidatos = []
     for p in productos:
@@ -20974,6 +21111,7 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_ventas_legacy()
         _asegurar_columnas_productos_legacy()
         _asegurar_columnas_detalle_ventas_legacy()
+        _asegurar_tabla_ventas_a_pedido()
         _asegurar_columnas_customer_360_legacy()
         _asegurar_tabla_c360_llamadas_snapshot()
         _asegurar_tabla_cliente_prediccion_log()

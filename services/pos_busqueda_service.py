@@ -129,3 +129,52 @@ def enriquecer_item_busqueda_pos(
         "unidad": unidad,
     }
     return item
+
+
+def resolver_filtro_busqueda_pos(request_args) -> str:
+    """
+    Modos POS: operativo (verde+amarillo+azul vendible), tienda (solo mostrador), catalogo (todo con precio).
+    """
+    if request_args is None:
+        return "catalogo"
+    raw = (request_args.get("filtro_pos") or "").strip().lower()
+    if raw in ("operativo", "tienda", "catalogo"):
+        return raw
+    raw_sv = request_args.get("solo_vendibles")
+    if raw_sv is not None and str(raw_sv).strip() != "":
+        return "tienda" if str(raw_sv).strip().lower() in ("1", "true", "si", "yes", "on") else "catalogo"
+    if str(request_args.get("origen") or "").strip().lower() == "pos":
+        return "operativo"
+    return "catalogo"
+
+
+def filtrar_productos_por_filtro_pos(
+    productos,
+    stock_t_map: dict,
+    stock_b_map: dict,
+    filtro: str,
+    cfg: dict | None = None,
+) -> list:
+    """Aplica filtro de disponibilidad tras cargar stock por almacén."""
+    filtro = str(filtro or "catalogo").lower()
+    if filtro == "catalogo":
+        return list(productos or [])
+    permite_verde = pos_permite_venta_verde(cfg)
+    out = []
+    for r in productos or []:
+        pid = int(r.get("id") or 0)
+        if not pid:
+            continue
+        st_t = int(stock_t_map.get(pid, 0) or 0)
+        st_b = int(stock_b_map.get(pid, 0) or 0)
+        if filtro == "tienda":
+            if st_t > 0:
+                out.append(r)
+        elif filtro == "operativo":
+            if st_t > 0 or st_b > 0:
+                out.append(r)
+            elif permite_verde:
+                out.append(r)
+        else:
+            out.append(r)
+    return out

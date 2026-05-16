@@ -101,9 +101,9 @@ def _borrar_cliente_test(sa_text):
             sa_text("SELECT id FROM ventas WHERE cliente_id IN :c"), {'c': ct}).fetchall()]
         if vids_cli:
             vt = tuple(vids_cli)
-            for tbl in ('ventas_cuotas_credito', 'detalle_ventas', 'movimientos_inventario'):
+            for tbl in ('ventas_cuotas_credito', 'ventas_a_pedido', 'detalle_ventas', 'movimientos_inventario'):
                 try:
-                    col = 'venta_id' if tbl == 'ventas_cuotas_credito' else \
+                    col = 'venta_id' if tbl in ('ventas_cuotas_credito', 'ventas_a_pedido') else \
                           'id_venta' if tbl == 'detalle_ventas' else 'referencia_id'
                     db.session.execute(sa_text(
                         f"DELETE FROM {tbl} WHERE {col} IN :v"), {'v': vt})
@@ -138,6 +138,10 @@ def _limpiar_datos_qa():
         if vids:
             vt = tuple(vids)
             db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': vt})
+            try:
+                db.session.execute(sa_text("DELETE FROM ventas_a_pedido WHERE venta_id IN :v"), {'v': vt})
+            except Exception:
+                db.session.rollback()
             db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': vt})
             db.session.execute(sa_text("DELETE FROM movimiento_caja WHERE concepto LIKE :p"), {'p': '%QA test%'})
             db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
@@ -151,6 +155,10 @@ def _limpiar_datos_qa():
             if dv_vids:
                 dvt = tuple(dv_vids)
                 db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': dvt})
+                try:
+                    db.session.execute(sa_text("DELETE FROM ventas_a_pedido WHERE venta_id IN :v"), {'v': dvt})
+                except Exception:
+                    db.session.rollback()
                 db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': dvt})
                 db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': dvt})
             db.session.execute(sa_text("DELETE FROM movimientos_inventario WHERE id_producto IN :p"), {'p': pt})

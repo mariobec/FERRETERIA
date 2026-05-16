@@ -33,11 +33,12 @@
 
     <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="mb-3">
       <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
-      <input type="checkbox" id="posSoloVendibles" class="d-none" checked autocomplete="off">
+      <input type="hidden" id="posFiltroBusqueda" value="operativo" autocomplete="off">
       <label class="form-label small text-secondary mb-1">Buscar producto</label>
       <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Filtro búsqueda">
-        <button type="button" class="btn btn-primary" id="posBtnFiltroVenta" title="Stock tienda disponible">Vendibles</button>
-        <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroCatalogo" title="Catálogo (puede estar sin stock tienda)">Catálogo</button>
+        <button type="button" class="btn btn-primary" id="posBtnFiltroOperativo" title="Tienda, bodega y a pedido">Operativo</button>
+        <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroTienda" title="Solo mostrador">Solo tienda</button>
+        <button type="button" class="btn btn-outline-secondary" id="posBtnFiltroCatalogo" title="Catálogo completo">Catálogo</button>
       </div>
       <div class="pos-manual-search-wrap position-relative">
         <select id="buscarProducto" class="form-select form-select-sm deck-input" style="width:100%"></select>
@@ -78,7 +79,7 @@
       {% for d in detalles %}
       {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
       {% set img = (d.producto.imagen_url or '') if d.producto else '' %}
-      <article class="deck-line" id="pos_row_{{ d.id }}">
+      <article class="deck-line" id="pos_row_{{ d.id }}" data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}" data-detalle-id="{{ d.id }}" data-producto-nombre="{{ d.producto.nombre|e }}">
         {% if img %}
         <img src="{{ img }}" alt="" class="deck-thumb" loading="lazy" onerror="this.style.opacity=0.25">
         {% else %}
@@ -184,6 +185,12 @@
     <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-secondary w-100 mb-2">Ir a caja</a>
 
     <form id="formEmitirVale" method="POST" action="{{ url_for('finalizar_venta') }}" class="mt-2">
+      <input type="hidden" name="compromiso_confirmado" id="compromisoConfirmado" value="">
+      <input type="hidden" name="fecha_entrega_prometida" id="compromisoFechaPrometida" value="">
+      <input type="hidden" name="telefono_notificacion" id="compromisoTelefonoHidden" value="">
+      <input type="hidden" name="notificar_whatsapp" id="compromisoWhatsappHidden" value="0">
+      <input type="hidden" name="compromiso_retiro_tienda" id="compromisoRetiroTiendaHidden" value="1">
+      <input type="hidden" name="compromiso_despacho" id="compromisoDespachoHidden" value="0">
       <input type="hidden" name="pos_emit_origen" value="command_deck">
       <input type="hidden" id="posExigirRutVenta" name="pos_exigir_rut" value="{{ 1 if pos_rut_obligatorio else 0 }}">
       <input type="hidden" id="punto_retiro" name="punto_retiro" value="__PENDIENTE__">
@@ -199,9 +206,11 @@
         <i class="fas fa-file-invoice-dollar me-1"></i> Emitir vale
       </button>
     </form>
-    <p class="small text-secondary mt-2 mb-0">F2 buscar · F3 cliente final · F4 emitir · F11 pantalla completa</p>
+    <p class="small text-secondary mt-2 mb-0">F2 buscar · F3 cliente final · F4/F8 emitir · F11 pantalla completa</p>
   </aside>
 </div>
+
+{% include 'pos/includes/compromiso_entrega_modal.html' %}
 
 <div class="modal fade" id="modalConfirmarPuntoRetiro" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
@@ -251,6 +260,7 @@
   'cliente_ui': cliente_ui,
   'pos_rut_obligatorio': pos_rut_obligatorio,
   'pos_retiro_por_linea': pos_retiro_por_linea,
+  'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido,
   'from_command_deck': true
 } | tojson }}</script>
 <script id="deck-config" type="application/json">{{ {
@@ -260,7 +270,7 @@
 <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/bootstrap.bundle.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/select2/select2.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pos.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-filtro-fix-20260520f"></script>
 <script src="{{ url_for('static', filename='js/pos-command-deck.js') }}"></script>
 </body>
 </html>

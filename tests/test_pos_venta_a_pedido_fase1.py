@@ -89,11 +89,16 @@ def test_finalizar_venta_con_solo_linea_a_pedido(app_client, productos_con_stock
     assert det is not None
     assert bool(getattr(det, 'a_pedido', False)) is True
 
+    from services.pos_compromiso_entrega_service import fecha_entrega_estimada
+
     rv = app_client.post(
         '/finalizar_venta',
         data={
             'cliente_final': '1',
             'punto_retiro': 'Tienda',
+            'compromiso_confirmado': '1',
+            'fecha_entrega_prometida': fecha_entrega_estimada().isoformat(),
+            'compromiso_retiro_tienda': '1',
         },
         follow_redirects=False,
     )

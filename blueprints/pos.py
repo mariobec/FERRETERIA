@@ -145,6 +145,12 @@ def register_pos_routes(app):
         methods=['POST'],
     )
     app.add_url_rule(
+        '/api/pos/vales-hoy',
+        'api_pos_vales_hoy',
+        _wrap_pos_api_emitir(m.api_pos_vales_hoy),
+        methods=['GET'],
+    )
+    app.add_url_rule(
         '/api/pos/escanear-agregar',
         'api_pos_escanear_agregar',
         _wrap_pos_api_emitir(m.api_pos_escanear_agregar),

@@ -1,0 +1,139 @@
+/* POS premium layout — Fase 3 (punto_venta vendedor) */
+
+body.pos-layout-fullwidth .app-sidebar {
+  display: none !important;
+}
+
+body.pos-layout-fullwidth .app-main {
+  flex: 0 0 100%;
+  max-width: 100%;
+  width: 100%;
+}
+
+body.pos-layout-fullwidth .app-shell > .row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+body.pos-layout-fullwidth .app-topbar {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.pos-premium-mininav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.45rem 0.65rem;
+  margin-bottom: 0.75rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.pos-premium-mininav .btn {
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.pos-premium-shell {
+  --pos-premium-gap: 1rem;
+}
+
+.pos-premium-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--pos-premium-gap);
+  align-items: start;
+}
+
+@media (min-width: 992px) {
+  .pos-premium-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+    min-height: calc(100vh - 200px);
+  }
+
+  .pos-premium-col--cart {
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pos-premium-col--cart .pos-sale-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pos-premium-col--cart .pos-sale-card .card-body {
+    flex: 1 1 auto;
+    overflow: auto;
+    min-height: 0;
+  }
+
+  .pos-premium-col--cart .pos-checkout-dock {
+    flex-shrink: 0;
+    margin-top: 0.75rem;
+    position: relative;
+    bottom: auto;
+  }
+}
+
+.pos-premium-col--tools .pos-identify-card .card-body {
+  padding: 0.65rem 0.85rem;
+}
+
+.pos-premium-col--tools .pos-command-card {
+  margin-bottom: 0.75rem !important;
+}
+
+.pos-historial-card {
+  border-radius: 16px;
+}
+
+.pos-historial-list {
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.pos-historial-list .list-group-item {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.5rem;
+}
+
+.pos-historial-list .pos-historial-total {
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.pos-premium-col--tools .pos-cross-sell-compact {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.pos-dock-actions .btn-pos-cotizar {
+  border-color: rgba(226, 232, 240, 0.45);
+  color: #e2e8f0;
+}
+
+.pos-dock-actions .btn-pos-cotizar:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.pos-dock-kbd {
+  font-size: 0.68rem;
+  opacity: 0.75;
+  font-weight: 600;
+}
+
+@media (max-width: 991px) {
+  .pos-premium-col--cart .pos-checkout-dock {
+    position: sticky;
+    bottom: 0;
+  }
+}

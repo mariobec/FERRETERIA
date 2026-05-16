@@ -1,0 +1,51 @@
+<div class="modal fade" id="modalCompromisoEntrega" tabindex="-1" aria-labelledby="modalCompromisoEntregaLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content pos-compromiso-modal">
+      <div class="modal-header pos-compromiso-modal__header">
+        <h5 class="modal-title" id="modalCompromisoEntregaLabel">
+          <i class="fas fa-box-open me-2" aria-hidden="true"></i>Compromiso de entrega
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="pos-compromiso-modal__lead mb-3">
+          Hay productos <strong>a pedido</strong> en este vale. Fecha estimada de recepción:
+        </p>
+        <div class="pos-compromiso-fecha mb-3" id="compromisoFechaDestacada" role="status">
+          <span class="pos-compromiso-fecha__label"><i class="fas fa-calendar-check me-1"></i></span>
+          <span id="compromisoFechaTexto">—</span>
+        </div>
+        <ul class="list-group list-group-flush pos-compromiso-lista mb-3" id="compromisoListaProductos" aria-label="Productos a pedido"></ul>
+        <div class="pos-compromiso-opciones border rounded p-3 mb-3">
+          <p class="small fw-semibold mb-2 mb-md-3">Modalidad de entrega al cliente</p>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="compromiso_modalidad" id="compromisoRetiroTienda" value="tienda" checked>
+            <label class="form-check-label" for="compromisoRetiroTienda">Cliente retira en tienda</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="compromiso_modalidad" id="compromisoDespacho" value="despacho">
+            <label class="form-check-label" for="compromisoDespacho">Requiere despacho a domicilio</label>
+          </div>
+        </div>
+        <div class="border rounded p-3 bg-light">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="compromisoNotificarWhatsapp">
+            <label class="form-check-label" for="compromisoNotificarWhatsapp">
+              <i class="fab fa-whatsapp text-success me-1"></i>Notificar por WhatsApp cuando llegue
+            </label>
+          </div>
+          <label class="form-label small mb-1" for="compromisoTelefonoInput">Teléfono cliente</label>
+          <input type="tel" class="form-control" id="compromisoTelefonoInput" placeholder="+56 9 …" autocomplete="tel">
+          <div class="form-text">Se precarga del cliente identificado en el vale.</div>
+        </div>
+      </div>
+      <div class="modal-footer pos-compromiso-modal__footer flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-lg px-4" id="compromisoConfirmarBtn">
+          <i class="fas fa-check-circle me-1"></i>Confirmar vale y pasar a caja
+          <span class="d-none d-md-inline text-muted small ms-1">(Enter)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
