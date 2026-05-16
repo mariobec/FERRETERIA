@@ -465,6 +465,9 @@ def _config_empresa_default():
         "pos_rut_obligatorio": "1",
         # POS: "1" = marcar Tienda/Bodega/Despacho por línea (ferreterías mixtas); "0" = un solo punto para todo el vale
         "pos_retiro_por_linea": "0",
+        # POS venta en verde (semáforo azul): "1" = permitir agregar sin stock tienda/bodega
+        "pos_permite_venta_verde": "1",
+        "pos_dias_entrega_a_pedido": "5",
         # Ticket tras emitir: "1" = incluir código QR enlazando vista despacho (/pos/despacho/vale/) con token firmado
         "pos_ticket_qr_despacho": "1",
         # Tras emitir vale: "1" = abrir iframe oculto y disparar ventana de impresión del navegador automáticamente
@@ -4152,6 +4155,8 @@ class DetalleVenta(db.Model):
     cantidad_entregada_retiro_bodega = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     # Si empresa activa pos_retiro_por_linea: Tienda | Bodega | Despacho por línea (NULL = heredar al emitir → Tienda).
     punto_retiro_linea = db.Column(db.String(30), nullable=True)
+    # Venta en verde: sin descuento de stock tienda al cobrar hasta abastecimiento.
+    a_pedido = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     precio_unitario = db.Column(db.Float, nullable=False, default=0.0)
     descuento = db.Column(db.Float, default=0.0)
     subtotal = db.Column(db.Float, default=0.0)
@@ -10550,6 +10555,17 @@ def _asegurar_columnas_detalle_ventas_legacy():
         if 'punto_retiro_linea' not in cols:
             db.session.execute(text("ALTER TABLE detalle_ventas ADD COLUMN punto_retiro_linea VARCHAR(30) NULL"))
             cambios = True
+        if 'a_pedido' not in cols:
+            dn = (db.engine.dialect.name or '').lower()
+            if dn == 'postgresql':
+                db.session.execute(text(
+                    "ALTER TABLE detalle_ventas ADD COLUMN IF NOT EXISTS a_pedido BOOLEAN NOT NULL DEFAULT FALSE"
+                ))
+            else:
+                db.session.execute(text(
+                    "ALTER TABLE detalle_ventas ADD COLUMN a_pedido BOOLEAN NOT NULL DEFAULT 0"
+                ))
+            cambios = True
         if cambios:
             db.session.commit()
         app.config['_DETALLE_VENTAS_LEGACY_OK'] = True
@@ -11556,7 +11572,7 @@ def _pos_cantidad_producto_en_venta(venta, producto_id):
     return total
 
 
-def _pos_puede_sumar_unidad(producto, venta, caja_id=None):
+def _pos_puede_sumar_unidad(producto, venta, caja_id=None, a_pedido=False):
     """
     Valida si cabe +1 unidad considerando stock tienda, otros vales Pendiente/Abierta
     y lo ya cargado en el vale actual.
@@ -11564,6 +11580,12 @@ def _pos_puede_sumar_unidad(producto, venta, caja_id=None):
     """
     if not producto:
         return False, 'Producto no válido.', 'no_producto'
+    if a_pedido:
+        from services.pos_busqueda_service import pos_permite_venta_verde
+
+        if not pos_permite_venta_verde():
+            return False, 'Venta en verde no está habilitada para esta empresa.', 'venta_verde_off'
+        return True, None, None
     factor = _factor_venta_a_stock(producto)
     if factor <= 0:
         return False, f'Conversión inválida para {producto.nombre}.', 'conversion'
@@ -11603,7 +11625,7 @@ def _pos_puede_sumar_unidad(producto, venta, caja_id=None):
     ), 'sin_stock'
 
 
-def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual):
+def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_pedido=False):
     """
     Agrega 1 unidad del producto al vale Abierta del vendedor.
     Si ya existe línea del mismo producto, incrementa cantidad (no duplica fila).
@@ -11620,7 +11642,9 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual):
             'mensaje': f'«{producto.nombre}» no tiene precio de venta ni mayoreo.',
         }
     venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
-    ok_stock, msg_stock, err_stock = _pos_puede_sumar_unidad(producto, venta, caja_id=caja.id)
+    ok_stock, msg_stock, err_stock = _pos_puede_sumar_unidad(
+        producto, venta, caja_id=caja.id, a_pedido=bool(a_pedido)
+    )
     if not ok_stock:
         return {'ok': False, 'error': err_stock or 'sin_stock', 'mensaje': msg_stock}
     linea_incrementada = False
@@ -11642,6 +11666,15 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual):
             .first()
         )
         if detalle:
+            if bool(a_pedido) != bool(getattr(detalle, 'a_pedido', False)):
+                return {
+                    'ok': False,
+                    'error': 'mezcla_apedido',
+                    'mensaje': (
+                        f'«{producto.nombre}» ya está en el vale con otro tipo de entrega. '
+                        'Use otra línea o elimine la existente.'
+                    ),
+                }
             linea_incrementada = True
             nueva_cant = int(detalle.cantidad or 0) + 1
             desc = float(detalle.descuento or 0)
@@ -11656,6 +11689,7 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual):
                 descuento=0.0,
                 subtotal=pu_ef,
                 punto_retiro_linea=('Tienda' if _pos_retiro_por_linea_empresa() else None),
+                a_pedido=bool(a_pedido),
             )
             db.session.add(detalle)
         db.session.flush()
@@ -11678,6 +11712,7 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual):
         'producto_nombre': producto.nombre,
         'linea_incrementada': linea_incrementada,
         'cantidad_en_vale': _pos_cantidad_producto_en_venta(venta, producto.id),
+        'a_pedido': bool(a_pedido),
     }
 
 
@@ -11722,10 +11757,11 @@ def api_pos_escanear_agregar():
             'sugerencias': sugerencias,
         }), 404
     vendedor = _nombre_usuario_pos_actual()
-    res = _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor)
+    a_pedido = str(data.get('a_pedido', '')).strip().lower() in ('1', 'true', 'si', 'yes', 'on')
+    res = _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor, a_pedido=a_pedido)
     if not res.get('ok'):
         code = 400
-        if res.get('error') in ('sin_stock', 'en_vale_pendiente'):
+        if res.get('error') in ('sin_stock', 'en_vale_pendiente', 'mezcla_apedido'):
             code = 409
         return jsonify(res), code
     return jsonify(res)
@@ -13366,14 +13402,14 @@ def procesar_cobro_caja(id):
     metodo = request.form.get('metodo_pago')
     tipo_doc = request.form.get('tipo_documento', 'Boleta')
     if venta.estado == 'Anulada':
-        flash(f"El vale #{venta.id} está anulado y no puede cobrarse.", "warning")
+        flash(f"El vale #{venta.id} est├í anulado y no puede cobrarse.", "warning")
         return redirect(url_for('caja_pendientes'))
     if venta.estado == 'Abierta':
         if not caja_activa or (venta.caja_id and venta.caja_id != caja_activa.id):
-            flash("Este borrador no corresponde a la caja abierta; no se puede cobrar desde aquí.", "warning")
+            flash("Este borrador no corresponde a la caja abierta; no se puede cobrar desde aqu├¡.", "warning")
             return redirect(url_for('caja_pendientes'))
     elif venta.estado != 'Pendiente':
-        flash(f"El documento #{venta.id} no está en cola de cobro.", "warning")
+        flash(f"El documento #{venta.id} no est├í en cola de cobro.", "warning")
         return redirect(url_for('caja_pendientes'))
     if venta.metodo_pago is not None:
         flash(f"El vale #{venta.id} ya fue procesado anteriormente.", "info")
@@ -13391,7 +13427,7 @@ def procesar_cobro_caja(id):
         monto_recibido = float(request.form.get('monto_recibido') or 0)
         usar_saldo_favor = float(request.form.get('usar_saldo_favor') or 0)
     except (TypeError, ValueError):
-        flash("Monto recibido inválido.", "warning")
+        flash("Monto recibido inv├ílido.", "warning")
         return redirect(url_for('caja_pendientes'))
     if monto_recibido < 0 or usar_saldo_favor < 0:
         flash("Los montos no pueden ser negativos.", "warning")
@@ -13406,8 +13442,8 @@ def procesar_cobro_caja(id):
         stock_cobro_svc = build_descontar_stock_cobro_service()
         lineas_stock = stock_cobro_svc.preparar_lineas(venta.id)
 
-        # Partimos la transacción real desde un estado limpio. Esto evita que
-        # un SELECT/validación previa deje Postgres en InFailedSqlTransaction.
+        # Partimos la transacci├│n real desde un estado limpio. Esto evita que
+        # un SELECT/validaci├│n previa deje Postgres en InFailedSqlTransaction.
         db.session.rollback()
         venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
         caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
@@ -13429,7 +13465,7 @@ def procesar_cobro_caja(id):
                 total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
             if monto_recibido < total_a_pagar:
                 flash(
-                    "El monto recibido no puede ser menor al total pendiente después de saldo a favor.",
+                    "El monto recibido no puede ser menor al total pendiente despu├®s de saldo a favor.",
                     "warning",
                 )
                 return redirect(url_for('caja_pendientes'))
@@ -13503,7 +13539,7 @@ def procesar_cobro_caja(id):
 
         db.session.commit()
 
-        # Facturación electrónica (post-commit): no bloquea cobro; savepoint en servicio revierte folio si falla.
+        # Facturaci├│n electr├│nica (post-commit): no bloquea cobro; savepoint en servicio revierte folio si falla.
         dte_estado_ui: Optional[str] = None
         fe_mod = None
         if metodo != 'Credito' and getattr(venta, 'estado', None) == 'Pagado':
@@ -13543,7 +13579,7 @@ def procesar_cobro_caja(id):
                 venta = Venta.query.filter_by(id=venta.id).first() or venta
 
         if metodo == "Credito":
-            msg_cred = f"Vale #{venta.id} registrado a crédito para {venta.cliente.nombre if venta.cliente else 'cliente'}."
+            msg_cred = f"Vale #{venta.id} registrado a cr├®dito para {venta.cliente.nombre if venta.cliente else 'cliente'}."
             if (venta.credito_plan_codigo or '').strip():
                 msg_cred += f" Plan: {_mensaje_resumen_plan_cuotas(venta.credito_plan_codigo)}."
             if _cobro_respuesta_json_solicitada():
@@ -13563,7 +13599,7 @@ def procesar_cobro_caja(id):
             flash(msg_cred, "success")
             return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
         else:
-            msg_fin = f"¡Venta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}"
+            msg_fin = f"┬íVenta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}"
             if (venta.punto_retiro or '').strip().lower() == 'bodega':
                 msg_fin += (
                     " Retiro en bodega: el vale aparece en la plataforma de bodega; "
@@ -13595,7 +13631,7 @@ def procesar_cobro_caja(id):
                 )
             )
 
-    except Exception as e:  # <--- Ahora este except sí tiene su try
+    except Exception as e:  # <--- Ahora este except s├¡ tiene su try
         from core.domain.venta.exceptions import VentaDomainError
 
         db.session.rollback()
@@ -13607,7 +13643,7 @@ def procesar_cobro_caja(id):
         app.logger.exception('procesar_cobro_caja FALLO vale #%s: %s', id, e)
         if _cobro_respuesta_json_solicitada():
             return jsonify({'exito': False, 'error': str(e)}), 500
-        flash(f"Error crítico al procesar pago: {str(e)}", "danger")
+        flash(f"Error cr├¡tico al procesar pago: {str(e)}", "danger")
         return redirect(url_for('caja_pendientes'))
 
 
@@ -13736,6 +13772,13 @@ def buscar_producto():
     if solo_vendibles and productos:
         productos = [r for r in productos if stock_t_map.get(int(r['id']), 0) > 0]
 
+    from services.pos_busqueda_service import (
+        construir_badges_semaforo,
+        enriquecer_item_busqueda_pos,
+        ordenar_candidatos_busqueda,
+    )
+
+    cfg_emp = obtener_config_empresa()
     out_lim = 15 if enriquecido else 28
     candidatos = []
     for p in productos:
@@ -13747,44 +13790,39 @@ def buscar_producto():
         )
         nombre = (p.get('nombre') or '').strip()
         sufijo = codigo if codigo else f"id {pid}"
-        item = {
-            "id": str(pid),
-            "producto_id": pid,
-            "text": f"{nombre} ({sufijo})",
-        }
         if enriquecido:
             st_t = int(stock_t_map.get(pid, 0))
             st_b = int(stock_b_map.get(pid, 0))
-            st_tot = st_t + st_b
             precio = _precio_lista_desde_row_producto(p)
             unidad = (p.get('unidad_venta') or p.get('unidad') or 'un').strip() or 'un'
-            item.update({
-                "nombre": nombre,
-                "codigo": codigo or f"id {pid}",
-                "precio": precio,
-                "precio_fmt": _fmt_clp_busqueda_pos(precio),
-                "marca": _producto_marca_desde_row(p, cols),
-                "stock_tienda": st_t,
-                "stock_bodega": st_b,
-                "stock_total": st_tot,
-                "sin_stock": st_tot <= 0,
-                "unidad": unidad,
-            })
+            item = enriquecer_item_busqueda_pos(
+                pid=pid,
+                row=p,
+                cols=cols,
+                stock_tienda=st_t,
+                stock_bodega=st_b,
+                nombre=nombre,
+                codigo=codigo or f"id {pid}",
+                precio=precio,
+                precio_fmt=_fmt_clp_busqueda_pos(precio),
+                marca=_producto_marca_desde_row(p, cols),
+                unidad=unidad,
+                cfg=cfg_emp,
+            )
+        else:
+            item = {
+                "id": str(pid),
+                "producto_id": pid,
+                "text": f"{nombre} ({sufijo})",
+            }
         candidatos.append(item)
 
     if enriquecido and candidatos:
         precios = [float(c.get('precio') or 0) for c in candidatos]
         pmin, pmax = min(precios), max(precios)
         for c in candidatos:
-            c['badges'] = _badges_busqueda_pos(c, pmin, pmax)
-        candidatos.sort(
-            key=lambda c: (
-                1 if c.get('sin_stock') else 0,
-                -int(c.get('stock_tienda') or 0),
-                -int(c.get('stock_bodega') or 0),
-                -int(c.get('stock_total') or 0),
-            )
-        )
+            c['badges'] = construir_badges_semaforo(c, pmin, pmax)
+        candidatos = ordenar_candidatos_busqueda(candidatos)
 
     return jsonify({"results": candidatos[:out_lim]})
 

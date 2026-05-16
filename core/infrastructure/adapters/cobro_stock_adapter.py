@@ -40,6 +40,8 @@ class AppCobroStockAdapter:
                 )
 
         for d in list(venta.detalles or []):
+            if getattr(d, 'a_pedido', False):
+                continue
             producto = app_module.Producto.query.get(d.id_producto)
             if not producto:
                 raise ValueError(f"Producto no encontrado en línea #{d.id}.")

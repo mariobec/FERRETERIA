@@ -601,10 +601,12 @@ class TestRutasAltoTrafico:
         row = data['results'][0]
         for key in (
             'nombre', 'codigo', 'precio', 'precio_fmt', 'marca',
-            'stock_tienda', 'stock_bodega', 'stock_total', 'sin_stock', 'badges',
+            'stock_tienda', 'stock_bodega', 'stock_total', 'sin_stock',
+            'semaforo', 'semaforo_label', 'permite_venta_verde', 'badges',
         ):
             assert key in row
         assert row['precio_fmt'].startswith('$')
+        assert row['semaforo'] in ('verde', 'amarillo', 'azul')
 
     def test_buscar_producto_enriquecido_orden_stock_primero(self, app_client, productos_con_stock):
         """Con stock disponible debe aparecer antes que filas sin stock (modo catálogo)."""

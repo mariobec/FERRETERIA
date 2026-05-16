@@ -50,6 +50,9 @@
     let lastItems = [];
     let debounceTimer = null;
     let fetchCtrl = null;
+    let pendingApedidoIdx = null;
+    const bannerApedido = document.getElementById("posBannerApedido");
+
     function posSoloVendiblesActivo() {
       const chk = document.getElementById("posSoloVendibles");
       return !!(chk && chk.checked);
@@ -60,7 +63,44 @@
       panel.innerHTML = "";
       activeIndex = -1;
       lastItems = [];
+      pendingApedidoIdx = null;
+      if (bannerApedido) bannerApedido.classList.add("d-none");
       setSuggestOpen(false);
+    }
+
+    function esSemaforoAzul(it) {
+      return it && String(it.semaforo || "").toLowerCase() === "azul";
+    }
+
+    function requiereConfirmacionApedido(it) {
+      return esSemaforoAzul(it) && it.permite_venta_verde !== false;
+    }
+
+    function mostrarBannerApedido(it) {
+      if (!bannerApedido || !it) return;
+      const dias = Number(it.dias_entrega_estimado || 5);
+      bannerApedido.innerHTML =
+        '<div class="pos-banner-apedido__inner">' +
+        '<strong>Venta en verde (a pedido)</strong> — Entrega estimada: ' +
+        dias +
+        " días hábiles. Confirme con el cliente y pulse <kbd>Enter</kbd> o «Confirmar»." +
+        '<button type="button" class="btn btn-sm btn-primary ms-2" id="posBtnConfirmarApedido">Confirmar</button>' +
+        '<button type="button" class="btn btn-sm btn-link" id="posBtnCancelarApedido">Cancelar</button>' +
+        "</div>";
+      bannerApedido.classList.remove("d-none");
+      const btnOk = document.getElementById("posBtnConfirmarApedido");
+      const btnNo = document.getElementById("posBtnCancelarApedido");
+      if (btnOk) {
+        btnOk.addEventListener("click", function () {
+          seleccionarItem(pendingApedidoIdx, true);
+        });
+      }
+      if (btnNo) {
+        btnNo.addEventListener("click", function () {
+          pendingApedidoIdx = null;
+          bannerApedido.classList.add("d-none");
+        });
+      }
     }
 
     function escapeHtml(s) {
@@ -73,13 +113,63 @@
 
     function badgeClass(tipo) {
       const t = String(tipo || "").toLowerCase();
-      if (t === "economica" || t === "premium" || t === "tienda" || t === "bodega" || t === "sin_stock") {
+      if (
+        t === "economica" ||
+        t === "premium" ||
+        t === "verde" ||
+        t === "amarillo" ||
+        t === "azul" ||
+        t === "tienda" ||
+        t === "bodega" ||
+        t === "sin_stock"
+      ) {
         return "pos-search-badge pos-search-badge--" + t;
       }
       return "pos-search-badge";
     }
 
+    function semaforoCardClass(it) {
+      const s = String((it && it.semaforo) || "").toLowerCase();
+      if (s === "verde" || s === "amarillo" || s === "azul") {
+        return " pos-search-card--semaforo-" + s;
+      }
+      return "";
+    }
+
+    function semaforoLuzHtml(it) {
+      const s = String((it && it.semaforo) || "verde").toLowerCase();
+      const txt =
+        s === "amarillo"
+          ? "Bodega"
+          : s === "azul"
+            ? "A pedido"
+            : "Tienda";
+      const label = escapeHtml(it.semaforo_label || txt);
+      return (
+        '<div class="pos-semaforo-luz pos-semaforo-luz--' +
+        s +
+        '" title="' +
+        label +
+        '">' +
+        '<span class="pos-semaforo-luz__dot" aria-hidden="true"></span>' +
+        '<span class="pos-semaforo-luz__txt">' +
+        escapeHtml(txt) +
+        "</span></div>"
+      );
+    }
+
+    function leyendaSemaforoHtml() {
+      return (
+        '<div class="pos-semaforo-leyenda" aria-hidden="true">' +
+        '<span class="pos-semaforo-leyenda__item pos-semaforo-leyenda__item--verde"><i></i> Tienda</span>' +
+        '<span class="pos-semaforo-leyenda__item pos-semaforo-leyenda__item--amarillo"><i></i> Bodega</span>' +
+        '<span class="pos-semaforo-leyenda__item pos-semaforo-leyenda__item--azul"><i></i> A pedido</span>' +
+        "</div>"
+      );
+    }
+
     function itemSinStock(it) {
+      if (it && String(it.semaforo || "").toLowerCase() === "azul") return true;
       if (it && it.sin_stock === true) return true;
       const st = Number(it.stock_tienda || 0);
       const sb = Number(it.stock_bodega || 0);
@@ -96,7 +186,11 @@
 
     function indicePrimeroConStock(items) {
       for (let i = 0; i < items.length; i++) {
-        if (!itemSinStock(items[i])) return i;
+        const s = String(items[i].semaforo || "").toLowerCase();
+        if (s === "verde" || s === "amarillo") return i;
+      }
+      for (let j = 0; j < items.length; j++) {
+        if (!esSemaforoAzul(items[j])) return j;
       }
       return items.length ? 0 : -1;
     }
@@ -179,6 +273,7 @@
           const sinStock = itemSinStock(it);
           return (
             '<article class="pos-search-card' +
+            semaforoCardClass(it) +
             (sinStock ? " pos-search-card--sin-stock" : "") +
             (idx === activeIndex ? " is-active" : "") +
             '" role="option" data-idx="' +
@@ -188,6 +283,7 @@
             '" aria-selected="' +
             (idx === activeIndex ? "true" : "false") +
             '">' +
+            semaforoLuzHtml(it) +
             '<div class="pos-search-card__main">' +
             '<p class="pos-search-card__title">' +
             escapeHtml(it.nombre || it.text || "") +
@@ -217,6 +313,7 @@
         " resultado" +
         (items.length === 1 ? "" : "s") +
         "</div>" +
+        leyendaSemaforoHtml() +
         html;
       panel.classList.remove("d-none");
       setSuggestOpen(true);
@@ -240,13 +337,21 @@
       }
     }
 
-    function seleccionarItem(idx) {
+    function seleccionarItem(idx, confirmadoApedido) {
       const it = lastItems[idx];
       if (!it || it.producto_id == null) return;
+      if (requiereConfirmacionApedido(it) && !confirmadoApedido) {
+        pendingApedidoIdx = idx;
+        mostrarBannerApedido(it);
+        return;
+      }
+      pendingApedidoIdx = null;
+      if (bannerApedido) bannerApedido.classList.add("d-none");
       hidePanel();
       input.value = "";
       input.blur();
-      posEscanearYAgregar(String(it.producto_id), true);
+      const opts = confirmadoApedido ? { a_pedido: true } : null;
+      posEscanearYAgregar(String(it.producto_id), true, opts);
     }
 
     function ejecutarBusqueda(term) {
@@ -328,7 +433,9 @@
       } else if (e.key === "Enter" && activeIndex >= 0) {
         e.preventDefault();
         e.stopPropagation();
-        seleccionarItem(activeIndex);
+        const confirmar =
+          pendingApedidoIdx === activeIndex && pendingApedidoIdx !== null;
+        seleccionarItem(activeIndex, confirmar);
       }
     }
 
@@ -487,11 +594,12 @@
     posModalProductoAltaRapida.show();
   }
 
-  async function posEscanearYAgregar(codigo, porProductoId) {
+  async function posEscanearYAgregar(codigo, porProductoId, opts) {
     const cfg = readPosConfig();
     const url = cfg && cfg.urls && cfg.urls.escanear_agregar;
     if (!url) return;
     const payload = porProductoId ? { producto_id: codigo } : { codigo: codigo };
+    if (opts && opts.a_pedido) payload.a_pedido = true;
     try {
       const res = await fetch(url, {
         method: "POST",

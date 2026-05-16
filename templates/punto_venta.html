@@ -397,6 +397,20 @@
     padding: 0.35rem 0.5rem 0.15rem;
   }
 
+  /* Semáforo POS (refuerzo si design-system está en caché) */
+  .pos-search-card {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+  }
+  .pos-semaforo-luz__dot {
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    display: block;
+  }
+  .pos-semaforo-luz--verde .pos-semaforo-luz__dot { background: #10b981; }
+  .pos-semaforo-luz--amarillo .pos-semaforo-luz__dot { background: #f59e0b; }
+  .pos-semaforo-luz--azul .pos-semaforo-luz__dot { background: #3b82f6; }
+
   .pos-manual-submit {
     background: linear-gradient(135deg, #6d28d9 0%, #4f46e5 100%) !important;
     border: none !important;
@@ -552,6 +566,7 @@
           </button>
         </div>
         <div class="col-12">
+          <div id="posBannerApedido" class="pos-banner-apedido d-none" role="alert" aria-live="polite"></div>
           <div id="pos-search-suggestions" class="pos-search-suggestions d-none" role="listbox" aria-label="Sugerencias de productos"></div>
         </div>
       </form>
@@ -585,9 +600,14 @@
           <tbody>
             {% for d in detalles %}
             {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
-            <tr id="pos_row_{{ d.id }}">
+            <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido{% endif %}">
               <td><span class="badge bg-secondary">{{ d.producto.codigo_barra }}</span></td>
-              <td>{{ d.producto.nombre }}</td>
+              <td>
+                {{ d.producto.nombre }}
+                {% if d.a_pedido %}
+                <span class="badge pos-badge-apedido ms-1">A pedido</span>
+                {% endif %}
+              </td>
               {% if pos_retiro_por_linea %}
               <td class="align-middle" style="min-width:9rem;">
                 {% set rline = (d.punto_retiro_linea or 'Tienda') %}
@@ -972,7 +992,7 @@
   'pos_retiro_por_linea': pos_retiro_por_linea,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-asistente-stock-20260518"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-semaforo-luz-20260519b"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

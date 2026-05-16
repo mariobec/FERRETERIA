@@ -561,6 +561,8 @@ def consumo_tienda_agrupado_por_producto(venta):
         m.db.session.rollback()
         return {}
     for d in detalles:
+        if getattr(d, 'a_pedido', False):
+            continue
         producto = d.producto or Producto.query.get(d.id_producto)
         if not producto:
             continue
