@@ -13,11 +13,29 @@
     }
   }
 
+  function posEsBusquedaUnificada() {
+    return !!document.querySelector(".pos-unified-search-hero");
+  }
+
+  function posInputBusqueda() {
+    return document.getElementById("posBuscarManual");
+  }
+
+  function posInputEscaner() {
+    return document.getElementById("posBarcodeWedge") || posInputBusqueda();
+  }
+
+  function posPareceCodigoBarras(q) {
+    const s = (q || "").trim();
+    if (!s || s.length > 60) return false;
+    return !/\s/.test(s);
+  }
+
   /** Después de validar RUT contra el servidor, devuelve el foco al lector / escáner de productos. */
   function posFocusBarcodeWedgeSoon() {
     requestAnimationFrame(function () {
       setTimeout(function () {
-        const wedge = document.getElementById("posBarcodeWedge");
+        const wedge = posInputEscaner();
         if (!wedge || wedge.disabled) return;
         wedge.focus({ preventScroll: false });
         try {
@@ -33,10 +51,52 @@
     return new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" }).format(valor);
   }
 
+  /** Entero CLP desde texto con $ y miles con punto (ej. "$26.805" → 26805). */
+  function posParseClpText(text) {
+    const digits = String(text || "").replace(/[^\d]/g, "");
+    if (!digits) return 0;
+    const n = parseInt(digits, 10);
+    return isNaN(n) ? 0 : Math.max(0, n);
+  }
+
+  function posReadClpFromEl(el) {
+    if (!el) return 0;
+    const attr = el.getAttribute("data-clp");
+    if (attr != null && String(attr).trim() !== "") {
+      const n = parseInt(String(attr).trim(), 10);
+      if (!isNaN(n)) return Math.max(0, n);
+    }
+    return posParseClpText(el.textContent || el.innerText);
+  }
+
+  function posWriteClpToEl(el, amount, suffix) {
+    if (!el) return;
+    const n = Math.round(amount || 0);
+    el.setAttribute("data-clp", String(n));
+    el.textContent = formatoCLP(n) + (suffix || "");
+  }
+
+  function posContarLineasValeDom() {
+    const filas = document.querySelectorAll("[id^='pos_row_']");
+    if (filas.length) return filas.length;
+    return document.querySelectorAll(".cantidad-input").length;
+  }
+
+  function posSyncDtoChip(detalleId) {
+    const inp = document.getElementById("descuento_" + detalleId);
+    const chip = document.getElementById("descuento_chip_" + detalleId);
+    if (!inp) return;
+    const v = Math.round(parseFloat(inp.value) || 0);
+    if (chip) chip.textContent = String(v) + "%";
+    const det = inp.closest(".pos-cart-card__more");
+    if (det) det.classList.toggle("pos-cart-card__more--active", v > 0);
+  }
+
   var POS_SCROLL_KEY = "pos_scroll_y";
   var POS_RESTORE_UI_KEY = "pos_restore_ui";
 
   function posScrollGuardar() {
+    if (document.body.classList.contains("pos-pantalla-vendedora")) return;
     try {
       sessionStorage.setItem(POS_SCROLL_KEY, String(window.scrollY || 0));
       sessionStorage.setItem(POS_RESTORE_UI_KEY, "1");
@@ -46,6 +106,15 @@
   }
 
   function posScrollRestaurar() {
+    if (document.body.classList.contains("pos-pantalla-vendedora")) {
+      try {
+        sessionStorage.removeItem(POS_RESTORE_UI_KEY);
+        sessionStorage.removeItem(POS_SCROLL_KEY);
+      } catch (_e) {
+        /* ignore */
+      }
+      return;
+    }
     try {
       if (sessionStorage.getItem(POS_RESTORE_UI_KEY) !== "1") return;
       sessionStorage.removeItem(POS_RESTORE_UI_KEY);
@@ -55,7 +124,7 @@
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
           window.scrollTo(0, y);
-          var inp = document.getElementById("posBuscarManual");
+          var inp = posInputBusqueda();
           if (inp) {
             try {
               inp.focus({ preventScroll: true });
@@ -153,17 +222,490 @@
     syncPosFiltroBusquedaBotones();
   }
 
+  function posRetiroSugeridoDesdeItem(it) {
+    if (!it) return "Tienda";
+    const st = Number(it.stock_tienda || 0);
+    const sb = Number(it.stock_bodega || 0);
+    if (st > 0) return "Tienda";
+    if (sb > 0) return "Bodega";
+    return "Tienda";
+  }
+
+  function posAsegurarDockVisible() {
+    const dock = document.getElementById("posCheckoutDock");
+    if (!dock) return;
+    dock.style.removeProperty("display");
+    dock.style.removeProperty("visibility");
+    dock.style.removeProperty("opacity");
+  }
+
+  var posSearchBusyTimer = null;
+
+  function posSearchBusyTimeoutClear() {
+    if (posSearchBusyTimer) {
+      clearTimeout(posSearchBusyTimer);
+      posSearchBusyTimer = null;
+    }
+  }
+
+  /** Evita panel “Agregando…” pegado si falla red o respuesta. */
+  function posSearchBusyArm(panel, ms) {
+    posSearchBusyTimeoutClear();
+    if (!panel) return;
+    panel.classList.add("pos-search-suggestions--busy");
+    posSearchBusyTimer = setTimeout(function () {
+      panel.classList.remove("pos-search-suggestions--busy");
+      posSearchBusyTimer = null;
+    }, ms || 14000);
+  }
+
+  function posSearchBusyRelease(panel) {
+    posSearchBusyTimeoutClear();
+    if (panel) panel.classList.remove("pos-search-suggestions--busy");
+  }
+
+  function posEsPantallaVendedora() {
+    return document.body.classList.contains("pos-pantalla-vendedora");
+  }
+
+  var posCartPersistBusy = {};
+  var posSearchPanelAnchor = { parent: null, next: null };
+
+  function posMontarPanelBusqueda(panel, anchorInput) {
+    if (!panel || !anchorInput || !posEsPantallaVendedora()) return;
+    if (!posSearchPanelAnchor.parent) {
+      posSearchPanelAnchor.parent = panel.parentNode;
+      posSearchPanelAnchor.next = panel.nextSibling;
+    }
+    if (panel.parentNode !== document.body) {
+      document.body.appendChild(panel);
+    }
+    const relayoutBusqueda = document.body.classList.contains("pos-dock-relayout-busqueda");
+    const dock = document.getElementById("posCheckoutDock");
+    const dockH = dock ? dock.offsetHeight : 120;
+    const inputRect = anchorInput.getBoundingClientRect();
+    const hero = anchorInput.closest(".pos-unified-search-hero");
+    const toolsCol = document.querySelector(".pos-premium-col--tools");
+    const box = toolsCol
+      ? toolsCol.getBoundingClientRect()
+      : hero
+        ? hero.getBoundingClientRect()
+        : inputRect;
+    const inset = 4;
+    const left = Math.max(8, box.left + inset);
+    const maxW = Math.min(760, window.innerWidth - left - 12);
+    const width = Math.min(maxW, Math.max(520, box.width - inset * 2));
+    const maxH = Math.max(160, window.innerHeight - dockH - inputRect.bottom - 16);
+    panel.classList.add("pos-search-suggestions--portal");
+    if (relayoutBusqueda) {
+      panel.classList.add("pos-search-suggestions--portal-alta");
+    } else {
+      panel.classList.remove("pos-search-suggestions--portal-alta");
+    }
+    panel.style.position = "fixed";
+    panel.style.left = left + "px";
+    panel.style.top = inputRect.bottom + 6 + "px";
+    panel.style.width = width + "px";
+    if (relayoutBusqueda) {
+      panel.style.removeProperty("max-height");
+      panel.style.removeProperty("height");
+    } else {
+      panel.style.maxHeight = maxH + "px";
+    }
+    panel.style.zIndex = relayoutBusqueda ? "1250" : "1200";
+    panel.style.boxSizing = "border-box";
+  }
+
+  function posDesmontarPanelBusqueda(panel) {
+    if (!panel) return;
+    panel.classList.remove("pos-search-suggestions--portal");
+    panel.classList.remove("pos-search-suggestions--portal-alta");
+    panel.removeAttribute("style");
+    if (posSearchPanelAnchor.parent && panel.parentNode === document.body) {
+      posSearchPanelAnchor.parent.insertBefore(panel, posSearchPanelAnchor.next);
+    }
+  }
+
+  async function posPersistirLineaAjax(detalleId, urlActualizarItem, opts) {
+    opts = opts || {};
+    const cantidadEl = document.getElementById("cantidad_" + detalleId);
+    const descuentoEl = document.getElementById("descuento_" + detalleId);
+    if (!cantidadEl || !descuentoEl || !urlActualizarItem) return false;
+    if (posCartPersistBusy[detalleId]) return false;
+    posCartPersistBusy[detalleId] = true;
+    const fd = new FormData();
+    fd.append("actualizar", String(detalleId));
+    fd.append("cantidad_" + detalleId, cantidadEl.value);
+    fd.append("descuento_" + detalleId, descuentoEl.value);
+    fd.append("pos_ajax", "1");
+    if (opts.solo_cantidad) fd.append("solo_cantidad", "1");
+    if (opts.supervisor_identificador) {
+      fd.append("supervisor_identificador", opts.supervisor_identificador);
+    }
+    if (opts.supervisor_clave) fd.append("supervisor_clave", opts.supervisor_clave);
+    const cfgDeck = readPosConfig();
+    if (cfgDeck && cfgDeck.from_command_deck) fd.append("from_command_deck", "1");
+    try {
+      const res = await fetch(urlActualizarItem, {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+        headers: { Accept: "application/json" },
+      });
+      const data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok || !data.ok) {
+        mostrarPosToast(data.mensaje || "No se pudo guardar la línea.");
+        return false;
+      }
+      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      const dockCount = document.getElementById("posDockItemCount");
+      if (dockCount && typeof data.items_count === "number") {
+        dockCount.textContent = String(data.items_count);
+      }
+      actualizarEstadoEmisionVale();
+      if (opts.refrescar_carrito) {
+        await posRefrescarCarritoVendedor();
+        if (cfgDeck && cfgDeck.urls) posBindCartLineHandlers(cfgDeck.urls, !!cfgDeck.descuento_libre);
+      }
+      return true;
+    } catch (_e) {
+      mostrarPosToast("Error de red al guardar la línea.");
+      return false;
+    } finally {
+      delete posCartPersistBusy[detalleId];
+    }
+  }
+
+  async function posEliminarLineaCarrito(form) {
+    if (!form || !form.action) return false;
+    if (!confirm("¿Eliminar este producto de la venta?")) return false;
+    const fd = new FormData();
+    fd.append("pos_ajax", "1");
+    try {
+      const res = await fetch(form.action, {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+        headers: { Accept: "application/json" },
+      });
+      const data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok || !data.ok) {
+        mostrarPosToast("No se pudo eliminar la línea.");
+        return false;
+      }
+      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      await posRefrescarCarritoVendedor();
+      actualizarEstadoEmisionVale();
+      posAsegurarDockVisible();
+      return true;
+    } catch (_e) {
+      mostrarPosToast("Error de red al eliminar.");
+      return false;
+    }
+  }
+
+  function posUrlRetiroLinea(cfg) {
+    cfg = cfg || readPosConfig();
+    if (!cfg || !cfg.urls) return "";
+    return cfg.urls.retiro_linea || cfg.urls.actualizar_item || "";
+  }
+
+  function posSyncRetiroSelectsPrev() {
+    document.querySelectorAll(".pos-retiro-select").forEach(function (sel) {
+      if (!sel.getAttribute("data-retiro-prev")) {
+        sel.setAttribute("data-retiro-prev", sel.value);
+      }
+    });
+  }
+
+  function posBindRetiroLineaHandlers() {
+    const cfg = readPosConfig();
+    if (!cfg || !cfg.pos_retiro_por_linea || !posEsPantallaVendedora()) return;
+    if (!posUrlRetiroLinea(cfg)) return;
+    posSyncRetiroSelectsPrev();
+    if (window._posRetiroLineaDelegado) return;
+    window._posRetiroLineaDelegado = true;
+    document.addEventListener(
+      "mousedown",
+      function (e) {
+        if (e.target && e.target.closest && e.target.closest(".pos-retiro-select")) {
+          e.stopPropagation();
+        }
+      },
+      true
+    );
+    document.addEventListener("change", function (e) {
+      const sel = e.target;
+      if (!sel || !sel.classList || !sel.classList.contains("pos-retiro-select")) return;
+      if (!posEsPantallaVendedora() || sel.disabled) return;
+      const detalleId = parseInt(sel.getAttribute("data-detalle-id"), 10);
+      if (isNaN(detalleId)) return;
+      const nuevo = (sel.value || "Tienda").trim();
+      const prev = (sel.getAttribute("data-retiro-prev") || "").trim();
+      if (nuevo === prev) return;
+      const url = posUrlRetiroLinea();
+      if (!url) return;
+      posActualizarRetiroLinea(detalleId, nuevo, url).then(function (ok) {
+        if (ok) {
+          sel.setAttribute("data-retiro-prev", nuevo);
+          mostrarPosToast("Retiro: " + nuevo, { delay: 1200 });
+        }
+      });
+    });
+  }
+
+  function posBindCartLineHandlers(u, descLibre) {
+    if (!u || !u.actualizar_item) return;
+    $(".cantidad-input").off(".posbind");
+    $(".cantidad-input").on("input.posbind change.posbind", function () {
+      const detalleId = $(this).data("detalle-id");
+      const precio = parseFloat($(this).data("precio")) || 0;
+      actualizarSubtotal(detalleId, precio);
+      actualizarEstadoEmisionVale();
+      schedulePersistDetalle(detalleId, u.actualizar_item, true);
+    });
+    $(".descuento-input").off(".posbind");
+    $(".descuento-input").on("input.posbind change.posbind", function () {
+      const detalleId = $(this).data("detalle-id");
+      const precio = parseFloat($(this).data("precio")) || 0;
+      actualizarSubtotal(detalleId, precio);
+      actualizarEstadoEmisionVale();
+      posSyncDtoChip(detalleId);
+      posAbrirMenuDtoSiCorresponde(detalleId);
+    });
+    $(".btn-ajustar-cantidad").off("click.posbind");
+    $(".btn-ajustar-cantidad").on("click.posbind", function () {
+      const detalleId = parseInt($(this).data("detalle-id"), 10);
+      const delta = parseInt($(this).data("delta"), 10);
+      const precio = parseFloat($(this).data("precio")) || 0;
+      ajustarCantidad(detalleId, delta, precio);
+      actualizarEstadoEmisionVale();
+      schedulePersistDetalle(detalleId, u.actualizar_item, true);
+    });
+    posBindRetiroLineaHandlers();
+    $(".btn-actualizar-item").off("click.posbind");
+    $(".btn-actualizar-item").on("click.posbind", function () {
+      const detalleId = parseInt($(this).data("detalle-id"), 10);
+      cancelPersistDetalle(detalleId);
+      if (descuentoRequiereCredencialSupervisor(detalleId, descLibre)) {
+        pendingDetalleIdAutorizacionDesc = detalleId;
+        const modalAutorizaEl = document.getElementById("modalAutorizarDescuentoPos");
+        if (modalAutorizaEl && typeof bootstrap !== "undefined") {
+          bootstrap.Modal.getOrCreateInstance(modalAutorizaEl).show();
+        } else {
+          mostrarPosToast("No se pudo abrir la autorización. Recargue la página.");
+        }
+        return;
+      }
+      actualizarItem(detalleId, u.actualizar_item, {});
+    });
+  }
+
+  function posSearchPanelLiberar() {
+    posSearchBusyTimeoutClear();
+    const panel = document.getElementById("pos-search-suggestions");
+    if (panel) {
+      panel.classList.remove("pos-search-suggestions--busy");
+    }
+    const hero = document.querySelector(".pos-unified-search-hero, .pos-manual-search-hero");
+    if (hero) {
+      hero.classList.remove("pos-unified-search-hero--suggest-open");
+      hero.classList.remove("pos-manual-search-hero--suggest-open");
+    }
+  }
+
+  function posSearchPanelCerrar() {
+    const panel = document.getElementById("pos-search-suggestions");
+    if (!panel) return;
+    panel.classList.remove("pos-search-suggestions--busy");
+    panel.classList.add("d-none");
+    panel.innerHTML = "";
+    const hero = document.querySelector(".pos-unified-search-hero, .pos-manual-search-hero");
+    if (hero) {
+      hero.classList.remove("pos-unified-search-hero--suggest-open");
+      hero.classList.remove("pos-manual-search-hero--suggest-open");
+    }
+    const banner = document.getElementById("posBannerApedido");
+    if (banner) banner.classList.add("d-none");
+  }
+
+  async function posActualizarRetiroLinea(detalleId, valor, urlRetiro) {
+    if (!detalleId || !urlRetiro) return false;
+    const sel = document.querySelector(
+      '.pos-retiro-select[data-detalle-id="' + detalleId + '"]'
+    );
+    const valorAnterior = sel ? sel.getAttribute("data-retiro-prev") || sel.value : null;
+    const usaApiJson = urlRetiro.indexOf("/api/pos/retiro-linea") >= 0;
+    if (sel) {
+      sel.classList.add("pos-retiro-select--saving");
+      sel.setAttribute("aria-busy", "true");
+    }
+    try {
+      let res;
+      if (usaApiJson) {
+        res = await fetch(urlRetiro, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            detalle_id: detalleId,
+            punto_retiro_linea: valor || "Tienda",
+          }),
+        });
+      } else {
+        const fd = new FormData();
+        fd.append("actualizar", String(detalleId));
+        fd.append("solo_retiro_linea", "1");
+        fd.append("punto_retiro_linea", valor || "Tienda");
+        fd.append("pos_ajax", "1");
+        res = await fetch(urlRetiro, {
+          method: "POST",
+          credentials: "same-origin",
+          body: fd,
+          headers: { Accept: "application/json" },
+        });
+      }
+      const data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok || !data.ok) {
+        if (sel && valorAnterior != null) sel.value = valorAnterior;
+        mostrarPosToast(data.mensaje || "No se pudo actualizar el punto de retiro.");
+        return false;
+      }
+      if (sel) sel.setAttribute("data-retiro-prev", sel.value);
+      if (sel) {
+        const card = sel.closest(".pos-cart-card");
+        const chip = card && card.querySelector(".pos-cart-card__chip--retiro");
+        if (chip) chip.textContent = sel.value;
+      }
+      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      const dockCount = document.getElementById("posDockItemCount");
+      if (dockCount && typeof data.items_count === "number") {
+        dockCount.textContent = String(data.items_count);
+      }
+      return true;
+    } catch (_e) {
+      if (sel && valorAnterior != null) sel.value = valorAnterior;
+      mostrarPosToast("Error de red al actualizar retiro.");
+      return false;
+    } finally {
+      if (sel) {
+        sel.classList.remove("pos-retiro-select--saving");
+        sel.removeAttribute("aria-busy");
+      }
+    }
+  }
+
+  async function posRefrescarCarritoVendedor() {
+    const cfg = readPosConfig();
+    const url = cfg && cfg.urls && cfg.urls.carrito_html;
+    if (!url || !document.body.classList.contains("pos-pantalla-vendedora")) return false;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      const data = await res.json().catch(function () { return {}; });
+      if (!res.ok || !data.ok) return false;
+      const host = document.getElementById("posCartHost");
+      if (host && data.html) host.innerHTML = data.html;
+      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      const dockCount = document.getElementById("posDockItemCount");
+      if (dockCount && typeof data.items_count === "number") {
+        dockCount.textContent = String(data.items_count);
+      }
+      const list = document.getElementById("contenedor-carrito");
+      if (list) list.dataset.posCartV2Wired = "";
+      wirePosCartV2();
+      if (cfg.urls) posBindCartLineHandlers(cfg.urls, !!cfg.descuento_libre);
+      posBindRetiroLineaHandlers();
+      actualizarEstadoEmisionVale();
+      posAsegurarDockVisible();
+      return true;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /** Carrito v3 vendedor: foco de línea, menú ⋯, dto colapsado, scroll suave. */
+  function wirePosCartV2() {
+    const list = document.getElementById("contenedor-carrito");
+    if (!list || !document.body.classList.contains("pos-pantalla-vendedora")) return;
+    if (list.dataset.posCartV2Wired === "1") return;
+    list.dataset.posCartV2Wired = "1";
+
+    list.addEventListener("click", function (e) {
+      if (
+        e.target.closest(
+          ".pos-retiro-select, .pos-qty-capsule, .pos-cart-card__toolbar, .pos-cart-card__more, .pos-cart-card__delete-btn, button, input, select, label, a"
+        )
+      ) {
+        return;
+      }
+      const card = e.target.closest(".pos-cart-card");
+      if (!card || !list.contains(card)) return;
+      list.querySelectorAll(".pos-cart-card--active").forEach(function (c) {
+        if (c !== card) c.classList.remove("pos-cart-card--active");
+      });
+      card.classList.add("pos-cart-card--active");
+      try {
+        card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } catch (_e) {
+        card.scrollIntoView(false);
+      }
+    });
+
+    list.querySelectorAll(".pos-cart-card__more").forEach(function (det) {
+      det.addEventListener("toggle", function () {
+        if (!det.open) return;
+        list.querySelectorAll(".pos-cart-card__more[open]").forEach(function (other) {
+          if (other !== det) other.open = false;
+        });
+      });
+    });
+
+    list.querySelectorAll(".pos-cart-card__more-panel").forEach(function (panel) {
+      panel.addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+    });
+
+    list.querySelectorAll(".descuento-input").forEach(function (inp) {
+      const detId = inp.getAttribute("data-detalle-id");
+      if (detId) posSyncDtoChip(detId);
+    });
+  }
+
+  function posAbrirMenuDtoSiCorresponde(detalleId) {
+    const inp = document.getElementById("descuento_" + detalleId);
+    const row = document.getElementById("pos_row_" + detalleId);
+    if (!inp || !row) return;
+    posSyncDtoChip(detalleId);
+    const v = parseFloat(inp.value) || 0;
+    if (v <= 0) return;
+    const det = row.querySelector(".pos-cart-card__more");
+    if (det) det.open = true;
+  }
+
   /**
    * Asistente de búsqueda manual: input único + panel de tarjetas (sin Select2 visible).
    */
   function initPosManualSearch(buscarUrl) {
     const panel = document.getElementById("pos-search-suggestions");
-    const input = document.getElementById("posBuscarManual");
-    const hero = document.querySelector(".pos-manual-search-hero");
+    const input = posInputBusqueda();
+    const hero = document.querySelector(".pos-unified-search-hero, .pos-manual-search-hero");
     if (!panel || !input || !buscarUrl) return null;
 
     function setSuggestOpen(open) {
-      if (hero) hero.classList.toggle("pos-manual-search-hero--suggest-open", !!open);
+      if (!hero) return;
+      hero.classList.toggle("pos-manual-search-hero--suggest-open", !!open);
+      hero.classList.toggle("pos-unified-search-hero--suggest-open", !!open);
     }
 
     let activeIndex = -1;
@@ -176,11 +718,17 @@
     function hidePanel() {
       panel.classList.add("d-none");
       panel.innerHTML = "";
+      posDesmontarPanelBusqueda(panel);
       activeIndex = -1;
       lastItems = [];
       pendingApedidoIdx = null;
       if (bannerApedido) bannerApedido.classList.add("d-none");
       setSuggestOpen(false);
+    }
+
+    function syncPanelBusquedaVisible() {
+      if (panel.classList.contains("d-none")) return;
+      posMontarPanelBusqueda(panel, input);
     }
 
     function esSemaforoAzul(it) {
@@ -399,6 +947,7 @@
           '<div class="pos-search-suggestions__empty">Sin coincidencias. Pruebe otro término o use Catálogo.</div>';
         panel.classList.remove("d-none");
         setSuggestOpen(true);
+        syncPanelBusquedaVisible();
         return;
       }
       const html = items
@@ -418,7 +967,7 @@
           const meta = "SKU: " + escapeHtml(it.codigo || "") + (marca ? " · Marca: " + escapeHtml(marca) : "");
           const sinStock = itemSinStock(it);
           return (
-            '<article class="pos-search-card' +
+            '<article class="pos-search-card pos-search-card--premium' +
             semaforoCardClass(it) +
             (sinStock ? " pos-search-card--sin-stock" : "") +
             (idx === activeIndex ? " is-active" : "") +
@@ -463,6 +1012,7 @@
         html;
       panel.classList.remove("d-none");
       setSuggestOpen(true);
+      syncPanelBusquedaVisible();
       panel.querySelectorAll(".pos-search-card").forEach(function (card) {
         card.addEventListener("mousedown", function (e) {
           e.preventDefault();
@@ -487,7 +1037,8 @@
     }
 
     function setPanelBusy(busy) {
-      panel.classList.toggle("pos-search-suggestions--busy", !!busy);
+      if (busy) posSearchBusyArm(panel, 14000);
+      else posSearchBusyRelease(panel);
     }
 
     function seleccionarItem(idx, confirmadoApedido) {
@@ -504,8 +1055,8 @@
       pendingApedidoIdx = null;
       if (bannerApedido) bannerApedido.classList.add("d-none");
       input.value = "";
-      const opts =
-        confirmadoApedido && debeAgregarComoApedido(it) ? { a_pedido: true } : null;
+      const opts = { punto_retiro_linea: posRetiroSugeridoDesdeItem(it) };
+      if (confirmadoApedido && debeAgregarComoApedido(it)) opts.a_pedido = true;
       setPanelBusy(true);
       posEscanearYAgregar(String(it.producto_id), true, opts, panel, setPanelBusy);
     }
@@ -523,6 +1074,7 @@
         '<div class="pos-search-suggestions__loading"><i class="fas fa-spinner fa-spin me-1"></i> Buscando…</div>';
       panel.classList.remove("d-none");
       setSuggestOpen(true);
+      syncPanelBusquedaVisible();
 
       const params = new URLSearchParams({
         q: q,
@@ -549,6 +1101,7 @@
               '<div class="pos-search-suggestions__empty">Sin coincidencias. Pruebe otro término o use Catálogo.</div>';
             panel.classList.remove("d-none");
             setSuggestOpen(true);
+            syncPanelBusquedaVisible();
           }
         })
         .catch(function (err) {
@@ -571,6 +1124,13 @@
       if (panel.classList.contains("d-none") || !lastItems.length) {
         if (e.key === "Enter") {
           const q = (input.value || "").trim();
+          if (posEsBusquedaUnificada() && posPareceCodigoBarras(q)) {
+            e.preventDefault();
+            input.value = "";
+            hidePanel();
+            posEscanearYAgregar(q, false);
+            return;
+          }
           if (q.length >= 3) {
             e.preventDefault();
             ejecutarBusqueda(q);
@@ -622,6 +1182,7 @@
     document.addEventListener("click", function (e) {
       if (!hero) return;
       if (hero.contains(e.target)) return;
+      if (panel && panel.contains(e.target)) return;
       hidePanel();
     });
 
@@ -661,7 +1222,17 @@
       });
     }
 
-    return { hidePanel: hidePanel, focusInput: function () { input.focus(); input.select(); } };
+    window.addEventListener("resize", syncPanelBusquedaVisible);
+    window.addEventListener("scroll", syncPanelBusquedaVisible, true);
+
+    return {
+      hidePanel: hidePanel,
+      focusInput: function () {
+        input.focus();
+        input.select();
+      },
+      syncPanel: syncPanelBusquedaVisible,
+    };
   }
 
   function actualizarTotalesVisuales(total) {
@@ -679,8 +1250,7 @@
     }
     const dockCount = document.getElementById("posDockItemCount");
     if (dockCount) {
-      const n = document.querySelectorAll(".table-ds tbody tr[id^='pos_row_']").length;
-      dockCount.textContent = String(n);
+      dockCount.textContent = String(posContarLineasValeDom());
     }
   }
 
@@ -699,9 +1269,7 @@
   function posSumarSubtotalesFilasBrutas() {
     let s = 0;
     document.querySelectorAll("[id^='subtotal_']").forEach(function (cell) {
-      const t = (cell.textContent || "").trim();
-      const n = parseFloat(t.replace(/[^0-9.-]/g, ""));
-      if (!isNaN(n)) s += n;
+      s += posReadClpFromEl(cell);
     });
     return Math.round(s);
   }
@@ -773,9 +1341,10 @@
     if (!url) return;
     const payload = porProductoId ? { producto_id: codigo } : { codigo: codigo };
     if (opts && opts.a_pedido) payload.a_pedido = true;
+    if (opts && opts.punto_retiro_linea) payload.punto_retiro_linea = opts.punto_retiro_linea;
     function clearBusy() {
       if (typeof setPanelBusyFn === "function") setPanelBusyFn(false);
-      else if (panelBusyEl) panelBusyEl.classList.remove("pos-search-suggestions--busy");
+      else posSearchBusyRelease(panelBusyEl);
     }
     try {
       const res = await fetch(url, {
@@ -799,6 +1368,21 @@
             : "Agregado: " + nom;
         }
         mostrarPosToast(msg, { delay: esApedido ? 2800 : 1500 });
+        if (document.body.classList.contains("pos-pantalla-vendedora")) {
+          clearBusy();
+          posSearchPanelCerrar();
+          const okCart = await posRefrescarCarritoVendedor();
+          if (!okCart) window.location.reload();
+          const inp = posInputBusqueda();
+          if (inp) {
+            try {
+              inp.focus({ preventScroll: true });
+            } catch (_f) {
+              inp.focus();
+            }
+          }
+          return;
+        }
         posScrollGuardar();
         window.location.reload();
         return;
@@ -816,6 +1400,8 @@
     } catch (e) {
       clearBusy();
       mostrarPosToast("Error de red al escanear.");
+    } finally {
+      clearBusy();
     }
   }
 
@@ -861,6 +1447,13 @@
       if (res.ok && data.ok) {
         if (posModalProductoAltaRapida) posModalProductoAltaRapida.hide();
         mostrarPosToast("Producto creado: " + (data.producto_nombre || nombre));
+        if (document.body.classList.contains("pos-pantalla-vendedora")) {
+          posSearchPanelLiberar();
+          posSearchPanelCerrar();
+          const okCart = await posRefrescarCarritoVendedor();
+          if (!okCart) window.location.reload();
+          return;
+        }
         posScrollGuardar();
         window.location.reload();
         return;
@@ -883,7 +1476,7 @@
     const descuento = parseFloat(document.getElementById("descuento_" + detalleId).value) || 0;
     const factorStock = parseFloat(document.getElementById("cantidad_" + detalleId).dataset.factorStock || "1") || 1;
     const subtotal = cantidad * precioUnitario * (1 - descuento / 100);
-    document.getElementById("subtotal_" + detalleId).innerText = formatoCLP(subtotal);
+    posWriteClpToEl(document.getElementById("subtotal_" + detalleId), subtotal);
     const consumoEl = document.getElementById("consumo_stock_" + detalleId);
     if (consumoEl) {
       consumoEl.innerText = Math.max(0, Math.round(cantidad * factorStock));
@@ -891,11 +1484,14 @@
 
     let total = 0;
     document.querySelectorAll("[id^='subtotal_']").forEach(function (cell) {
-      const valor = cell.innerText.replace(/[^0-9]/g, "");
-      total += parseFloat(valor) || 0;
+      total += posReadClpFromEl(cell);
     });
     actualizarTotalesVisuales(total);
-    document.getElementById("precio_unitario_" + detalleId).innerText = formatoCLP(precioUnitario);
+    const precioEl = document.getElementById("precio_unitario_" + detalleId);
+    if (precioEl) {
+      const suf = document.body.classList.contains("pos-pantalla-vendedora") ? " c/u" : "";
+      posWriteClpToEl(precioEl, precioUnitario, suf);
+    }
   }
 
   function validarStockLinea(detalleId) {
@@ -989,15 +1585,87 @@
     opts = opts || {};
     const body = document.getElementById("posToastBody");
     if (!body) return;
-    body.innerText = mensaje;
+    if (opts.html) {
+      body.innerHTML = mensaje;
+    } else {
+      body.textContent = mensaje;
+    }
     const toastEl = document.getElementById("posToast");
     if (!toastEl || typeof bootstrap === "undefined") return;
-    toastEl.classList.remove("text-bg-info", "text-bg-dark");
-    toastEl.classList.add(opts.variant === "info" ? "text-bg-info" : "text-bg-dark");
+    toastEl.classList.remove(
+      "text-bg-info",
+      "text-bg-dark",
+      "text-bg-danger",
+      "text-bg-warning",
+      "pos-toast--vale-success",
+      "pos-toast--flash-warn",
+      "pos-toast--flash-danger"
+    );
+    if (opts.variant === "vale" || opts.variant === "success") {
+      toastEl.classList.add("pos-toast--vale-success");
+    } else if (opts.variant === "danger") {
+      toastEl.classList.add("text-bg-danger");
+    } else if (opts.variant === "warning") {
+      toastEl.classList.add("pos-toast--flash-warn");
+    } else if (opts.variant === "info") {
+      toastEl.classList.add("text-bg-info");
+    } else {
+      toastEl.classList.add("text-bg-dark");
+    }
     const toast = bootstrap.Toast.getOrCreateInstance(toastEl, {
       delay: typeof opts.delay === "number" ? opts.delay : 1500,
+      autohide: opts.autohide !== false,
     });
     toast.show();
+  }
+
+  function posParseValeFlashMessage(text) {
+    const m = String(text || "").match(/Vale\s*N[°º#]?\s*(\d+)\s+emitido\s+para\s+(.+?)\.\s*Turno\s+(\d+)/i);
+    if (!m) return null;
+    return { id: m[1], cliente: m[2].trim(), turno: m[3] };
+  }
+
+  /** En pantalla vendedora: flash del servidor → toast premium (auto-cierra). */
+  function posAbsorbServerFlashMessages() {
+    if (!document.body.classList.contains("pos-pantalla-vendedora")) return;
+    const main = document.querySelector(".app-main");
+    if (!main) return;
+    const alerts = main.querySelectorAll(":scope > .alert");
+    if (!alerts.length) return;
+
+    alerts.forEach(function (alertEl) {
+      const text = (alertEl.textContent || "").replace(/\s+/g, " ").trim();
+      const category = alertEl.classList.contains("alert-danger")
+        ? "danger"
+        : alertEl.classList.contains("alert-warning")
+          ? "warning"
+          : alertEl.classList.contains("alert-success")
+            ? "success"
+            : "info";
+      const vale = posParseValeFlashMessage(text);
+      if (vale) {
+        const html =
+          '<div class="pos-flash-toast">' +
+          '<span class="pos-flash-toast__icon" aria-hidden="true"><i class="fas fa-check-circle"></i></span>' +
+          '<div class="pos-flash-toast__text">' +
+          '<strong class="pos-flash-toast__title">Vale emitido · N° ' +
+          escapeHtmlPosJs(vale.id) +
+          "</strong>" +
+          '<span class="pos-flash-toast__meta">Turno ' +
+          escapeHtmlPosJs(vale.turno) +
+          " · " +
+          escapeHtmlPosJs(vale.cliente) +
+          "</span>" +
+          "</div></div>";
+        mostrarPosToast(html, { html: true, variant: "vale", delay: 5500 });
+      } else if (text) {
+        mostrarPosToast(text, {
+          variant: category === "success" ? "vale" : category,
+          delay: category === "danger" ? 6000 : 4200,
+        });
+      }
+      alertEl.remove();
+    });
   }
 
   function escapeHtmlPosJs(str) {
@@ -1041,8 +1709,17 @@
     return false;
   }
 
-  function actualizarItem(detalleId, urlActualizarItem, opts) {
+  async function actualizarItem(detalleId, urlActualizarItem, opts) {
     opts = opts || {};
+    if (posEsPantallaVendedora()) {
+      const ajaxOpts = Object.assign({}, opts);
+      if (!ajaxOpts.refrescar_carrito && !opts.supervisor_identificador) {
+        ajaxOpts.refrescar_carrito = false;
+      }
+      if (opts.supervisor_identificador) ajaxOpts.refrescar_carrito = true;
+      await posPersistirLineaAjax(detalleId, urlActualizarItem, ajaxOpts);
+      return;
+    }
     const cantidad = document.getElementById("cantidad_" + detalleId).value;
     const descuento = document.getElementById("descuento_" + detalleId).value;
     const form = document.createElement("form");
@@ -1222,6 +1899,8 @@
       nombre: cli.nombre || nombre,
       rut: rut,
       saldo_favor: Number(cli.saldo_favor || 0),
+      cliente_id: cli.id,
+      credito: cli.credito || null,
     });
     if (posClienteNuevoModalInst) posClienteNuevoModalInst.hide();
     renderPosTvClienteBadge(res.cliente_vitrina);
@@ -1259,8 +1938,16 @@
             formatoCLP(Number(resumen.saldo_favor)) +
             "</strong></div>";
         }
+        if (
+          resumen.credito &&
+          resumen.credito.tiene_linea &&
+          !document.body.classList.contains("pos-dock-relayout-busqueda")
+        ) {
+          html += posHtmlCreditoMetricas(resumen.credito);
+        }
         extras.innerHTML = html;
       }
+      posRenderCreditoCliente(resumen);
       setHiddenClienteField("cliente_rut", resumen.rut);
       setHiddenClienteField("cliente_nombre", resumen.nombre);
     } else if (posClienteUiEstado === "new") {
@@ -1270,6 +1957,9 @@
     } else if (posClienteUiEstado === "final") {
       setHiddenClienteField("cliente_rut", "");
       setHiddenClienteField("cliente_nombre", "");
+      posRenderCreditoCliente(null);
+    } else {
+      posRenderCreditoCliente(null);
     }
   }
 
@@ -1424,6 +2114,100 @@
     return s;
   }
 
+  function posPuedeVerCreditos() {
+    const cfg = readPosConfig();
+    return !!(cfg && cfg.puede_ver_creditos);
+  }
+
+  function posCreditoUrl(tipo, clienteId) {
+    const cfg = readPosConfig();
+    const tpl = cfg && cfg.credito_urls && cfg.credito_urls[tipo];
+    if (!tpl || !clienteId) return null;
+    return String(tpl).replace("__ID__", String(clienteId));
+  }
+
+  function posSyncCreditoChrome(resumen) {
+    const cartola = document.getElementById("posBtnCartola");
+    const boucher = document.getElementById("posBtnBoucher");
+    if (!cartola && !boucher) return;
+    const id =
+      resumen &&
+      (resumen.cliente_id || (resumen.credito && resumen.credito.cliente_id));
+    const puede = posPuedeVerCreditos();
+    const btns = [
+      { el: cartola, tipo: "cartola" },
+      { el: boucher, tipo: "boucher" },
+    ];
+    btns.forEach(function (b) {
+      if (!b.el) return;
+      const url = puede && id ? posCreditoUrl(b.tipo, id) : null;
+      if (url) {
+        b.el.href = url;
+        b.el.classList.remove("disabled");
+        b.el.removeAttribute("aria-disabled");
+      } else {
+        b.el.href = "#";
+        b.el.classList.add("disabled");
+        b.el.setAttribute("aria-disabled", "true");
+      }
+    });
+  }
+
+  function posHtmlCreditoMetricas(credito) {
+    if (!credito || !credito.tiene_linea) return "";
+    const bloqueado = !!credito.credito_bloqueado;
+    const disp = Math.max(0, Number(credito.cupo_disponible || 0));
+    const deuda = Number(credito.saldo_deudor || 0);
+    const cupo = Number(credito.limite_credito || 0);
+    let cls = "pos-credito-bar";
+    if (bloqueado) cls += " pos-credito-bar--bloqueado";
+    else if (disp < 50000) cls += " pos-credito-bar--bajo";
+    let html =
+      '<div class="' +
+      cls +
+      '">' +
+      '<span class="pos-credito-bar__tag"><i class="fas fa-credit-card me-1"></i>Crédito</span>' +
+      '<span class="pos-credito-metric"><span class="pos-credito-metric__label">Cupo</span><strong>' +
+      escapeHtmlPosJs(formatoCLP(cupo)) +
+      "</strong></span>" +
+      '<span class="pos-credito-metric"><span class="pos-credito-metric__label">Deuda</span><strong>' +
+      escapeHtmlPosJs(formatoCLP(deuda)) +
+      "</strong></span>" +
+      '<span class="pos-credito-metric pos-credito-metric--disp"><span class="pos-credito-metric__label">Disponible</span><strong>' +
+      escapeHtmlPosJs(formatoCLP(disp)) +
+      "</strong></span>";
+    if (bloqueado) {
+      html +=
+        '<span class="badge rounded-pill text-bg-danger ms-1">Crédito suspendido</span>';
+    }
+    html += "</div>";
+    return html;
+  }
+
+  function posRenderCreditoCliente(resumen) {
+    const cred = resumen && resumen.credito;
+    const credHtml = cred && cred.tiene_linea ? posHtmlCreditoMetricas(cred) : "";
+    const relayout = document.body.classList.contains("pos-dock-relayout-busqueda");
+    ["posCreditoStrip", "posDockCreditoStrip"].forEach(function (id) {
+      const strip = document.getElementById(id);
+      if (!strip) return;
+      if (id === "posCreditoStrip" && relayout) {
+        strip.innerHTML = "";
+        strip.classList.add("d-none");
+        return;
+      }
+      if (id === "posDockCreditoStrip" && !relayout) return;
+      if (credHtml) {
+        strip.innerHTML = credHtml;
+        strip.classList.remove("d-none");
+      } else {
+        strip.innerHTML = "";
+        strip.classList.add("d-none");
+      }
+    });
+    posSyncCreditoChrome(resumen || null);
+  }
+
   async function vincularClienteEnVale(payload) {
     const cfg = readPosConfig();
     const url = cfg && cfg.urls && cfg.urls.vincular_cliente;
@@ -1466,12 +2250,26 @@
         '<span class="badge rounded-pill text-bg-warning text-dark"><i class="fas fa-wallet me-1"></i>Saldo a favor visible en TV</span>'
       );
     }
-    if (cv.credito_activo) {
+    const cred = cv.credito;
+    if (cred && cred.tiene_linea) {
+      parts.push(
+        '<span class="badge rounded-pill text-bg-primary"><i class="fas fa-credit-card me-1"></i>Disponible ' +
+          escapeHtmlPosJs(formatoCLP(Math.max(0, Number(cred.cupo_disponible || 0)))) +
+          "</span>"
+      );
+      if (Number(cred.saldo_deudor || 0) > 0) {
+        parts.push(
+          '<span class="badge rounded-pill text-bg-secondary"><i class="fas fa-file-invoice-dollar me-1"></i>Deuda ' +
+            escapeHtmlPosJs(formatoCLP(Number(cred.saldo_deudor))) +
+            "</span>"
+        );
+      }
+    } else if (cv.credito_activo) {
       parts.push(
         '<span class="badge rounded-pill text-bg-success"><i class="fas fa-credit-card me-1"></i>Cliente con crédito</span>'
       );
     }
-    if (cv.credito_bloqueado) {
+    if (cv.credito_bloqueado || (cred && cred.credito_bloqueado)) {
       parts.push(
         '<span class="badge rounded-pill text-bg-danger"><i class="fas fa-ban me-1"></i>Crédito bloqueado</span>'
       );
@@ -1542,11 +2340,14 @@
         if (telefono) telefono.value = posClienteCampoStr(data.cliente.telefono);
         if (correo) correo.value = posClienteCampoStr(data.cliente.correo);
         const saldoFavor = Number(data.cliente.saldo_favor || 0);
-        setPosClienteUiState("known", {
+        const resumenCli = {
           nombre: posClienteCampoStr(data.cliente.nombre),
           rut: rut,
           saldo_favor: saldoFavor,
-        });
+          cliente_id: data.cliente.id,
+          credito: data.cliente.credito || null,
+        };
+        setPosClienteUiState("known", resumenCli);
         const vinc = await vincularClienteEnVale({ cliente_rut: rut });
         if (vinc && vinc.ok) {
           renderPosTvClienteBadge(vinc.cliente_vitrina);
@@ -1572,9 +2373,20 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    if (document.body.classList.contains("pos-pantalla-vendedora")) {
+      if ("scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
+      }
+      window.scrollTo(0, 0);
+      posSearchPanelLiberar();
+      posAsegurarDockVisible();
+    }
     posScrollRestaurar();
+    posAbsorbServerFlashMessages();
     const cfg = readPosConfig();
-    if (!cfg || !cfg.urls) return;
+    if (!cfg || !cfg.urls) {
+      return;
+    }
     const u = cfg.urls;
     const descLibre = !!cfg.descuento_libre;
     let crossSellEnabled = cfg.cross_sell_enabled !== false;
@@ -1607,7 +2419,10 @@
         crossSellToggleBtn.classList.toggle("is-off", !crossSellEnabled);
       }
       if (crossSellToggleText) {
-        crossSellToggleText.textContent = crossSellEnabled ? "Sugerencias ON" : "Sugerencias OFF";
+        const compact = document.body.classList.contains("pos-pantalla-vendedora");
+        crossSellToggleText.textContent = crossSellEnabled
+          ? compact ? "Sugerencias" : "Sugerencias ON"
+          : compact ? "Sugerencias off" : "Sugerencias OFF";
       }
       if (crossSellStateText) {
         crossSellStateText.textContent = crossSellEnabled
@@ -2234,6 +3049,9 @@
         }
       });
       wedge.focus();
+    } else if (posEsBusquedaUnificada()) {
+      const inpUni = posInputBusqueda();
+      if (inpUni) inpUni.focus();
     }
 
     const btnAltaProd = document.getElementById("posBtnAltaRapidaProducto");
@@ -2247,7 +3065,7 @@
       btnBuscarSim.addEventListener("click", function () {
         if (posModalProductoNoEncontrado) posModalProductoNoEncontrado.hide();
         const term = posUltimoCodigoEscaneado || "";
-        const inpManual = document.getElementById("posBuscarManual");
+        const inpManual = posInputBusqueda();
         if (inpManual) {
           inpManual.value = term;
           inpManual.focus();
@@ -2266,7 +3084,7 @@
     }
 
     let posManualSearchApi = null;
-    const inpBuscarManual = document.getElementById("posBuscarManual");
+    const inpBuscarManual = posInputBusqueda();
     if (inpBuscarManual && u.buscar_producto) {
       posManualSearchApi = initPosManualSearch(u.buscar_producto);
     }
@@ -2322,12 +3140,13 @@
     const totalInicial = Math.max(serverT, sumLineas);
 
     document.querySelectorAll("[id^='precio_unitario_']").forEach(function (cell) {
-      const valor = parseFloat(cell.innerText) || 0;
-      cell.innerText = formatoCLP(valor);
+      const valor = posReadClpFromEl(cell);
+      const suf = (cell.textContent || "").indexOf("c/u") >= 0 ? " c/u" : "";
+      posWriteClpToEl(cell, valor, suf);
     });
     document.querySelectorAll("[id^='subtotal_']").forEach(function (cell) {
-      const valor = parseFloat(cell.innerText) || 0;
-      cell.innerText = formatoCLP(valor);
+      const valor = posReadClpFromEl(cell);
+      posWriteClpToEl(cell, valor);
     });
 
     actualizarTotalesVisuales(totalInicial);
@@ -2433,48 +3252,23 @@
       });
     }
 
-    $(".cantidad-input").on("input change", function () {
-      const detalleId = $(this).data("detalle-id");
-      const precio = parseFloat($(this).data("precio")) || 0;
-      actualizarSubtotal(detalleId, precio);
-      actualizarEstadoEmisionVale();
-      schedulePersistDetalle(detalleId, u.actualizar_item, true);
-    });
-
-    $(".descuento-input").on("input change", function () {
-      const detalleId = $(this).data("detalle-id");
-      const precio = parseFloat($(this).data("precio")) || 0;
-      actualizarSubtotal(detalleId, precio);
-      actualizarEstadoEmisionVale();
-      // El descuento solo se guarda en servidor al pulsar "Actualizar" (así puede pedirse supervisor).
-    });
-
-    $(".btn-ajustar-cantidad").on("click", function () {
-      const detalleId = parseInt($(this).data("detalle-id"), 10);
-      const delta = parseInt($(this).data("delta"), 10);
-      const precio = parseFloat($(this).data("precio")) || 0;
-      ajustarCantidad(detalleId, delta, precio);
-      actualizarEstadoEmisionVale();
-      schedulePersistDetalle(detalleId, u.actualizar_item, true);
-    });
-
-    $(".btn-actualizar-item").on("click", function () {
-      const detalleId = parseInt($(this).data("detalle-id"), 10);
-      cancelPersistDetalle(detalleId);
-      if (descuentoRequiereCredencialSupervisor(detalleId, descLibre)) {
-        pendingDetalleIdAutorizacionDesc = detalleId;
-        if (modalAutorizaEl && typeof bootstrap !== "undefined") {
-          const modalInst = bootstrap.Modal.getOrCreateInstance(modalAutorizaEl);
-          modalInst.show();
-        } else {
-          mostrarPosToast("No se pudo abrir la autorización. Recargue la página.");
-        }
-        return;
-      }
-      actualizarItem(detalleId, u.actualizar_item, {});
-    });
+    posBindCartLineHandlers(u, descLibre);
+    wirePosCartV2();
 
     actualizarEstadoEmisionVale();
+    posAsegurarDockVisible();
+
+    if (!window._posCartDeleteDelegado) {
+      window._posCartDeleteDelegado = true;
+      document.addEventListener("submit", function (e) {
+        const form = e.target.closest(".pos-cart-card__delete-form");
+        if (!form || !posEsPantallaVendedora()) return;
+        const host = document.getElementById("posCartHost");
+        if (!host || !host.contains(form)) return;
+        e.preventDefault();
+        posEliminarLineaCarrito(form);
+      });
+    }
 
     const tbodyPos = document.querySelector(".table-ds tbody");
     if (tbodyPos) {
@@ -2556,7 +3350,7 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "F2") {
         e.preventDefault();
-        const inp = document.getElementById("posBuscarManual");
+        const inp = posInputBusqueda() || posInputEscaner();
         if (inp) {
           inp.focus();
           inp.select();

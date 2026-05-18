@@ -1,9 +1,18 @@
 {% extends 'base.html' %}
+{# Relayout dock + búsqueda alta: false = layout dock anterior (revertir sin git) #}
+{% set pos_dock_relayout_busqueda = pos_layout_fullwidth and true %}
 
-{% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth{% endif %}{% endblock %}
+{% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-premium-20260520">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-cart-premium-20260525e">
+{% if pos_layout_fullwidth %}
+<style>
+body.pos-pantalla-vendedora .app-sidebar,
+body.pos-pantalla-vendedora .app-topbar { display: none !important; }
+body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 100%; }
+</style>
+{% endif %}
 <style>
   @media (min-width: 992px) {
     .pos-summary-sticky {
@@ -187,6 +196,10 @@
   .table-ds tbody tr.pos-row-stock-error {
     box-shadow: inset 0 0 0 2px rgba(220, 53, 69, 0.5);
     background-color: rgba(220, 53, 69, 0.08);
+  }
+  body.pos-pantalla-vendedora .pos-checkout-dock:not(.pos-checkout-dock--vendedor) {
+    position: relative;
+    bottom: auto;
   }
   .pos-checkout-dock {
     position: sticky;
@@ -463,7 +476,39 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0{% if pos_layout_fullwidth %} pos-vendedor-page{% endif %}">
+  {% if pos_layout_fullwidth %}
+  <header class="pos-vendedor-chrome" aria-label="Pantalla vendedora">
+    <div class="pos-vendedor-chrome__brand">
+      <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="" class="pos-vendedor-chrome__logo" width="32" height="32">
+      <div>
+        <h1 class="h6 mb-0 fw-bold">Punto de venta</h1>
+        <p class="mb-0 small text-muted">{{ empresa_cfg.nombre_comercial }}</p>
+      </div>
+    </div>
+    <div class="pos-vendedor-chrome__session">
+      <span class="pos-vendedor-chrome__user"><i class="fas fa-user-circle me-1"></i>{{ current_user.nombre }}</span>
+      {% if session_login_ms %}
+      <span class="pos-vendedor-chrome__uptime" data-login-ms="{{ session_login_ms }}" title="Tiempo en sesión"><i class="fas fa-clock me-1"></i><span id="appUptimeText">--m</span></span>
+      {% endif %}
+    </div>
+    <nav class="pos-vendedor-chrome__nav" aria-label="Accesos POS">
+      {% if puede_ver_creditos %}
+      <a href="{{ pos_credito_urls.modulo_creditos }}" class="btn btn-sm btn-outline-light" title="Créditos y cartera"><i class="fas fa-hand-holding-usd"></i><span class="d-none d-lg-inline ms-1">Créditos</span></a>
+      <a href="#" id="posBtnCartola" class="btn btn-sm btn-outline-warning disabled" target="_blank" rel="noopener" title="Estado de cuenta del cliente identificado" aria-disabled="true"><i class="fas fa-file-invoice"></i><span class="d-none d-lg-inline ms-1">Cartola</span></a>
+      <a href="#" id="posBtnBoucher" class="btn btn-sm btn-outline-warning disabled" target="_blank" rel="noopener" title="Boucher con cargos y abonos" aria-disabled="true"><i class="fas fa-receipt"></i><span class="d-none d-lg-inline ms-1">Boucher</span></a>
+      {% endif %}
+      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-success" title="Ir a caja"><i class="fas fa-cash-register"></i><span class="d-none d-md-inline ms-1">Caja</span></a>
+      {% if experience_wall_url %}
+      <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="TV cliente"><i class="fas fa-tv"></i><span class="d-none d-md-inline ms-1">TV</span></a>
+      {% endif %}
+      <button type="button" class="btn btn-sm pos-switch-btn {% if pos_cross_sell_enabled %}is-on{% else %}is-off{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}" title="Sugerencias de venta">
+        <i class="fas fa-wand-magic-sparkles"></i><span class="d-none d-lg-inline ms-1" id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias{% else %}Sugerencias off{% endif %}</span>
+      </button>
+      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger" title="Cerrar sesión"><i class="fas fa-sign-out-alt"></i><span class="d-none d-md-inline ms-1">Salir</span></a>
+    </nav>
+  </header>
+  {% else %}
   <div class="page-header pos-page-header">
     <div>
       <h3 class="page-title"><i class="fas fa-cash-register text-success me-2"></i>Punto de Venta</h3>
@@ -495,6 +540,7 @@
       </a>
     </div>
   </div>
+  {% endif %}
 
   {% if cotizacion_origen %}
   <div class="alert alert-warning border-warning d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -508,18 +554,8 @@
   </div>
   {% endif %}
 
+  {% if pos_layout_fullwidth %}<div class="pos-vendedor-body">{% endif %}
   <div class="pos-premium-shell">
-    {% if pos_layout_fullwidth %}
-    <nav class="pos-premium-mininav" aria-label="Accesos rápidos POS">
-      <span class="small fw-bold text-secondary">LhexIA POS</span>
-      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-success"><i class="fas fa-cash-register me-1"></i>Caja</a>
-      {% if experience_wall_url %}
-      <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info"><i class="fas fa-tv me-1"></i>TV</a>
-      {% endif %}
-      <a href="{{ url_for('pos_command_deck') }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-layer-group me-1"></i>Deck</a>
-      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger ms-md-auto"><i class="fas fa-sign-out-alt me-1"></i>Salir</a>
-    </nav>
-    {% endif %}
     <div class="pos-premium-grid">
       <div class="pos-premium-col pos-premium-col--tools">
 
@@ -540,9 +576,15 @@
           <button type="button" class="btn btn-sm btn-outline-danger" id="posBtnQuitarClienteTv" title="Quitar TV"><i class="fas fa-times"></i></button>
         </div>
       </div>
+      <div id="posCreditoStrip" class="pos-credito-strip-wrap d-none w-100 mt-2" aria-live="polite"></div>
     </div>
   </div>
 
+  {% if pos_layout_fullwidth %}
+  {% include 'pos/includes/unified_search_vendedor.html' %}
+  {% endif %}
+
+  {% if not pos_layout_fullwidth %}
   <!-- Buscador de productos con Select2 -->
   <div class="card card-ds mb-4 pos-command-card">
     <div class="card-body">
@@ -592,8 +634,16 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
+      {% if pos_layout_fullwidth %}
+      <details class="pos-historial-details mb-3">
+        <summary class="pos-historial-details__summary"><i class="fas fa-clock-rotate-left me-1"></i>Vales de hoy</summary>
+        {% include 'pos/includes/premium_historial_hoy.html' %}
+      </details>
+      {% else %}
       {% include 'pos/includes/premium_historial_hoy.html' %}
+      {% endif %}
       <div class="pos-cross-sell-compact" id="posCrossSellPanel" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}">
         <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
           <div class="small fw-bold"><i class="fas fa-bolt text-warning me-1"></i>Sugerencias <span class="badge rounded-pill {% if pos_cross_sell_enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="posCrossSellStateBadge">{% if pos_cross_sell_enabled %}ON{% else %}OFF{% endif %}</span></div>
@@ -619,41 +669,44 @@
         <h5 class="mb-0 fw-bold">Productos en la Venta</h5>
         <span class="badge rounded-pill text-bg-warning">Vale en armado</span>
     </div>
-    <div class="card-body">
+    <div class="card-body{% if pos_layout_fullwidth %} pos-sale-card__body--cards{% endif %}"{% if pos_layout_fullwidth %} id="posCartHost"{% endif %}>
+      {% if pos_layout_fullwidth %}
+      {% include 'pos/includes/premium_cart_cards.html' %}
+      {% else %}
       <div class="table-responsive">
         <table class="table table-hover align-middle table-ds">
           <thead class="table-light">
             <tr>
-              <th>Código</th>
-              <th>Descripción</th>
+              <th class="{% if pos_layout_fullwidth %}pos-col-codigo{% endif %}">Código</th>
+              <th class="{% if pos_layout_fullwidth %}pos-col-desc{% endif %}">Descripción</th>
               {% if pos_retiro_por_linea %}
-              <th class="text-nowrap" title="Verde=mostrador · Amarillo=bodega">Retiro</th>
+              <th class="text-nowrap {% if pos_layout_fullwidth %}pos-col-retiro{% endif %}" title="Verde=mostrador · Amarillo=bodega">Retiro</th>
               {% endif %}
-              <th>Cantidad</th>
-              <th>Precio Unitario</th>
-              <th>Descuento (%)</th>
-              <th>Subtotal</th>
-              <th class="text-center">Acciones</th>
+              <th class="{% if pos_layout_fullwidth %}pos-col-cant{% endif %}">Cant.</th>
+              <th class="text-end text-nowrap {% if pos_layout_fullwidth %}pos-col-precio{% endif %}">Precio</th>
+              <th class="{% if pos_layout_fullwidth %}pos-col-dto{% endif %}">Dto %</th>
+              <th class="{% if pos_layout_fullwidth %}pos-col-sub{% endif %}">Subtotal</th>
+              <th class="text-center {% if pos_layout_fullwidth %}pos-col-acc{% endif %}">Acc.</th>
             </tr>
           </thead>
           <tbody>
             {% for d in detalles %}
             {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
             <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido table-light-blue{% endif %}" data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}" data-detalle-id="{{ d.id }}" data-producto-nombre="{{ d.producto.nombre|e }}">
-              <td><span class="badge bg-secondary">{{ d.producto.codigo_barra }}</span></td>
-              <td>
-                {{ d.producto.nombre }}
+              <td class="{% if pos_layout_fullwidth %}pos-col-codigo{% endif %}"><span class="badge bg-secondary pos-codigo-badge">{{ d.producto.codigo_barra }}</span></td>
+              <td class="{% if pos_layout_fullwidth %}pos-col-desc{% endif %}">
+                <span class="{% if pos_layout_fullwidth %}pos-line-desc{% endif %}" {% if pos_layout_fullwidth %}title="{{ d.producto.nombre|e }}"{% endif %}>{{ d.producto.nombre }}</span>
                 {% if d.a_pedido %}
-                <span class="badge bg-info text-dark ms-2 pos-badge-apedido" style="font-size: 0.75rem;"><i class="fas fa-clock" aria-hidden="true"></i> A pedido</span>
+                <span class="badge bg-info text-dark ms-1 pos-badge-apedido" style="font-size: 0.7rem;"><i class="fas fa-clock" aria-hidden="true"></i> A pedido</span>
                 {% endif %}
               </td>
               {% if pos_retiro_por_linea %}
-              <td class="align-middle" style="min-width:9rem;">
+              <td class="align-middle {% if pos_layout_fullwidth %}pos-col-retiro{% endif %}">
                 {% set rline = (d.punto_retiro_linea or 'Tienda') %}
                 <form method="POST" action="{{ url_for('actualizar_item') }}" class="m-0">
                   <input type="hidden" name="actualizar" value="{{ d.id }}">
                   <input type="hidden" name="solo_retiro_linea" value="1">
-                  <select name="punto_retiro_linea" class="form-select form-select-sm" style="max-width:11rem;" onchange="this.form.submit()" title="Tienda=mostrador · Bodega=pickeo bodega">
+                  <select name="punto_retiro_linea" class="form-select form-select-sm pos-retiro-select" onchange="this.form.submit()" title="Tienda=mostrador · Bodega=pickeo bodega">
                     <option value="Tienda" {% if rline == 'Tienda' %}selected{% endif %}>Tienda</option>
                     <option value="Bodega" {% if rline == 'Bodega' %}selected{% endif %}>Bodega</option>
                     <option value="Despacho" {% if rline == 'Despacho' %}selected{% endif %}>Despacho</option>
@@ -661,9 +714,9 @@
                 </form>
               </td>
               {% endif %}
-              <td>
+              <td class="{% if pos_layout_fullwidth %}pos-col-cant{% endif %}">
                 {% set factor_stock = factores_stock.get(d.id, 1) %}
-                <div class="input-group input-group-sm">
+                <div class="input-group input-group-sm pos-cantidad-group">
                   <button type="button" class="btn btn-outline-secondary btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="-1" data-precio="{{ d.precio_unitario }}">-</button>
                   <input type="number"
                          id="cantidad_{{ d.id }}"
@@ -676,18 +729,18 @@
                          data-stock-disponible="{{ st_tienda_linea }}">
                   <button type="button" class="btn btn-outline-secondary btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="1" data-precio="{{ d.precio_unitario }}">+</button>
                 </div>
-                <small class="text-muted d-block mt-1">
+                <small class="text-muted d-block mt-1 {% if pos_layout_fullwidth %}pos-stock-hint{% endif %}">
                   Consumo stock: <span id="consumo_stock_{{ d.id }}">{{ consumos_stock.get(d.id, d.cantidad) }}</span> {{ d.producto.unidad_venta_final }}
                 </small>
                 <small id="stock_alert_{{ d.id }}" class="text-danger d-none">
                   Excede stock disponible en tienda (<span id="stock_disponible_{{ d.id }}">{{ st_tienda_linea }}</span>).
                 </small>
               </td>
-              <td>
-                <span id="precio_unitario_{{ d.id }}">{{ d.precio_unitario }}</span>
+              <td class="text-end text-nowrap {% if pos_layout_fullwidth %}pos-col-precio{% endif %}">
+                <span id="precio_unitario_{{ d.id }}">${{ '{:,.0f}'.format(d.precio_unitario or 0).replace(',', '.') }}</span>
               </td>
-              <td>
-                <div class="input-group input-group-sm">
+              <td class="{% if pos_layout_fullwidth %}pos-col-dto{% endif %}">
+                <div class="input-group input-group-sm pos-dto-group">
                   <input type="number"
                          id="descuento_{{ d.id }}"
                          value="{{ d.descuento or 0 }}"
@@ -699,12 +752,12 @@
                   <span class="input-group-text">%</span>
                 </div>
               </td>
-              <td id="subtotal_{{ d.id }}">
-                {{ (d.cantidad * d.precio_unitario) * (1 - (d.descuento or 0)/100) }}
+              <td id="subtotal_{{ d.id }}" class="text-end text-nowrap {% if pos_layout_fullwidth %}pos-col-sub{% endif %}">
+                ${{ '{:,.0f}'.format((d.cantidad * d.precio_unitario) * (1 - (d.descuento or 0)/100)).replace(',', '.') }}
               </td>
-              <td class="text-center">
+              <td class="text-center {% if pos_layout_fullwidth %}pos-col-acc{% endif %}">
                 <button type="button" class="btn btn-sm btn-outline-primary me-1 btn-actualizar-item" data-detalle-id="{{ d.id }}" title="Guardar cantidad y descuento">
-                  <i class="fas fa-save me-1"></i>Actualizar
+                  <i class="fas fa-save{% if not pos_layout_fullwidth %} me-1{% endif %}"></i>{% if not pos_layout_fullwidth %}Actualizar{% endif %}
                 </button>
                 <form method="POST" action="{{ url_for('eliminar_detalle', id=d.id) }}" class="d-inline">
                   <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar este producto de la venta?');">
@@ -721,10 +774,16 @@
           </tbody>
         </table>
       </div>
+      {% endif %}
     </div>
   </div>
 
-<footer class="pos-checkout-dock">
+      </div>
+
+    </div>
+  </div>
+
+<footer id="posCheckoutDock" class="pos-checkout-dock{% if pos_layout_fullwidth %} pos-checkout-dock--premium pos-checkout-dock--vendedor{% endif %}">
   <form id="formEmitirVale" method="POST" action="{{ url_for('finalizar_venta') }}">
     <input type="hidden" name="pos_emit_origen" value="punto_venta">
     <input type="hidden" name="compromiso_confirmado" id="compromisoConfirmado" value="">
@@ -750,6 +809,51 @@
     <div class="pos-dock-alerts">
       <div id="stockValidationAlert" class="alert alert-danger d-none">Hay ítems sin stock en tienda. Ajuste cantidades antes de emitir.</div>
     </div>
+    {% if pos_dock_relayout_busqueda %}
+    <div class="pos-dock-grid pos-dock-grid--busqueda-alta">
+      <div class="pos-dock-zone-left" aria-hidden="true"></div>
+      <div class="pos-dock-zone-right">
+        <div class="pos-dock-zone-right__main">
+          <div class="pos-dock-identity">
+            <div class="pos-dock-cliente">
+              <div id="posClientePanelIdle" class="pos-cliente-panel">
+                <p class="small mb-0 opacity-75"><i class="fas fa-user me-1"></i>Cliente opcional — identifique arriba</p>
+              </div>
+              <div id="posClientePanelKnown" class="pos-cliente-panel d-none">
+                <div class="pos-cliente-summary">
+                  <div class="d-flex justify-content-between align-items-center gap-2">
+                    <div class="min-w-0 flex-grow-1">
+                      <div class="fw-bold pos-dock-cliente-nombre" id="posClienteKnownNombre">—</div>
+                      <div class="small pos-dock-cliente-rut" id="posClienteKnownRut"></div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-light flex-shrink-0" id="posBtnCambiarCliente">Cambiar</button>
+                  </div>
+                  <div id="posClienteKnownExtras" class="mt-1"></div>
+                </div>
+              </div>
+              <div id="posClientePanelFinal" class="pos-cliente-panel d-none">
+                <p class="small mb-0"><i class="fas fa-user me-1"></i> Cliente final</p>
+              </div>
+            </div>
+            <div id="posDockCreditoStrip" class="pos-dock-credito-wrap d-none" aria-live="polite"></div>
+          </div>
+          <div class="pos-dock-checkout">
+            <div class="pos-dock-total">
+              <span class="pos-dock-total-label">Total a emitir</span>
+              <strong id="monto_total" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</strong>
+              <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</span>
+              <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems</small>
+            </div>
+            <div class="pos-dock-actions">
+              <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Nueva cotización"><i class="fas fa-file-alt me-1"></i> Cotizar</a>
+              <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary fw-bold px-4"><i class="fas fa-file-invoice-dollar me-2"></i> Emitir vale <span class="pos-dock-kbd ms-1">F8</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% else %}
     <div class="pos-dock-grid">
       <div class="pos-dock-total">
         <span class="pos-dock-total-label">Total a emitir</span>
@@ -779,18 +883,20 @@
         </div>
       </div>
       <div class="pos-dock-actions">
+        {% if not pos_layout_fullwidth %}
         <small class="text-muted d-none d-xl-block align-self-center">F2 · F3 · <span class="pos-dock-kbd">F8</span> emitir · <span class="pos-dock-kbd">F4</span> cotizar</small>
+        {% endif %}
         <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Nueva cotización (F4)"><i class="fas fa-file-alt me-1"></i> Cotizar</a>
+        {% if not pos_layout_fullwidth %}
         <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-cash-register me-1"></i> Caja</a>
+        {% endif %}
         <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary fw-bold px-4"><i class="fas fa-file-invoice-dollar me-2"></i> Emitir vale <span class="pos-dock-kbd ms-1">F8</span></button>
       </div>
     </div>
+    {% endif %}
   </form>
 </footer>
-
-      </div>
-    </div>
-  </div>
+  {% if pos_layout_fullwidth %}</div>{% endif %}
 
 <div class="modal fade" id="modalPosProductoNoEncontrado" tabindex="-1" aria-labelledby="modalPosProductoNoEncontradoLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -993,8 +1099,8 @@
 
 {% include 'pos/includes/ticket_emitido_autoprint.html' %}
 
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
-  <div id="posToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
+<div class="position-fixed bottom-0 end-0 p-3 pos-toast-host" style="z-index: 1080">
+  <div id="posToast" class="toast align-items-center text-bg-dark border-0" role="alert" aria-live="polite" aria-atomic="true">
     <div class="d-flex">
       <div id="posToastBody" class="toast-body">Actualizado.</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
@@ -1021,10 +1127,15 @@
     'cross_sell_reject': url_for('api_pos_cross_sell_reject'),
     'vincular_cliente': url_for('api_pos_vincular_cliente'),
     'escanear_agregar': url_for('api_pos_escanear_agregar'),
+    'carrito_html': url_for('api_pos_carrito_html'),
+    'retiro_linea': url_for('api_pos_retiro_linea'),
     'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
     'vales_hoy': url_for('api_pos_vales_hoy'),
     'cotizacion_nueva': url_for('cotizacion_nueva')
   },
+  'credito_urls': pos_credito_urls,
+  'puede_ver_creditos': puede_ver_creditos,
+  'puede_registrar_abono': puede_registrar_abono,
   'cliente_vitrina': cliente_vitrina,
   'cliente_ui': cliente_ui,
   'pos_rut_obligatorio': pos_rut_obligatorio,
@@ -1032,7 +1143,7 @@
   'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260520g"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260525e"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

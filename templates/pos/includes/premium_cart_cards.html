@@ -1,0 +1,134 @@
+{# Carrito premium v3 — pantalla vendedora (Fase 2) #}
+<div class="pos-cart-list" id="contenedor-carrito" role="list" aria-label="Productos en la venta">
+  {% for d in detalles %}
+  {% set st_tienda_linea = stock_tienda.get(d.id_producto, d.producto.stock or 0) %}
+  {% set st_bodega_linea = (stock_bodega or {}).get(d.id_producto, 0) %}
+  {% set chip_stock_txt = (st_tienda_linea ~ ' T / ' ~ st_bodega_linea ~ ' B') if (st_tienda_linea|int == 0 and st_bodega_linea|int > 0) else (st_tienda_linea|string) %}
+  {% set chip_stock_title = 'Stock tienda / bodega' if (st_tienda_linea|int == 0 and st_bodega_linea|int > 0) else 'Stock mostrador disponible' %}
+  {% set factor_stock = factores_stock.get(d.id, 1) %}
+  {% set sku = d.producto.codigo_barra or d.producto.codigo_interno or '—' %}
+  {% set marca_txt = (d.producto.subcategoria or d.producto.categoria or '')|trim %}
+  {% set unidad_txt = d.producto.unidad_venta_final or 'und' %}
+  {% set sub_linea = (d.cantidad * d.precio_unitario) * (1 - (d.descuento or 0)/100) %}
+  {% set sub_int = sub_linea|round|int %}
+  {% set precio_int = (d.precio_unitario or 0)|round|int %}
+  {% set dto_val = (d.descuento or 0)|float %}
+  {% set dto_int = dto_val|round|int %}
+  {% set rline = (d.punto_retiro_linea or 'Tienda') if pos_retiro_por_linea else '' %}
+  <article
+    id="pos_row_{{ d.id }}"
+    class="pos-cart-card pos-cart-card--v2 pos-cart-card--v3 {% if d.a_pedido %}pos-cart-card--apedido{% else %}pos-cart-card--inmediato{% endif %}{% if d.a_pedido %} pos-row-apedido{% endif %}"
+    role="listitem"
+    data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}"
+    data-detalle-id="{{ d.id }}"
+    data-producto-nombre="{{ d.producto.nombre|e }}">
+    <div class="pos-cart-card__status-corner" aria-hidden="true">
+      <span class="pos-cart-card__chip pos-cart-card__chip--stock{% if st_tienda_linea|int == 0 and st_bodega_linea|int > 0 %} pos-cart-card__chip--stock-bodega{% endif %}" title="{{ chip_stock_title }}">
+        <i class="fas fa-boxes-stacked"></i> {{ chip_stock_txt }}{% if st_tienda_linea|int > 0 or st_bodega_linea|int == 0 %} {{ unidad_txt }}{% endif %}
+      </span>
+      {% if pos_retiro_por_linea %}
+      <span class="pos-cart-card__chip pos-cart-card__chip--retiro">{{ rline }}</span>
+      {% endif %}
+      {% if d.a_pedido %}
+      <span class="pos-cart-card__chip pos-cart-card__chip--apedido">A pedido</span>
+      {% endif %}
+    </div>
+    <div class="pos-cart-card__body">
+      <div class="pos-cart-card__info">
+        <div class="pos-cart-card__title-row">
+          <h6 class="pos-cart-card__nombre mb-0" title="{{ d.producto.nombre|e }}">{{ d.producto.nombre }}</h6>
+        </div>
+        <p class="pos-cart-card__meta mb-0 text-truncate">
+          <span>{{ sku }}</span>
+          {% if marca_txt %}<span class="pos-cart-card__meta-sep">·</span><span>{{ marca_txt }}</span>{% endif %}
+          <span class="pos-cart-card__meta-sep">·</span><span>{{ unidad_txt }}</span>
+        </p>
+        {% if d.a_pedido %}
+        <p class="pos-cart-card__logistica mb-0">
+          Entrega ~{{ pos_dias_entrega_a_pedido }} días hábiles
+        </p>
+        {% endif %}
+        {% if pos_retiro_por_linea %}
+        <div class="pos-cart-card__retiro m-0">
+          <label class="pos-cart-card__retiro-label" for="retiro_{{ d.id }}">
+            <i class="fas fa-truck me-1" aria-hidden="true"></i> Retiro por línea
+          </label>
+          <select id="retiro_{{ d.id }}" name="punto_retiro_linea" class="form-select form-select-sm pos-retiro-select" data-detalle-id="{{ d.id }}" title="Tienda, bodega o despacho">
+            <option value="Tienda" {% if rline == 'Tienda' %}selected{% endif %}>Tienda</option>
+            <option value="Bodega" {% if rline == 'Bodega' %}selected{% endif %}>Bodega</option>
+            <option value="Despacho" {% if rline == 'Despacho' %}selected{% endif %}>Despacho</option>
+          </select>
+        </div>
+        {% endif %}
+        <small class="text-muted pos-stock-hint pos-stock-hint--consumo d-block">
+          Uso vale: <span id="consumo_stock_{{ d.id }}">{{ consumos_stock.get(d.id, d.cantidad) }}</span> {{ unidad_txt }}
+        </small>
+        <small id="stock_alert_{{ d.id }}" class="text-danger d-none pos-stock-hint pos-stock-hint--alert">
+          Excede mostrador (<span id="stock_disponible_{{ d.id }}">{{ st_tienda_linea }}</span> disp.).
+        </small>
+      </div>
+      <div class="pos-cart-card__commerce">
+        <div class="pos-cart-card__commerce-row">
+          <div class="pos-qty-capsule pos-qty-capsule--v3" role="group" aria-label="Cantidad">
+            <button type="button" class="pos-qty-capsule__btn btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="-1" data-precio="{{ d.precio_unitario }}" aria-label="Menos cantidad">−</button>
+            <input type="number"
+                   id="cantidad_{{ d.id }}"
+                   value="{{ d.cantidad }}"
+                   min="1"
+                   class="pos-qty-capsule__input cantidad-input"
+                   data-detalle-id="{{ d.id }}"
+                   data-precio="{{ d.precio_unitario }}"
+                   data-factor-stock="{{ factor_stock }}"
+                   data-stock-disponible="{{ st_tienda_linea }}"
+                   inputmode="numeric"
+                   aria-label="Cantidad">
+            <button type="button" class="pos-qty-capsule__btn btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="1" data-precio="{{ d.precio_unitario }}" aria-label="Más cantidad">+</button>
+          </div>
+          <div class="pos-cart-card__money">
+            <strong class="pos-cart-card__subtotal" id="subtotal_{{ d.id }}" data-clp="{{ sub_int }}">${{ '{:,.0f}'.format(sub_linea).replace(',', '.') }}</strong>
+            <span class="pos-cart-card__unit" id="precio_unitario_{{ d.id }}" data-clp="{{ precio_int }}">${{ '{:,.0f}'.format(d.precio_unitario or 0).replace(',', '.') }} c/u</span>
+          </div>
+        </div>
+        <div class="pos-cart-card__toolbar">
+          <details class="pos-cart-card__more{% if dto_int > 0 %} pos-cart-card__more--active{% endif %}"{% if dto_int > 0 %} open{% endif %}>
+            <summary class="pos-cart-card__dto-chip" title="Descuento % — clic para editar" aria-label="Menú descuento">
+              <i class="fas fa-ellipsis-h pos-cart-card__dto-icon" aria-hidden="true"></i>
+              <span class="pos-cart-card__dto-chip-val" id="descuento_chip_{{ d.id }}">{{ dto_int }}%</span>
+            </summary>
+            <div class="pos-cart-card__more-panel">
+              <label class="pos-cart-card__dto-label" for="descuento_{{ d.id }}">Dto %</label>
+              <div class="pos-dto-pill">
+                <input type="number"
+                       id="descuento_{{ d.id }}"
+                       value="{{ d.descuento or 0 }}"
+                       min="0" max="100"
+                       class="descuento-input"
+                       data-detalle-id="{{ d.id }}"
+                       data-precio="{{ d.precio_unitario }}"
+                       data-descuento-servidor="{{ dto_val }}"
+                       aria-label="Descuento porcentaje">
+                <span>%</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary btn-actualizar-item" data-detalle-id="{{ d.id }}" title="Guardar línea">
+                <i class="fas fa-check"></i>
+              </button>
+            </div>
+          </details>
+          <form method="POST" action="{{ url_for('eliminar_detalle', id=d.id) }}" class="m-0 pos-cart-card__delete-form">
+            <button type="submit" class="btn pos-cart-card__delete-btn" title="Eliminar línea de la venta" aria-label="Eliminar producto">
+              <i class="fas fa-trash-alt" aria-hidden="true"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <div class="pos-cart-empty text-center py-5 px-3">
+    <div class="pos-cart-empty__icon mb-3" aria-hidden="true"><i class="fas fa-basket-shopping"></i></div>
+    <h6 class="pos-cart-empty__title mb-1">Carrito vacío</h6>
+    <p class="pos-cart-empty__text mb-0">Busque o escanee productos arriba para armar el vale.</p>
+    <p class="pos-cart-empty__hint mt-2 mb-0"><kbd>F2</kbd> enfoca el buscador</p>
+  </div>
+  {% endfor %}
+</div>

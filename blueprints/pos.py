@@ -4,6 +4,11 @@ from flask_login import login_required
 from blueprints._app_ref import app_module
 
 
+def _wrap_pos_acceso_directo(fn):
+    m = app_module()
+    return login_required(m.permisos_required('pos_emitir_vale')(fn))
+
+
 def _wrap_pos_emitir_caja(fn):
     m = app_module()
     return login_required(m.caja_requerida(m.permisos_required('pos_emitir_vale')(fn)))
@@ -45,6 +50,13 @@ def _wrap_pos_ticket_vale(fn):
 def register_pos_routes(app):
     m = app_module()
     app.add_url_rule('/punto_venta', 'punto_venta', _wrap_pos_emitir_caja(m.punto_venta), methods=['GET'])
+    app.add_url_rule('/pos', 'pos_acceso_directo', _wrap_pos_acceso_directo(m.pos_acceso_directo), methods=['GET'])
+    app.add_url_rule(
+        '/pos/vendedor',
+        'pos_acceso_vendedor',
+        _wrap_pos_acceso_directo(m.pos_acceso_directo),
+        methods=['GET'],
+    )
     app.add_url_rule(
         '/pos/command-deck',
         'pos_command_deck',
@@ -149,6 +161,18 @@ def register_pos_routes(app):
         'api_pos_vales_hoy',
         _wrap_pos_api_emitir(m.api_pos_vales_hoy),
         methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/carrito-html',
+        'api_pos_carrito_html',
+        _wrap_pos_api_emitir(m.api_pos_carrito_html),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/retiro-linea',
+        'api_pos_retiro_linea',
+        _wrap_pos_api_emitir(m.api_pos_retiro_linea),
+        methods=['POST'],
     )
     app.add_url_rule(
         '/api/pos/escanear-agregar',

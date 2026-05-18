@@ -1,0 +1,42 @@
+{# Fase 1 — buscador hero vendedora (un campo, mismos IDs para pos.js) #}
+<div class="pos-unified-search-card mb-3">
+  <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="m-0" id="formAgregarProductoBusqueda">
+    <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
+    <input type="hidden" id="posFiltroBusqueda" value="operativo" autocomplete="off">
+
+    <div class="pos-unified-search-hero">
+      <div class="pos-search-hero__inner">
+        <div class="pos-search-hero__toolbar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+          <div class="pos-search-filters d-flex gap-2 flex-wrap" role="group" aria-label="Filtro listado POS">
+            <button type="button" class="btn btn-sm btn-primary" id="posBtnFiltroOperativo" title="Tienda, bodega y a pedido">Operativo</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnFiltroTienda" title="Solo mostrador">Solo tienda</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnFiltroCatalogo" title="Catálogo completo">Catálogo</button>
+          </div>
+          <button type="button" class="btn btn-sm btn-link text-secondary py-0" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">Foto</button>
+        </div>
+
+        <label class="visually-hidden" for="posBuscarManual">Buscar o escanear producto</label>
+        <div class="input-group input-group-lg pos-search-hero__field">
+          <span class="input-group-text pos-search-hero__addon" aria-hidden="true">
+            <i class="fas fa-barcode"></i>
+          </span>
+          <input type="text"
+                 id="posBuscarManual"
+                 class="form-control form-control-lg pos-search-input-hero font-monospace"
+                 autocomplete="off"
+                 autocorrect="off"
+                 spellcheck="false"
+                 placeholder="Escanea código o escribe nombre / SKU (3+ letras) — Enter agrega">
+          <span class="input-group-text pos-search-hero__addon pos-search-hero__kbd-wrap" title="Enfocar buscador">
+            <kbd class="mb-0">F2</kbd>
+          </span>
+        </div>
+
+        <p class="pos-search-hero__hint mb-0">Pistola y teclado en el mismo campo. Flechas ↑↓ en sugerencias · Esc cierra.</p>
+
+        <div id="posBannerApedido" class="pos-banner-apedido d-none mt-2" role="alert" aria-live="polite"></div>
+        <div id="pos-search-suggestions" class="pos-search-suggestions d-none mt-2" role="listbox" aria-label="Sugerencias de productos"></div>
+      </div>
+    </div>
+  </form>
+</div>

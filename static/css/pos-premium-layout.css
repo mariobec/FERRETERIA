@@ -1,4 +1,21 @@
-/* POS premium layout — Fase 3 (punto_venta vendedor) */
+/* POS — pantalla vendedora (sin menú lateral ni barra ERP) */
+
+body.pos-pantalla-vendedora {
+  --pos-navy: #0c2340;
+  --pos-navy-mid: #1a3a5c;
+  --pos-ferre-amarillo: #f5c400;
+  --pos-ferre-amarillo-hover: #ffcf33;
+  --pos-ferre-amarillo-text: #0c2340;
+  --pos-lhexia-naranja: #f37021;
+  --pos-dock-height: 8.75rem;
+  --pos-chrome-height: 3.35rem;
+  scrollbar-gutter: stable;
+}
+
+body.pos-pantalla-vendedora .app-sidebar,
+body.pos-pantalla-vendedora .app-topbar {
+  display: none !important;
+}
 
 body.pos-layout-fullwidth .app-sidebar {
   display: none !important;
@@ -15,30 +32,302 @@ body.pos-layout-fullwidth .app-shell > .row {
   margin-right: 0;
 }
 
-body.pos-layout-fullwidth .app-topbar {
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
+body.pos-pantalla-vendedora .app-content {
+  padding: 0.35rem 0.65rem 0.65rem;
 }
 
-.pos-premium-mininav {
+/* Flash servidor: no barra Bootstrap fija (pos.js → toast premium) */
+body.pos-pantalla-vendedora .app-main > .alert {
+  display: none !important;
+}
+
+body.pos-pantalla-vendedora .pos-toast-host {
+  top: 4.25rem;
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: auto;
+  padding: 0;
+  width: min(92vw, 28rem);
+  z-index: 1095;
+}
+
+body.pos-pantalla-vendedora #posToast {
+  width: 100%;
+  max-width: 28rem;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(12, 35, 64, 0.28);
+  border: 1px solid rgba(245, 196, 0, 0.45);
+  overflow: hidden;
+}
+
+body.pos-pantalla-vendedora #posToast.pos-toast--vale-success {
+  background: linear-gradient(135deg, var(--pos-navy) 0%, var(--pos-navy-mid) 100%);
+  color: #f8fafc;
+}
+
+body.pos-pantalla-vendedora #posToast.pos-toast--vale-success .btn-close {
+  filter: invert(1);
+  opacity: 0.75;
+}
+
+body.pos-pantalla-vendedora #posToast.pos-toast--flash-warn {
+  background: #fff8e6;
+  color: var(--pos-navy);
+  border-color: #e6c200;
+}
+
+.pos-flash-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.pos-flash-toast__icon {
+  flex-shrink: 0;
+  font-size: 1.35rem;
+  color: var(--pos-ferre-amarillo);
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+
+.pos-flash-toast__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.pos-flash-toast__title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.pos-flash-toast__meta {
+  font-size: 0.78rem;
+  opacity: 0.9;
+  line-height: 1.3;
+}
+
+body.pos-layout-fullwidth .app-content {
+  padding: 0.5rem 0.75rem 1rem;
+}
+
+body.pos-layout-fullwidth .pos-vendedor-page {
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+/* Chrome único: reemplaza sidebar + topbar ERP */
+.pos-vendedor-chrome {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  padding: 0.45rem 0.75rem;
+  margin-bottom: 0.65rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--pos-navy) 0%, var(--pos-navy-mid) 100%);
+  color: #e8eef5;
+  box-shadow: 0 8px 24px rgba(12, 35, 64, 0.28);
+  border-bottom: 3px solid var(--pos-ferre-amarillo);
+}
+
+.pos-vendedor-chrome__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.pos-vendedor-chrome__logo {
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.pos-vendedor-chrome__brand h1 {
+  line-height: 1.15;
+  color: #f8fafc;
+}
+
+.pos-vendedor-chrome__brand p {
+  color: #94a3b8 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 22ch;
+}
+
+.pos-vendedor-chrome__session {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.5rem;
-  padding: 0.45rem 0.65rem;
-  margin-bottom: 0.75rem;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  gap: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  color: #cbd5e1;
 }
 
-.pos-premium-mininav .btn {
+.pos-vendedor-chrome__user {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pos-vendedor-chrome__uptime {
+  opacity: 0.85;
+}
+
+.pos-vendedor-chrome__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.pos-vendedor-chrome__nav .pos-switch-btn {
+  min-height: 31px;
+  font-size: 0.78rem;
+}
+
+.pos-vendedor-chrome__nav a.disabled {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.pos-credito-strip-wrap:not(.d-none) {
+  flex-basis: 100%;
+}
+
+.pos-credito-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff 0%, #fef9c3 100%);
+  border: 1px solid rgba(245, 196, 0, 0.45);
+  font-size: 0.78rem;
+}
+
+.pos-credito-bar--bajo {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+}
+
+.pos-credito-bar--bloqueado {
+  border-color: rgba(220, 38, 38, 0.4);
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.pos-credito-bar__tag {
+  font-weight: 800;
+  color: var(--pos-navy, #0c2340);
+  white-space: nowrap;
+}
+
+.pos-credito-metric {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.pos-credito-metric__label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
   font-weight: 700;
-  font-size: 0.8rem;
+}
+
+.pos-credito-metric strong {
+  font-size: 0.88rem;
+  font-weight: 900;
+  color: var(--pos-navy, #0c2340);
+}
+
+.pos-credito-metric--disp strong {
+  color: #15803d;
+}
+
+.pos-dock-cliente .pos-credito-bar {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+}
+
+body.pos-pantalla-vendedora .pos-cross-sell-compact {
+  display: none !important;
+}
+
+body.pos-pantalla-vendedora {
+  height: 100vh;
+  overflow: hidden;
+}
+
+body.pos-pantalla-vendedora .app-shell,
+body.pos-pantalla-vendedora .app-shell > .row,
+body.pos-pantalla-vendedora .app-main {
+  height: 100%;
+  min-height: 0;
+}
+
+body.pos-pantalla-vendedora .app-main {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.pos-pantalla-vendedora .container-fluid.pos-vendedor-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.pos-pantalla-vendedora .app-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0.35rem;
+}
+
+body.pos-pantalla-vendedora .pos-vendedor-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: none;
+  margin-inline: 0;
+}
+
+body.pos-pantalla-vendedora .pos-vendedor-chrome {
+  flex-shrink: 0;
+}
+
+body.pos-pantalla-vendedora .pos-vendedor-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100vh - var(--pos-chrome-height) - 0.35rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.pos-pantalla-vendedora .pos-premium-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .pos-premium-shell {
-  --pos-premium-gap: 1rem;
+  --pos-premium-gap: 0.85rem;
 }
 
 .pos-premium-grid {
@@ -50,21 +339,64 @@ body.pos-layout-fullwidth .app-topbar {
 
 @media (min-width: 992px) {
   .pos-premium-grid {
-    grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-    min-height: calc(100vh - 200px);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.92fr);
+    align-items: stretch;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-grid {
+    grid-template-columns: minmax(340px, 46%) minmax(400px, 54%);
+    align-items: stretch;
   }
 
   .pos-premium-col--cart {
     position: sticky;
-    top: 88px;
-    max-height: calc(100vh - 100px);
+    top: 72px;
+    max-height: calc(100vh - 88px);
     display: flex;
     flex-direction: column;
+    min-height: 0;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-grid {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    align-items: stretch;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--tools {
+    overflow-y: auto;
+    min-height: 0;
+    max-height: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--cart {
+    position: static;
+    top: auto;
+    height: 100%;
+    max-height: 100%;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: unset;
   }
 
   .pos-premium-col--cart .pos-sale-card {
     flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.5rem !important;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--cart .pos-sale-card {
+    margin: 0 !important;
+    min-height: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
   }
@@ -73,13 +405,69 @@ body.pos-layout-fullwidth .app-topbar {
     flex: 1 1 auto;
     overflow: auto;
     min-height: 0;
+    padding: 0.85rem 1rem;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--cart .pos-sale-card .card-body.pos-sale-card__body--cards {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0.65rem 0.75rem;
+  }
+
+  body.pos-pantalla-vendedora #contenedor-carrito.pos-cart-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
   }
 
   .pos-premium-col--cart .pos-checkout-dock {
     flex-shrink: 0;
-    margin-top: 0.75rem;
+    margin-top: 0;
     position: relative;
     bottom: auto;
+  }
+
+  body.pos-pantalla-vendedora .pos-checkout-dock--vendedor {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    flex-shrink: 0;
+    width: 100%;
+    margin: 0;
+    min-height: var(--pos-dock-height);
+    box-sizing: border-box;
+    border-radius: 18px 18px 0 0;
+    z-index: 20;
+    box-shadow: 0 -12px 40px rgba(12, 35, 64, 0.45);
+  }
+
+  body.pos-pantalla-vendedora .pos-dock-alerts {
+    margin: 0;
+    min-height: 0;
+  }
+
+  body.pos-pantalla-vendedora .pos-dock-alerts .alert.d-none {
+    display: none !important;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  body.pos-pantalla-vendedora .pos-dock-alerts .alert:not(.d-none) {
+    margin-bottom: 0.45rem;
+  }
+
+  body.pos-pantalla-vendedora .pos-dock-cliente {
+    min-height: 3.1rem;
+  }
+
+  body.pos-pantalla-vendedora .pos-dock-grid {
+    align-items: center;
   }
 }
 
@@ -88,7 +476,320 @@ body.pos-layout-fullwidth .app-topbar {
 }
 
 .pos-premium-col--tools .pos-command-card {
+  margin-bottom: 0.65rem !important;
+}
+
+.pos-premium-col--tools .pos-command-card .card-body {
+  padding: 0.85rem 1rem;
+}
+
+/* Búsqueda manual más sobria en modo vendedor */
+body.pos-layout-fullwidth .pos-manual-search-hero {
+  border-width: 1px;
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: none;
+  background: #f8fafc;
+  padding: 0.85rem 1rem;
+}
+
+body.pos-layout-fullwidth .pos-manual-kicker {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  box-shadow: none;
+}
+
+body.pos-layout-fullwidth .pos-manual-hint {
+  display: none !important;
+}
+
+body.pos-layout-fullwidth .pos-scan-hero {
+  margin-bottom: 0.65rem;
+}
+
+/* Fase 3 — columna izquierda: cliente + búsqueda alineados (mockup 2026-05-17) */
+body.pos-pantalla-vendedora .pos-premium-col--tools .pos-unified-search-card {
+  width: 100%;
   margin-bottom: 0.75rem !important;
+}
+
+body.pos-pantalla-vendedora .pos-premium-col--tools .pos-unified-search-hero {
+  width: 100%;
+}
+
+body.pos-pantalla-vendedora .pos-premium-col--tools .pos-search-hero__inner {
+  max-width: none;
+}
+
+/* Fase 1 — buscador hero vendedora */
+body.pos-pantalla-vendedora .pos-unified-search-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  margin-bottom: 0.75rem !important;
+  padding: 0;
+}
+
+body.pos-pantalla-vendedora .pos-unified-search-hero {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(12, 35, 64, 0.08);
+  padding: 1.25rem 1.15rem 1.1rem;
+  border: 1px solid rgba(12, 35, 64, 0.1);
+}
+
+body.pos-pantalla-vendedora .pos-search-hero__inner {
+  max-width: 100%;
+}
+
+body.pos-pantalla-vendedora .pos-search-filters .btn {
+  border-radius: 9999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+body.pos-pantalla-vendedora .pos-search-hero__field {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(12, 35, 64, 0.14);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.pos-pantalla-vendedora .pos-search-hero__field:focus-within,
+body.pos-pantalla-vendedora .pos-unified-search-hero--suggest-open .pos-search-hero__field {
+  border-color: var(--pos-ferre-amarillo, #f5c400);
+  box-shadow: 0 0 0 4px rgba(245, 196, 0, 0.28);
+}
+
+body.pos-pantalla-vendedora .pos-search-input-hero {
+  border: 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+  padding: 0.85rem 0.65rem;
+  box-shadow: none !important;
+}
+
+body.pos-pantalla-vendedora .pos-search-input-hero:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
+body.pos-pantalla-vendedora .pos-search-hero__addon {
+  background: #f8fafc;
+  border-color: transparent;
+  color: var(--pos-navy-mid, #0c2340);
+}
+
+body.pos-pantalla-vendedora .pos-search-hero__kbd-wrap kbd {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+body.pos-pantalla-vendedora .pos-search-hero__hint {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+/* Legacy: POS clásico con card */
+body.pos-layout-fullwidth:not(.pos-pantalla-vendedora) .pos-unified-search-card {
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  margin-bottom: 0.75rem !important;
+}
+
+body.pos-layout-fullwidth:not(.pos-pantalla-vendedora) .pos-unified-search-card .card-body {
+  padding: 0.85rem 1rem !important;
+}
+
+.pos-unified-search__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.pos-unified-search__filters .btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.28rem 0.55rem;
+}
+
+.pos-unified-search__field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: #fff;
+  border: 2px solid rgba(12, 35, 64, 0.2);
+  border-radius: 14px;
+  padding: 0.35rem 0.65rem 0.35rem 0.75rem;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pos-unified-search-hero--suggest-open .pos-unified-search__field,
+.pos-unified-search__field:focus-within {
+  border-color: var(--pos-ferre-amarillo);
+  box-shadow: 0 0 0 3px rgba(245, 196, 0, 0.35);
+}
+
+body.pos-pantalla-vendedora .pos-unified-search__filters .btn-primary {
+  background: var(--pos-ferre-amarillo);
+  border-color: #d4a800;
+  color: var(--pos-ferre-amarillo-text);
+}
+
+body.pos-pantalla-vendedora .pos-unified-search__filters .btn-primary:hover {
+  background: var(--pos-ferre-amarillo-hover);
+  border-color: #c99a00;
+  color: var(--pos-ferre-amarillo-text);
+}
+
+body.pos-pantalla-vendedora .pos-unified-search__filters .btn-outline-secondary {
+  color: var(--pos-navy-mid);
+  border-color: rgba(12, 35, 64, 0.25);
+}
+
+.pos-unified-search__icon {
+  color: var(--pos-navy-mid);
+  font-size: 1.05rem;
+  flex-shrink: 0;
+}
+
+.pos-unified-search__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  padding: 0.45rem 0.15rem;
+  box-shadow: none !important;
+}
+
+.pos-unified-search__input:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
+.pos-unified-search__kbd {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.pos-unified-search__hint {
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+body.pos-layout-fullwidth .pos-unified-search-card .pos-search-suggestions {
+  border-radius: 12px;
+  max-height: min(52vh, 420px);
+}
+
+body.pos-pantalla-vendedora .pos-unified-search-card .pos-search-suggestions {
+  width: 100%;
+  min-width: 0;
+  max-height: min(48vh, 380px);
+}
+
+/* Panel de sugerencias montado en body (evita columna estrecha / letras apiladas) */
+.pos-search-suggestions--portal {
+  position: fixed;
+  box-sizing: border-box;
+  min-width: 520px;
+  max-width: min(760px, calc(100vw - 16px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(12, 35, 64, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 0.35rem;
+  z-index: 1200;
+}
+
+.pos-search-suggestions--portal .pos-search-card {
+  min-width: 0;
+}
+
+.pos-search-suggestions--portal .pos-search-card__title,
+.pos-search-suggestions--portal .pos-search-card__meta {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+body.pos-pantalla-vendedora .pos-search-suggestions--portal .pos-search-card--premium {
+  border-radius: 12px;
+  margin: 0.35rem 0.25rem;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+body.pos-pantalla-vendedora .pos-search-suggestions--portal .pos-search-card--premium:hover,
+body.pos-pantalla-vendedora .pos-search-suggestions--portal .pos-search-card--premium.is-active {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(12, 35, 64, 0.12);
+}
+
+body.pos-pantalla-vendedora .pos-search-suggestions--portal .pos-search-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+body.pos-pantalla-vendedora .pos-search-suggestions--portal .pos-search-card__price {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+body.pos-layout-fullwidth .pos-command-card,
+body.pos-layout-fullwidth .pos-identify-card,
+body.pos-layout-fullwidth .pos-sale-card {
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
+/* Historial colapsable */
+.pos-historial-details {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 14px;
+  background: #fff;
+  padding: 0.35rem 0.65rem 0.5rem;
+}
+
+.pos-historial-details__summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.15rem;
+  list-style: none;
+  color: #475569;
+}
+
+.pos-historial-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.pos-historial-details[open] .pos-historial-card {
+  border: 0;
+  box-shadow: none;
+  margin-bottom: 0 !important;
+}
+
+.pos-historial-details .pos-historial-card .card-body {
+  padding-top: 0.25rem;
 }
 
 .pos-historial-card {
@@ -96,7 +797,7 @@ body.pos-layout-fullwidth .app-topbar {
 }
 
 .pos-historial-list {
-  max-height: 168px;
+  max-height: 140px;
   overflow-y: auto;
 }
 
@@ -112,7 +813,457 @@ body.pos-layout-fullwidth .app-topbar {
 
 .pos-premium-col--tools .pos-cross-sell-compact {
   margin-top: 0;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* Carrito — tarjetas v2 (Fase B, pantalla vendedora) */
+body.pos-pantalla-vendedora .pos-sale-card__body--cards {
+  padding: 0.75rem 0.85rem 0.85rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+body.pos-pantalla-vendedora .pos-sale-card .card-header {
+  background: #fff;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+body.pos-pantalla-vendedora #contenedor-carrito.pos-cart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.15rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card {
+  position: relative;
+  margin: 0;
+  padding: 1rem 1.05rem 1rem 1.15rem;
+  border-radius: 12px;
+  border: none;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-left: 4px solid transparent;
+  transition: box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card:hover,
+body.pos-pantalla-vendedora .pos-cart-card.pos-cart-card--active {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--inmediato {
+  border-left-color: #22c55e;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--apedido {
+  border-left-color: #0ea5e9;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card.pos-row-stock-error {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18), 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@media (min-width: 640px) {
+  body.pos-pantalla-vendedora .pos-cart-card--v2 .pos-cart-card__body {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem 1.25rem;
+  }
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__info {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__nombre {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__meta {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__meta-sep {
+  margin: 0 0.35rem;
+  opacity: 0.55;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__badge-apedido {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0369a1;
+  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__logistica {
+  margin-top: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #0284c7;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__retiro {
+  margin-top: 0.35rem;
+  max-width: 14rem;
+  position: relative;
+  z-index: 4;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__retiro-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 0.15rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__retiro .pos-retiro-select {
+  font-weight: 600;
+  border-color: rgba(37, 99, 235, 0.35);
+  background-color: #f8fafc;
+  pointer-events: auto;
+  width: 100%;
+  min-width: 9rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__commerce {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: min(100%, 15rem);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__commerce-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 0.85rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #f8fafc;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule__btn {
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule__btn:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule__input {
+  width: 2.5rem;
+  border: 0;
+  border-left: 1px solid rgba(148, 163, 184, 0.25);
+  border-right: 1px solid rgba(148, 163, 184, 0.25);
+  background: #fff;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #0f172a;
+  padding: 0.2rem 0;
+  -moz-appearance: textfield;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule__input::-webkit-outer-spin-button,
+body.pos-pantalla-vendedora .pos-qty-capsule__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__money {
+  text-align: right;
+  line-height: 1.15;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__subtotal {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--pos-navy);
+  letter-spacing: -0.02em;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__unit {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+body.pos-pantalla-vendedora .pos-dto-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #fff;
+  padding: 0.1rem 0.45rem 0.1rem 0.35rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+body.pos-pantalla-vendedora .pos-dto-pill input {
+  width: 2.25rem;
+  border: 0;
+  background: transparent;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 0.1rem 0;
+  -moz-appearance: textfield;
+}
+
+body.pos-pantalla-vendedora .pos-dto-pill input::-webkit-outer-spin-button,
+body.pos-pantalla-vendedora .pos-dto-pill input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__more {
+  position: relative;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__dto-chip {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(12, 35, 64, 0.22);
+  background: #f8fafc;
+  color: var(--pos-navy-mid);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__dto-chip::-webkit-details-marker {
+  display: none;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__dto-chip-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__dto-chip-val {
+  font-size: 0.82rem;
+  color: var(--pos-navy);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__more--active .pos-cart-card__dto-chip,
+body.pos-pantalla-vendedora .pos-cart-card__more[open] .pos-cart-card__dto-chip {
+  background: var(--pos-ferre-amarillo);
+  border-color: #d4a800;
+  color: var(--pos-ferre-amarillo-text);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__more--active .pos-cart-card__dto-chip-val,
+body.pos-pantalla-vendedora .pos-cart-card__more[open] .pos-cart-card__dto-chip-val {
+  color: var(--pos-ferre-amarillo-text);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__more-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  min-width: 11rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__dto-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  margin: 0;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__delete {
+  padding: 0.2rem 0.45rem;
+  text-decoration: none;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__delete:hover {
+  text-decoration: none;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 10px;
+}
+
+body.pos-pantalla-vendedora .pos-stock-hint {
+  font-size: 0.66rem;
+  margin-top: 0.2rem !important;
+  line-height: 1.25;
+}
+
+body.pos-pantalla-vendedora .pos-stock-hint--consumo {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0 !important;
+  overflow: hidden;
+  transition: opacity 0.15s ease, max-height 0.15s ease;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card:hover .pos-stock-hint--consumo,
+body.pos-pantalla-vendedora .pos-cart-card.pos-cart-card--active .pos-stock-hint--consumo,
+body.pos-pantalla-vendedora .pos-cart-card.pos-row-stock-error .pos-stock-hint--consumo {
+  opacity: 0.75;
+  max-height: 2rem;
+  margin-top: 0.2rem !important;
+}
+
+body.pos-pantalla-vendedora .pos-stock-hint--alert:not(.d-none) {
+  opacity: 1;
+  max-height: none;
+  margin-top: 0.25rem !important;
+  font-weight: 600;
+}
+
+body.pos-pantalla-vendedora .pos-cart-empty {
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  background: #fff;
+}
+
+/* Dock emisión */
+body.pos-layout-fullwidth .pos-checkout-dock {
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  margin-top: 0.5rem;
+}
+
+body.pos-pantalla-vendedora .pos-checkout-dock.pos-checkout-dock--premium {
+  position: relative;
+  bottom: auto;
+  margin: 0;
+}
+
+body.pos-pantalla-vendedora .pos-checkout-dock--premium {
+  border-radius: 18px;
+  padding: 1rem 1.15rem 1.05rem;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(245, 196, 0, 0.14), transparent 50%),
+    linear-gradient(165deg, var(--pos-navy) 0%, var(--pos-navy-mid) 55%, var(--pos-navy) 100%);
+  border: 1px solid rgba(245, 196, 0, 0.25);
+  border-top: 3px solid var(--pos-ferre-amarillo);
+  box-shadow: 0 16px 40px rgba(12, 35, 64, 0.4);
+}
+
+body.pos-pantalla-vendedora .pos-checkout-dock--premium .pos-dock-total-label {
+  color: #94a3b8;
+  letter-spacing: 0.12em;
+}
+
+body.pos-pantalla-vendedora .pos-checkout-dock--premium .pos-dock-total strong {
+  font-size: clamp(1.85rem, 4vw, 2.65rem);
+  font-weight: 900;
+  background: linear-gradient(180deg, #fff 0%, #e2e8f0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+body.pos-pantalla-vendedora .pos-checkout-dock--premium .btn-ds-primary {
+  border-radius: 12px;
+  font-size: 1.05rem;
+  background: var(--pos-lhexia-naranja) !important;
+  border-color: #d95f10 !important;
+  box-shadow: 0 8px 24px rgba(243, 112, 33, 0.4);
+}
+
+body.pos-pantalla-vendedora .pos-checkout-dock--premium .btn-pos-cotizar {
+  border-radius: 12px;
+}
+
+body.pos-layout-fullwidth .pos-dock-grid {
+  grid-template-columns: minmax(120px, 0.9fr) minmax(0, 1.2fr) auto;
+  gap: 0.75rem 1rem;
+}
+
+body.pos-layout-fullwidth .pos-dock-actions {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+}
+
+body.pos-layout-fullwidth .pos-dock-actions .btn-ds-primary {
+  min-width: 9.5rem;
+  white-space: nowrap;
 }
 
 .pos-dock-actions .btn-pos-cotizar {
@@ -132,8 +1283,500 @@ body.pos-layout-fullwidth .app-topbar {
 }
 
 @media (max-width: 991px) {
+  body.pos-pantalla-vendedora .pos-premium-col--cart {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--cart .pos-checkout-dock {
+    position: fixed;
+    left: 0.65rem;
+    right: 0.65rem;
+    bottom: 0;
+    margin: 0;
+    z-index: 1040;
+    width: auto;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--cart .pos-sale-card {
+    margin-bottom: 10.5rem !important;
+  }
+
   .pos-premium-col--cart .pos-checkout-dock {
     position: sticky;
     bottom: 0;
+    z-index: 1040;
+  }
+
+  body.pos-layout-fullwidth .pos-dock-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.pos-layout-fullwidth .pos-dock-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  body.pos-layout-fullwidth .pos-dock-actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 991px) {
+  .pos-vendedor-chrome {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand nav"
+      "session session";
+  }
+
+  .pos-vendedor-chrome__brand {
+    grid-area: brand;
+  }
+
+  .pos-vendedor-chrome__session {
+    grid-area: session;
+  }
+
+  .pos-vendedor-chrome__nav {
+    grid-area: nav;
+  }
+}
+
+@media (max-width: 575px) {
+  .pos-vendedor-chrome__brand p {
+    display: none;
+  }
+
+  .pos-vendedor-chrome__session {
+    font-size: 0.72rem;
+  }
+}
+
+/* ========== Fase 2 — Carrito premium v3 ========== */
+body.pos-pantalla-vendedora .pos-cart-card--v3 {
+  padding: 1.25rem 1.35rem 1.2rem 1.4rem;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(12, 35, 64, 0.07);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3:hover,
+body.pos-pantalla-vendedora .pos-cart-card--v3.pos-cart-card--active {
+  box-shadow: 0 8px 28px rgba(12, 35, 64, 0.12);
+  transform: translateY(-1px);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3.pos-cart-card--active {
+  outline: 2px solid rgba(245, 196, 0, 0.55);
+  outline-offset: 1px;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__status-corner {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  max-width: 55%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__chip--stock {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__chip--retiro {
+  color: var(--pos-navy-mid, #0c2340);
+  background: rgba(245, 196, 0, 0.2);
+  border-color: rgba(212, 168, 0, 0.45);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__chip--apedido {
+  color: #0369a1;
+  background: rgba(14, 165, 233, 0.14);
+  border-color: rgba(14, 165, 233, 0.35);
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__nombre {
+  font-size: 1.1rem;
+  padding-right: 4.5rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__meta {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__retiro {
+  max-width: 100%;
+  margin-top: 0.5rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-retiro-select {
+  border-radius: 10px;
+  border-width: 2px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+  background-color: #fff;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.pos-pantalla-vendedora .pos-retiro-select--saving {
+  border-color: rgba(13, 110, 253, 0.45);
+  background-color: rgba(13, 110, 253, 0.06);
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.12);
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__chip--stock-bodega {
+  background: rgba(255, 193, 7, 0.18);
+  color: #856404;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule--v3 {
+  border-width: 2px;
+  border-color: rgba(12, 35, 64, 0.12);
+  background: #fff;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule--v3 .pos-qty-capsule__btn {
+  width: 2.35rem;
+  height: 2.35rem;
+  font-size: 1.15rem;
+}
+
+body.pos-pantalla-vendedora .pos-qty-capsule--v3 .pos-qty-capsule__input {
+  width: 3rem;
+  font-size: 1.15rem;
+  padding: 0.35rem 0;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__subtotal {
+  font-size: 1.45rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__dto-icon {
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__delete-btn {
+  border: 0;
+  background: transparent;
+  color: #dc2626;
+  opacity: 0.35;
+  padding: 0.35rem 0.55rem;
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3:hover .pos-cart-card__delete-btn,
+body.pos-pantalla-vendedora .pos-cart-card--v3.pos-cart-card--active .pos-cart-card__delete-btn,
+body.pos-pantalla-vendedora .pos-cart-card__delete-btn:focus-visible {
+  opacity: 1;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  transform: scale(1.08);
+}
+
+body.pos-pantalla-vendedora #contenedor-carrito.pos-cart-list {
+  gap: 1rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-empty__icon {
+  font-size: 2.5rem;
+  color: rgba(12, 35, 64, 0.25);
+}
+
+body.pos-pantalla-vendedora .pos-cart-empty__title {
+  font-weight: 800;
+  color: var(--pos-navy, #0c2340);
+}
+
+body.pos-pantalla-vendedora .pos-cart-empty__text {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-empty__hint {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+body.pos-pantalla-vendedora .pos-cart-empty__hint kbd {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 5px;
+  background: #f1f5f9;
+}
+
+/* === Relayout dock + búsqueda alta (revertir: ver docs/POS_REVERT_DOCK_BUSQUEDA.md) === */
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-checkout-dock--vendedor {
+  position: relative;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-checkout-dock--vendedor::before {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 58%;
+  z-index: 0;
+  border-radius: 18px 18px 0 0;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(245, 196, 0, 0.14), transparent 50%),
+    linear-gradient(165deg, var(--pos-navy) 0%, var(--pos-navy-mid) 55%, var(--pos-navy) 100%);
+  border: 1px solid rgba(245, 196, 0, 0.25);
+  border-top: 3px solid var(--pos-ferre-amarillo);
+  box-shadow: 0 -12px 40px rgba(12, 35, 64, 0.45);
+  pointer-events: none;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-grid--busqueda-alta {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 42%) minmax(0, 58%);
+  align-items: stretch;
+  width: 100%;
+  min-height: calc(var(--pos-dock-height) + 1.1rem);
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-left {
+  min-height: 1px;
+  pointer-events: none;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  padding: 0.55rem 0.85rem 0.6rem 0.65rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right__main {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.85rem 1.1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right .pos-dock-cliente {
+  width: 100%;
+  min-width: 0;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-checkout {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-total {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-total strong {
+  font-size: clamp(1.5rem, 2.8vw, 2.15rem);
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-meta {
+  display: none;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right .pos-cliente-panel p {
+  color: #94a3b8;
+  margin: 0;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right .pos-cliente-summary {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  width: 100%;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-cliente-nombre,
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right #posClienteKnownNombre {
+  font-size: 1.12rem !important;
+  line-height: 1.2;
+  font-weight: 800 !important;
+  color: #fff !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-cliente-rut,
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right #posClienteKnownRut {
+  color: #94a3b8 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda #posClienteKnownExtras .pos-credito-bar {
+  display: none !important;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap .pos-credito-bar {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda #posCreditoStrip {
+  display: none !important;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-search-suggestions--portal-alta {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Panel búsqueda alto (propuesta Grok + layout dock v2) */
+@media (min-width: 992px) {
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-premium-grid {
+    height: calc(100vh - 11.5rem) !important;
+    align-items: stretch;
+  }
+
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-premium-col--tools {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-premium-col--cart #contenedor-carrito.pos-cart-list {
+    max-height: calc(100vh - 17.5rem) !important;
+    overflow-y: auto !important;
+  }
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda #pos-search-suggestions.pos-search-suggestions--portal,
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda #pos-search-suggestions.pos-search-suggestions--portal-alta {
+  max-height: min(78vh, calc(100vh - 6rem)) !important;
+  height: auto !important;
+  overflow-y: auto !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(59, 130, 246, 0.55);
+  z-index: 1250;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-search-suggestions--portal-alta .pos-search-card,
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-search-suggestions--portal-alta .pos-search-card--premium {
+  padding: 9px 12px !important;
+  margin-bottom: 5px !important;
+  font-size: 0.95rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-search-suggestions--portal-alta .pos-search-card .text-muted,
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-search-suggestions--portal-alta .pos-search-card__meta {
+  font-size: 0.8rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-checkout-dock--vendedor {
+  margin-top: 0.5rem;
+  flex-shrink: 0;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-checkout-dock--vendedor::before {
+  border-radius: 12px;
+  box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.38);
+  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-grid--busqueda-alta {
+  min-height: auto;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right {
+  padding: 0.5rem 0.75rem 0.55rem;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-identity {
+  gap: 0.3rem;
+}
+
+@media (max-width: 1199px) {
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-checkout-dock--vendedor::before {
+    width: 100%;
+  }
+
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-grid--busqueda-alta {
+    grid-template-columns: 1fr;
+  }
+
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-left {
+    padding-bottom: 0.25rem;
   }
 }

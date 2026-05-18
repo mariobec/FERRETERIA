@@ -35,6 +35,7 @@ from flask_login import current_user, login_required, UserMixin, login_user, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 from sqlalchemy import inspect as sa_inspect, and_, exists, func, or_, text, UniqueConstraint
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError, TimeoutError as SATimeoutError
 from sqlalchemy.orm import joinedload, aliased
@@ -167,6 +168,16 @@ app.config.setdefault('SESSION_COOKIE_SAMESITE', os.getenv('SESSION_COOKIE_SAMES
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
     hours=int(os.getenv('SESSION_LIFETIME_HOURS', '12'))
 )
+_secure_cookie = (os.getenv('SESSION_COOKIE_SECURE') or 'auto').strip().lower()
+_on_render_host = os.getenv('RENDER', '').strip().lower() in ('1', 'true', 'yes')
+if _secure_cookie in ('1', 'true', 'yes', 'on'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+elif _secure_cookie == 'auto':
+    app.config['SESSION_COOKIE_SECURE'] = _on_render_host
+else:
+    app.config.setdefault('SESSION_COOKIE_SECURE', False)
+if _on_render_host or os.getenv('BEHIND_PROXY', '').strip().lower() in ('1', 'true', 'yes'):
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # En desarrollo, recargar plantillas al guardar (sin depender de debug=True).
 # Desactivar explícitamente con FLASK_TEMPLATE_RELOAD=0 si no lo deseas.
 if os.getenv('FLASK_TEMPLATE_RELOAD', '1') != '0':
@@ -1437,6 +1448,34 @@ def usuario_tiene_permiso(nombre_permiso):
         return False
 
 
+def puede_ver_creditos_cartera():
+    """Cartolas, boucher y módulo de créditos (vendedor/a o cajera)."""
+    return (
+        usuario_tiene_permiso('ver_creditos_cartera')
+        or usuario_tiene_permiso('caja_cobrar_vale')
+        or usuario_tiene_permiso('gestionar_usuarios')
+    )
+
+
+def puede_registrar_abono_credito():
+    """Registrar abonos en caja (cajera/supervisor; no vendedor solo consulta)."""
+    return (
+        usuario_tiene_permiso('registrar_abono_credito')
+        or usuario_tiene_permiso('caja_cobrar_vale')
+        or usuario_tiene_permiso('gestionar_usuarios')
+    )
+
+
+def usuario_puede_cerrar_caja(usuario=None):
+    """Cierre de caja (cajera/admin); vendedor sin este permiso no debe entrar en bucle con POS."""
+    u = usuario or current_user
+    if not u or not getattr(u, 'is_authenticated', True):
+        return False
+    if _rol_es_administrador_por_nombre(getattr(u, 'rol', None)):
+        return True
+    return usuario_obj_tiene_permiso(u, 'caja_cerrar') or usuario_obj_tiene_permiso(u, 'gestionar_usuarios')
+
+
 def usuario_obj_tiene_permiso(usuario, nombre_permiso):
     """Misma regla que usuario_tiene_permiso pero sobre una instancia Usuario (p.ej. supervisor que autoriza)."""
     if not usuario or not getattr(usuario, 'rol', None):
@@ -1512,10 +1551,10 @@ _NAV_MAP = [
              'permisos': [],
              'endpoints_activos': ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta']},
             {'label': 'Créditos y cartolas', 'icon': 'fa-hand-holding-usd', 'endpoint': 'modulo_creditos',
-             'permisos': [],
+             'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
              'endpoints_activos': ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'estado_cuenta_credito_resumen_imprimible', 'registrar_abono', 'ver_ticket_abono']},
             {'label': 'Cobranza cuotas (WA)', 'icon': 'fa-whatsapp fa-brands', 'endpoint': 'cobranza_cuotas',
-             'permisos': [],
+             'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
              'endpoints_activos': ['cobranza_cuotas', 'api_creditos_cobranza_sugerencias']},
         ],
     },
@@ -1766,7 +1805,17 @@ login_manager.login_view = 'login'  # nombre de la ruta de login
 login_manager.login_message = "Debes iniciar sesión para acceder a esta página."
 login_manager.login_message_category = "warning"
 
-# Función para cargar el usuario desde la base de datos
+
+@login_manager.unauthorized_handler
+def _login_manager_no_autorizado():
+    """Evita perder ?next= y devuelve JSON en APIs."""
+    if (request.path or '').startswith('/api/'):
+        return jsonify({'ok': False, 'error': 'login_required'}), 401
+    nxt = (request.full_path or request.path or '').strip()
+    if nxt in ('', '/login', '/login?'):
+        return redirect(url_for('login'))
+    return redirect(url_for('login', next=nxt.rstrip('?')))
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -1775,7 +1824,7 @@ def load_user(user_id):
     except (TypeError, ValueError):
         return None
     ultimo_error = None
-    for intento in range(2):
+    for intento in range(3):
         try:
             usuario = db.session.get(Usuario, uid)
             if usuario is not None:
@@ -1812,11 +1861,13 @@ def permisos_required(*permisos):
                 if any(p in permisos_rol for p in permisos):
                     return f(*args, **kwargs)
             flash("No tienes permisos para acceder a esta acción.", "danger")
+            if (request.endpoint or '').strip() == 'cerrar_caja':
+                return redirect(url_for('inicio'))
             return _redirigir_home_erp()
         return decorated_function
     return wrapper
 
-    # --- FUNCIÓN DE VALIDACIÓN DE RUT ---............................................................
+
 def validar_rut(rut: str) -> bool:
     rut = rut.replace(".", "").replace("-", "").upper()
     # Chile: cuerpo 7 u 8 digitos + DV => 8 o 9 caracteres (antes se rechazaban 7-digit body).
@@ -1900,12 +1951,19 @@ def caja_requerida(f):
             and fecha_apertura < datetime.now().date()
             and ep not in _ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA
         ):
+            if usuario_puede_cerrar_caja():
+                flash(
+                    f"La caja N°{caja_activa.id} quedó abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
+                    "Debe cerrar esa caja antes de continuar en el POS.",
+                    "warning",
+                )
+                return redirect(url_for('cerrar_caja'))
             flash(
-                f"La caja N°{caja_activa.id} quedó abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
-                "Debe cerrar esa caja antes de continuar en el POS.",
+                f"La caja N°{caja_activa.id} sigue abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
+                "Un encargado o cajera debe cerrarla antes de que pueda usar el punto de venta.",
                 "warning",
             )
-            return redirect(url_for('cerrar_caja'))
+            return redirect(url_for('inicio'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -1958,6 +2016,8 @@ _PERMISOS_SISTEMA_INICIAL = (
     'caja_abrir',
     'caja_movimientos',
     'caja_cerrar',
+    'ver_creditos_cartera',
+    'registrar_abono_credito',
     'bodega_operador',
     'ver_inventario',
     'ver_gerencia',
@@ -1992,6 +2052,7 @@ def _seed_permisos_roles_operativos():
         _PERMISOS_CAJERA = {
             'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir',
             'caja_movimientos', 'caja_cerrar',
+            'ver_creditos_cartera', 'registrar_abono_credito',
         }
         _PERMISOS_SUPERVISOR = _PERMISOS_CAJERA | {
             'anular_vale_caja', 'anular_vale_con_despacho_bodega',
@@ -2001,11 +2062,12 @@ def _seed_permisos_roles_operativos():
             'ver_gerencia', 'panel_gerencia', 'revision_precios',
             'ver_inventario', 'gestionar_compras', 'ver_auditoria',
         }
+        _PERMISOS_VENDEDOR = {'pos_emitir_vale', 'ver_creditos_cartera'}
         mapa_por_rol = {
-            'vendedor':   {'pos_emitir_vale'},
-            'vendedora':  {'pos_emitir_vale'},
-            'ventas':     {'pos_emitir_vale'},
-            'meson':      {'pos_emitir_vale'},
+            'vendedor':   _PERMISOS_VENDEDOR,
+            'vendedora':  _PERMISOS_VENDEDOR,
+            'ventas':     _PERMISOS_VENDEDOR,
+            'meson':      _PERMISOS_VENDEDOR,
             'cajera':     _PERMISOS_CAJERA,
             'cajero':     _PERMISOS_CAJERA,
             'caja':       _PERMISOS_CAJERA,
@@ -9961,6 +10023,41 @@ def _pos_primer_nombre(nombre):
     return (n.split()[0] or '')[:40] or None
 
 
+def _pos_credito_resumen(cliente):
+    """Línea de crédito para POS (cupo, deuda, disponible). None si no aplica."""
+    if not cliente or _cliente_es_sistema_final(cliente):
+        return None
+    limite = float(cliente.limite_credito or 0)
+    if limite <= 0:
+        return {
+            'tiene_linea': False,
+            'cliente_id': int(cliente.id),
+        }
+    deuda = float(cliente.saldo_deudor or 0)
+    disponible = float(cliente.cupo_disponible)
+    ec = (cliente.estado_credito or 'Activo').strip()
+    bloqueado = (ec or '').lower() in ('bloqueado', 'suspendido', 'inactivo')
+    return {
+        'tiene_linea': True,
+        'cliente_id': int(cliente.id),
+        'limite_credito': limite,
+        'saldo_deudor': deuda,
+        'cupo_disponible': disponible,
+        'estado_credito': ec,
+        'credito_bloqueado': bloqueado,
+        'tiene_deuda': deuda > 0.009,
+    }
+
+
+def _pos_credito_urls_js():
+    """Plantillas de URL con marcador __ID__ para enlaces desde POS."""
+    return {
+        'cartola': '/creditos/estado_cuenta/__ID__',
+        'boucher': '/creditos/estado_cuenta/__ID__/boucher',
+        'modulo_creditos': '/creditos',
+    }
+
+
 def _pos_cliente_vitrina(cliente):
     """Datos seguros para Experience Wall (sin RUT ni contacto)."""
     if not cliente:
@@ -9978,6 +10075,9 @@ def _pos_cliente_vitrina(cliente):
         'credito_activo': bool(tiene_credito and not bloqueado),
         'credito_bloqueado': bool(bloqueado and tiene_credito),
     }
+    cred = _pos_credito_resumen(cliente)
+    if cred:
+        out['credito'] = cred
     return out
 
 
@@ -10337,18 +10437,23 @@ def api_pos_vincular_cliente():
     venta.cliente_id = cliente.id
     db.session.commit()
     cv = _pos_cliente_vitrina(cliente)
+    payload_cli = {
+        'id': int(cliente.id),
+        'nombre': cliente.nombre,
+        'direccion': _limpiar_texto_cliente_ui(cliente.direccion) or '',
+        'giro': _limpiar_texto_cliente_ui(cliente.giro) or '',
+        'telefono': _limpiar_texto_cliente_ui(cliente.telefono) or '',
+        'correo': _limpiar_texto_cliente_ui(cliente.correo) or '',
+        'comuna': _limpiar_texto_cliente_ui(cliente.comuna) or '',
+        'ciudad': _limpiar_texto_cliente_ui(cliente.ciudad) or '',
+        'saldo_favor': float(_saldo_favor_actual(cliente.id) or 0),
+    }
+    cred = _pos_credito_resumen(cliente)
+    if cred:
+        payload_cli['credito'] = cred
     return jsonify({
         'ok': True,
-        'cliente': {
-            'nombre': cliente.nombre,
-            'direccion': _limpiar_texto_cliente_ui(cliente.direccion) or '',
-            'giro': _limpiar_texto_cliente_ui(cliente.giro) or '',
-            'telefono': _limpiar_texto_cliente_ui(cliente.telefono) or '',
-            'correo': _limpiar_texto_cliente_ui(cliente.correo) or '',
-            'comuna': _limpiar_texto_cliente_ui(cliente.comuna) or '',
-            'ciudad': _limpiar_texto_cliente_ui(cliente.ciudad) or '',
-            'saldo_favor': float(_saldo_favor_actual(cliente.id) or 0),
-        },
+        'cliente': payload_cli,
         'cliente_vitrina': cv,
     })
 
@@ -10793,6 +10898,7 @@ def _pos_pagina_context():
         consumos_stock[d.id] = int(round((d.cantidad or 0) * f))
     pids = [d.id_producto for d in detalles if d.id_producto]
     stock_tienda = stock_tienda_por_producto_ids(pids)
+    stock_bodega = stock_bodega_por_producto_ids(pids)
     pos_cross_sell_enabled = _pos_cross_sell_enabled_session()
     pos_cross_sell = session.pop('pos_cross_sell', None) if pos_cross_sell_enabled else None
     pos_cross_sell_panel = pos_cross_sell
@@ -10808,13 +10914,18 @@ def _pos_pagina_context():
     if cliente and vitrina and vitrina.get('es_cliente_final'):
         cliente_ui = {'estado': 'final', 'resumen': None}
     elif cliente:
+        resumen_cli = {
+            'nombre': cliente.nombre,
+            'rut': cliente.rut,
+            'saldo_favor': float(saldo_favor or 0),
+            'cliente_id': int(cliente.id),
+        }
+        cred = _pos_credito_resumen(cliente)
+        if cred:
+            resumen_cli['credito'] = cred
         cliente_ui = {
             'estado': 'known',
-            'resumen': {
-                'nombre': cliente.nombre,
-                'rut': cliente.rut,
-                'saldo_favor': float(saldo_favor or 0),
-            },
+            'resumen': resumen_cli,
         }
     wall_token = _pos_live_wall_token_para_caja_usuario(caja, vendedor_actual) if venta else None
     experience_wall_url = None
@@ -10834,6 +10945,7 @@ def _pos_pagina_context():
         'consumos_stock': consumos_stock,
         'pids': pids,
         'stock_tienda': stock_tienda,
+        'stock_bodega': stock_bodega,
         'pos_cross_sell_enabled': pos_cross_sell_enabled,
         'pos_cross_sell': pos_cross_sell,
         'pos_cross_sell_panel': pos_cross_sell_panel,
@@ -10849,6 +10961,9 @@ def _pos_pagina_context():
         'pos_autoprint_ticket_emitido': _pos_autoprint_ticket_emitido_empresa(),
         'pos_dias_entrega_a_pedido': pos_dias_entrega_estimado(),
         'pos_layout_fullwidth': _pos_layout_fullwidth_vendedor(),
+        'puede_ver_creditos': puede_ver_creditos_cartera(),
+        'puede_registrar_abono': puede_registrar_abono_credito(),
+        'pos_credito_urls': _pos_credito_urls_js(),
     }
 
 
@@ -10877,11 +10992,22 @@ def punto_venta():
     if not ctx:
         flash('No se pudo preparar el punto de venta.', 'danger')
         return redirect(url_for('mostrar_ventas'))
-    return render_template(
-        'punto_venta.html',
-        ticket_modal_impresion_url=_pos_ticket_modal_impresion_url_from_query(),
-        **ctx,
+    resp = make_response(
+        render_template(
+            'punto_venta.html',
+            ticket_modal_impresion_url=_pos_ticket_modal_impresion_url_from_query(),
+            **ctx,
+        )
     )
+    if ctx.get('pos_layout_fullwidth'):
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
+def pos_acceso_directo():
+    """Marcador / escritorio vendedor → punto de venta (misma pantalla sin menú ERP)."""
+    return redirect(url_for('punto_venta'))
 
 
 def pos_command_deck():
@@ -11684,19 +11810,24 @@ def _pos_puede_sumar_unidad(producto, venta, caja_id=None, a_pedido=False):
             f'(turno {vpend.prioridad}, {qty_en_vale} u.) pendiente en caja. '
             f'Cobre o anule ese vale antes de agregarlo a una venta nueva.'
         ), 'en_vale_pendiente'
+    disp_b = stock_disponible_bodega(producto)
+    if disp_b >= cons_new:
+        return True, None, None
     if qty_prev > 0:
+        max_u_b = int(max(0, disp_b) / factor) if factor else max(0, disp_b)
         return False, (
             f'Sin stock suficiente para {producto.nombre}. '
-            f'Disponible real: {max(0, disp - comprometido)} u. en tienda; '
-            f'en este vale ya lleva {qty_prev} (máximo {max_u}).'
+            f'Tienda: {max(0, disp - comprometido)} u.; bodega: {disp_b} u.; '
+            f'en este vale ya lleva {qty_prev} (máx. tienda {max_u}, bodega {max_u_b}).'
         ), 'sin_stock'
     return False, (
         f'Sin stock disponible para {producto.nombre}. '
-        f'Tienda: {disp} u., comprometido en otros vales: {comprometido}.'
+        f'Tienda: {max(0, disp - comprometido)} u. (comprometido otros vales: {comprometido}); '
+        f'bodega: {disp_b} u.'
     ), 'sin_stock'
 
 
-def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_pedido=False):
+def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_pedido=False, punto_retiro_linea=None):
     """
     Agrega 1 unidad del producto al vale Abierta del vendedor.
     Si ya existe línea del mismo producto, incrementa cantidad (no duplica fila).
@@ -11752,6 +11883,11 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
             detalle.cantidad = nueva_cant
             detalle.subtotal = (detalle.precio_unitario * nueva_cant) * (1 - (desc / 100))
         else:
+            ret_linea = None
+            if _pos_retiro_por_linea_empresa():
+                ret_linea = (punto_retiro_linea or 'Tienda').strip()
+                if ret_linea not in ('Tienda', 'Bodega', 'Despacho'):
+                    ret_linea = 'Tienda'
             detalle = DetalleVenta(
                 id_venta=venta.id,
                 id_producto=producto.id,
@@ -11759,7 +11895,7 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
                 precio_unitario=pu_ef,
                 descuento=0.0,
                 subtotal=pu_ef,
-                punto_retiro_linea=('Tienda' if _pos_retiro_por_linea_empresa() else None),
+                punto_retiro_linea=ret_linea,
                 a_pedido=bool(a_pedido),
             )
             db.session.add(detalle)
@@ -11841,6 +11977,71 @@ def api_pos_vales_hoy():
     return jsonify({'ok': True, 'items': items})
 
 
+def api_pos_carrito_html():
+    """JSON: fragmento HTML del carrito premium (pantalla vendedora, sin recargar página)."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+    ctx = _pos_pagina_context()
+    if not ctx:
+        return jsonify({'ok': False, 'error': 'sin_caja'}), 400
+    venta = ctx.get('venta')
+    detalles = ctx.get('detalles') or []
+    html = render_template(
+        'pos/includes/premium_cart_cards.html',
+        detalles=detalles,
+        stock_tienda=ctx.get('stock_tienda') or {},
+        stock_bodega=ctx.get('stock_bodega') or {},
+        factores_stock=ctx.get('factores_stock') or {},
+        consumos_stock=ctx.get('consumos_stock') or {},
+        pos_retiro_por_linea=ctx.get('pos_retiro_por_linea'),
+        pos_dias_entrega_a_pedido=ctx.get('pos_dias_entrega_a_pedido'),
+    )
+    total = float(venta.monto_total or 0) if venta else 0.0
+    return jsonify({
+        'ok': True,
+        'html': html,
+        'venta_total': int(round(total)),
+        'venta_total_fmt': venta.total if venta else '$0',
+        'items_count': len(detalles),
+    })
+
+
+def api_pos_retiro_linea():
+    """JSON: actualiza punto_retiro_linea de un detalle (pantalla vendedora)."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'mensaje': 'Sin permiso.'}), 403
+    data = request.get_json(silent=True) or {}
+    detalle_id = data.get('detalle_id')
+    if not detalle_id:
+        return jsonify({'ok': False, 'mensaje': 'Línea no indicada.'}), 400
+    if not _pos_retiro_por_linea_empresa():
+        return jsonify({'ok': False, 'mensaje': 'Retiro por línea no está activado.'}), 400
+    _asegurar_columnas_detalle_ventas_legacy()
+    caja_activa = obtener_caja_activa()
+    detalle = DetalleVenta.query.get(detalle_id)
+    if not detalle or not detalle.venta or detalle.venta.estado != 'Abierta':
+        return jsonify({'ok': False, 'mensaje': 'Línea no válida o venta no abierta.'}), 400
+    if detalle.venta.caja_id != (caja_activa.id if caja_activa else None):
+        return jsonify({
+            'ok': False,
+            'mensaje': 'No puede modificar ítems fuera de la venta activa del turno.',
+        }), 400
+    ret = (data.get('punto_retiro_linea') or '').strip()
+    if ret not in ('Bodega', 'Tienda', 'Despacho'):
+        return jsonify({'ok': False, 'mensaje': 'Retiro debe ser Tienda, Bodega o Despacho.'}), 400
+    detalle.punto_retiro_linea = ret
+    db.session.commit()
+    venta = detalle.venta
+    total = float(venta.monto_total or 0) if venta else 0.0
+    cnt = DetalleVenta.query.filter_by(id_venta=venta.id).count() if venta else 0
+    return jsonify({
+        'ok': True,
+        'punto_retiro_linea': ret,
+        'venta_total': int(round(total)),
+        'items_count': cnt,
+    })
+
+
 def api_pos_escanear_agregar():
     """JSON: escaneo de código → agrega línea al vale o indica producto no encontrado."""
     if not usuario_tiene_permiso('pos_emitir_vale'):
@@ -11883,7 +12084,11 @@ def api_pos_escanear_agregar():
         }), 404
     vendedor = _nombre_usuario_pos_actual()
     a_pedido = str(data.get('a_pedido', '')).strip().lower() in ('1', 'true', 'si', 'yes', 'on')
-    res = _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor, a_pedido=a_pedido)
+    retiro_raw = (data.get('punto_retiro_linea') or '').strip()
+    punto_retiro = retiro_raw if retiro_raw in ('Tienda', 'Bodega', 'Despacho') else None
+    res = _pos_agregar_producto_a_venta_abierta(
+        producto, caja, vendedor, a_pedido=a_pedido, punto_retiro_linea=punto_retiro
+    )
     if not res.get('ok'):
         code = 400
         if res.get('error') in ('sin_stock', 'en_vale_pendiente', 'mezcla_apedido'):
@@ -12025,10 +12230,17 @@ def eliminar_detalle(id):
         venta.recalcular_total()
     db.session.commit()
     db.session.refresh(venta)
+    n_lineas = DetalleVenta.query.filter_by(id_venta=venta.id).count()
     if (venta.estado or '') == 'Abierta':
-        n_lineas = DetalleVenta.query.filter_by(id_venta=venta.id).count()
         if n_lineas == 0 or float(venta.monto_total or 0) <= 0:
             _pos_cross_sell_clear_session_nueva_venta_pos()
+    if request.form.get('pos_ajax') == '1':
+        total = float(venta.monto_total or 0)
+        return jsonify({
+            'ok': True,
+            'venta_total': int(round(total)),
+            'items_count': n_lineas,
+        })
     return redirect(url_for('punto_venta'))
 
 #eliminar venta abierta o pendiente desde pantalla de ventas........................................................................
@@ -12540,31 +12752,66 @@ def _redirect_tras_actualizar_item_pos():
     return redirect(url_for('punto_venta'))
 
 
+def _json_tras_actualizar_item_pos(detalle, ok=True, mensaje=None, status=400):
+    """Respuesta AJAX pantalla vendedora (sin redirect)."""
+    if request.form.get('pos_ajax') != '1':
+        if mensaje:
+            flash(mensaje, 'warning' if status < 500 else 'danger')
+        return _redirect_tras_actualizar_item_pos()
+    if not ok:
+        return jsonify({'ok': False, 'mensaje': mensaje or 'No se pudo actualizar.'}), status
+    venta = detalle.venta if detalle else None
+    total = float(venta.monto_total or 0) if venta else 0.0
+    cnt = (
+        DetalleVenta.query.filter_by(id_venta=venta.id).count()
+        if venta
+        else 0
+    )
+    return jsonify({
+        'ok': True,
+        'venta_total': int(round(total)),
+        'items_count': cnt,
+    })
+
+
 # proceso de actualización de cantidad y descuento en venta abierta desde punto de venta........................................
 def actualizar_item():
     detalle_id = request.form.get('actualizar')
 
     if request.form.get('solo_retiro_linea') == '1':
         if not detalle_id:
-            return _redirect_tras_actualizar_item_pos()
+            return _json_tras_actualizar_item_pos(
+                None, ok=False, mensaje='Línea no indicada.'
+            )
         if not _pos_retiro_por_linea_empresa():
-            flash('Retiro por línea no está activado para esta empresa.', 'warning')
-            return _redirect_tras_actualizar_item_pos()
+            return _json_tras_actualizar_item_pos(
+                None,
+                ok=False,
+                mensaje='Retiro por línea no está activado para esta empresa.',
+            )
+        _asegurar_columnas_detalle_ventas_legacy()
         caja_activa = obtener_caja_activa()
         detalle = DetalleVenta.query.get(detalle_id)
         if not detalle or not detalle.venta or detalle.venta.estado != 'Abierta':
-            flash('Línea no válida.', 'warning')
-            return _redirect_tras_actualizar_item_pos()
+            return _json_tras_actualizar_item_pos(
+                None, ok=False, mensaje='Línea no válida o venta no abierta.'
+            )
         if detalle.venta.caja_id != (caja_activa.id if caja_activa else None):
-            flash('No puede modificar ítems fuera de la venta activa del turno.', 'warning')
-            return _redirect_tras_actualizar_item_pos()
+            return _json_tras_actualizar_item_pos(
+                None,
+                ok=False,
+                mensaje='No puede modificar ítems fuera de la venta activa del turno.',
+            )
         ret = (request.form.get('punto_retiro_linea') or '').strip()
         if ret not in ('Bodega', 'Tienda', 'Despacho'):
-            flash('Seleccione Tienda, Bodega o Despacho.', 'warning')
-            return _redirect_tras_actualizar_item_pos()
+            return _json_tras_actualizar_item_pos(
+                None,
+                ok=False,
+                mensaje='Seleccione Tienda, Bodega o Despacho.',
+            )
         detalle.punto_retiro_linea = ret
         db.session.commit()
-        return _redirect_tras_actualizar_item_pos()
+        return _json_tras_actualizar_item_pos(detalle, ok=True)
 
     solo_cantidad = request.form.get('solo_cantidad') == '1'
     try:
@@ -12655,19 +12902,17 @@ def actualizar_item():
                 caja_id=detalle.venta.caja_id,
             )
             if vpend:
-                flash(
+                msg_st = (
                     f"Producto en Vale N°{vpend.id} (turno {vpend.prioridad}) pendiente en caja. "
-                    f"Cobre o anule ese vale primero.",
-                    "warning",
+                    f"Cobre o anule ese vale primero."
                 )
             else:
                 max_u = int((disp_t - comprometido) / f_prev) if f_prev else 0
-                flash(
+                msg_st = (
                     f"Stock insuficiente en tienda (otros vales comprometen stock). "
-                    f"Cantidad máxima aproximada: {max(0, max_u)}.",
-                    "warning",
+                    f"Cantidad máxima aproximada: {max(0, max_u)}."
                 )
-            return _redirect_tras_actualizar_item_pos()
+            return _json_tras_actualizar_item_pos(detalle, ok=False, mensaje=msg_st)
 
     with transaccion_critica():
         detalle.cantidad = cantidad
@@ -12677,9 +12922,12 @@ def actualizar_item():
     db.session.commit()
 
     if desc_con_credencial_supervisor:
-        flash("Descuento aplicado con autorización de supervisor.", "success")
+        if request.form.get('pos_ajax') == '1':
+            pass
+        else:
+            flash("Descuento aplicado con autorización de supervisor.", "success")
 
-    return _redirect_tras_actualizar_item_pos()
+    return _json_tras_actualizar_item_pos(detalle, ok=True)
 
 
 def _asegurar_tablas_cambios():
@@ -14758,18 +15006,23 @@ def consultar_cliente():
 
         if cliente:
             saldo_favor = _saldo_favor_actual(cliente.id)
+            payload_cli = {
+                'id': int(cliente.id),
+                'nombre': cliente.nombre,
+                'direccion': _limpiar_texto_cliente_ui(cliente.direccion) or '',
+                'giro': _limpiar_texto_cliente_ui(cliente.giro) or '',
+                'telefono': _limpiar_texto_cliente_ui(cliente.telefono) or '',
+                'correo': _limpiar_texto_cliente_ui(cliente.correo) or '',
+                'comuna': _limpiar_texto_cliente_ui(cliente.comuna) or '',
+                'ciudad': _limpiar_texto_cliente_ui(cliente.ciudad) or '',
+                'saldo_favor': saldo_favor,
+            }
+            cred = _pos_credito_resumen(cliente)
+            if cred:
+                payload_cli['credito'] = cred
             return jsonify({
                 'existe': True,
-                'cliente': {
-                    'nombre': cliente.nombre,
-                    'direccion': _limpiar_texto_cliente_ui(cliente.direccion) or '',
-                    'giro': _limpiar_texto_cliente_ui(cliente.giro) or '',
-                    'telefono': _limpiar_texto_cliente_ui(cliente.telefono) or '',
-                    'correo': _limpiar_texto_cliente_ui(cliente.correo) or '',
-                    'comuna': _limpiar_texto_cliente_ui(cliente.comuna) or '',
-                    'ciudad': _limpiar_texto_cliente_ui(cliente.ciudad) or '',
-                    'saldo_favor': saldo_favor,
-                },
+                'cliente': payload_cli,
             })
         return jsonify({'existe': False})
     except Exception as ex:
@@ -14808,6 +15061,17 @@ button {{ margin-top: 1rem; padding: .6rem 1rem; width: 100%; background: #19875
 <p style="font-size:.85rem;color:#555">Mira la consola donde ejecutas <code>python app.py</code> para el detalle técnico.</p>
 </body></html>"""
     return Response(body, mimetype='text/html; charset=utf-8')
+
+
+def _login_next_url_seguro():
+    """Destino post-login desde ?next= o form; evita open redirect."""
+    raw = (request.form.get('next') or request.args.get('next') or '').strip()
+    if not raw.startswith('/') or raw.startswith('//'):
+        return None
+    # Atajos POS: /pos solo exige login; el destino real es punto_venta.
+    if raw.rstrip('/') in ('/pos', '/pos/vendedor'):
+        return url_for('punto_venta')
+    return raw
 
 
 def _home_por_perfil(usuario):
@@ -14855,9 +15119,15 @@ def login():
         try:
             autenticado = current_user.is_authenticated
         except Exception:
-            session.clear()
+            try:
+                logout_user()
+            except Exception:
+                pass
             autenticado = False
         if autenticado:
+            destino = _login_next_url_seguro()
+            if destino:
+                return redirect(destino)
             return redirect(_home_por_perfil(current_user))
 
         if request.method == 'POST':
@@ -14880,15 +15150,16 @@ def login():
                 if not usuario_esta_activo(usuario):
                     flash("Tu cuenta está desactivada. Contacta al administrador.", "warning")
                     return redirect(url_for('login'))
-                login_user(usuario)
+                login_user(usuario, remember=True)
                 session.permanent = True
                 session['login_at'] = datetime.utcnow().isoformat()
+                session.modified = True
                 if usuario_requiere_cambio_clave(usuario):
                     flash("Por seguridad, cambia tu contraseña temporal.", "warning")
                     return redirect(url_for('cambiar_password'))
                 flash(f"Bienvenido al sistema, {usuario.nombre}", "success")
-                next_url = (request.args.get('next') or '').strip()
-                if next_url.startswith('/') and not next_url.startswith('//'):
+                next_url = _login_next_url_seguro()
+                if next_url:
                     return redirect(next_url)
                 return redirect(_home_por_perfil(usuario))
             else:
@@ -19055,6 +19326,7 @@ def _cartera_dashboard_kpis():
 @app.route('/creditos')
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def modulo_creditos():
     vista = (request.args.get('vista') or 'ultimos').strip().lower()
     if vista == 'todos':
@@ -19151,6 +19423,7 @@ def modulo_creditos():
 @app.route('/creditos/estado_cuenta/<int:cliente_id>')
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def estado_cuenta_credito(cliente_id):
     ctx = _cartola_credito_context(
         cliente_id,
@@ -19167,6 +19440,7 @@ def estado_cuenta_credito(cliente_id):
 @app.route('/creditos/estado_cuenta/<int:cliente_id>/pdf')
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def estado_cuenta_credito_pdf(cliente_id):
     ctx = _cartola_credito_context(
         cliente_id,
@@ -19220,6 +19494,7 @@ def estado_cuenta_credito_pdf(cliente_id):
 @app.route('/creditos/estado_cuenta/<int:cliente_id>/resumen-imprimible')
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def estado_cuenta_credito_resumen_imprimible(cliente_id):
     """Resumen en HTML listo para imprimir o «Guardar como PDF» del navegador (sin wkhtmltopdf)."""
     ctx = _cartola_credito_context(
@@ -19238,6 +19513,7 @@ def estado_cuenta_credito_resumen_imprimible(cliente_id):
 @app.route('/creditos/estado_cuenta/<int:cliente_id>/boucher')
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def estado_cuenta_credito_boucher(cliente_id):
     ctx = _cartola_credito_context(
         cliente_id,
@@ -19256,6 +19532,7 @@ def estado_cuenta_credito_boucher(cliente_id):
 @app.route('/creditos/cobranza')
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def cobranza_cuotas():
     if not _asegurar_tabla_cobranza_whatsapp_log():
         flash('No se pudo preparar el módulo de cobranza (tabla en BD). Revise permisos.', 'danger')
@@ -19291,6 +19568,7 @@ def cobranza_cuotas():
 @app.route('/creditos/cobranza/marcar-enviado', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def cobranza_marcar_enviado_whatsapp():
     if not _asegurar_tabla_cobranza_whatsapp_log():
         flash('No se pudo preparar la tabla de cobranza.', 'danger')
@@ -19991,6 +20269,7 @@ def api_pos_identificar_producto_foto():
 @app.route('/registrar_abono', methods=['POST'])
 @login_required
 @caja_requerida
+@permisos_required('registrar_abono_credito', 'caja_cobrar_vale', 'gestionar_usuarios')
 def registrar_abono():
     cliente_id = request.form.get('cliente_id')
     metodo_pago = request.form.get('metodo_pago', 'Efectivo')
@@ -20064,6 +20343,7 @@ def registrar_abono():
 
 @app.route('/ticket_abono/<int:id>')
 @login_required
+@permisos_required('ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios')
 def ver_ticket_abono(id):
     """Comprobante de abono (reimpresión desde historial)."""
     abono = AbonoCredito.query.get_or_404(id)
