@@ -441,7 +441,9 @@ git tag checkpoint/pos-dock-3zonas-2026-05-16
 
 ---
 
-## POS vendedora — PAUSA para retomar (2026-05-17)
+## POS vendedora — PAUSA para retomar (2026-05-17) — HISTÓRICO
+
+> **Supersedido (2026-05-25):** Fase 3 cerrada y validada — ver sección «Relayout dock + búsqueda alta» y `docs/POS_ALINEACION_CURSOR_GROK.md` §13.
 
 **Mensaje Mario (cierre sesión):** *“No es lo que te pedí”* — revisará al regreso. **No commitear** hasta que valide layout y alcance.
 
@@ -481,7 +483,7 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 |------|--------|
 | 1 — Hero búsqueda | ✅ (Mario aprobó antes) |
 | 2 — Carrito v3 | ✅ (pendiente validación Mario) |
-| 3 — Layout mockup Paint | ❌ **Mal interpretado** — retomar con Mario |
+| 3 — Layout mockup Paint | ✅ Validado 2026-05-25 (`5094d5d`) |
 | 4 — Pulido F8/toasts | Pendiente |
 
 ### Bugs / temas técnicos ya identificados (retomar)
@@ -513,13 +515,15 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ---
 
-### Relayout dock + búsqueda alta (2026-05-25)
+### Relayout dock + búsqueda alta (2026-05-25) — CERRADO ✅
 
-- **Flechas Mario:** (1) sugerencias más abajo; (2–4) total, cliente, crédito y botones → derecha del dock.
-- **Flag revert:** `pos_dock_relayout_busqueda` en `punto_venta.html` (línea ~3) → `false` + Ctrl+F5.
-- **Doc:** `docs/POS_REVERT_DOCK_BUSQUEDA.md` · cache `20260525a`.
-- **Tags:** `checkpoint/pos-dock-busqueda-alta-pre` (antes) · `checkpoint/pos-dock-busqueda-alta-2026-05-25` (después).
+- **Iteraciones:** dock izquierda con nombre → total a la derecha → nombre+crédito dentro del bloque azul (aprobado).
+- **Grok:** CSS `78vh` panel, grid `calc(100vh - 11.5rem)`, dock compacto.
+- **Mario:** «excelente!!» — layout Fase 3 validado.
+- **Commit:** `5094d5d` en `main` (12 archivos POS + docs).
+- **Cache:** `20260525e` · **Revert:** `docs/POS_REVERT_DOCK_BUSQUEDA.md`.
+- **Detalle técnico:** `docs/POS_ALINEACION_CURSOR_GROK.md` §13.
 
 ---
 
-*Última actualización: 2026-05-25 — Relayout dock+búsqueda alta con revert documentado.*
+*Última actualización: 2026-05-25 — Fase 3 POS vendedor validada; commit 5094d5d.*

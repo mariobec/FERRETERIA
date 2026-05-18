@@ -6,14 +6,17 @@
 **Documentos relacionados:**
 
 - `docs/POS_PANTALLA_VENDEDORA_AUDITORIA.md` — mapa técnico para auditar código
-- `memory.md` — bitácora breve del proyecto (opcional)
+- `docs/memory.md` — bitácora breve del proyecto
+- `docs/POS_REVERT_DOCK_BUSQUEDA.md` — revertir relayout dock + búsqueda alta
 
-**Última actualización:** 2026-05-17 (PAUSA — ver §12)  
-**Versión cache POS (referencia):** `20260524a` (intento layout; **no validado por Mario**)  
+**Última actualización:** 2026-05-25  
+**Versión cache POS (referencia):** `20260525e`  
+**Commit de referencia:** `5094d5d` — `feat(pos): búsqueda alta 78vh y dock vendedor reorganizado`  
 **Estado alineación Grok v2:** ✅ Aceptada con ajustes menores (ver §4.7)  
-**Estado Fase 1:** ✅ Aplicada 2026-05-17 · `checkpoint/pos-busqueda-hero-2026-05-17`  
-**Estado Fase 2:** ✅ Aplicada 2026-05-17 · `checkpoint/pos-carrito-v3-2026-05-17`  
-**Estado Fase 3 (layout mockup):** ⏸ **Pausado** — implementación no coincide con lo pedido (Mario revisará al regreso)
+**Estado Fase 1:** ✅ `checkpoint/pos-busqueda-hero-2026-05-17`  
+**Estado Fase 2:** ✅ `checkpoint/pos-carrito-v3-2026-05-17`  
+**Estado Fase 3 (layout + búsqueda alta):** ✅ Validado por Mario 2026-05-25 (ver §13)  
+**Estado Fase 4:** Pendiente (F8 emitir, toasts, pulido)
 
 ---
 
@@ -319,6 +322,8 @@ Usar esta tabla para no perder el hilo entre agentes.
 | 2026-05-17 | Mario | Mockup Paint (recuadros verdes): layout buscador + columnas | Ver §12 |
 | 2026-05-17 | Cursor | Intento Fase 3 + fix stock bodega + retiro suave | cache `20260524a` — **Mario: no es lo pedido** |
 | 2026-05-17 | Mario | Pausa; revisará al regreso | Retomar §12 + `docs/memory.md` |
+| 2026-05-25 | Grok | CSS panel 78vh + dock compacto | Integrado en §13 |
+| 2026-05-25 | Mario | «excelente!!» — layout aprobado | Commit `5094d5d` |
 | | | | |
 
 *(Agregar filas abajo en cada conversación.)*
@@ -342,14 +347,16 @@ Usar esta tabla para no perder el hilo entre agentes.
 
 ## 11. Próximo paso acordado
 
-1. ~~Fase 1~~ ✅ ~~Fase 2~~ ✅ (2026-05-17).
-2. **PAUSA (2026-05-17):** Mario validará al regreso; layout Fase 3 **no aprobado**.
-3. Al regreso: **§12** — alinear mockup Paint antes de más código.
-4. Después: Fase 4 (F8 emitir, toasts, pulido).
+1. ~~Fases 1–3~~ ✅ (commit `5094d5d`, cache `20260525e`).
+2. **Opcional:** `git push` a remoto cuando Mario confirme entorno.
+3. **Fase 4:** atajos F8/F4 consistentes, toasts unificados, pulido visual menor.
+4. **QA:** seed `python scripts/seed_pos_semaforo_pruebas.py` + flujo retiro bodega en cobro.
 
 ---
 
-## 12. PAUSA — retomar conversación (2026-05-17)
+## 12. Histórico — PAUSA layout (2026-05-17)
+
+*Conservado como contexto; el layout final está en §13.*
 
 **Transcript Cursor:** `agent-transcripts/2bee32c7-0747-4320-9f77-33b17db4c0d0/2bee32c7-0747-4320-9f77-33b17db4c0d0.jsonl`
 
@@ -371,7 +378,7 @@ Usar esta tabla para no perder el hilo entre agentes.
 2. ¿Panel de sugerencias: portal full-width o dentro de la columna?
 3. ¿Revertir el movimiento del include hasta acordar wireframe?
 
-**Bitácora extendida:** `docs/memory.md` → sección “POS vendedora — PAUSA para retomar”.
+**Bitácora extendida:** `docs/memory.md` → sección histórica “PAUSA” + cierre 2026-05-25.
 
 ### Mensaje para Grok (post-revisión Cursor)
 
@@ -379,4 +386,45 @@ Usar esta tabla para no perder el hilo entre agentes.
 
 ---
 
-*Documento vivo — no borrar historial de §7; solo agregar filas.*
+## 13. Estado final — layout vendedor (2026-05-25)
+
+### Wireframe acordado (implementado)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Chrome POS (usuario, Créditos, Caja, Salir…)                     │
+├──────────────────────┬──────────────────────────────────────────┤
+│ Col izq (~46%)       │ Col der — carrito                         │
+│ · RUT / TV           │ · Tarjetas línea + retiro                   │
+│ · Buscador hero      │ · Scroll carrito                           │
+│ · Panel sugerencias  │                                            │
+│   (portal ~78vh)     │                                            │
+├──────────────────────┴──────────────────────────────────────────┤
+│ Dock: [42% vacío] │ [Nombre+RUT+Cambiar] [Crédito↓] │ Total │ Cotizar │ Emitir │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Decisiones técnicas
+
+| Tema | Implementación |
+|------|----------------|
+| **Panel búsqueda** | `#pos-search-suggestions.pos-search-suggestions--portal-alta` · `max-height: min(78vh, calc(100vh - 6rem))` · sin `max-height` inline en JS con relayout activo |
+| **Buscador** | `unified_search_vendedor.html` en `.pos-premium-col--tools` (no franja superior separada) |
+| **Dock** | `pos_dock_relayout_busqueda` · grid 42% / 58% · `.pos-dock-identity` + `.pos-dock-checkout` |
+| **Stock bodega** | `_pos_puede_sumar_unidad` acepta bodega; chip `0 T / N B` en carrito |
+| **Retiro línea** | `POST /api/pos/retiro-linea` · `pos-retiro-select--saving` |
+| **Revertir** | `docs/POS_REVERT_DOCK_BUSQUEDA.md` |
+
+### Tags git
+
+| Tag / commit | Uso |
+|--------------|-----|
+| `checkpoint/pos-busqueda-hero-2026-05-17` | Solo Fase 1 |
+| `checkpoint/pos-carrito-v3-2026-05-17` | Fase 2 |
+| `checkpoint/pos-dock-busqueda-alta-pre` | Antes relayout dock |
+| `checkpoint/pos-dock-busqueda-alta-2026-05-25` | Tras relayout (local) |
+| `5094d5d` | Commit consolidado en `main` |
+
+---
+
+*Documento vivo — no borrar historial de §8; solo agregar filas.*

@@ -1,8 +1,9 @@
 # POS pantalla vendedora — documento para auditoría de código
 
-**Fecha de referencia:** 2026-05-16  
+**Fecha de referencia:** 2026-05-25  
 **Ruta:** `GET /punto_venta` (cuando `pos_layout_fullwidth` está activo)  
-**Cache bust actual:** `20260522d` en `punto_venta.html` (`pos.js` y `pos-premium-layout.css`)
+**Cache bust actual:** `20260525e` en `punto_venta.html` (`pos.js` y `pos-premium-layout.css`)  
+**Commit POS layout:** `5094d5d` · alineación: `docs/POS_ALINEACION_CURSOR_GROK.md` §13
 
 Este documento describe qué hace la página POS vendedor, qué archivos intervienen, flujos HTTP/JS y problemas conocidos. Está pensado para que **otro agente o revisor** audite el código sin depender del historial del chat.
 
@@ -21,11 +22,11 @@ Layout en **3 zonas**:
 
 | Zona | Contenedor HTML | Contenido |
 |------|-----------------|-----------|
-| Izquierda | `.pos-premium-col--tools` | Buscador unificado, identificación cliente, historial |
-| Derecha | `.pos-premium-col--cart` → `#posCartHost` | Carrito tarjetas v2 |
-| Abajo | `#posCheckoutDock` | Total, cliente, botón emitir |
+| Izquierda | `.pos-premium-col--tools` | RUT/TV, buscador hero, portal sugerencias (~78vh) |
+| Derecha | `.pos-premium-col--cart` → `#posCartHost` | Carrito tarjetas v3 (retiro, chips stock) |
+| Abajo | `#posCheckoutDock` | Relayout: cliente+crédito en franja azul derecha; total y emitir a la derecha (§8.1) |
 
-Clases de body relevantes: `pos-layout-fullwidth`, `pos-pantalla-vendedora`.
+Clases de body relevantes: `pos-layout-fullwidth`, `pos-pantalla-vendedora`, `pos-dock-relayout-busqueda` (si flag activo).
 
 ---
 
@@ -37,7 +38,7 @@ Clases de body relevantes: `pos-layout-fullwidth`, `pos-pantalla-vendedora`.
 |---------|-----|
 | `templates/punto_venta.html` | Página principal; layout vendedor; `#pos-config` JSON; dock; cache bust |
 | `templates/pos/includes/unified_search_vendedor.html` | Input `#posBuscarManual`, panel `#pos-search-suggestions` |
-| `templates/pos/includes/premium_cart_cards.html` | Carrito v2: tarjetas, `.pos-retiro-select`, cantidades, eliminar |
+| `templates/pos/includes/premium_cart_cards.html` | Carrito v3: tarjetas, `.pos-retiro-select`, chips stock T/B, cantidades |
 
 ### JavaScript
 
@@ -280,8 +281,22 @@ Revisar: `services/stock_service.py` → `_punto_retiro_efectivo_linea`, `_consu
 
 - HTML: `#posCheckoutDock` en `punto_venta.html`
 - CSS: `.pos-checkout-dock--vendedor` en `pos-premium-layout.css` (`position: relative`, `flex-shrink: 0`)
-- JS: `actualizarTotalesVisuales()`, `actualizarEstadoEmisionVale()`, `posAsegurarDockVisible()`
+- JS: `actualizarTotalesVisuales()`, `actualizarEstadoEmisionVale()`, `posAsegurarDockVisible()`, `posRenderCreditoCliente()` (tira `#posCreditoStrip` y dock `#posDockCreditoStrip`)
 - Emisión: form/modal existente hacia rutas de guardar/finalizar venta (revisar handlers al final de `pos.js` y forms en template)
+
+### 8.1 Relayout dock + búsqueda alta (2026-05-25)
+
+Activo cuando `pos_dock_relayout_busqueda` es `true` (línea ~3 de `punto_venta.html`). Body: `pos-dock-relayout-busqueda`.
+
+| Zona | Clase | Contenido |
+|------|-------|-----------|
+| Izquierda (~42%) | `.pos-dock-zone-left` | Vacía — deja visible el portal de sugerencias |
+| Derecha (~58%) | `.pos-dock-zone-right` | Franja azul checkout |
+| Identidad | `.pos-dock-identity` → `.pos-dock-cliente` | Nombre, RUT, Cambiar |
+| Crédito | `#posDockCreditoStrip` | Debajo del nombre (no en columna blanca izquierda) |
+| Checkout | `.pos-dock-checkout` | `.pos-dock-total` + `.pos-dock-actions` (Cotizar, Emitir vale F8) |
+
+Panel búsqueda: portal en `body` con clase `pos-search-suggestions--portal-alta` · altura CSS hasta ~78vh. Revert: `docs/POS_REVERT_DOCK_BUSQUEDA.md`.
 
 ---
 
