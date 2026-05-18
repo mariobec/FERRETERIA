@@ -16,7 +16,7 @@
 
 | Quién | Acción |
 |-------|--------|
-| **Mario** | Al abrir Grok: *«Lee MEMORY_GROK.md del repo LhexIA y responde en ese contexto»* o pegar este archivo. |
+| **Mario** | Usar **Grok Project** con los 5 archivos fijos → ver [`GROK_PROJECT_SETUP.md`](GROK_PROJECT_SETUP.md). O pegar este archivo al inicio del chat. |
 | **Grok** | Tratar esto como **fuente de verdad de prioridades y nomenclatura**. Si contradice el chat, **preguntar a Mario**. No asumir código que no está listado aquí o en los docs enlazados. |
 | **Cursor** | Al iniciar sesión: `@docs/planes/00-alineacion/MEMORY_GROK.md` + `@memory.md`. Tras cerrar un hito: Mario pide *«actualiza MEMORY_GROK y memory.md»*. |
 

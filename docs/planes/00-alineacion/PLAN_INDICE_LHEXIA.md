@@ -224,7 +224,8 @@ Planes **válidos** pero **no prioritarios** para las 2 semanas de Santo Domingo
 | **Entrega completa Santo Domingo** | **`../01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`** |
 | **Runbook 1 página (piso)** | `../01-entrega-santo-domingo/CLIENTE_SANTO_DOMINGO.md` |
 | **Producto LhexIA completo** | **`../02-producto-lhexia/LHEXIA_PRODUCTO.md`** |
-| **Alineación Mario · Grok · Cursor** | **`../00-alineacion/MEMORY_GROK.md`** |
+| **Alineación Mario · Grok · Cursor** | [`../00-alineacion/MEMORY_GROK.md`](../00-alineacion/MEMORY_GROK.md) |
+| **Configurar Grok Project** | [`../00-alineacion/GROK_PROJECT_SETUP.md`](../00-alineacion/GROK_PROJECT_SETUP.md) |
 | **Estado pantalla vendedor** | `../03-pos-vendedor/POS_ALINEACION_CURSOR_GROK.md` |
 | **Mapa técnico POS (auditoría)** | `../03-pos-vendedor/POS_PANTALLA_VENDEDORA_AUDITORIA.md` |
 | **Visión producto / SAP+Python+IA** | `../02-producto-lhexia/PLAN_MAESTRO_LHEXIA.md` |
