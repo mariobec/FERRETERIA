@@ -4,9 +4,13 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 
 **Copia en documentación:** `docs/memory.md` (mismo contenido; mantener sincronizado al actualizar).
 
+**Carpeta planes:** `docs/planes/README.md` — toda la planificación ordenada por carpetas `00`–`07`.  
+**Alineación Mario · Grok · Cursor:** `docs/planes/00-alineacion/MEMORY_GROK.md` — brief compartido. Actualizar junto con este archivo cuando cambie la prioridad global.
+
 ## Cómo usarlo
 
-- **Al arrancar una sesión en Cursor:** pedir *“lee memory.md y sigue desde ahí”* o adjuntar `@memory.md`.
+- **Al arrancar una sesión en Cursor:** `@docs/MEMORY_GROK.md` + `@memory.md` (o *“lee memory.md y sigue desde ahí”*).
+- **Al arrancar sesión con Grok:** pegar `docs/MEMORY_GROK.md` o el prompt del §13 de ese archivo.
 - **Cuando terminemos un bloque de trabajo:** pedir *“actualiza memory.md con lo que hicimos hoy”* para dejar constancia.
 - El agente **no inventa** historial: solo documenta lo que consta en el chat o en el código que tocamos.
 - **Transcripción del chat:** Cursor conserva tus conversaciones en la interfaz; aquí **no** se replica el chat palabra por palabra. Esta memoria es el **extracto técnico** entre sesiones/desarrolladores (comandá *“actualiza memory.md”* cuando quieras cerrar el día).
@@ -484,7 +488,7 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 | 1 — Hero búsqueda | ✅ (Mario aprobó antes) |
 | 2 — Carrito v3 | ✅ (pendiente validación Mario) |
 | 3 — Layout mockup Paint | ✅ Validado 2026-05-25 (`5094d5d`) |
-| 4 — Pulido F8/toasts | Pendiente |
+| 4 — Pulido F8/toasts | ✅ 2026-05-17 · cache `20260525f` |
 
 ### Bugs / temas técnicos ya identificados (retomar)
 
@@ -526,4 +530,39 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ---
 
-*Última actualización: 2026-05-25 — Fase 3 POS vendedor validada; commit 5094d5d.*
+---
+
+## Índice de planes (2026-05-17)
+
+**Planes:** `docs/planes/README.md`  
+**Alineación 3:** `docs/planes/00-alineacion/MEMORY_GROK.md`  
+**Producto:** `docs/planes/02-producto-lhexia/LHEXIA_PRODUCTO.md`  
+**Santo Domingo:** `docs/planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`  
+**Índice:** `docs/planes/00-alineacion/PLAN_INDICE_LHEXIA.md`
+
+**Agentes IA negocio (2026-05-17):** `docs/planes/06-agentes-ia/PLAN_AGENTES_IA_v1.md` — IA-0…IA-3 (ferretería 24/7). Prod post SD-1.
+
+**Agentes Meta desarrollo (2026-05-17):** `docs/planes/07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md` — META-1 MVP: ARCH, QA, DOC, PO, ORCH (3 semanas).
+
+**Optimización app.py (2026-05-17):** Vista única en `docs/planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md` — TEC-1A…4 ✅, CORE-1.2…1.4 ✅, CORE-1.5 ⏳, `app.py` ~20.5k líneas, `core/` ~974 líneas.
+
+| Prioridad | Fase | Estado |
+|-----------|------|--------|
+| **Ahora** | **SD-1** Santo Domingo POS + inventario | 🟡 En curso |
+| Cerrado | POS-1…4 UI vendedor | ✅ (POS-4 local sin push) |
+| Cerrado | TEC-1A…4 estabilidad v2 | ✅ |
+| Paralelo | LX-0 producto (docs) | 🟡 |
+| Después | LX-1 multi-tenant | ⏳ |
+
+- **Regla Cursor:** `.cursor/rules/lhexia-producto.mdc`
+
+---
+
+### POS vendedor — plan operativo CERRADO (Fases 1–4) 2026-05-17
+
+- Fase 4: F8 `posEmitirValeAtajo`, búsqueda 2+ letras, meta filtro stock, cache `20260525f`.
+- Doc: `docs/POS_ALINEACION_CURSOR_GROK.md` §14.
+
+---
+
+*Última actualización: 2026-05-17 — Plan POS 1–4 cerrado; producto en docs/product/.*

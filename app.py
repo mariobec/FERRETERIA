@@ -14160,6 +14160,7 @@ def buscar_producto():
     )
 
     cfg_emp = obtener_config_empresa()
+    n_antes_filtro_stock = len(productos) if productos else 0
     if filtro_estricto_stock and productos:
         productos = filtrar_productos_por_filtro_pos(
             productos, stock_t_map, stock_b_map, filtro_pos, cfg_emp
@@ -14209,7 +14210,10 @@ def buscar_producto():
             c['badges'] = construir_badges_semaforo(c, pmin, pmax)
         candidatos = ordenar_candidatos_busqueda(candidatos)
 
-    return jsonify({"results": candidatos[:out_lim]})
+    meta = {}
+    if filtro_estricto_stock and n_antes_filtro_stock > 0 and not candidatos:
+        meta['filtrados_por_stock'] = True
+    return jsonify({"results": candidatos[:out_lim], "meta": meta})
 
 # proceso de apertura de caja desde pantalla de caja........................................................................
 

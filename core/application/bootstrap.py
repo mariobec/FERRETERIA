@@ -7,9 +7,13 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from core.application.creditos.post_cobro_credito import PostCobroCreditoService
 from core.application.inventario.stock_cobro import DescontarStockCobroService
 from core.application.ventas import FinalizarVentaUseCase, ProcesarCobroUseCase
+from core.application.ventas.post_cobro_saldo_favor import PostCobroSaldoFavorService
 from core.infrastructure.adapters.cobro_stock_adapter import AppCobroStockAdapter
+from core.infrastructure.adapters.post_cobro_credito_adapter import AppPostCobroCreditoAdapter
+from core.infrastructure.adapters.post_cobro_saldo_favor_adapter import AppPostCobroSaldoFavorAdapter
 from core.infrastructure.adapters.stock_tienda_validator import AppStockTiendaValidator
 from core.infrastructure.persistence.venta_repository import sqlalchemy_venta_repository_from_app
 
@@ -29,6 +33,14 @@ def build_finalizar_venta_use_case(
 def build_descontar_stock_cobro_service() -> DescontarStockCobroService:
     adapter = AppCobroStockAdapter()
     return DescontarStockCobroService(preparar=adapter, aplicar=adapter)
+
+
+def build_post_cobro_credito_service() -> PostCobroCreditoService:
+    return PostCobroCreditoService(AppPostCobroCreditoAdapter())
+
+
+def build_post_cobro_saldo_favor_service() -> PostCobroSaldoFavorService:
+    return PostCobroSaldoFavorService(AppPostCobroSaldoFavorAdapter())
 
 
 def build_procesar_cobro_use_case(

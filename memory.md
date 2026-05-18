@@ -4,9 +4,12 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 
 **Copia en documentación:** `docs/memory.md` (mismo contenido; mantener sincronizado al actualizar).
 
+**Planes:** `docs/planes/README.md` · **Memory Grok:** `docs/planes/00-alineacion/MEMORY_GROK.md`
+
 ## Cómo usarlo
 
-- **Al arrancar una sesión en Cursor:** pedir *“lee memory.md y sigue desde ahí”* o adjuntar `@memory.md`.
+- **Cursor:** `@docs/MEMORY_GROK.md` + `@memory.md`
+- **Grok:** pegar `docs/MEMORY_GROK.md` o prompt §13 de ese archivo
 - **Cuando terminemos un bloque de trabajo:** pedir *“actualiza memory.md con lo que hicimos hoy”* para dejar constancia.
 - El agente **no inventa** historial: solo documenta lo que consta en el chat o en el código que tocamos.
 - **Transcripción del chat:** Cursor conserva tus conversaciones en la interfaz; aquí **no** se replica el chat palabra por palabra. Esta memoria es el **extracto técnico** entre sesiones/desarrolladores (comandá *“actualiza memory.md”* cuando quieras cerrar el día).
@@ -30,7 +33,7 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 
 ## Arquitectura del repositorio (carpetas relevantes)
 
-**Refactor en curso (Clean Architecture ligera):** ver `docs/ARQUITECTURA_CAPAS.md`. **`core/`** Fases **1.2 + 1.3**: estado del vale vía use cases; **stock/kardex al cobro** vía `DescontarStockCobroService` + `AppCobroStockAdapter`. Cuotas, saldo favor, bodega, FE y audit siguen en `app.py`.
+**Refactor en curso (Clean Architecture ligera):** ver `docs/ARQUITECTURA_CAPAS.md`. **`core/`** Fases **1.2–1.4**: use cases venta/cobro; stock/kardex (`DescontarStockCobroService`); **cuotas crédito + saldo_deudor** y **saldo a favor** post-cobro vía servicios en `core/application/creditos` y `ventas/post_cobro_saldo_favor`. Bodega, FE y audit siguen en `app.py`.
 
 | Ubicación | Rol |
 |-----------|-----|
@@ -165,11 +168,28 @@ Rutas POS adicionales en **`blueprints/pos.py`**: `/pos/command-deck`, `/pos/exp
 
 ---
 
+## Ambientes (convención del equipo — desde 2026-05-17)
+
+| Ambiente | Dónde corre | Base de datos | Uso |
+|----------|-------------|---------------|-----|
+| **Desarrollo** | PC local (`python app.py`, IP LAN ej. `192.168.x.x:5000`) | **Postgres local** vía `DATABASE_URL` en `.env.local` | Features, `pytest`, pruebas POS sin tocar usuarios reales. |
+| **Productivo** | **Render** (`render.yaml`, Gunicorn, `autoDeployTrigger: commit`) | **Neon** vía `DATABASE_URL` en dashboard Render (host **pooler**) | Operación tienda / URL pública. |
+
+**Reglas operativas:**
+- **No** apuntar desarrollo a la misma Neon de productivo salvo prueba puntual acordada (riesgo de datos reales).
+- Despliegue a productivo = **`git push`** a la rama que Render sigue (típ. `main`) → build + `preDeployCommand: python init_db.py` + Gunicorn.
+- Sync de datos **local → Neon** solo con `scripts/sync_local_neon_render.py` y Render **pausado**; no es necesario para cambios solo de UI/API sin migración SQL.
+- Tras deploy en Render: **Ctrl+F5** en `/punto_venta` (cache bust en `pos.js?v=…`).
+
+Detalle deploy: `docs/MIGRACION_RENDER_NEON.md`.
+
+---
+
 ## Configuración y entorno
 
 | Variable | Uso |
 |----------|-----|
-| `DATABASE_URL` / `SQLALCHEMY_DATABASE_URI` | BD app (local, Render, etc.) |
+| `DATABASE_URL` / `SQLALCHEMY_DATABASE_URI` | **Local:** Postgres dev. **Render:** Neon productivo (pooler). |
 | `NEON_DATABASE_URL` | Solo scripts sync (`.env.local`) |
 | `SECRET_KEY`, `OPENAI_API_KEY` | Sesión Flask, IA |
 | `SII_CERT_PFX_*`, `SII_AMBIENTE` | Facturación electrónica |
@@ -217,21 +237,133 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 | 2026-05-16 | **Fase 1.2** dominio + repo + tests `test_core_domain_venta.py` (8). |
 | 2026-05-16 | **Fase 1.2 wiring** `AppStockTiendaValidator`, `bootstrap.py`, `finalizar_venta` → `FinalizarVentaUseCase`, `procesar_cobro_caja` → `ProcesarCobroUseCase`. |
 | 2026-05-16 | **Fase 1.3** `DescontarStockCobroService`, `AppCobroStockAdapter`, `procesar_cobro_caja` + `cobrar_venta_efectivo` (conftest) alineados. |
+| 2026-05-17 | **Convención ambientes:** desarrollo = local, productivo = Render (+ Neon). |
+| 2026-05-17 | **POS asistente búsqueda manual:** commit `8c9535c` — input `#posBuscarManual`, panel tarjetas, `/buscar_producto?enriquecido=1`. **Pendiente `git push` a Render.** |
+| 2026-05-20 | **POS pantalla vendedora (WIP local):** semáforo, filtros, compromiso entrega, layout sin sidebar, tarjetas carrito, `/pos` acceso directo. **Análisis rediseño profundo guardado abajo — pendiente aprobación usuario.** |
+
+---
+
+## POS — Pantalla vendedora (rediseño premium) — ANÁLISIS PARA RETOMAR
+
+**Estado:** propuesta evaluada por el agente; **no implementar** el rediseño profundo hasta que Mario confirme alcance al volver.  
+**Pedido del usuario (2026-05-20):** dejar diagnóstico y plan en memoria; retomar después.
+
+### ¿Estoy de acuerdo con el diagnóstico “planilla / POS de barrio”?
+
+**Sí, en lo esencial** — con un matiz importante:
+
+| Observación del usuario | Veredicto | Detalle en repo hoy |
+|-------------------------|-----------|---------------------|
+| Tablas rígidas / Excel | **Parcial** | En rol **vendedor** (`pos_layout_fullwidth`) el carrito **ya no es `<table>`** — usa `templates/pos/includes/premium_cart_cards.html` (tarjetas con borde 4px verde/azul). **Admin** y modo no-vendedor siguen con tabla clásica. |
+| Dos buscadores saturan | **Sí, acertado** | Siguen coexistiendo `#posBarcodeWedge` (“Escanear”) y `#posBuscarManual` (“Búsqueda manual”) dentro del mismo `pos-command-card`, más caja morada/kicker, filtros y botón Agregar. Eso explica el “ruido de formulario”. |
+| Falta de aire / padding | **Sí** | Columna izquierda muy densa: RUT+TV, card escaneo, card búsqueda, historial, sugerencias. Muchos `card-ds` anidados con bordes Bootstrap. |
+| Carrito premium incompleto | **Sí** | Tarjetas mejoran jerarquía pero aún hay `input type=number` visible, `% dto`, hints “Consumo stock”, selects retiro — sensación ERP, no retail premium. |
+
+**Conclusión:** el carrito va por buen camino; el **80% del aspecto “barrio”** viene de la **columna izquierda (doble búsqueda + muchas cards)** y del **dock/totales** aún pegados al layout 2 columnas genérico, no solo del carrito.
+
+### Lo ya hecho en local (sin push completo a Render)
+
+- **Fase 1–2:** semáforo, `a_pedido`, filtros Operativo/Tienda/Catálogo, modal compromiso, `ventas_a_pedido`.
+- **Fase 3:** `pos_layout_fullwidth` / `pos-pantalla-vendedora` — oculta sidebar + topbar ERP; chrome `pos-vendedor-chrome`.
+- **Carrito tarjetas:** `premium_cart_cards.html` + `pos-premium-layout.css`.
+- **Rutas:** `/pos`, `/pos/vendedor` → redirect `punto_venta`.
+- **Checkpoints git (tags):**
+  - `checkpoint/pos-premium-layout-2026-05-20` → `ed9aede` (antes bloque nuevo)
+  - `checkpoint/pos-pre-premium-vendedor-2026-05-20` → `4483019`
+  - `checkpoint/pos-premium-vendedor-2026-05-20` → commit `877db19` (filtros + compromiso + layout; previo a tarjetas finales)
+- **Revertir layout:** ver `pruebas/pos_semaforo/CHECKLIST.md` sección checkpoints.
+- **Bug corregido:** `{% endif %}` faltante en `punto_venta.html` (Jinja2 `endblock` vs `if`) — corregido en sesión 2026-05-20.
+
+**Commits locales `main`:** ~2–3 commits ahead de `origin/main` (4483019, 877db19 + cambios sin commit de tarjetas/CSS).
+
+### Propuesta de rediseño profundo (para aprobar al volver)
+
+**Principio:** cambio **solo presentación** en vendedor — mismos IDs DOM críticos para `pos.js`, mismos POST (`agregar_producto_venta`, `actualizar_item`, `finalizar_venta`). No tocar `blueprints/pos.py` salvo contexto opcional.
+
+#### Fase A — Un solo buscador (máximo impacto visual, ~1 sesión) — **HECHO 2026-05-16**
+
+- Unificar `#posBarcodeWedge` + `#posBuscarManual` en **un solo hero** (`pos-unified-search-hero`, input `#posBuscarManual`; solo si `pos_layout_fullwidth`).
+- Include: `templates/pos/includes/unified_search_vendedor.html`. Cache CSS/JS `20260520m` / `20260520h`.
+- Comportamiento: pistoleo y texto en el mismo input; **F2** focus; dropdown semáforo debajo (`#pos-search-suggestions` sin mover lógica JS).
+- Retirar labels duplicados, caja “BÚSQUEDA MANUAL” morada, segundo `form-control` grande.
+- Mantener filtros Operativo/Tienda/Catálogo como **pills** compactos en la misma barra (no segundo panel).
+
+**Archivos:** `punto_venta.html` (rama vendedor), `pos-premium-layout.css`, ajustes menores `pos.js` (focus F2 al input unificado; wedge sigue llamando misma API).
+
+#### Fase B — Carrito “desmaterializado” v2 (~1 sesión) — **HECHO 2026-05-16**
+
+- Renombrar contenedor a `#contenedor-carrito` (`pos-cart-list` alias).
+- Cache CSS/JS `20260520n` / `20260520i`.
+- Tarjetas: más padding (16–20px), sin bordes grises internos; sombra `0 1px 3px` + `border-radius: 12px`.
+- Cantidad: cápsula `−` / número / `+` (ya iniciado); **ocultar spinners** del `input` o sustituir por `span` editable solo con botones + teclado en JS.
+- Jerarquía: nombre 1rem/800; meta `SKU | Marca | Unidad` una línea; logística a pedido con ⏳.
+- Reducir ruido: dto % en menú “⋯” o línea secundaria colapsada; quitar “Consumo stock” en vendedor o solo en hover.
+- **Mantener:** `id="pos_row_{id}"`, `cantidad_{id}`, `subtotal_{id}`, `descuento_{id}`, clases `btn-ajustar-cantidad`, `btn-actualizar-item`.
+
+**Archivos:** `premium_cart_cards.html`, `pos-premium-layout.css`, toques `pos.js` (formatoCLP, sin cambiar cálculos).
+
+#### Fase C — Panel derecho monolítico (~½ sesión)
+
+- Layout 3 zonas en desktop vendedor: **buscador full-width arriba** | **carrito scroll** | **dock fijo** ancho completo de columna derecha.
+- “TOTAL A PAGAR” tipografía grande, aislada; botones **full-width** Emitir (F8) y Cotizar (F4); hover suave.
+- Opcional: separar cliente RUT en franja fina bajo chrome (no card pesada).
+
+**Archivos:** `punto_venta.html`, `pos-premium-layout.css` (grid `grid-template-columns` o flex columna derecha sticky).
+
+#### Fase D — Pulido (opcional)
+
+- Modo claro premium (actual) vs **modo oscuro** vendedor — decidir con cliente; no mezclar ambos sin guía.
+- Command Deck: mismo lenguaje visual o dejar como “modo pro” separado.
+
+### Qué NO hacer en este rediseño
+
+- No reescribir flujo emitir/cobrar/compromiso/backend.
+- No eliminar tabla en modo **admin** (solo vendedor).
+- No cambiar IDs usados por `actualizarSubtotal`, `validarStockLinea`, `emitirValeBtn`.
+- No commit/push a producción sin checkpoint tag y prueba en 1366×768 con rol Vendedor Prueba.
+
+### Criterios de aceptación (checklist al implementar)
+
+1. Rol vendedor: una sola barra de búsqueda visible; F2 y pistoleo OK.
+2. Carrito sin `<table>`; borde izquierdo verde/azul por línea.
+3. Agregar / +/- cantidad / dto / emitir vale — mismos tests smoke POS.
+4. Sin scroll horizontal; descripción legible en 2 líneas max.
+5. Ctrl+F5 tras deploy CSS con query `?v=...` bump.
+
+### Decisiones para Mario al volver
+
+1. ¿Aprobamos **Fase A+B+C** completa o solo A+B primero?
+2. ¿Modo **claro** (actual design-system) u oscuro para vendedor?
+3. ¿Descuento % visible en cada línea o oculto (solo supervisor)?
+4. ¿Push a Render tras validar en LAN o más iteración local?
+
+### Orden recomendado de trabajo
+
+```
+Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → validar → Fase C (dock/grid) → pytest smoke POS → tag nuevo
+```
 
 ---
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Hecho (Fases 1.2 + 1.3 operativas):**
-- Paquete `core/domain/venta/`, `core/application/ventas/`, `core/application/inventario/stock_cobro.py`, repos y adapters (`stock_tienda_validator`, `cobro_stock_adapter`), `core/application/bootstrap.py`.
-- **`finalizar_venta`** → `FinalizarVentaUseCase`; **`procesar_cobro_caja`** → `ProcesarCobroUseCase` + `build_descontar_stock_cobro_service()` (preparar líneas fuera del savepoint, aplicar dentro).
-- **`tests/conftest.py` `cobrar_venta_efectivo`**: mismo stack que producción (use case + stock service).
-- Efectos colaterales **aún en app.py**: alta/edición cliente al finalizar, cuotas crédito + `saldo_deudor`, saldo a favor, flags bodega, `erp_audit_log`, FE post-commit, `MovimientoCaja` en cobro HTTP (si aplica).
+**PRIORIDAD AL VOLVER (2026-05-16):** validar en navegador el **dock fijo 3 zonas** y carrito sin reload. Leer sección **«POS — Dock fijo 3 zonas + carrito AJAX»** en `docs/memory.md`. Si OK → commit + tag `checkpoint/pos-dock-3zonas-2026-05-16`.
 
-**Siguiente paso recomendado (Fase 1.4):**
-1. Extraer cuotas crédito + `saldo_deudor` post-cobro a `application/ventas` o `application/creditos`.
-2. Opcional: `agregar_producto_venta` / carrito Abierta → dominio (`Venta.agregar_linea` ya existe).
-3. Tests unitarios dedicados para `DescontarStockCobroService` (mocks de puertos).
+**PRIORIDAD ANTERIOR (rediseño):** fases A–C del análisis premium; parte de Fase C (dock/grid) ya avanzada en local.
+
+**Hecho (POS UX — listo para productivo tras commit/push):**
+- Asistente búsqueda manual en `punto_venta` (`pos.js`, `punto_venta.html`, `design-system.css`, `buscar_producto` enriquecido en `app.py`).
+
+**Hecho (Fases 1.2–1.4 operativas, parte sin commit):**
+- Dominio venta, use cases, stock cobro, **post-cobro crédito** (`PostCobroCreditoService`), **saldo favor** (`PostCobroSaldoFavorService`), adapters y `bootstrap.py`.
+- **`procesar_cobro_caja`**: use case + stock + post-cobro crédito/saldo favor delegados a `core/`.
+- **`tests/conftest.py` `cobrar_venta_efectivo`**: alineado a producción (efectivo; sin crédito).
+- Efectos colaterales **aún en app.py**: alta/edición cliente al finalizar, flags bodega post-cobro, `erp_audit_log`, FE post-commit.
+
+**Siguiente paso recomendado (Fase 1.5):**
+1. Extraer flags bodega post-cobro (`bodega_preparacion_*`, `bodega_sugerido_*`).
+2. Opcional: `agregar_producto_venta` / carrito Abierta → dominio.
+3. Test HTTP cobro a crédito con plan de cuotas en `test_routes_criticas`.
 
 **No hacer aún:** Alembic, multi-tenant, mover modelos ORM fuera de `app.py`.
 
@@ -269,4 +401,20 @@ pytest tests/test_end_to_end.py -m "smoke and happy_path" -q --tb=short
 
 ---
 
-*Última actualización: 2026-05-16 — alineado con `docs/ERP_MAESTRO.md`, sync Neon y estado del repo.*
+---
+
+## POS — Dock fijo 3 zonas + carrito AJAX (sesión 2026-05-16)
+
+**Problema:** barra azul saltaba al agregar productos (vendedor).
+
+**Hecho en local:** layout 3 zonas (`pos-vendedor-stage`), dock `pos-checkout-dock--stage` fijo abajo, `GET /api/pos/carrito-html`, `pos.js` sin reload en vendedor. Cache `20260521f`.
+
+**Archivos:** `punto_venta.html`, `pos-premium-layout.css`, `pos.js`, `app.py`, `blueprints/pos.py`.
+
+**Mañana:** Ctrl+F5, probar escaneo, commit si OK. Detalle completo en `docs/memory.md` (misma sección).
+
+**Git:** `main` ahead 2; cambios sin commit al cierre del día.
+
+---
+
+*Última actualización: 2026-05-16 — Dock 3 zonas en local; validación UI pendiente.*

@@ -186,7 +186,7 @@
     syncPosFiltroBusquedaBotones();
     const inp = document.getElementById("posBuscarManual");
     const q = inp ? String(inp.value || "").trim() : "";
-    if (q.length >= 3) {
+    if (q.length >= 2) {
       inp.dispatchEvent(new Event("input", { bubbles: true }));
       return;
     }
@@ -940,11 +940,16 @@
       );
     }
 
-    function renderItems(items) {
+    function renderItems(items, searchMeta) {
       if (!items.length) {
+        const emptyBody = searchMeta
+          ? mensajeSinCoincidencias(searchMeta)
+          : "Sin coincidencias. Pruebe otro término o use <strong>Catálogo</strong>.";
         panel.innerHTML =
           '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
-          '<div class="pos-search-suggestions__empty">Sin coincidencias. Pruebe otro término o use Catálogo.</div>';
+          '<div class="pos-search-suggestions__empty">' +
+          emptyBody +
+          "</div>";
         panel.classList.remove("d-none");
         setSuggestOpen(true);
         syncPanelBusquedaVisible();
@@ -1061,9 +1066,44 @@
       posEscanearYAgregar(String(it.producto_id), true, opts, panel, setPanelBusy);
     }
 
+    function mensajeSinCoincidencias(data) {
+      const filtro = posFiltroBusquedaActual();
+      const filtroLabel =
+        filtro === "tienda" ? "Solo tienda" : filtro === "catalogo" ? "Catálogo" : "Operativo";
+      let msg =
+        "Sin coincidencias en modo <strong>" +
+        escapeHtml(filtroLabel) +
+        "</strong>. Pruebe otro término";
+      if (filtro !== "catalogo") {
+        msg += ' o pulse <strong>Catálogo</strong>';
+      }
+      msg += ".";
+      if (data && data.meta && data.meta.filtrados_por_stock) {
+        msg +=
+          " Hay productos en catálogo sin stock en mostrador; use <strong>Catálogo</strong> o <strong>Operativo</strong> (a pedido).";
+      }
+      return msg;
+    }
+
+    function parseBuscarProductoResponse(r) {
+      const ct = (r.headers.get("content-type") || "").toLowerCase();
+      if (r.status === 401 || r.status === 403) {
+        throw new Error("sesion");
+      }
+      if (r.redirected || (r.url && /\/login/i.test(r.url))) {
+        throw new Error("sesion");
+      }
+      if (!r.ok) {
+        throw new Error("http_" + r.status);
+      }
+      return r.json().catch(function () {
+        throw new Error("formato");
+      });
+    }
+
     function ejecutarBusqueda(term) {
       const q = (term || "").trim();
-      if (q.length < 3) {
+      if (q.length < 2) {
         hidePanel();
         return;
       }
@@ -1084,32 +1124,37 @@
       });
       fetch(buscarUrl + "?" + params.toString(), {
         credentials: "same-origin",
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
         signal: fetchCtrl.signal,
       })
-        .then(function (r) {
-          return r.json();
-        })
+        .then(parseBuscarProductoResponse)
         .then(function (data) {
           lastItems = data && Array.isArray(data.results) ? data.results : [];
           activeIndex = indicePrimeroConStock(lastItems);
           if (lastItems.length) {
             renderItems(lastItems);
           } else {
-            panel.innerHTML =
-              '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
-              '<div class="pos-search-suggestions__empty">Sin coincidencias. Pruebe otro término o use Catálogo.</div>';
-            panel.classList.remove("d-none");
-            setSuggestOpen(true);
-            syncPanelBusquedaVisible();
+            renderItems([], data);
           }
         })
         .catch(function (err) {
           if (err && err.name === "AbortError") return;
+          let msg = "No se pudo cargar la búsqueda. Revise conexión e intente de nuevo.";
+          if (err && err.message === "sesion") {
+            msg = "Sesión expirada. Recargue la página (F5) e ingrese de nuevo.";
+          } else if (err && String(err.message || "").indexOf("http_") === 0) {
+            msg = "Error del servidor (" + String(err.message).replace("http_", "") + ").";
+          } else if (err && err.message === "formato") {
+            msg = "Respuesta inválida (¿sesión cerrada?). Recargue la página.";
+          }
           panel.innerHTML =
             '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
-            '<div class="pos-search-suggestions__empty">No se pudo cargar la búsqueda.</div>';
+            '<div class="pos-search-suggestions__empty">' +
+            escapeHtml(msg) +
+            "</div>";
           panel.classList.remove("d-none");
+          setSuggestOpen(true);
+          syncPanelBusquedaVisible();
         });
     }
 
@@ -1131,7 +1176,7 @@
             posEscanearYAgregar(q, false);
             return;
           }
-          if (q.length >= 3) {
+          if (q.length >= 2) {
             e.preventDefault();
             ejecutarBusqueda(q);
           }
@@ -1161,7 +1206,7 @@
     input.addEventListener("input", function () {
       clearTimeout(debounceTimer);
       const term = (input.value || "").trim();
-      if (term.length < 3) {
+      if (term.length < 2) {
         hidePanel();
         return;
       }
@@ -1172,7 +1217,7 @@
 
     input.addEventListener("focus", function () {
       const term = (input.value || "").trim();
-      if (term.length >= 3 && !lastItems.length) {
+      if (term.length >= 2 && !lastItems.length) {
         ejecutarBusqueda(term);
       }
     });
@@ -1196,11 +1241,11 @@
         return;
       }
       const q = (input.value || "").trim();
-      if (q.length >= 3) {
+      if (q.length >= 2) {
         ejecutarBusqueda(q);
         mostrarPosToast("Elija un producto de la lista (flechas y Enter).");
       } else {
-        mostrarPosToast("Escriba al menos 3 caracteres para buscar.");
+        mostrarPosToast("Escriba al menos 2 caracteres para buscar.");
       }
     }
 
@@ -3347,6 +3392,25 @@
     if (btnHistRefresh) btnHistRefresh.addEventListener("click", posCargarHistorialHoy);
     if (document.getElementById("posHistorialHoyList")) posCargarHistorialHoy();
 
+
+  function posEmitirValeAtajo() {
+    const btn = document.getElementById("emitirValeBtn");
+    const formEmitir = document.getElementById("formEmitirVale");
+    if (btn && !btn.disabled) {
+      btn.click();
+      return;
+    }
+    if (btn && btn.disabled && btn.title) {
+      mostrarPosToast(btn.title, { delay: 2800, variant: "warning" });
+      return;
+    }
+    if (posValeEstaVacio()) {
+      mostrarPosToast("Agregue productos antes de emitir (F8).", { delay: 2200, variant: "warning" });
+      return;
+    }
+    if (formEmitir) formEmitir.requestSubmit();
+  }
+
     document.addEventListener("keydown", function (e) {
       if (e.key === "F2") {
         e.preventDefault();
@@ -3376,11 +3440,7 @@
       if (e.key === "F8") {
         if (isTypingInField(e.target)) return;
         e.preventDefault();
-        const btn = document.getElementById("emitirValeBtn");
-        if (btn && !btn.disabled) btn.click();
-        else if (posValeEstaVacio()) {
-          mostrarPosToast("Agregue productos antes de emitir (F8).");
-        }
+        posEmitirValeAtajo();
       }
     });
   });

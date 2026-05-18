@@ -109,9 +109,9 @@
             <a href="#predictivo">Resultados</a>
             <a href="#faq">Objeciones</a>
             <a href="{{ url_for('sobre_nosotros') }}">Quiénes somos</a>
-            <button type="button" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#loginModal">
-                Acceso clientes
-            </button>
+            <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-light">
+                Acceso ERP
+            </a>
         </nav>
     </header>
 
@@ -769,9 +769,9 @@
                 <button type="button" class="btn btn-warning btn-lg" data-open-ai-demo>
                     Quiero mi Diagnóstico IA Gratis
                 </button>
-                <button type="button" class="btn btn-outline-light btn-lg" data-bs-toggle="modal" data-bs-target="#loginModal">
+                <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">
                     Acceso privado
-                </button>
+                </a>
             </div>
         </section>
     </main>
@@ -793,19 +793,15 @@
                     <button type="button" class="btn-close btn-close-white position-absolute end-0 top-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4 text-start">
-                    <form action="{{ url_for('login') }}" method="POST">
-                        <div class="mb-3">
-                            <label for="correo" class="form-label fw-bold text-secondary">Correo electrónico</label>
-                            <input type="email" class="form-control shadow-sm" id="correo" name="correo" placeholder="usuario@ferreteria.cl" required>
-                        </div>
-                        <div class="mb-4">
-                            <label for="password" class="form-label fw-bold text-secondary">Contraseña</label>
-                            <input type="password" class="form-control shadow-sm" id="password" name="password" placeholder="••••••••" required>
-                        </div>
-                        <button type="submit" class="btn btn-ingresar w-100 py-2 fw-bold text-white text-uppercase">
-                            Ingresar al Sistema
-                        </button>
-                    </form>
+                    <p class="small text-muted mb-3">Un solo acceso al ERP (evita tener que iniciar sesión dos veces).</p>
+                    <a href="{{ url_for('login') }}" class="btn btn-ingresar w-100 py-2 fw-bold text-white text-uppercase text-decoration-none d-block text-center mb-0">
+                        Ingresar al Sistema
+                    </a>
+                    <p class="text-center mt-3 mb-0 small">
+                        <a href="{{ url_for('login', next='/pos') }}" class="text-secondary text-decoration-none">
+                            <i class="fas fa-cash-register me-1"></i>Acceso directo — Punto de venta
+                        </a>
+                    </p>
                 </div>
                 <div class="modal-footer border-0 justify-content-center">
                     <small class="text-muted opacity-75"><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP · {{ empresa_cfg.nombre_comercial }}</small>

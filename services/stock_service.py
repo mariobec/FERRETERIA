@@ -479,12 +479,26 @@ def incrementar_stock_venta_bodega(producto, consumo_stock):
     return None
 
 
+def _punto_retiro_efectivo_linea(venta, detalle):
+    """Tienda / Bodega / Despacho por línea (mixto) o cabecera del vale."""
+    import app as m
+
+    pr = (getattr(venta, 'punto_retiro', None) or '').strip()
+    if m._pos_retiro_por_linea_empresa():
+        pl = (getattr(detalle, 'punto_retiro_linea', None) or '').strip()
+        if pl:
+            return pl
+        if pr == 'Mixto':
+            return 'Tienda'
+    return pr or 'Tienda'
+
+
 def _consumo_tienda_linea(venta, detalle, factor_venta_stock):
     """Unidades stock base que esa línea exige de TIENDA (misma regla que cobro)."""
     consumo_stock = int(round((detalle.cantidad or 0) * factor_venta_stock))
     if consumo_stock <= 0:
         return 0
-    if (venta.punto_retiro or '').strip() == 'Bodega':
+    if _punto_retiro_efectivo_linea(venta, detalle) == 'Bodega':
         return 0
     ya_bod = venta_consumo_ya_despachado_bodega(venta, detalle.id)
     return max(0, consumo_stock - ya_bod)

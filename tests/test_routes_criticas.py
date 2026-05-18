@@ -1158,6 +1158,14 @@ class TestClientesConsultas:
         rut = cliente_credito.rut or '11.111.111-1'
         r = app_client.get(f'/consultar_cliente?rut={rut}')
         assert r.status_code == 200
+        data = r.get_json()
+        assert data and data.get('existe') is True
+        cli = data.get('cliente') or {}
+        assert cli.get('id') == cliente_credito.id
+        cred = cli.get('credito') or {}
+        assert cred.get('tiene_linea') is True
+        assert float(cred.get('limite_credito') or 0) == float(cliente_credito.limite_credito or 0)
+        assert float(cred.get('cupo_disponible') or 0) == float(cliente_credito.cupo_disponible)
 
     def test_consultar_cliente_vacio(self, app_client):
         r = app_client.get('/consultar_cliente?rut=')

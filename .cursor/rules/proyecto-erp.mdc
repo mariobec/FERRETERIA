@@ -90,7 +90,8 @@ alwaysApply: true
 
 ## Documentacion
 - `docs/ERP_MAESTRO.md` - documento maestro del ERP (17 secciones)
-- `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` - plan de trabajo
+- `docs/planes/README.md` - carpeta planes (orden 00-07)
+- `docs/planes/04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` - plan de trabajo TEC (cerrado)
 
 ## Demo Data
 - `scripts/seed_demo_data.py` - genera datos demo realistas (prefijo DEMO_SEED)

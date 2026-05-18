@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-cart-premium-20260525e">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-cart-premium-20260525f">
 {% if pos_layout_fullwidth %}
 <style>
 body.pos-pantalla-vendedora .app-sidebar,
@@ -1143,7 +1143,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260525e"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260525f"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

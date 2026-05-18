@@ -1,0 +1,60 @@
+---
+description: Prioridades producto LhexIA vs go-live Santo Domingo
+alwaysApply: true
+---
+
+# LhexIA ERP — Reglas producto y go-live
+
+## Contexto
+
+- **Producto:** LhexIA ERP (www.lhexia.cl) — ERP vertical ferretería + agentes IA.
+- **Cliente #1:** Ferretería Santo Domingo (~20 personas, 3 sucursales). Fue proyecto SAP → Defontana → ERP propio.
+- **Carpeta planes (orden):** `docs/planes/README.md`
+- **Alineación Mario · Grok · Cursor:** `docs/planes/00-alineacion/MEMORY_GROK.md`
+- **Producto LhexIA:** `docs/planes/02-producto-lhexia/LHEXIA_PRODUCTO.md`
+- **Santo Domingo:** `docs/planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`
+- **Índice prefijos:** `docs/planes/00-alineacion/PLAN_INDICE_LHEXIA.md`
+- **Plan Agentes IA negocio (IA):** `docs/planes/06-agentes-ia/PLAN_AGENTES_IA_v1.md`
+- **Plan Agentes Meta desarrollo (META):** `docs/planes/07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md`
+
+## Prioridad actual (hasta cerrar SD-1 ≈ 2 semanas)
+
+**SD-1 — Santo Domingo:** POS + inventario (toma física) en prototipo estable.
+
+Antes de multi-tenant, mover modelos masivos fuera de `app.py`, o agentes CrewAI:
+
+1. ¿Bloquea POS o toma de inventario mañana? → **Sí = no hacerlo ahora**
+2. ¿Tiene tests smoke? → Requerido para cambios en venta/stock/POS
+3. ¿Checkpoint git en flujo crítico UI? → Ver regla `punto-restauracion-cambios-drasticos`
+
+## Dos carriles
+
+| Carril | Qué incluye |
+|--------|-------------|
+| **SD-1** | POS, `/inventario/enrolamiento`, salud, kardex, caja |
+| **LX-*** | Docs en `docs/planes/02-producto-lhexia/`; multi-tenant **después** de SD-1 |
+| **IA-*** | Agentes negocio CrewAI en ferretería; prod **después** de SD-1 |
+| **META-*** | Agentes para desarrollar LhexIA (architect, QA, docs); **META-1** en paralelo con SD-1 |
+
+No mezclar big-bang refactor con operación en piso.
+
+## Inventario (rutas clave)
+
+- `/inventario/enrolamiento` — conteo por sesión y escaneo
+- `/inventario/salud` — desajustes maestro vs almacenes
+- `/kardex` — trazabilidad
+- Permisos: `enrolamiento_inventario`, `admin_inventario`
+
+## POS (rutas clave)
+
+- `/punto_venta` — layout vendedor si `pos_emitir_vale` y no admin total
+- `/buscar_producto` — búsqueda; filtros Operativo / Tienda / Catálogo
+- Docs: `docs/planes/03-pos-vendedor/POS_ALINEACION_CURSOR_GROK.md`
+
+## Multi-tenant
+
+**No implementar en queries de producción** hasta acuerdo explícito post–toma inventario. Diseño en `docs/planes/02-producto-lhexia/ARCHITECTURE.md`.
+
+## Aprobación
+
+Seguir `aprobacion-antes-de-implementar.mdc` salvo petición explícita del usuario (aplícalo, deploy, commit).

@@ -4,8 +4,8 @@
 
 **Última actualización:** 2026-05-16  
 **Versión operativa:** v2.0 (cerrado) + **cierre de módulos v3** (en curso)  
-**Líneas de código `app.py`:** ~20,800  
-**Suite de tests:** ~242 tests (`pytest tests/`)  
+**Líneas de código `app.py`:** ~22,300 (monolito; handlers también en `blueprints/*`)  
+**Suite de tests:** ~263 tests recogidos (`pytest tests/ --collect-only`)  
 
 ---
 
@@ -15,7 +15,7 @@
 |---|---|
 | Backend | **Python 3.14**, Flask, Flask-SQLAlchemy, Flask-Login |
 | BD producción | PostgreSQL (Neon/Render) |
-| BD desarrollo | MySQL local (PyMySQL) |
+| BD desarrollo / QA | **PostgreSQL local** (recomendado; suite `pytest`). Sigue existiendo driver **MySQL (PyMySQL)** para entornos legacy. |
 | ORM | SQLAlchemy (modelos en `app.py`) |
 | Frontend | Jinja2 + Bootstrap 5 + Font Awesome + CSS propio (`design-system.css`) |
 | JS interactivo | Vanilla JS (`pos.js`, timers SLA, etc.) |
@@ -44,13 +44,13 @@ sistema_ventas_limpio/
 ├── schema_sync.py            # Sincronización modelos ↔ BD
 ├── requirements.txt          # Dependencias Python
 ├── render.yaml               # Config deploy (gunicorn app:app)
-├── memory.md                 # Memoria viva del proyecto (contexto entre sesiones)
+├── memory.md                 # Memoria viva (Cursor: @memory.md); copia en docs/memory.md
 │
-├── blueprints/               # Registro de rutas por dominio
-│   ├── bodega.py             #   11 rutas (despacho, plataforma, voz, SLA, TV)
-│   ├── caja.py               #   14 rutas (cobro, cambios, saldos, cierres, limpiar cola)
-│   ├── pos.py                #   12+ rutas (POS, finalizar, live wall staff/cliente)
-│   └── c360.py               #    9 rutas (Customer 360, IA, ofertas proactivas)
+├── blueprints/               # Registro vía add_url_rule (no decoradores @route)
+│   ├── bodega.py             #   ~12 reglas (despacho, plataforma, voz, SLA, TV)
+│   ├── caja.py               #   ~15 reglas (cobro, cambios, saldos, cierres, limpiar cola)
+│   ├── pos.py                #   ~22 reglas (POS, command deck, experience wall, live wall, APIs /api/pos/*)
+│   └── c360.py               #   ~10 reglas (Customer 360, IA, ofertas proactivas)
 │
 ├── services/                 # Lógica de negocio extraída
 │   ├── stock_service.py      #   Stock multi-almacén, invariante, reversión bodega
@@ -76,12 +76,18 @@ sistema_ventas_limpio/
 │
 ├── static/                   # CSS, JS, logos, imágenes
 │   ├── design-system.css     #   Sistema de diseño propio
-│   └── pos.js                #   Lógica POS del lado cliente
+│   ├── pos.js                #   Lógica POS principal
+│   ├── pos-command-deck.js   #   Command Deck (layout cajero)
+│   ├── pos-live-wall-*.js    #   Live Wall staff / cliente
+│   └── pos-experience-wall.js
 │
-├── sql/                      # 37 migraciones SQL incrementales
+├── sql/                      # ~39 migraciones SQL incrementales
 │   └── 2026_MM_DD_*.sql      #   Formato fecha para orden cronológico
 │
-├── scripts/                  # Utilidades y seeds
+├── scripts/                  # Utilidades, seeds y sync BD
+│   ├── sync_local_neon_render.py  # Migraciones + copia local→Neon + verificación conteos (`--verify-only`)
+│   ├── sync_postgres_db.py        #   Tablas, FK, orden topológico (usado por el sync)
+│   ├── seed_demo_data.py          #   Datos demo
 │   └── smoke_alertas_vales_despacho.py
 │
 ├── data/                     # JSON runtime
@@ -90,7 +96,10 @@ sistema_ventas_limpio/
 │
 └── docs/                     # Documentación
     ├── ERP_MAESTRO.md        #   ← ESTE DOCUMENTO
+    ├── memory.md             #   Memoria viva (sincronizada con memory.md en raíz)
     ├── FLUJOS_CRITICOS.md    #   Diagramas de flujos de negocio
+    ├── MIGRACION_RENDER_NEON.md
+    ├── CASUISTICAS_PRUEBAS.md
     ├── BODEGA_ULTRA_PREMIUM.md
     ├── PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md
     ├── roadmap_customer_360_ferreteria_2026.md
@@ -178,9 +187,9 @@ sistema_ventas_limpio/
 
 ---
 
-## 4. Rutas HTTP (~143 endpoints)
+## 4. Rutas HTTP (~150+ endpoints, orden de magnitud)
 
-**100 rutas** definidas con `@app.route` en `app.py` + **43 rutas** registradas via blueprints.
+**~100** handlers con `@app.route` / `@app.get|post` en `app.py` + **~59** reglas vía `add_url_rule` en `blueprints/*` (conteos cambian con el tiempo; ver código).
 
 ### 4.1 Público y landing
 
@@ -220,6 +229,8 @@ sistema_ventas_limpio/
 | POST | `/finalizar_venta` | Emitir vale Pendiente | `pos_emitir_vale` |
 | GET | `/buscar_producto` | Búsqueda por código/nombre | — |
 | POST | `/pos/usuarios_autorizar_descuento` | Autorizar descuento | `autorizar_descuento_pos` |
+
+**Registro centralizado:** muchas de estas URLs (y APIs `/api/pos/*`, `/pos/command-deck`, `/pos/experience-wall`, ticket vale, despacho, cross-sell, foto producto, etc.) viven en `blueprints/pos.py` → `register_pos_routes()`.
 
 ### 4.5 Caja
 
@@ -523,21 +534,24 @@ Tiempos en minutos para indicadores de color:
 | `unidades_service.py` | Factores conversión venta↔stock↔compra |
 | `c360_service.py` | Motor Customer 360, predicción compra, scoring |
 | `sistema_health_service.py` | Health check (`/api/sistema/salud`) |
+| `facturacion_electronica_service.py` | FE Chile: XML, firma PKCS#12, post-cobro, cola DTE |
+| `facturacion_caf_service.py` | CAF SII: parseo e inserción de folios |
+| `facturacion_dte_storage.py` | Persistencia XML firmado bajo `storage/dtes/emitidos/` |
 
 ---
 
 ## 9. Blueprints registrados
 
-| Blueprint | Rutas | Dominio |
+| Blueprint | Reglas URL (`add_url_rule`) | Dominio |
 |---|---|---|
-| `blueprints/bodega.py` | 11 | Plataforma retiro, despacho voz, cuadro mando, SLA, TV, export |
-| `blueprints/caja.py` | 13 | Cobro, anulación, cambios, saldos, cierres, tickets |
-| `blueprints/pos.py` | 10 | Punto de venta, carrito, finalizar, búsqueda, descuentos |
-| `blueprints/c360.py` | 9 | Customer 360, dashboard IA, ofertas proactivas |
+| `blueprints/bodega.py` | ~12 | Plataforma retiro, despacho voz, cuadro mando, SLA, TV, export |
+| `blueprints/caja.py` | ~15 | Cobro, anulación, cambios, saldos, cierres, limpiar cola, tickets |
+| `blueprints/pos.py` | ~22 | POS, command deck, experience wall, live wall, ticket/despacho, APIs `/api/pos/*` |
+| `blueprints/c360.py` | ~10 | Customer 360, dashboard IA, ofertas proactivas |
 
 ---
 
-## 10. Migraciones SQL (37 archivos)
+## 10. Migraciones SQL (~39 archivos)
 
 Formato: `sql/YYYY_MM_DD_descripcion.sql`
 
@@ -574,7 +588,8 @@ Principales:
 
 | Variable | Uso |
 |---|---|
-| `DATABASE_URL` / `SQLALCHEMY_DATABASE_URI` | Conexión BD |
+| `DATABASE_URL` / `SQLALCHEMY_DATABASE_URI` | Conexión BD app (local, Render, etc.) |
+| `NEON_DATABASE_URL` | **Solo scripts de sync** (`.env.local`): Postgres Neon; usar host **directo** (sin `-pooler`) para `scripts/sync_local_neon_render.py` |
 | `SECRET_KEY` | Flask sessions |
 | `OPENAI_API_KEY` | IA (Whisper, GPT, OCR) |
 | `EMPRESA_NOMBRE_COMERCIAL` | Nombre por defecto |
@@ -582,14 +597,35 @@ Principales:
 | `WHATSAPP_*` / `COBRANZA_*` | Config WA Cloud API |
 | `SLACK_WEBHOOK_URL` | Alertas Slack |
 | `VALE_DESPACHO_SIN_COBRO_ALERTA_HORAS` | Umbral alertas (default 48h) |
+| `SII_CERT_PFX_PATH`, `SII_CERT_PFX_PASSWORD` / `SII_CERT_PFX_PASSWORD_FILE`, `SII_AMBIENTE` | Facturación electrónica Chile (certificado .pfx y ambiente) |
 
 ### Archivos de entorno
 
 ```
 env_qa.txt      → setdefault (carga si no existe var)
 .env.qa         → override
-.env.local      → local development
+.env.local      → desarrollo local (puede incluir DATABASE_URL + NEON_DATABASE_URL para sync)
 ```
+
+### Sincronización Postgres local → Neon (datos / QA)
+
+Para **alinear** la base en Neon con la de tu PC (misma app en Render apuntando a esa Neon verá los mismos datos tras el sync):
+
+1. En `.env.local`: `DATABASE_URL` = Postgres local; `NEON_DATABASE_URL` = cadena Neon (**host directo**, `sslmode=require`; el pooler suele reservarse para la app en producción).
+2. **Pausar** servicios que escriban en esa Neon (p. ej. Render) mientras corre el script; si no, los conteos suelen **divergir** tras el `commit`.
+3. Desde la raíz del repo:
+
+```bash
+python scripts/sync_local_neon_render.py
+python scripts/sync_local_neon_render.py --verify-only
+```
+
+- El sync aplica migraciones listadas en el script, hace `TRUNCATE` en tablas comunes en destino y copia filas desde local.  
+- `--verify-only` solo compara conteos en tablas clave (`TABLAS_CHECK` en el script) y termina con código **1** si difieren.  
+- Tras un sync completo, el script **vuelve a verificar** conteos; si fallan, sale con código 1 e imprime sugerencias.  
+- En Neon a veces aparece `permission denied ... session_replication_role`: es **esperable** en roles limitados; el flujo continúa sin ese bypass.
+
+Detalle operativo: `docs/MIGRACION_RENDER_NEON.md`.
 
 ### Arranque local
 
@@ -641,6 +677,7 @@ gunicorn app:app  # ver render.yaml
 | 2026-05-15 | POS Live Wall staff/cliente + snapshot API |
 | 2026-05-15 | Caja: `POST /caja/limpiar_cola_cierre` (anulación masiva admin para desbloquear cierre) |
 | 2026-05-16 | **Plan cierre módulos v3** documentado (§18); ERP maestro + memory actualizados |
+| 2026-05-16 | Sync **local → Neon**: `scripts/sync_local_neon_render.py` con `--verify-only`, verificación post-sync (código salida 1 si difieren conteos), trazas con `flush`; Neon **host directo** recomendado para el script |
 
 ---
 
@@ -648,13 +685,15 @@ gunicorn app:app  # ver render.yaml
 
 | Documento | Contenido |
 |---|---|
-| `memory.md` | Memoria viva del proyecto (contexto entre sesiones) |
+| `memory.md` / `docs/memory.md` | Memoria viva del proyecto (contexto entre sesiones; mantener sincronizados) |
 | `docs/FLUJOS_CRITICOS.md` | Diagramas Mermaid de flujos de negocio |
 | `docs/BODEGA_ULTRA_PREMIUM.md` | Especificación módulo bodega (3 fases) |
 | `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` | Plan v2.0 cerrado |
 | `docs/roadmap_customer_360_ferreteria_2026.md` | Roadmap C360 por fases |
 | `docs/roadmap_observabilidad_lhexia_2026_2030.md` | Roadmap de analítica, SEO y growth intelligence |
 | `docs/manual_operacion_customer_360.md` | Manual operativo C360 |
+| `docs/MIGRACION_RENDER_NEON.md` | Deploy Render + Postgres Neon, variables y sync de datos |
+| `docs/CASUISTICAS_PRUEBAS.md` | Casuísticas y matriz de pruebas manuales / QA |
 
 ---
 
@@ -691,7 +730,7 @@ Pruebas de integración HTTP con Flask test_client. Cubren ~50 endpoints GET/POS
 ### Smoke Tests (CI rápido)
 
 ```bash
-pytest tests/ -m smoke -q --tb=no    # 27+ tests, < 1s
+pytest tests/ -m smoke -q --tb=no    # ~77 tests con marker smoke (ver pytest --collect-only)
 ```
 
 ### Coverage
@@ -814,6 +853,7 @@ python scripts/seed_demo_data.py --clean   # limpia datos DEMO
 pytest tests/ -m smoke -q --tb=no
 pytest tests/test_routes_criticas.py -q
 pytest tests/test_facturacion_*.py tests/test_pos_live_wall.py -q
+python scripts/sync_local_neon_render.py --verify-only   # opcional: alinear conteos local vs Neon (.env.local)
 ```
 
 - [ ] Sin `ALLOW_TESTS_ON_REMOTE` salvo BD QA dedicada.
@@ -831,4 +871,4 @@ Un módulo se considera **cerrado** cuando:
 
 ---
 
-*Última revisión maestra: 2026-05-16 — alineado con `memory.md` y código en `main`/working tree.*
+*Última revisión maestra: 2026-05-16 — métricas (`app.py` ~22.3k líneas, ~263 tests), blueprints POS ampliados, sync Neon documentado, alineado con código y scripts actuales.*
