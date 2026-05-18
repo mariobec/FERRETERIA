@@ -532,6 +532,24 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ---
 
+## Daily equipo — 2026-05-18
+
+**Mario**
+- **Ayer:** Grok Project configurado (prompt único + confirmación 5 bullets). Docs `docs/planes/` en GitHub (`309f02f`, `c423864`).
+- **Hoy:** SD-1.1 preparar toma inventario (almacenes, permisos, backup Neon); SD-1.2 validar POS en piso si hay venta.
+- **Bloqueos:** (completar en piso)
+
+**Cursor (sesión)**
+- **Ayer/logrado:** `docs/planes/` reorganizado; `MEMORY_GROK`, `GROK_PROMPT_UNICO`, `GROK_PROJECT_SETUP`; commit `309f02f` + push; guía Grok Project `c423864`.
+- **Hoy:** Commit ritmo async `EQUIPO_RITMO_ASYNC.md` + prompt único; apoyo SD-1 según prioridad Mario.
+
+**Grok**
+- Propuesta Daily / Weekly / Sprint 14d — adoptada → `docs/planes/00-alineacion/EQUIPO_RITMO_ASYNC.md`.
+
+**Eje:** SD-1
+
+---
+
 ## Índice de planes (2026-05-17)
 
 **Planes:** `docs/planes/README.md`  
@@ -543,6 +561,8 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 **Agentes IA negocio (2026-05-17):** `docs/planes/06-agentes-ia/PLAN_AGENTES_IA_v1.md` — IA-0…IA-3 (ferretería 24/7). Prod post SD-1.
 
 **Agentes Meta desarrollo (2026-05-17):** `docs/planes/07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md` — META-1 MVP: ARCH, QA, DOC, PO, ORCH (3 semanas).
+
+**Ritmo async (2026-05-18):** `docs/planes/00-alineacion/EQUIPO_RITMO_ASYNC.md` — Daily / Weekly / Sprint 14d (Mario · Grok · Cursor).
 
 **Optimización app.py (2026-05-17):** Vista única en `docs/planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md` — TEC-1A…4 ✅, CORE-1.2…1.4 ✅, CORE-1.5 ⏳, `app.py` ~20.5k líneas, `core/` ~974 líneas.
 
@@ -565,4 +585,4 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ---
 
-*Última actualización: 2026-05-17 — Plan POS 1–4 cerrado; producto en docs/product/.*
+*Última actualización: 2026-05-18 — Ritmo equipo async; planes en docs/planes/.*

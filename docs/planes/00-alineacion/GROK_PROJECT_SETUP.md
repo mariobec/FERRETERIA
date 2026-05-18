@@ -63,9 +63,19 @@ https://raw.githubusercontent.com/mariobec/FERRETERIA/main/docs/planes/01-entreg
 
 ---
 
-## 3. Instrucciones personalizadas del proyecto (copiar/pegar)
+## 3. Prompt único (todo en uno — recomendado)
 
-Pega esto en **Custom instructions** / **Instrucciones del proyecto** de Grok:
+Si prefieres **un solo bloque** en lugar de instrucciones + 5 archivos por separado:
+
+→ **[`GROK_PROMPT_UNICO.md`](GROK_PROMPT_UNICO.md)** — copia desde `=== LHEXIA ERP` hasta `=== FIN DEL PROMPT ===`
+
+Ideal para **Custom instructions** del proyecto. Los 5 archivos siguen siendo útiles para detalle profundo.
+
+---
+
+## 4. Instrucciones personalizadas del proyecto (versión corta)
+
+Alternativa corta si ya adjuntaste los 5 archivos. Pega en **Custom instructions**:
 
 ```
 Eres el copiloto de producto y arquitectura de LhexIA ERP (ERP vertical ferretería Chile).
@@ -91,7 +101,7 @@ Si el tema es solo operación en ferretería, prioriza SANTO_DOMINGO_ENTREGA.md.
 
 ---
 
-## 4. Archivos opcionales (añadir según el chat)
+## 5. Archivos opcionales (añadir según el chat)
 
 | Tema del día | Añadir temporalmente |
 |--------------|----------------------|
@@ -103,7 +113,7 @@ Si el tema es solo operación en ferretería, prioriza SANTO_DOMINGO_ENTREGA.md.
 
 ---
 
-## 5. Flujo de trabajo (los 3 alineados)
+## 6. Flujo de trabajo (los 3 alineados)
 
 ```mermaid
 flowchart LR
@@ -124,7 +134,7 @@ flowchart LR
 
 ---
 
-## 6. Cuándo refrescar archivos en Grok
+## 7. Cuándo refrescar archivos en Grok
 
 | Evento | Qué actualizar en el proyecto Grok |
 |--------|-------------------------------------|
@@ -135,7 +145,7 @@ flowchart LR
 
 ---
 
-## 7. Primera pregunta de prueba (validar que Grok leyó)
+## 8. Primera pregunta de prueba (validar que Grok leyó)
 
 Pega en un chat nuevo **dentro del proyecto**:
 
@@ -153,7 +163,7 @@ qué está prohibido proponer sin OK, y dónde está el runbook de inventario Sa
 
 ---
 
-## 8. Relación con Cursor
+## 9. Relación con Cursor
 
 | Grok Project | Cursor |
 |--------------|--------|

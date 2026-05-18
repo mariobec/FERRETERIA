@@ -11,6 +11,7 @@
 | **Índice maestro (prefijos SD, POS, TEC…)** | [`00-alineacion/PLAN_INDICE_LHEXIA.md`](00-alineacion/PLAN_INDICE_LHEXIA.md) |
 | **Alineación Mario · Grok · Cursor** | [`00-alineacion/MEMORY_GROK.md`](00-alineacion/MEMORY_GROK.md) |
 | **Configurar Grok Project (5 archivos)** | [`00-alineacion/GROK_PROJECT_SETUP.md`](00-alineacion/GROK_PROJECT_SETUP.md) |
+| **Ritmo equipo (Daily / Weekly / Sprint)** | [`00-alineacion/EQUIPO_RITMO_ASYNC.md`](00-alineacion/EQUIPO_RITMO_ASYNC.md) |
 | **Producto LhexIA (portal)** | [`02-producto-lhexia/LHEXIA_PRODUCTO.md`](02-producto-lhexia/LHEXIA_PRODUCTO.md) |
 | **Santo Domingo entrega (portal)** | [`01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
 

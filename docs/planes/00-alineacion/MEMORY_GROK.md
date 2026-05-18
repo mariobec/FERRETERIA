@@ -32,6 +32,8 @@
 
 **Flujo acordado:** Grok propone → Cursor verifica en código → Mario aprueba alcance → Cursor implementa → actualizar memoria.
 
+**Ritmo async (Daily / Weekly / Sprint 14d):** ver [`EQUIPO_RITMO_ASYNC.md`](EQUIPO_RITMO_ASYNC.md).
+
 ---
 
 ## 3. Dos documentos únicos (entrada)
