@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {# Relayout dock + búsqueda alta: false = layout dock anterior (revertir sin git) #}
 {% set pos_dock_relayout_busqueda = pos_layout_fullwidth and true %}
 
@@ -480,7 +480,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   {% if pos_layout_fullwidth %}
   <header class="pos-vendedor-chrome" aria-label="Pantalla vendedora">
     <div class="pos-vendedor-chrome__brand">
-      <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="" class="pos-vendedor-chrome__logo" width="32" height="32">
+      <img src="{{ lhexia_icon_src }}" alt="" class="pos-vendedor-chrome__logo" width="32" height="32">
       <div>
         <h1 class="h6 mb-0 fw-bold">Punto de venta</h1>
         <p class="mb-0 small text-muted">{{ empresa_cfg.nombre_comercial }}</p>

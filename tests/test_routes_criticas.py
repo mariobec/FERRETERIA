@@ -1412,5 +1412,45 @@ class TestAdminExtra:
         assert r.status_code in (200, 302)
 
 
+@pytest.mark.smoke
+class TestHubModulosUrls:
+    """Tarjetas del hub deben enlazar al destino operativo correcto."""
+
+    def test_hub_html_pos_enlaza_punto_venta(self, app_client, caja_abierta):
+        r = app_client.get('/hub')
+        assert r.status_code == 200
+        assert b'Punto de venta' in r.data
+        assert b'/punto_venta' in r.data
+
+    def test_resolver_pos_con_caja_abierta(self, app_ctx, caja_abierta):
+        user = _get_admin_user()
+        mod = next(x for x in m._MODULOS_HUB if x['id'] == 'pos')
+        with m.app.test_request_context('/'):
+            url = m._hub_url_para_modulo(mod, user)
+        assert '/punto_venta' in url
+
+    def test_resolver_pos_sin_caja_a_abrir_caja(self, app_ctx):
+        user = _get_admin_user()
+        mod = next(x for x in m._MODULOS_HUB if x['id'] == 'pos')
+        for caja in m.Caja.query.filter_by(estado='Abierta').all():
+            caja.estado = 'Cerrada'
+        db.session.flush()
+        try:
+            with m.app.test_request_context('/'):
+                url = m._hub_url_para_modulo(mod, user)
+            assert '/abrir_caja' in url
+        finally:
+            db.session.rollback()
+
+    def test_construir_modulos_incluye_url(self, app_ctx, caja_abierta):
+        user = _get_admin_user()
+        with m.app.test_request_context('/'):
+            mods = m._construir_modulos_hub(user)
+        pos = next((x for x in mods if x.get('id') == 'pos'), None)
+        assert pos is not None
+        assert pos.get('url')
+        assert '/punto_venta' in pos['url']
+
+
 # Como correr solo estos tests
 # pytest tests/test_routes_criticas.py -v --cov=app --cov-report=term-missing

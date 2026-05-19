@@ -18,7 +18,7 @@
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{% if is_vs_defontana %}LhexIA vs Defontana | ERP inteligente{% else %}LhexIA ERP para ferreterías{% endif %}">
     <meta name="twitter:description" content="{% if is_vs_defontana %}Conoce por qué LhexIA va más allá de un ERP tradicional con IA aplicada, voz, Customer 360 y foco en rentabilidad.{% else %}El ERP premium que vende, cobra, protege margen y acelera la bodega con agentes inteligentes 24/7.{% endif %}">
-    <link rel="icon" href="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" type="image/png">
+    <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -47,7 +47,7 @@
           "@type": "Organization",
           "name": "LhexIA ERP",
           "url": "{{ public_site_url }}/",
-          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png",
+          "logo": "{{ public_og_image_url }}",
           "description": "ERP inteligente para retail, ferreterías, constructoras y operaciones con alto volumen de SKU."
         },
         {
@@ -95,7 +95,7 @@
 <body class="index-body erp-landing">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ url_for('static', filename='img/lhexia-brand-approved.png') }}?v=lhexia20260514brand11" alt="LhexIA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ lhexia_brand_src }}" alt="LhexIA ERP · www.lhexia.cl" class="landing-brand-logo">
             <span class="landing-brand-text">
                 <strong><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP</strong>
                 <small>www.lhexia.cl · <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> para ferreterías, corralones y retail especializado</small>
@@ -109,7 +109,7 @@
             <a href="#predictivo">Resultados</a>
             <a href="#faq">Objeciones</a>
             <a href="{{ url_for('sobre_nosotros') }}">Quiénes somos</a>
-            <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-light">
+            <a href="{{ url_for('login', reauth=1) }}" class="btn btn-sm btn-outline-light">
                 Acceso ERP
             </a>
         </nav>
@@ -769,7 +769,7 @@
                 <button type="button" class="btn btn-warning btn-lg" data-open-ai-demo>
                     Quiero mi Diagnóstico IA Gratis
                 </button>
-                <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">
+                <a href="{{ url_for('login', reauth=1) }}" class="btn btn-outline-light btn-lg">
                     Acceso privado
                 </a>
             </div>
@@ -780,35 +780,6 @@
         <i class="bi bi-stars"></i>
         <span>Diagnóstico IA</span>
     </button>
-
-    <!-- MODAL DE LOGIN SOBRIO -->
-    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content shadow-lg">
-                <div class="modal-header border-0">
-                    <div class="modal-login-brand text-center w-100">
-                        <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="Isotipo LhexIA" class="modal-login-logo">
-                        <h5 class="modal-title w-100 text-center text-white">Acceso a <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP</h5>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white position-absolute end-0 top-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4 text-start">
-                    <p class="small text-muted mb-3">Un solo acceso al ERP (evita tener que iniciar sesión dos veces).</p>
-                    <a href="{{ url_for('login') }}" class="btn btn-ingresar w-100 py-2 fw-bold text-white text-uppercase text-decoration-none d-block text-center mb-0">
-                        Ingresar al Sistema
-                    </a>
-                    <p class="text-center mt-3 mb-0 small">
-                        <a href="{{ url_for('login', next='/pos') }}" class="text-secondary text-decoration-none">
-                            <i class="fas fa-cash-register me-1"></i>Acceso directo — Punto de venta
-                        </a>
-                    </p>
-                </div>
-                <div class="modal-footer border-0 justify-content-center">
-                    <small class="text-muted opacity-75"><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP · {{ empresa_cfg.nombre_comercial }}</small>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <div class="index-footer landing-footer">
         © 2026 <span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> ERP · <a href="{{ public_site_url }}" class="text-white-50 text-decoration-none">www.lhexia.cl</a> · <a href="{{ url_for('sobre_nosotros') }}" class="text-white-50 text-decoration-none">Quiénes somos</a> · <a href="{{ url_for('mensaje_del_fundador') }}" class="text-white-50 text-decoration-none">Mensaje del fundador</a> · La máquina de generar y proteger dinero para ferreterías y retail especializado

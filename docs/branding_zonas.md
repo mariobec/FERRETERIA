@@ -7,15 +7,17 @@ Esta guia define que marca usar segun el area del sistema para evitar mezclas en
 - **Nombre**: LhexIA IA ERP
 - **Tagline oficial**: "Haz rentable tu decisión."
 - **Paleta**: naranja corporativo `#F37021`, fondo oscuro `#0F1419`/`#0B0F14`, blanco metalico
-- **Logo principal (transparente)**: `static/img/lhexia-brand-compact.svg`
+- **Logo principal (transparente)**: `static/img/lhexia-brand-approved.png` (wordmark desde `lhexia_logo_origen_v2.png`)
+- **Isotipo núcleo hexagonal**: `static/img/lhexia-icon-approved.png` (desde `lhexia-core-reveal-square.png`, mayo 2026)
+- **Cache bust global**: constante `LHEXIA_ASSET_VERSION` en `app.py` → `lhexia_asset_v` / `lhexia_icon_src` / `lhexia_brand_src` en plantillas
 - **Logo con fondo oscuro (respaldo legacy)**: `static/img/sintrel-erp-logo-dark-bg.png` (solo si se necesita fondo embebido)
 - **Logo vectorial (editable, respaldo)**: `static/img/sintrel-ia-erp-logo.svg` (wordmark actualizado a LhexIA)
 - **Marca anterior**: Cimentia (deprecada por colision con un ERP existente en Espana). No volver a usar.
 
 ## Assets visibles vigentes
-- **Cabeceras publicas / navbar marketing**: `static/img/lhexia-brand-compact.svg`
-- **Sidebar ERP y footers powered by**: `static/img/lhexia_logo.svg`
-- **Isotipo animado / login / modal / favicon**: `static/img/lhexia-icon-approved.png`
+- **Cabeceras publicas / navbar marketing**: `static/img/lhexia-brand-approved.png` o `lhexia-brand-compact-nav.png`
+- **Sidebar ERP y footers powered by**: `static/img/lhexia-brand-approved.png` (PNG; SVG legacy en `lhexia_logo.svg`)
+- **Isotipo animado / login / sidebar ERP / favicon**: `lhexia-icon-approved.png` (+ animación login en `login-core-reveal.css`)
 - **Logo SEO / JSON-LD / respaldo vectorial**: `static/img/lhexia_logo.svg`
 
 ## 1) Landing publica (marketing)

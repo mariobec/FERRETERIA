@@ -1,0 +1,336 @@
+{% extends 'base.html' %}
+
+{% block body_class %}hub-page{% endblock %}
+
+{% block extra_css %}
+<style>
+  .hub-page .app-main {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 58, 138, 0.12), transparent 55%),
+      linear-gradient(180deg, #f1f5f9 0%, #e8eef5 100%);
+    min-height: calc(100vh - 56px);
+  }
+
+  .hub-shell {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0.25rem 0 2rem;
+  }
+
+  .hub-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.25rem;
+    padding: 1.6rem 1.75rem;
+    color: #f8fafc;
+    background: linear-gradient(128deg, #0b0f19 0%, #1e3a8a 48%, #0f172a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+    margin-bottom: 1.75rem;
+  }
+
+  .hub-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -5%;
+    width: 280px;
+    height: 280px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(234, 88, 12, 0.35), transparent 70%);
+    pointer-events: none;
+  }
+
+  .hub-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40%;
+    left: 10%;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.2), transparent 70%);
+    pointer-events: none;
+  }
+
+  .hub-hero-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+  }
+
+  .hub-hero-copy h2 {
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.35rem;
+  }
+
+  .hub-hero-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 0.35rem;
+  }
+
+  .hub-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .hub-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--hub-cols, 4), minmax(0, 1fr));
+    gap: 1.25rem;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  @media (max-width: 1199px) {
+    .hub-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 575px) {
+    .hub-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .hub-card {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    border-radius: 1.15rem;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 10px 30px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    backdrop-filter: blur(8px);
+  }
+
+  .hub-card:hover {
+    transform: translateY(-6px);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.95) inset,
+      0 22px 44px rgba(15, 23, 42, 0.14);
+  }
+
+  .hub-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+    transform: translateX(-130%);
+    transition: transform 0.6s ease;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .hub-card:hover::before {
+    transform: translateX(130%);
+  }
+
+  .hub-card-accent {
+    height: 3px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .hub-card-main {
+    padding: 1.35rem 1.35rem 1rem;
+    text-decoration: none;
+    color: inherit;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hub-card-main:hover { color: inherit; }
+
+  .hub-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: #fff;
+    margin-bottom: 1rem;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+  }
+
+  .hub-card h3 {
+    font-size: 1.12rem;
+    font-weight: 800;
+    margin: 0 0 0.4rem;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+  }
+
+  .hub-card p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #64748b;
+    line-height: 1.45;
+    flex: 1;
+  }
+
+  .hub-card-enter {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid #eef2f6;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .hub-atajos {
+    border-top: 1px solid #eef2f6;
+    padding: 0.65rem 0.85rem 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    background: #f8fafc;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hub-atajo {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.32rem 0.62rem;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    text-decoration: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .hub-atajo:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  .hub-empty {
+    border-radius: 1.15rem;
+    border: 1px dashed #cbd5e1;
+    padding: 3rem;
+    text-align: center;
+    color: #64748b;
+    background: rgba(255, 255, 255, 0.7);
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .hub-section {
+    margin-bottom: 1.75rem;
+  }
+
+  .hub-section-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin: 0 0 0.85rem 0.15rem;
+  }
+
+  @media (max-width: 767px) {
+    .hub-card {
+      flex: 1 1 100%;
+      max-width: 100%;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hub-shell">
+  <header class="hub-hero">
+    <div class="hub-hero-inner">
+      <div class="hub-hero-copy">
+        <span class="hub-hero-badge">LhexIA ERP</span>
+        <h2 class="mb-0">Hola, {{ current_user.nombre }}</h2>
+        <p class="mb-0 opacity-75">{{ empresa_cfg.nombre_comercial }} · {{ fecha_hoy }}</p>
+        <p class="mb-0 mt-2 small opacity-75">Elija el módulo con el que desea trabajar.</p>
+      </div>
+      <div class="hub-hero-actions">
+        <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-light fw-bold px-3">
+          <i class="fas fa-gauge-high me-1"></i>Panel del día
+        </a>
+        <a href="{{ url_for('centro_ayuda') }}" class="btn btn-sm btn-light fw-bold text-dark px-3">
+          <i class="fas fa-circle-question me-1"></i>Ayuda
+        </a>
+      </div>
+    </div>
+  </header>
+
+  {% macro render_hub_card(mod) %}
+  <article class="hub-card" role="listitem">
+    <div class="hub-card-accent" style="background: {{ mod.accent }};"></div>
+    <a href="{{ mod.url }}" class="hub-card-main">
+      <span class="hub-icon" style="background: linear-gradient(145deg, {{ mod.accent }}, color-mix(in srgb, {{ mod.accent }} 65%, #1e293b));">
+        <i class="fas {{ mod.icon }}"></i>
+      </span>
+      <h3>{{ mod.titulo }}</h3>
+      <p>{{ mod.subtitulo }}</p>
+      <div class="hub-card-enter" style="color: {{ mod.accent }};">Entrar <i class="fas fa-arrow-right ms-1"></i></div>
+    </a>
+    {% if mod.atajos %}
+    <div class="hub-atajos">
+      {% for a in mod.atajos %}
+      <a href="{{ a.url }}" class="hub-atajo">
+        <i class="{% if 'fa-brands' in (a.icon or '') %}fab{% else %}fas{% endif %} {{ a.icon | replace(' fa-brands','') }} me-1"></i>{{ a.label }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+  {% endmacro %}
+
+  {% if modulos %}
+  {% if modulos_ops %}
+  <section class="hub-section">
+    <h3 class="hub-section-title">Módulos de operación</h3>
+    <div class="hub-grid" style="--hub-cols: {{ grid_cols_ops }};" role="list">
+      {% for mod in modulos_ops %}{{ render_hub_card(mod) }}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% if modulos_soporte %}
+  <section class="hub-section mb-0">
+    <h3 class="hub-section-title">Recursos y soporte</h3>
+    <div class="hub-grid" style="--hub-cols: {{ grid_cols_soporte }};" role="list">
+      {% for mod in modulos_soporte %}{{ render_hub_card(mod) }}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% else %}
+  <div class="hub-empty">
+    <i class="fas fa-lock fa-2x mb-3 d-block opacity-50"></i>
+    <p class="mb-0 fw-semibold">No hay módulos disponibles para su perfil.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

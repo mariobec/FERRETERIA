@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acceso LhexIA ERP | {{ empresa_cfg.nombre_comercial }}</title>
-    <link rel="icon" href="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" type="image/png">
+    <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login-core-reveal.css') }}?v=lhexia20260522core6">
     <style>
         :root {
             --login-bg: #0b0f19;
@@ -116,65 +117,60 @@
         }
 
         .login-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
             background: rgba(8, 11, 17, 0.28);
             color: white;
             padding: 1.5rem 1.5rem 1.15rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .login-brand {
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            width: 118px;
-            height: 118px;
-            margin-bottom: 0.9rem;
-            border-radius: 32px;
-            background:
-                radial-gradient(circle at 50% 36%, rgba(255, 143, 31, 0.28), rgba(255, 143, 31, 0.06) 54%, transparent 74%),
-                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow:
-                0 26px 54px rgba(0, 0, 0, 0.22),
-                inset 0 1px 0 rgba(255, 255, 255, 0.14);
-            backdrop-filter: blur(14px);
-        }
-
-        .login-brand-logo {
-            display: block;
-            position: relative;
-            z-index: 1;
-            height: 76px;
-            width: auto;
-            filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.24));
-            animation: loginBrandFloat 4.6s ease-in-out infinite;
-        }
-
-        @keyframes loginBrandFloat {
-            0%, 100% {
-                transform: translateY(0) scale(1);
-                filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.24));
-            }
-            50% {
-                transform: translateY(-2px) scale(1.025);
-                filter: drop-shadow(0 20px 36px rgba(255, 122, 16, 0.18));
-            }
+            border-bottom: none;
         }
 
         .login-brand-subtitle {
             display: block;
-            margin-top: -0.18rem;
-            color: rgba(255, 255, 255, 0.56);
-            font-size: 0.74rem;
-            font-weight: 600;
-            letter-spacing: 0.12em;
+            margin-top: 0.4rem;
+            margin-bottom: 0.55rem;
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 0.2em;
             text-transform: uppercase;
+            background: linear-gradient(92deg, #fde68a 0%, #fb923c 42%, #6ee7b7 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: none;
+            filter: drop-shadow(0 0 14px rgba(234, 88, 12, 0.45));
         }
 
-        .login-header h5 {
+        .login-access-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
             color: #fff;
-            font-size: 1.12rem;
+            font-size: 1.38rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1.25;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+        }
+
+        .login-access-key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 2.35rem;
+            height: 2.35rem;
+            border-radius: 11px;
+            font-size: 1.05rem;
+            color: #fcd34d;
+            background: linear-gradient(145deg, rgba(234, 88, 12, 0.45), rgba(251, 191, 36, 0.22));
+            border: 1px solid rgba(251, 191, 36, 0.55);
+            box-shadow:
+                0 0 20px rgba(234, 88, 12, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
         .login-header small {
@@ -245,6 +241,46 @@
             .login-header {
                 padding: 1.3rem 1.15rem 1rem;
             }
+
+            .login-brand-subtitle {
+                font-size: 0.82rem;
+                letter-spacing: 0.16em;
+            }
+
+            .login-access-title {
+                font-size: 1.2rem;
+            }
+
+            .login-access-key {
+                width: 2.1rem;
+                height: 2.1rem;
+                font-size: 0.95rem;
+            }
+        }
+
+        #loginCoreReveal .login-core-orbit {
+            animation: lhexiaOrbitSpin 2.8s linear infinite !important;
+        }
+        #loginCoreReveal .login-core-viewport {
+            animation: lhexiaViewportPulse 2.4s ease-in-out infinite !important;
+        }
+        #loginCoreReveal .login-core-art {
+            animation: lhexiaArtPulse 2.4s ease-in-out infinite !important;
+        }
+        @keyframes lhexiaOrbitSpin { to { transform: rotate(360deg); } }
+        @keyframes lhexiaViewportPulse {
+            0%, 100% {
+                box-shadow: 0 0 32px rgba(234, 88, 12, 0.55), 0 14px 40px rgba(0, 0, 0, 0.45);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 0 56px rgba(52, 211, 153, 0.7), 0 0 72px rgba(234, 88, 12, 0.45), 0 14px 40px rgba(0, 0, 0, 0.45);
+                transform: scale(1.05);
+            }
+        }
+        @keyframes lhexiaArtPulse {
+            0%, 100% { filter: brightness(0.95) saturate(1.1); transform: scale(1); }
+            50% { filter: brightness(1.15) saturate(1.25) drop-shadow(0 0 36px rgba(255, 140, 40, 0.6)); transform: scale(1.04); }
         }
     </style>
 </head>
@@ -264,12 +300,32 @@
                     </a>
                 </div>
                 <div class="card login-card">
-                    <div class="login-header text-center">
-                        <div class="login-brand">
-                            <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="Isotipo LhexIA" class="login-brand-logo">
+                    <div class="login-header">
+                        <div class="login-brand-stage">
+                            <div class="login-core-reveal" id="loginCoreReveal" aria-hidden="true">
+                                <div class="login-core-viewport">
+                                    <span class="login-core-orbit"></span>
+                                    <div class="login-core-inner">
+                                    <img src="{{ url_for('static', filename='img/lhexia-core-reveal-square.png') }}?v=lhexia20260522core1" alt="" class="login-core-art" width="220" height="220">
+                                    <div class="login-core-fx">
+                                        <span class="login-core-pulse"></span>
+                                        <span class="login-core-wave"></span>
+                                        <span class="login-core-wave login-core-wave--2"></span>
+                                        <span class="login-core-wave login-core-wave--3"></span>
+                                        <span class="login-core-rotate-glow"></span>
+                                        <span class="login-core-burst"></span>
+                                        <span class="login-core-particles"></span>
+                                        <span class="login-core-binary">01001100 11001000 10101010</span>
+                                    </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <span class="login-brand-subtitle">Inteligencia Operativa</span>
-                        <h5 class="m-0 fw-bold"><i class="fas fa-key me-2"></i>Acceso al ERP</h5>
+                        <span class="login-brand-subtitle">ERP Inteligente</span>
+                        <h5 class="login-access-title m-0">
+                            <span class="login-access-key" aria-hidden="true"><i class="fas fa-key"></i></span>
+                            Acceso al ERP
+                        </h5>
                         <small>{{ empresa_cfg.nombre_comercial }}</small>
                     </div>
                     <div class="card-body">
@@ -306,6 +362,7 @@
     </div>
 </div>
 {% include '_web_analytics_tracker.html' %}
+<script src="{{ url_for('static', filename='js/login-core-reveal.js') }}?v=lhexia20260522core6"></script>
 </body>
 </html>
 

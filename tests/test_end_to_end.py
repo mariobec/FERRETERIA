@@ -249,7 +249,7 @@ class TestT06Redireccion:
             )
         )
         with m.app.test_request_context('/'):
-            assert m._home_por_perfil(usuario) == m.url_for('punto_venta')
+            assert m._home_por_perfil(usuario) == m.url_for('erp_hub')
 
 
 # =====================================================================

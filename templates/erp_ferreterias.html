@@ -26,7 +26,7 @@
           "@type": "Organization",
           "name": "LhexIA ERP",
           "url": "{{ public_site_url }}/",
-          "logo": "{{ public_site_url }}/static/img/lhexia-brand-approved.png"
+          "logo": "{{ public_og_image_url }}"
         },
         {
           "@type": "WebSite",
@@ -78,13 +78,13 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" type="image/png">
+    <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
 </head>
 <body class="index-body erp-landing">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ url_for('static', filename='img/lhexia_logo.svg') }}?v=lhexia20260513premium" alt="LhexIA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ lhexia_brand_src }}" alt="LhexIA ERP · www.lhexia.cl" class="landing-brand-logo">
             <span class="landing-brand-text">
                 <strong><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP</strong>
                 <small>ERP para ferreterías en Chile</small>

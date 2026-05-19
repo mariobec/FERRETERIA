@@ -95,9 +95,25 @@ html, body {
     filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.35));
 }
 
-.app-brand-compact--icon img {
+.app-brand-compact--icon img,
+.app-brand-compact--icon .lhexia-sidebar-isotype {
     width: min(100%, 84px);
     max-height: 84px;
+}
+
+@keyframes lhexiaSidebarIsotypePulse {
+    0%, 100% {
+        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.35));
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 20px rgba(234, 88, 12, 0.45)) drop-shadow(0 0 12px rgba(52, 211, 153, 0.35));
+        transform: scale(1.04);
+    }
+}
+
+.app-brand-compact--icon .lhexia-sidebar-isotype {
+    animation: lhexiaSidebarIsotypePulse 3.2s ease-in-out infinite;
 }
 
 .app-sidebar-nav {

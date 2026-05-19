@@ -18,7 +18,7 @@
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
-    <link rel="icon" href="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" type="image/png">
+    <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
 
     {% block extra_css %}{% endblock %}
 </head>
@@ -28,14 +28,15 @@
             <!-- Menú Lateral -->
             <nav class="col-md-2 app-sidebar d-none d-md-block">
                 <div class="app-sidebar-header app-sidebar-header--compact">
-                    <a href="{{ url_for('inicio') }}" class="app-brand-compact app-brand-compact--icon" title="LhexIA ERP · www.lhexia.cl">
-                        <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=lhexia20260514icon4" alt="LhexIA ERP · www.lhexia.cl">
+                    <a href="{{ url_for('erp_hub') }}" class="app-brand-compact app-brand-compact--icon" title="LhexIA ERP · www.lhexia.cl">
+                        <img src="{{ lhexia_icon_src }}" alt="LhexIA ERP · www.lhexia.cl" class="lhexia-sidebar-isotype">
                     </a>
                 </div>
                 
                 <!-- Links del Menú (generado desde _NAV_MAP filtrado por permisos) -->
                 <div class="app-sidebar-nav flex-grow-1">
-                    <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-home"></i> Inicio</a>
+                    <a href="{{ url_for('erp_hub') }}" class="app-nav-link {% if request.endpoint == 'erp_hub' %}active{% endif %}"><i class="fas fa-th-large"></i> Módulos</a>
+                    <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-gauge-high"></i> Panel del día</a>
                     {% for grupo in nav_menu %}
                     {% set ns = namespace(open=false) %}
                     {% for it in grupo['items'] %}{% if request.endpoint in it.endpoints_activos %}{% set ns.open = true %}{% endif %}{% endfor %}

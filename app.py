@@ -1732,12 +1732,321 @@ def _construir_nav_usuario():
     return nav
 
 
+_MODULOS_HUB = [
+    {
+        'id': 'pos',
+        'titulo': 'Punto de venta',
+        'subtitulo': 'Emitir vales y atender mostrador',
+        'icon': 'fa-cash-register',
+        'endpoint': 'punto_venta',
+        'permisos': ['pos_emitir_vale'],
+        'modulo': 'ventas',
+        'accent': '#ea580c',
+        'atajos': [
+            {'label': 'Historial ventas', 'endpoint': 'mostrar_ventas', 'icon': 'fa-shopping-cart'},
+            {'label': 'Cambios / devoluciones', 'endpoint': 'caja_cambios', 'icon': 'fa-rotate', 'permisos': ['caja_cobrar_vale']},
+        ],
+    },
+    {
+        'id': 'cotizaciones',
+        'titulo': 'Cotizaciones',
+        'subtitulo': 'Presupuestos, PDF y conversión a venta',
+        'icon': 'fa-file-invoice-dollar',
+        'endpoint': 'cotizaciones_lista',
+        'permisos': ['pos_emitir_vale'],
+        'modulo': 'ventas',
+        'accent': '#f59e0b',
+        'atajos': [
+            {'label': 'Nueva cotización', 'endpoint': 'cotizacion_nueva', 'icon': 'fa-plus'},
+        ],
+    },
+    {
+        'id': 'caja',
+        'titulo': 'Caja',
+        'subtitulo': 'Cobros, vales pendientes y arqueos',
+        'icon': 'fa-cash-register',
+        'endpoint': 'caja_pendientes',
+        'permisos': ['caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'],
+        'modulo': 'caja',
+        'accent': '#16a34a',
+        'atajos': [
+            {'label': 'Abrir caja', 'endpoint': 'abrir_caja', 'icon': 'fa-door-open', 'permisos': ['caja_abrir']},
+            {'label': 'Cerrar caja', 'endpoint': 'cerrar_caja', 'icon': 'fa-door-closed', 'permisos': ['caja_cerrar']},
+            {'label': 'Movimientos', 'endpoint': 'movimiento_caja', 'icon': 'fa-exchange-alt', 'permisos': ['caja_movimientos']},
+        ],
+    },
+    {
+        'id': 'inventario',
+        'titulo': 'Inventario',
+        'subtitulo': 'Productos, stock, kardex y alertas',
+        'icon': 'fa-boxes-stacked',
+        'endpoint': 'mostrar_productos',
+        'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario'],
+        'modulo': 'inventario',
+        'accent': '#2563eb',
+        'atajos': [
+            {'label': 'Stock crítico', 'endpoint': 'stock_critico', 'icon': 'fa-triangle-exclamation'},
+            {'label': 'Kardex', 'endpoint': 'kardex', 'icon': 'fa-clipboard-list'},
+            {'label': 'Enrolamiento', 'endpoint': 'inventario_enrolamiento', 'icon': 'fa-barcode', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
+        ],
+    },
+    {
+        'id': 'bodega',
+        'titulo': 'Bodega',
+        'subtitulo': 'Despachos, retiros y cuadro de mando',
+        'icon': 'fa-warehouse',
+        'endpoint': 'bodega_plataforma',
+        'permisos': ['bodega_operador'],
+        'modulo': 'inventario',
+        'accent': '#7c3aed',
+        'atajos': [
+            {'label': 'Cuadro de mando', 'endpoint': 'bodega_cuadro_mando', 'icon': 'fa-gauge-high'},
+            {'label': 'Despacho QR', 'endpoint': 'bodega_despacho_qr_vales', 'icon': 'fa-qrcode'},
+        ],
+    },
+    {
+        'id': 'compras',
+        'titulo': 'Compras',
+        'subtitulo': 'Órdenes, recepciones y proveedores',
+        'icon': 'fa-truck',
+        'endpoint': 'lista_ordenes_compra',
+        'permisos': ['gestionar_compras', 'admin_inventario'],
+        'modulo': 'inventario',
+        'accent': '#0891b2',
+        'atajos': [
+            {'label': 'Recepciones', 'endpoint': 'lista_recepciones', 'icon': 'fa-dolly'},
+            {'label': 'Proveedores', 'endpoint': 'mostrar_proveedores', 'icon': 'fa-truck-field'},
+            {'label': 'IA abastecimiento', 'endpoint': 'ia_abastecimiento', 'icon': 'fa-robot', 'modulo_item': 'ia'},
+        ],
+    },
+    {
+        'id': 'creditos',
+        'titulo': 'Crédito y cobranzas',
+        'subtitulo': 'Cartera, abonos y cuotas',
+        'icon': 'fa-hand-holding-usd',
+        'endpoint': 'modulo_creditos',
+        'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
+        'modulo': 'ventas',
+        'accent': '#ca8a04',
+        'atajos': [
+            {'label': 'Cobranza cuotas', 'endpoint': 'cobranza_cuotas', 'icon': 'fa-whatsapp fa-brands'},
+        ],
+    },
+    {
+        'id': 'bi_operativo',
+        'titulo': 'Reportes operativos',
+        'subtitulo': 'BI, márgenes y revisión de precios',
+        'icon': 'fa-chart-line',
+        'endpoint': 'business_intelligence',
+        'permisos': [],
+        'modulo': 'bi',
+        'accent': '#0d9488',
+        'atajos': [
+            {'label': 'Revisión precios', 'endpoint': 'revision_precios', 'icon': 'fa-tags', 'permisos': ['revision_precios']},
+        ],
+    },
+    {
+        'id': 'panel_dia',
+        'titulo': 'Panel del día',
+        'subtitulo': 'KPIs, alertas y acciones rápidas',
+        'icon': 'fa-gauge-high',
+        'endpoint': 'inicio',
+        'permisos': [],
+        'grupo': 'soporte',
+        'accent': '#059669',
+        'atajos': [],
+    },
+    {
+        'id': 'consulta_stock',
+        'titulo': 'Consulta stock',
+        'subtitulo': 'Disponibilidad por nombre o código de barras',
+        'icon': 'fa-magnifying-glass',
+        'endpoint': 'consulta_stock_publica',
+        'permisos': [],
+        'grupo': 'soporte',
+        'accent': '#14b8a6',
+        'atajos': [],
+    },
+    {
+        'id': 'capacitacion',
+        'titulo': 'Capacitación',
+        'subtitulo': 'Manuales, guías y buenas prácticas por rol',
+        'icon': 'fa-graduation-cap',
+        'endpoint': 'centro_ayuda',
+        'permisos': [],
+        'grupo': 'soporte',
+        'accent': '#8b5cf6',
+        'atajos': [],
+    },
+    {
+        'id': 'mi_cuenta',
+        'titulo': 'Mi cuenta',
+        'subtitulo': 'Contraseña y seguridad de acceso',
+        'icon': 'fa-user-gear',
+        'endpoint': 'cambiar_password',
+        'permisos': [],
+        'grupo': 'soporte',
+        'accent': '#475569',
+        'atajos': [],
+    },
+    {
+        'id': 'gerencia',
+        'titulo': 'Reportes gerencia',
+        'subtitulo': 'Panel ejecutivo, C360 y analítica',
+        'icon': 'fa-briefcase',
+        'endpoint': 'panel_dueno',
+        'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+        'accent': '#be185d',
+        'atajos': [
+            {'label': 'Móvil dueño', 'endpoint': 'owner_mobile', 'icon': 'fa-mobile-screen'},
+            {'label': 'C360 IA', 'endpoint': 'gerencia_c360_ia_dashboard', 'icon': 'fa-robot'},
+            {'label': 'Analítica web', 'endpoint': 'gerencia_analitica_web', 'icon': 'fa-chart-area'},
+        ],
+    },
+    {
+        'id': 'facturacion',
+        'titulo': 'Facturación electrónica',
+        'subtitulo': 'Cola DTE, folios CAF y reintentos SII',
+        'icon': 'fa-file-invoice',
+        'endpoint': 'admin_facturacion_cola',
+        'permisos': ['gestionar_usuarios'],
+        'accent': '#0369a1',
+        'atajos': [
+            {'label': 'Cargar CAF', 'endpoint': 'admin_facturacion_caf', 'icon': 'fa-upload'},
+        ],
+    },
+    {
+        'id': 'admin',
+        'titulo': 'Mantenedores',
+        'subtitulo': 'Usuarios, catálogo y configuración',
+        'icon': 'fa-sliders-h',
+        'endpoint': 'usuarios',
+        'permisos': ['gestionar_usuarios'],
+        'accent': '#64748b',
+        'atajos': [
+            {'label': 'Empresa', 'endpoint': 'admin_empresa', 'icon': 'fa-building'},
+            {'label': 'Roles', 'endpoint': 'admin_roles_permisos', 'icon': 'fa-user-shield'},
+            {'label': 'Clientes', 'endpoint': 'admin_clientes', 'icon': 'fa-address-book'},
+            {'label': 'Auditoría', 'endpoint': 'admin_erp_audit_log', 'icon': 'fa-scroll'},
+        ],
+    },
+]
+
+
+def _hub_usuario_tiene_permiso(usuario, *permisos):
+    if not permisos:
+        return True
+    if _rol_es_administrador_por_nombre(getattr(usuario, 'rol', None)):
+        return True
+    return any(usuario_obj_tiene_permiso(usuario, p) for p in permisos)
+
+
+def _hub_url_para_modulo(mod, usuario):
+    """URL destino de cada tarjeta del hub (lógica operativa, no solo endpoint genérico)."""
+    mod_id = (mod.get('id') or '').strip()
+
+    if mod_id == 'pos':
+        if obtener_caja_activa():
+            return url_for('punto_venta')
+        if _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
+            return url_for('abrir_caja')
+        if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale'):
+            return url_for('caja_pendientes')
+        return url_for('punto_venta')
+
+    if mod_id == 'caja':
+        if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale'):
+            return url_for('caja_pendientes')
+        if _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
+            return url_for('abrir_caja')
+        if _hub_usuario_tiene_permiso(usuario, 'caja_cerrar'):
+            return url_for('cerrar_caja')
+        if _hub_usuario_tiene_permiso(usuario, 'caja_movimientos'):
+            return url_for('movimiento_caja')
+        ep = mod.get('endpoint')
+        return url_for(ep) if ep else url_for('erp_hub')
+
+    if mod_id == 'consulta_stock':
+        if _hub_usuario_tiene_permiso(
+            usuario, 'ver_inventario', 'admin_inventario', 'enrolamiento_inventario'
+        ):
+            return url_for('mostrar_productos')
+        return url_for('consulta_stock_publica')
+
+    ep = mod.get('endpoint')
+    if ep:
+        return url_for(ep)
+    return url_for('erp_hub')
+
+
+def _hub_url_para_atajo(atajo, usuario):
+    ep = atajo.get('endpoint')
+    if not ep:
+        return url_for('erp_hub')
+    if ep == 'mostrar_ventas' and _hub_usuario_tiene_permiso(usuario, 'pos_emitir_vale'):
+        if obtener_caja_activa():
+            return url_for('punto_venta')
+    return url_for(ep)
+
+
+def _construir_modulos_hub(usuario=None):
+    """Tarjetas del launcher post-login según permisos y módulos activos."""
+    from flask import current_app
+
+    u = usuario if usuario is not None else current_user
+    if u is None or not getattr(u, 'is_authenticated', True):
+        return []
+
+    try:
+        ep_reg = set(current_app.view_functions.keys())
+    except Exception:
+        ep_reg = set()
+
+    out = []
+    for mod in _MODULOS_HUB:
+        if mod.get('modulo') and not modulo_activo(mod['modulo']):
+            continue
+        ep = mod.get('endpoint')
+        if ep and ep not in ep_reg:
+            continue
+        if not _hub_usuario_tiene_permiso(u, *mod.get('permisos', [])):
+            continue
+        atajos = []
+        for a in mod.get('atajos', []):
+            a_ep = a.get('endpoint')
+            if a_ep and a_ep not in ep_reg:
+                continue
+            if a.get('modulo_item') and not modulo_activo(a['modulo_item']):
+                continue
+            if not _hub_usuario_tiene_permiso(u, *a.get('permisos', [])):
+                continue
+            atajos.append({**a, 'url': _hub_url_para_atajo(a, u)})
+        item = {**mod, 'atajos': atajos}
+        item['url'] = _hub_url_para_modulo(item, u)
+        out.append(item)
+    return out
+
+
+# Cache bust unificado logo / isotipo LhexIA (mayo 2026 — núcleo hexagonal)
+LHEXIA_ASSET_VERSION = 'lhexia20260522corebrand'
+
+
+def _lhexia_static_img_url(filename: str) -> str:
+    return f"{url_for('static', filename=f'img/{filename}')}?v={LHEXIA_ASSET_VERSION}"
+
+
 @app.context_processor
 def inject_company_context():
     try:
         nav = _construir_nav_usuario() if current_user.is_authenticated else []
     except Exception:
         nav = []
+    brand_ctx = {
+        'lhexia_asset_v': LHEXIA_ASSET_VERSION,
+        'lhexia_icon_src': _lhexia_static_img_url('lhexia-icon-approved.png'),
+        'lhexia_brand_src': _lhexia_static_img_url('lhexia-brand-approved.png'),
+        'lhexia_brand_compact_src': _lhexia_static_img_url('lhexia-brand-compact-nav.png'),
+    }
     try:
         return {
             'empresa_cfg': obtener_config_empresa(),
@@ -1745,6 +2054,7 @@ def inject_company_context():
             'usuario_tiene_permiso': usuario_tiene_permiso,
             'modulo_activo': modulo_activo,
             'nav_menu': nav,
+            **brand_ctx,
         }
     except Exception:
         return {
@@ -1753,6 +2063,7 @@ def inject_company_context():
             'usuario_tiene_permiso': lambda _nombre: False,
             'modulo_activo': lambda _nombre: True,
             'nav_menu': [],
+            **brand_ctx,
         }
 
 
@@ -1776,12 +2087,12 @@ def inject_public_seo_urls():
         base = _public_site_base_url()
         return {
             'public_site_url': base,
-            'public_og_image_url': f'{base}/static/img/lhexia-brand-approved.png',
+            'public_og_image_url': f'{base}/static/img/lhexia-brand-approved.png?v={LHEXIA_ASSET_VERSION}',
         }
     except Exception:
         return {
             'public_site_url': 'https://www.lhexia.cl',
-            'public_og_image_url': 'https://www.lhexia.cl/static/img/lhexia-brand-approved.png',
+            'public_og_image_url': f'https://www.lhexia.cl/static/img/lhexia-brand-approved.png?v={LHEXIA_ASSET_VERSION}',
         }
 
 
@@ -5908,6 +6219,38 @@ def consulta_stock_publica():
             'Herramienta pública de disponibilidad para clientes.'
         ),
     )
+# --- HUB MÓDULOS (post-login) ---..................................................................
+@app.route('/hub')
+@app.route('/modulos')
+@login_required
+def erp_hub():
+    modulos = _construir_modulos_hub()
+    if not modulos:
+        flash(
+            'Su usuario no tiene módulos asignados. Solicite permisos al administrador.',
+            'warning',
+        )
+    modulos_ops = [m for m in modulos if m.get('grupo') != 'soporte']
+    modulos_soporte = [m for m in modulos if m.get('grupo') == 'soporte']
+
+    def _grid_cols(n):
+        if n == 4:
+            return 4
+        if n <= 5:
+            return max(n, 1)
+        return 4
+
+    return render_template(
+        'erp_hub.html',
+        modulos=modulos,
+        modulos_ops=modulos_ops,
+        modulos_soporte=modulos_soporte,
+        grid_cols_ops=_grid_cols(len(modulos_ops)),
+        grid_cols_soporte=_grid_cols(len(modulos_soporte)),
+        fecha_hoy=datetime.now().strftime('%d/%m/%Y'),
+    )
+
+
 # --- INICIO - DASHBOARD ---........................................................................
 @app.route('/inicio')
 @login_required
@@ -10985,8 +11328,10 @@ def punto_venta():
     # Buscar la última caja abierta
     caja = obtener_caja_activa()
     if not caja:
-        flash("No hay caja abierta. Debe abrir la caja antes de usar el punto de venta.")
-        return redirect(url_for('mostrar_ventas'))
+        flash("No hay caja abierta. Debe abrir la caja antes de usar el punto de venta.", "warning")
+        if _hub_usuario_tiene_permiso(current_user, 'caja_abrir'):
+            return redirect(url_for('abrir_caja'))
+        return redirect(url_for('caja_pendientes'))
 
     ctx = _pos_pagina_context()
     if not ctx:
@@ -14090,8 +14435,9 @@ def buscar_producto():
         # Subcadena sin LIKE wildcards (%/_ en la búsqueda no rompen el filtro; evita ESCAPE dialect-dependent).
         params = {"lim": fetch_limit, "qplain": q}
         if dn == 'postgresql':
+            # LIKE + lower() permite usar índices GIN pg_trgm (sql/2026_05_21_rendimiento_sd1_postgresql.sql).
             def _substr_match(col: str) -> str:
-                return f"strpos(lower(COALESCE({col},'')), lower(:qplain)) > 0"
+                return f"lower(COALESCE({col},'')) LIKE '%' || lower(:qplain) || '%'"
         elif dn in ('mysql', 'mysqldb', 'mariadb'):
             def _substr_match(col: str) -> str:
                 return f"LOCATE(lower(:qplain), lower(COALESCE({col},''))) > 0"
@@ -15033,6 +15379,22 @@ def consultar_cliente():
         return jsonify({'existe': False, 'error': 'servidor', 'mensaje': str(ex)}), 500
 
 # --- PROCESO DE LOGIN Y LOGOUT ---......................................................
+def _limpiar_sesion_login():
+    """Cierra sesión Flask-Login + cookie remember + datos de sesión."""
+    try:
+        logout_user()
+    except Exception:
+        pass
+    session.clear()
+    session.modified = True
+
+
+def _redirect_pantalla_login(mensaje=None, categoria='info'):
+    if mensaje:
+        flash(mensaje, categoria)
+    return redirect(url_for('login', reauth=1))
+
+
 def _login_pagina_recuperacion():
     """HTML mínimo sin Jinja por si falla render_template o el contexto en /login."""
     cfg = _config_empresa_default()
@@ -15079,30 +15441,8 @@ def _login_next_url_seguro():
 
 
 def _home_por_perfil(usuario):
-    """Elige la landing page segun permisos del usuario recien logueado."""
-    rol = getattr(usuario, 'rol', None)
-    rol_permisos = getattr(rol, 'rol_permisos', []) if rol else []
-    es_admin = _rol_es_administrador_por_nombre(rol)
-    def _tiene(p):
-        if es_admin:
-            return True
-        try:
-            return any(
-                rp.permiso and rp.permiso.nombre == p
-                for rp in rol_permisos
-            )
-        except Exception:
-            return False
-
-    if es_admin or _tiene('panel_gerencia') or _tiene('ver_gerencia'):
-        return url_for('owner_mobile')
-    if _tiene('bodega_operador') and not _tiene('caja_cobrar_vale'):
-        return url_for('bodega_plataforma')
-    if _tiene('caja_cobrar_vale'):
-        return url_for('caja_pendientes')
-    if _tiene('pos_emitir_vale'):
-        return url_for('punto_venta')
-    return url_for('inicio')
+    """Launcher de módulos tras login (salvo ?next= explícito)."""
+    return url_for('erp_hub')
 
 
 def _redirigir_home_erp():
@@ -15115,20 +15455,21 @@ def _redirigir_home_erp():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.args.get('descartar_sesion') == '1':
-        session.clear()
+        _limpiar_sesion_login()
         flash('Sesión descartada. Intenta iniciar sesión de nuevo.', 'info')
-        return redirect(url_for('login'))
+        return redirect(url_for('login', reauth=1))
+
+    reauth = request.args.get('reauth') == '1'
+    if reauth:
+        _limpiar_sesion_login()
 
     try:
         try:
             autenticado = current_user.is_authenticated
         except Exception:
-            try:
-                logout_user()
-            except Exception:
-                pass
+            _limpiar_sesion_login()
             autenticado = False
-        if autenticado:
+        if autenticado and not reauth:
             destino = _login_next_url_seguro()
             if destino:
                 return redirect(destino)
@@ -15206,24 +15547,23 @@ def cambiar_password():
 @app.route('/logout')
 def logout():
     if not current_user.is_authenticated:
-        return redirect(url_for('index'))
+        return _redirect_pantalla_login()
     caja_abierta = obtener_caja_activa()
     if caja_abierta:
         return render_template('confirmar_logout_caja.html', caja=caja_abierta)
-    logout_user()
-    session.clear()
-    flash("Sesión cerrada.", "info")
-    return redirect(url_for('index'))
+    _limpiar_sesion_login()
+    return _redirect_pantalla_login('Sesión cerrada.')
 
 
 @app.route('/logout/forzar', methods=['POST'])
 @login_required
 def logout_forzar():
     """Cierra sesión aunque la caja siga abierta (tras confirmación explícita del usuario)."""
-    logout_user()
-    session.clear()
-    flash("Sesión cerrada. Recuerde revisar el estado de la caja si quedó abierta.", "warning")
-    return redirect(url_for('index'))
+    _limpiar_sesion_login()
+    return _redirect_pantalla_login(
+        'Sesión cerrada. Recuerde revisar el estado de la caja si quedó abierta.',
+        'warning',
+    )
 
 
 # --- gestión de usuarios ---........................................................
