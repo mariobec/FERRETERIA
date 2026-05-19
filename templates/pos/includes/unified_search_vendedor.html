@@ -2,17 +2,26 @@
 <div class="pos-unified-search-card mb-3">
   <form method="POST" action="{{ url_for('agregar_producto_venta') }}" class="m-0" id="formAgregarProductoBusqueda">
     <input type="hidden" name="producto_id" id="posSeleccionProductoId" value="">
-    <input type="hidden" id="posFiltroBusqueda" value="operativo" autocomplete="off">
+    <input type="hidden" id="posFiltroBusqueda" value="tienda" autocomplete="off">
 
     <div class="pos-unified-search-hero">
       <div class="pos-search-hero__inner">
         <div class="pos-search-hero__toolbar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-          <div class="pos-search-filters d-flex gap-2 flex-wrap" role="group" aria-label="Filtro listado POS">
-            <button type="button" class="btn btn-sm btn-primary" id="posBtnFiltroOperativo" title="Tienda, bodega y a pedido">Operativo</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnFiltroTienda" title="Solo mostrador">Solo tienda</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnFiltroCatalogo" title="Catálogo completo">Catálogo</button>
+          <div class="pos-search-filter-bar" role="group" aria-label="Filtro listado POS">
+            <button type="button" class="pos-filter-pill pos-filter-pill--active" id="posBtnFiltroTienda" data-filter="tienda" title="Solo mostrador con stock en tienda">
+              <i class="fas fa-store pos-filter-pill__icon" aria-hidden="true"></i>
+              <span class="pos-filter-pill__label">Tienda</span>
+            </button>
+            <button type="button" class="pos-filter-pill" id="posBtnFiltroOperativo" data-filter="operativo" title="Tienda, bodega y a pedido">
+              <i class="fas fa-layer-group pos-filter-pill__icon" aria-hidden="true"></i>
+              <span class="pos-filter-pill__label">Operativo</span>
+            </button>
+            <button type="button" class="pos-filter-pill" id="posBtnFiltroCatalogo" data-filter="catalogo" title="Catálogo completo">
+              <i class="fas fa-book pos-filter-pill__icon" aria-hidden="true"></i>
+              <span class="pos-filter-pill__label">Catálogo</span>
+            </button>
           </div>
-          <button type="button" class="btn btn-sm btn-link text-secondary py-0" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">Foto</button>
+          <button type="button" class="btn btn-sm btn-link text-secondary py-0 pos-search-foto-link" data-bs-toggle="modal" data-bs-target="#modalPosFotoSku">Foto</button>
         </div>
 
         <label class="visually-hidden" for="posBuscarManual">Buscar o escanear producto</label>

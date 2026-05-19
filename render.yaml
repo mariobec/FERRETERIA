@@ -2,11 +2,12 @@ services:
   - type: web
     name: erp-ferreteria-demo
     runtime: python
-    plan: starter
+    # SD-1 rendimiento: 4 POS + caja + bodega (~6 hilos concurrentes). Ver PLAN_RENDIMIENTO_BD_SD1.md
+    plan: standard
     buildCommand: pip install -r requirements.txt
     # Migra/crea tablas y roles antes de levantar Gunicorn (idempotente con schema_sync).
     preDeployCommand: python init_db.py
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 90 --graceful-timeout 20 --access-logfile -
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90 --graceful-timeout 20 --access-logfile -
     healthCheckPath: /healthz
     autoDeployTrigger: commit
     envVars:
@@ -28,10 +29,21 @@ services:
         generateValue: true
       - key: FLASK_DEBUG
         value: "0"
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: BEHIND_PROXY
+        value: "1"
       - key: PUBLICO_MUESTRA_PRECIO
         value: "0"
       - key: PUBLICO_MUESTRA_STOCK_EXACTO
         value: "0"
+      # Pool SQLAlchemy — Neon pooler + 6 estaciones (ver docs/planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md)
+      - key: DB_POOL_SIZE
+        value: "10"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+      - key: DB_POOL_TIMEOUT
+        value: "30"
       # Paridad con defaults de app.py / tienda (opcional; mismo texto que en .env.local).
       - key: EMPRESA_NOMBRE_COMERCIAL
         sync: false

@@ -111,7 +111,7 @@
                    data-stock-disponible="{{ st_tienda_linea }}">
             <button type="button" class="btn btn-outline-secondary btn-ajustar-cantidad" data-detalle-id="{{ d.id }}" data-delta="1" data-precio="{{ d.precio_unitario }}">+</button>
           </div>
-          <small class="text-danger d-none" id="stock_alert_{{ d.id }}">Sin stock tienda</small>
+          <small class="text-danger d-none" id="stock_alert_{{ d.id }}">Excede stock en tienda</small>
           <input type="hidden" id="descuento_{{ d.id }}" value="{{ d.descuento or 0 }}"
                  class="descuento-input" data-detalle-id="{{ d.id }}" data-precio="{{ d.precio_unitario }}"
                  data-descuento-servidor="{{ (d.descuento or 0)|float }}">
@@ -239,7 +239,7 @@
 {% include 'pos/includes/ticket_emitido_autoprint.html' %}
 
 <script id="pos-config" type="application/json">{{ {
-  'descuento_libre': usuario_tiene_permiso('autorizar_descuento_pos'),
+  'descuento_libre': false,
   'cross_sell_enabled': pos_cross_sell_enabled,
   'producto_ids': pids,
   'urls': {

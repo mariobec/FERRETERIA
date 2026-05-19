@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h2 class="page-title"><i class="fas fa-id-card me-2 text-primary"></i>POS — Autorización de descuentos</h2>
+      <p class="page-subtitle mb-0">Todo descuento en POS exige tarjeta de supervisor (o producto preautorizado en catálogo). PIN 4 dígitos si supera el umbral. Autorización por comportamiento del cliente: fase posterior.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('admin_empresa') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-building me-1"></i> Empresa</a>
+      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-home me-1"></i> Inicio</a>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4">
+    <div class="card-header fw-bold"><i class="fas fa-percent me-2"></i>Umbral para exigir PIN</div>
+    <div class="card-body">
+      <form method="POST" class="row g-3 align-items-end">
+        <input type="hidden" name="accion" value="guardar_umbral">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold" for="pos_descuento_umbral_pin_pct">Descuento mayor a (%)</label>
+          <div class="input-group">
+            <input type="number" class="form-control" id="pos_descuento_umbral_pin_pct" name="pos_descuento_umbral_pin_pct"
+                   min="0" max="100" step="0.5" value="{{ umbral_pin }}" required>
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="form-text">Cualquier descuento &gt; 0 exige <strong>tarjeta</strong> (salvo productos preautorizados). Si el % supera este valor, además <strong>PIN de 4 dígitos</strong>.</div>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-ds-primary"><i class="fas fa-save me-1"></i> Guardar umbral</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if tarjeta_nueva %}
+  <div class="alert alert-success border-success">
+    <strong>Tarjeta nueva para {{ tarjeta_nueva.nombre }}</strong> — imprima o copie el código; no volverá a mostrarse.
+    <div class="mt-3 p-3 bg-white rounded border text-center">
+      <svg id="barcodeTarjetaSup" jsbarcode-format="CODE128"
+           jsbarcode-value="{{ tarjeta_nueva.token }}"
+           jsbarcode-width="2" jsbarcode-height="56" jsbarcode-displayvalue="true"
+           jsbarcode-fontsize="14" jsbarcode-margin="8"></svg>
+      <p class="small text-muted mt-2 mb-0 font-monospace">{{ tarjeta_nueva.token }}</p>
+      <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="window.print()"><i class="fas fa-print me-1"></i> Imprimir tarjeta</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card card-ds mb-4">
+    <div class="card-header fw-bold"><i class="fas fa-tags me-2"></i>Productos con descuento preautorizado</div>
+    <div class="card-body">
+      <p class="small text-muted">Estos ítems pueden llevar descuento en POS hasta el tope % <strong>sin</strong> tarjeta de supervisor. La autorización por historial de compras/pagos del cliente se habilitará más adelante.</p>
+      <form method="GET" class="row g-2 mb-3 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label" for="q_producto_preauth">Buscar producto</label>
+          <input type="text" class="form-control" id="q_producto_preauth" name="q"
+                 value="{{ q_producto_preauth or '' }}" placeholder="Código de barras o nombre">
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="btn btn-outline-primary"><i class="fas fa-search me-1"></i> Buscar</button>
+        </div>
+      </form>
+      {% if producto_preauth_edit %}
+      <form method="POST" class="border rounded p-3 bg-light mb-3">
+        <input type="hidden" name="accion" value="guardar_producto_preauth">
+        <input type="hidden" name="producto_id" value="{{ producto_preauth_edit.id }}">
+        <p class="mb-2"><strong>{{ producto_preauth_edit.nombre }}</strong>
+          <span class="text-muted small">({{ producto_preauth_edit.codigo_barra }})</span></p>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="pos_descuento_preautorizado" value="1" id="preauth_chk"
+                     {% if producto_preauth_edit.pos_descuento_preautorizado %}checked{% endif %}>
+              <label class="form-check-label" for="preauth_chk">Descuento preautorizado en POS</label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="preauth_pct">Tope % sin supervisor</label>
+            <input type="number" class="form-control" id="preauth_pct" name="pos_descuento_preautorizado_pct"
+                   min="0" max="100" step="0.5"
+                   value="{{ producto_preauth_edit.pos_descuento_preautorizado_pct or '' }}">
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-ds-primary"><i class="fas fa-save me-1"></i> Guardar producto</button>
+          </div>
+        </div>
+      </form>
+      {% endif %}
+      {% if productos_preauth_lista %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>Código</th><th>Producto</th><th>Tope %</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for p in productos_preauth_lista %}
+            <tr>
+              <td class="font-monospace small">{{ p.codigo_barra }}</td>
+              <td>{{ p.nombre }}</td>
+              <td>{{ p.pos_descuento_preautorizado_pct or 0 }}%</td>
+              <td class="text-end">
+                <a href="{{ url_for('admin_pos_autorizacion', q=p.codigo_barra) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="small text-muted mb-0">Ningún producto marcado aún. Busque por código o nombre para configurar.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold"><i class="fas fa-user-shield me-2"></i>Supervisores</div>
+    <div class="card-body p-0">
+      {% if not supervisores %}
+      <p class="p-4 mb-0 text-muted">No hay usuarios activos con permiso <code>autorizar_descuento_pos</code>. Asigne el permiso en Roles y permisos.</p>
+      {% else %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Supervisor</th>
+              <th>PIN</th>
+              <th>Tarjeta activa</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in supervisores %}
+            {% set u = row.usuario %}
+            <tr>
+              <td>
+                <strong>{{ u.nombre }}</strong><br>
+                <span class="small text-muted">{{ u.correo }}</span>
+              </td>
+              <td>
+                {% if row.tiene_pin %}
+                <span class="badge text-bg-success">Configurado</span>
+                {% else %}
+                <span class="badge text-bg-warning text-dark">Sin PIN</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.tarjeta %}
+                <span class="badge text-bg-primary">Activa</span>
+                <span class="small text-muted d-block">desde {{ row.tarjeta.creado_en.strftime('%d/%m/%Y') if row.tarjeta.creado_en else '—' }}</span>
+                {% else %}
+                <span class="badge text-bg-secondary">Sin tarjeta</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-flex flex-wrap gap-2 justify-content-end">
+                  <form method="POST" class="d-inline-flex gap-1 align-items-center">
+                    <input type="hidden" name="accion" value="guardar_pin">
+                    <input type="hidden" name="usuario_id" value="{{ u.id }}">
+                    <input type="password" name="pin_autorizacion" class="form-control form-control-sm" style="width:5.5rem"
+                           maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="PIN" autocomplete="new-password" required>
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="PIN 4 dígitos">PIN</button>
+                  </form>
+                  <form method="POST" class="d-inline" onsubmit="return confirm('¿Generar nueva tarjeta? La anterior quedará revocada.');">
+                    <input type="hidden" name="accion" value="generar_tarjeta">
+                    <input type="hidden" name="usuario_id" value="{{ u.id }}">
+                    <button type="submit" class="btn btn-sm btn-ds-primary"><i class="fas fa-barcode me-1"></i> Tarjeta</button>
+                  </form>
+                  {% if row.tarjeta %}
+                  <form method="POST" class="d-inline" onsubmit="return confirm('¿Revocar tarjeta activa?');">
+                    <input type="hidden" name="accion" value="revocar_tarjeta">
+                    <input type="hidden" name="usuario_id" value="{{ u.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Revocar</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if tarjeta_nueva %}
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  if (typeof JsBarcode !== 'undefined') {
+    JsBarcode('#barcodeTarjetaSup').init();
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

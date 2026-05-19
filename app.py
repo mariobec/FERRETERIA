@@ -483,6 +483,10 @@ def _config_empresa_default():
         "pos_ticket_qr_despacho": "1",
         # Tras emitir vale: "1" = abrir iframe oculto y disparar ventana de impresión del navegador automáticamente
         "pos_autoprint_ticket_emitido": "0",
+        # Descuento POS: exigir PIN de 4 dígitos si el % autorizado supera este umbral (tarjeta siempre)
+        "pos_descuento_umbral_pin_pct": "20",
+        # Futuro: autorización por comportamiento de compra/pago del cliente (0=apagado)
+        "pos_descuento_autorizacion_por_cliente": "0",
     }
 
 
@@ -523,6 +527,17 @@ def pos_rut_obligatorio_en_emitir():
     if raw is not None:
         return str(raw).strip().lower() not in ('0', 'false', 'off', 'no')
     return _pos_rut_obligatorio_session()
+
+
+def _pos_descuento_umbral_pin_pct():
+    """Umbral %: sobre este valor se exige PIN además de tarjeta supervisor."""
+    try:
+        v = float(
+            str(obtener_config_empresa().get('pos_descuento_umbral_pin_pct', '20')).replace(',', '.')
+        )
+        return max(0.0, min(100.0, v))
+    except (TypeError, ValueError):
+        return 20.0
 
 
 def _pos_retiro_por_linea_empresa():
@@ -1682,6 +1697,8 @@ _NAV_MAP = [
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_roles_permisos']},
             {'label': 'Datos de empresa', 'icon': 'fa-building', 'endpoint': 'admin_empresa',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_empresa']},
+            {'label': 'POS — autorización descuentos', 'icon': 'fa-id-card', 'endpoint': 'admin_pos_autorizacion',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_pos_autorizacion']},
             {'label': 'Usuarios y roles', 'icon': 'fa-users-cog', 'endpoint': 'usuarios',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['usuarios', 'editar_usuario']},
             {'label': 'Log auditoría ERP', 'icon': 'fa-scroll', 'endpoint': 'admin_erp_audit_log',
@@ -1941,18 +1958,30 @@ def _hub_usuario_tiene_permiso(usuario, *permisos):
     return any(usuario_obj_tiene_permiso(usuario, p) for p in permisos)
 
 
+def _pos_url_destino(usuario=None):
+    """
+    URL al POS pantalla vendedora (fullwidth, sin sidebar ERP).
+    Admin/supervisor: ?layout=vendedor para no caer en el POS clásico del menú lateral.
+    """
+    u = usuario if usuario is not None else current_user
+    kwargs = {}
+    if _rol_es_administrador_por_nombre(getattr(u, 'rol', None)):
+        kwargs['layout'] = 'vendedor'
+    return url_for('punto_venta', **kwargs)
+
+
 def _hub_url_para_modulo(mod, usuario):
     """URL destino de cada tarjeta del hub (lógica operativa, no solo endpoint genérico)."""
     mod_id = (mod.get('id') or '').strip()
 
     if mod_id == 'pos':
         if obtener_caja_activa():
-            return url_for('punto_venta')
+            return _pos_url_destino(usuario)
         if _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
-            return url_for('abrir_caja')
+            return url_for('abrir_caja', next=_pos_url_destino(usuario))
         if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale'):
             return url_for('caja_pendientes')
-        return url_for('punto_venta')
+        return _pos_url_destino(usuario)
 
     if mod_id == 'caja':
         if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale'):
@@ -1985,7 +2014,7 @@ def _hub_url_para_atajo(atajo, usuario):
         return url_for('erp_hub')
     if ep == 'mostrar_ventas' and _hub_usuario_tiene_permiso(usuario, 'pos_emitir_vale'):
         if obtener_caja_activa():
-            return url_for('punto_venta')
+            return _pos_url_destino(usuario)
     return url_for(ep)
 
 
@@ -2047,6 +2076,11 @@ def inject_company_context():
         'lhexia_brand_src': _lhexia_static_img_url('lhexia-brand-approved.png'),
         'lhexia_brand_compact_src': _lhexia_static_img_url('lhexia-brand-compact-nav.png'),
     }
+    try:
+        if current_user.is_authenticated:
+            brand_ctx['pos_url_destino'] = _pos_url_destino(current_user)
+    except Exception:
+        brand_ctx['pos_url_destino'] = None
     try:
         return {
             'empresa_cfg': obtener_config_empresa(),
@@ -2452,6 +2486,8 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_columnas_ventas_legacy()
                     _asegurar_columnas_productos_legacy()
                     _asegurar_columnas_detalle_ventas_legacy()
+                    _asegurar_columnas_usuario_pin_autorizacion()
+                    _asegurar_tabla_usuario_tarjeta_autorizacion()
                     _asegurar_columnas_customer_360_legacy()
                     _asegurar_tabla_c360_llamadas_snapshot()
                     _asegurar_tabla_cobranza_whatsapp_log()
@@ -2566,6 +2602,9 @@ class Producto(db.Model):
     ubicacion_estante = db.Column(db.String(12))
     ubicacion_nivel = db.Column(db.String(12))
     activo = db.Column(db.Boolean, default=True)
+    # POS: descuento en catálogo preaprobado (sin tarjeta supervisor hasta el tope %)
+    pos_descuento_preautorizado = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
+    pos_descuento_preautorizado_pct = db.Column(db.Float, nullable=True)
     # Taxonomía obra (Customer 360 / motor predictivo). NULL = sin clasificar.
     fase_obra = db.Column(db.String(32), nullable=True)
 
@@ -4533,9 +4572,16 @@ class DetalleVenta(db.Model):
     precio_unitario = db.Column(db.Float, nullable=False, default=0.0)
     descuento = db.Column(db.Float, default=0.0)
     subtotal = db.Column(db.Float, default=0.0)
+    descuento_autorizado_por_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
+    descuento_autorizado_en = db.Column(db.DateTime, nullable=True)
+    descuento_autorizado_metodo = db.Column(db.String(24), nullable=True)
 
     # Relación con producto
     producto = db.relationship('Producto')
+    supervisor_autorizo = db.relationship(
+        'Usuario',
+        foreign_keys=[descuento_autorizado_por_id],
+    )
 
 
 class VentaAPedido(db.Model):
@@ -4800,10 +4846,16 @@ class Usuario(UserMixin, db.Model):
     nombre = db.Column(db.String(100), nullable=False)
     correo = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.Text, nullable=False)
+    pin_autorizacion_hash = db.Column(db.Text, nullable=True)
     rol_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
     perfil = db.Column(db.String(20))
 
     rol = db.relationship('Rol', back_populates='usuarios')
+    tarjetas_autorizacion = db.relationship(
+        'UsuarioTarjetaAutorizacion',
+        back_populates='usuario',
+        foreign_keys='UsuarioTarjetaAutorizacion.usuario_id',
+    )
 
     # Guardar contraseña encriptada
     def set_password(self, password):
@@ -4812,6 +4864,39 @@ class Usuario(UserMixin, db.Model):
     # Verificar contraseña
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def set_pin_autorizacion(self, pin_cuatro_digitos):
+        from services.pos_autorizacion_descuento_service import hash_pin
+
+        self.pin_autorizacion_hash = hash_pin(pin_cuatro_digitos)
+
+    def check_pin_autorizacion(self, pin_cuatro_digitos):
+        from services.pos_autorizacion_descuento_service import verificar_pin
+
+        if not self.pin_autorizacion_hash:
+            return False
+        return verificar_pin(pin_cuatro_digitos, self.pin_autorizacion_hash)
+
+
+class UsuarioTarjetaAutorizacion(db.Model):
+    """Tarjeta física (código de barras) para autorizar descuentos en POS."""
+
+    __tablename__ = 'usuario_tarjeta_autorizacion'
+
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False, index=True)
+    token_hash = db.Column(db.Text, nullable=False)
+    etiqueta = db.Column(db.String(80), nullable=True)
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    revocado_en = db.Column(db.DateTime, nullable=True)
+    ultimo_uso_en = db.Column(db.DateTime, nullable=True)
+
+    usuario = db.relationship(
+        'Usuario',
+        back_populates='tarjetas_autorizacion',
+        foreign_keys=[usuario_id],
+    )
 
 # 10. Permisos y relación con roles para control de acceso granular
 class Permiso(db.Model):
@@ -10993,6 +11078,23 @@ def _asegurar_columnas_productos_legacy():
         if 'activo' not in cols:
             db.session.execute(text("ALTER TABLE productos ADD COLUMN activo BOOLEAN DEFAULT TRUE"))
             cambios = True
+        if 'pos_descuento_preautorizado' not in cols:
+            dn = (db.engine.dialect.name or '').lower()
+            if dn == 'postgresql':
+                db.session.execute(text(
+                    "ALTER TABLE productos ADD COLUMN IF NOT EXISTS pos_descuento_preautorizado "
+                    "BOOLEAN NOT NULL DEFAULT FALSE"
+                ))
+            else:
+                db.session.execute(text(
+                    "ALTER TABLE productos ADD COLUMN pos_descuento_preautorizado BOOLEAN NOT NULL DEFAULT 0"
+                ))
+            cambios = True
+        if 'pos_descuento_preautorizado_pct' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE productos ADD COLUMN pos_descuento_preautorizado_pct NUMERIC(8,2) NULL"
+            ))
+            cambios = True
         if cambios:
             db.session.commit()
         app.config['_PRODUCTOS_LEGACY_OK'] = True
@@ -11037,6 +11139,21 @@ def _asegurar_columnas_detalle_ventas_legacy():
                     "ALTER TABLE detalle_ventas ADD COLUMN a_pedido BOOLEAN NOT NULL DEFAULT 0"
                 ))
             cambios = True
+        if 'descuento_autorizado_por_id' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE detalle_ventas ADD COLUMN descuento_autorizado_por_id INTEGER NULL"
+            ))
+            cambios = True
+        if 'descuento_autorizado_en' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE detalle_ventas ADD COLUMN descuento_autorizado_en TIMESTAMP NULL"
+            ))
+            cambios = True
+        if 'descuento_autorizado_metodo' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE detalle_ventas ADD COLUMN descuento_autorizado_metodo VARCHAR(24) NULL"
+            ))
+            cambios = True
         if cambios:
             db.session.commit()
         app.config['_DETALLE_VENTAS_LEGACY_OK'] = True
@@ -11044,6 +11161,40 @@ def _asegurar_columnas_detalle_ventas_legacy():
     except Exception as ex:
         db.session.rollback()
         app.logger.exception("No se pudo asegurar columnas legacy de detalle_ventas: %s", ex)
+        return False
+
+
+def _asegurar_columnas_usuario_pin_autorizacion():
+    """PIN de 4 dígitos para autorizar descuentos altos en POS."""
+    if app.config.get('_USUARIO_PIN_AUTORIZACION_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'usuarios' not in set(insp.get_table_names()):
+            app.config['_USUARIO_PIN_AUTORIZACION_OK'] = True
+            return True
+        cols = {c['name'] for c in insp.get_columns('usuarios')}
+        if 'pin_autorizacion_hash' not in cols:
+            db.session.execute(text("ALTER TABLE usuarios ADD COLUMN pin_autorizacion_hash TEXT NULL"))
+            db.session.commit()
+        app.config['_USUARIO_PIN_AUTORIZACION_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar pin_autorizacion_hash en usuarios: %s', ex)
+        return False
+
+
+def _asegurar_tabla_usuario_tarjeta_autorizacion():
+    """Tarjetas código de barras para supervisores (autorización descuento POS)."""
+    if app.config.get('_USUARIO_TARJETA_AUTORIZACION_OK'):
+        return True
+    try:
+        UsuarioTarjetaAutorizacion.__table__.create(bind=db.engine, checkfirst=True)
+        app.config['_USUARIO_TARJETA_AUTORIZACION_OK'] = True
+        return True
+    except Exception as ex:
+        app.logger.exception('No se pudo crear tabla usuario_tarjeta_autorizacion: %s', ex)
         return False
 
 
@@ -11202,13 +11353,15 @@ def _pos_enlazar_cliente_desde_cotizacion(venta, cotizacion_origen):
 
 
 def _pos_layout_fullwidth_vendedor() -> bool:
-    """POS premium: ocultar sidebar ERP para vendedores (no administradores)."""
+    """POS pantalla vendedora (sin sidebar). Vendedor: siempre. Admin: con ?layout=vendedor."""
     try:
         if not current_user.is_authenticated:
             return False
-        if usuario_tiene_permiso('gestionar_usuarios'):
+        if not usuario_tiene_permiso('pos_emitir_vale'):
             return False
-        return bool(usuario_tiene_permiso('pos_emitir_vale'))
+        if usuario_tiene_permiso('gestionar_usuarios'):
+            return (request.args.get('layout') or '').strip().lower() == 'vendedor'
+        return True
     except Exception:
         return False
 
@@ -11277,6 +11430,20 @@ def _pos_pagina_context():
             experience_wall_url = url_for('pos_experience_wall', token=wall_token, _external=True)
         except Exception:
             experience_wall_url = url_for('pos_experience_wall', token=wall_token)
+    pos_vale_resume = {
+        'show': False,
+        'venta_id': None,
+        'items_count': 0,
+        'total_fmt': '$0',
+    }
+    if venta and detalles and (venta.estado or '').strip() == 'Abierta':
+        total_monto = float(venta.monto_total or 0)
+        pos_vale_resume = {
+            'show': True,
+            'venta_id': int(venta.id),
+            'items_count': len(detalles),
+            'total_fmt': f'${total_monto:,.0f}'.replace(',', '.'),
+        }
     return {
         'venta': venta,
         'caja': caja,
@@ -11304,6 +11471,8 @@ def _pos_pagina_context():
         'pos_autoprint_ticket_emitido': _pos_autoprint_ticket_emitido_empresa(),
         'pos_dias_entrega_a_pedido': pos_dias_entrega_estimado(),
         'pos_layout_fullwidth': _pos_layout_fullwidth_vendedor(),
+        'pos_descuento_umbral_pin_pct': _pos_descuento_umbral_pin_pct(),
+        'pos_vale_resume': pos_vale_resume,
         'puede_ver_creditos': puede_ver_creditos_cartera(),
         'puede_registrar_abono': puede_registrar_abono_credito(),
         'pos_credito_urls': _pos_credito_urls_js(),
@@ -11321,6 +11490,8 @@ def punto_venta():
     if not _asegurar_tabla_ventas_a_pedido():
         flash("No se pudo preparar seguimiento de ventas a pedido. Revise permisos de BD.", "danger")
         return redirect(url_for('mostrar_ventas'))
+    _asegurar_columnas_usuario_pin_autorizacion()
+    _asegurar_tabla_usuario_tarjeta_autorizacion()
     if not _asegurar_columnas_ventas_legacy():
         flash("No se pudo preparar la tabla de ventas (campos legacy). Revise permisos de BD.", "danger")
         return redirect(url_for('mostrar_ventas'))
@@ -11330,7 +11501,7 @@ def punto_venta():
     if not caja:
         flash("No hay caja abierta. Debe abrir la caja antes de usar el punto de venta.", "warning")
         if _hub_usuario_tiene_permiso(current_user, 'caja_abrir'):
-            return redirect(url_for('abrir_caja'))
+            return redirect(url_for('abrir_caja', next=_pos_url_destino(current_user)))
         return redirect(url_for('caja_pendientes'))
 
     ctx = _pos_pagina_context()
@@ -11351,8 +11522,8 @@ def punto_venta():
 
 
 def pos_acceso_directo():
-    """Marcador / escritorio vendedor → punto de venta (misma pantalla sin menú ERP)."""
-    return redirect(url_for('punto_venta'))
+    """Marcador / escritorio vendedor → POS pantalla vendedora (fullwidth)."""
+    return redirect(_pos_url_destino())
 
 
 def pos_command_deck():
@@ -12322,6 +12493,60 @@ def api_pos_vales_hoy():
     return jsonify({'ok': True, 'items': items})
 
 
+def api_pos_nueva_venta():
+    """Descarta el borrador Abierta actual (si tiene líneas) y deja un vale vacío listo."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'mensaje': 'Sin permiso.'}), 403
+    caja = obtener_caja_activa()
+    if not caja:
+        return jsonify({'ok': False, 'mensaje': 'No hay caja abierta.'}), 400
+    vendedor = _nombre_usuario_pos_actual()
+    data = request.get_json(silent=True) or {}
+    motivo = (data.get('motivo') or 'POS — nueva venta (borrador descartado)').strip()[:500]
+    try:
+        with transaccion_critica():
+            venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor)
+            if venta and list(venta.detalles or []):
+                venta.estado = 'Anulada'
+                venta.motivo_anulacion = motivo or None
+                venta.fecha_anulacion = datetime.now()
+                venta.usuario_anulacion = (vendedor or '')[:80] or None
+                venta = None
+            if venta and not list(venta.detalles or []):
+                venta.cliente_id = None
+                venta.cotizacion_origen_id = None
+                venta.monto_total = 0
+                venta_id = venta.id
+            else:
+                nueva = Venta(
+                    usuario=vendedor,
+                    estado='Abierta',
+                    monto_total=0,
+                    caja_id=caja.id,
+                    fecha=db.func.current_timestamp(),
+                )
+                db.session.add(nueva)
+                db.session.flush()
+                venta_id = nueva.id
+        db.session.commit()
+        _pos_cross_sell_clear_session_nueva_venta_pos()
+        try:
+            _audit_log(
+                'pos_nueva_venta',
+                'venta',
+                venta_id,
+                usuario=vendedor,
+                datos_despues={'caja_id': caja.id},
+            )
+        except Exception:
+            pass
+        return jsonify({'ok': True, 'venta_id': venta_id, 'mensaje': 'Nueva venta lista.'})
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_pos_nueva_venta: %s', ex)
+        return jsonify({'ok': False, 'mensaje': f'No se pudo iniciar nueva venta: {ex}'}), 500
+
+
 def api_pos_carrito_html():
     """JSON: fragmento HTML del carrito premium (pantalla vendedora, sin recargar página)."""
     if not usuario_tiene_permiso('pos_emitir_vale'):
@@ -12689,6 +12914,7 @@ def pos_ticket_vale(venta_id):
     venta = Venta.query.options(
         joinedload(Venta.cliente),
         joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        joinedload(Venta.detalles).joinedload(DetalleVenta.supervisor_autorizo),
     ).get_or_404(int(venta_id))
     st_ticket = (venta.estado or '').strip()
     if st_ticket not in ('Pendiente', 'Abierta'):
@@ -12862,6 +13088,23 @@ def finalizar_venta():
         return redirect(url_for('punto_venta'))
     if not list(venta.detalles or []):
         flash("Agregue al menos un producto (escanear o búsqueda) antes de emitir el vale.", "warning")
+        return redirect(url_for('punto_venta'))
+    _asegurar_columnas_detalle_ventas_legacy()
+    _asegurar_columnas_productos_legacy()
+    from services.pos_autorizacion_descuento_service import detalle_descuento_autorizacion_valida
+
+    lineas_sin_auth = []
+    for d in list(venta.detalles or []):
+        if float(d.descuento or 0) > 1e-6 and not detalle_descuento_autorizacion_valida(d):
+            nom = (d.producto.nombre[:40] if d.producto else f'Línea {d.id}')
+            lineas_sin_auth.append(nom)
+    if lineas_sin_auth:
+        flash(
+            'No se puede emitir el vale: hay descuentos sin autorización de supervisor. '
+            'Guarde cada línea con tarjeta/PIN o quite el descuento. '
+            + '; '.join(lineas_sin_auth[:3]),
+            'warning',
+        )
         return redirect(url_for('punto_venta'))
     if float(venta.monto_total or 0) <= 0:
         try:
@@ -13073,6 +13316,108 @@ def editar_venta(id):
     return render_template('editar_venta.html', venta=venta, productos=productos)
 
 
+def _validar_autorizacion_descuento_pos(descuento_pct, request_form):
+    """
+    Valida tarjeta supervisor (+ PIN si % > umbral) o credenciales legacy.
+    Retorna (supervisor_usuario|None, metodo_str|None, error_mensaje|None).
+    """
+    from services import pos_autorizacion_descuento_service as pos_aut_svc
+
+    _asegurar_columnas_usuario_pin_autorizacion()
+    _asegurar_tabla_usuario_tarjeta_autorizacion()
+
+    umbral = _pos_descuento_umbral_pin_pct()
+    token_raw = (request_form.get('supervisor_tarjeta') or '').strip()
+    pin = (request_form.get('supervisor_pin') or '').strip()
+
+    if token_raw:
+        sup, err = pos_aut_svc.resolver_supervisor_por_tarjeta(
+            db,
+            {
+                'Usuario': Usuario,
+                'UsuarioTarjetaAutorizacion': UsuarioTarjetaAutorizacion,
+                'usuario_obj_tiene_permiso': usuario_obj_tiene_permiso,
+                'usuario_esta_activo': usuario_esta_activo,
+            },
+            token_raw,
+        )
+        if err == 'inactive':
+            return None, None, 'La tarjeta pertenece a un usuario inactivo.'
+        if err == 'no_permiso':
+            return None, None, 'Ese supervisor no tiene permiso para autorizar descuentos.'
+        if not sup:
+            return None, None, 'Tarjeta de supervisor no reconocida o revocada.'
+        if pos_aut_svc.requiere_pin_para_descuento(descuento_pct, umbral):
+            if not pos_aut_svc.pin_valido_formato(pin):
+                return (
+                    None,
+                    None,
+                    f'Descuento sobre {umbral:g}%: ingrese PIN de 4 dígitos del supervisor.',
+                )
+            if not sup.check_pin_autorizacion(pin):
+                return None, None, 'PIN de supervisor incorrecto.'
+        elif pin and not sup.check_pin_autorizacion(pin):
+            return None, None, 'PIN de supervisor incorrecto.'
+        metodo = pos_aut_svc.metodo_autorizacion_label(descuento_pct, umbral, uso_password=False)
+        return sup, metodo, None
+
+    # Legacy: usuario + contraseña ERP (respaldo)
+    ident_raw = (
+        request_form.get('supervisor_identificador')
+        or request_form.get('supervisor_correo')
+        or ''
+    ).strip()
+    pwd = request_form.get('supervisor_clave') or ''
+    if not ident_raw or not pwd:
+        return (
+            None,
+            None,
+            'Escanee la tarjeta del supervisor. Si el descuento supera el umbral, también el PIN de 4 dígitos.',
+        )
+    sup, err_lookup = resolver_usuario_por_identificador_pos(ident_raw)
+    if err_lookup == 'ambiguous_email_local':
+        return None, None, 'Varios correos coinciden; use el correo completo del supervisor.'
+    if err_lookup == 'ambiguous_nombre':
+        return None, None, 'Hay más de un usuario con ese nombre; use correo completo.'
+    if (
+        not sup
+        or err_lookup == 'not_found'
+        or not sup.check_password(pwd)
+        or not usuario_esta_activo(sup)
+        or not usuario_obj_tiene_permiso(sup, 'autorizar_descuento_pos')
+    ):
+        return None, None, 'Autorización inválida: usuario, permiso o contraseña incorrectos.'
+    metodo = pos_aut_svc.metodo_autorizacion_label(descuento_pct, umbral, uso_password=True)
+    return sup, metodo, None
+
+
+def _registrar_autorizacion_descuento_en_linea(detalle, supervisor, metodo, desc_anterior, desc_nuevo):
+    """Persiste quién autorizó y deja rastro en erp_audit_log."""
+    detalle.descuento_autorizado_por_id = supervisor.id
+    detalle.descuento_autorizado_en = datetime.utcnow()
+    detalle.descuento_autorizado_metodo = (metodo or '')[:24]
+    try:
+        _audit_log(
+            'pos_descuento_autorizado',
+            'detalle_venta',
+            detalle.id,
+            datos_antes={
+                'descuento_pct': desc_anterior,
+                'venta_id': detalle.id_venta,
+            },
+            datos_despues={
+                'descuento_pct': desc_nuevo,
+                'venta_id': detalle.id_venta,
+                'supervisor_id': supervisor.id,
+                'supervisor_nombre': (supervisor.nombre or '')[:80],
+                'metodo': metodo,
+                'producto_id': detalle.id_producto,
+            },
+        )
+    except Exception:
+        pass
+
+
 def pos_usuarios_autorizar_descuento():
     """Lista usuarios activos que pueden autorizar aumento de descuento en POS (autocompletado)."""
     q = (request.args.get('q') or '').strip().lower()
@@ -13161,7 +13506,8 @@ def actualizar_item():
     solo_cantidad = request.form.get('solo_cantidad') == '1'
     try:
         cantidad = int(request.form.get(f'cantidad_{detalle_id}', 1))
-        descuento = float(request.form.get(f'descuento_{detalle_id}', 0))
+        raw_desc = request.form.get(f'descuento_{detalle_id}', 0)
+        descuento = float(raw_desc) if str(raw_desc).strip() != '' else 0.0
     except (TypeError, ValueError):
         flash("Cantidad o descuento inválido.", "warning")
         return _redirect_tras_actualizar_item_pos()
@@ -13189,58 +13535,48 @@ def actualizar_item():
         flash("El descuento no puede ser mayor al 100%.", "warning")
         return _redirect_tras_actualizar_item_pos()
 
-    aumenta_desc = descuento > desc_anterior + 1e-6
+    from services.pos_autorizacion_descuento_service import requiere_autorizacion_supervisor_pos
+
+    producto_linea = detalle.producto if detalle else None
+    requiere_auth = requiere_autorizacion_supervisor_pos(descuento, producto_linea)
     desc_con_credencial_supervisor = False
-    if aumenta_desc and not usuario_tiene_permiso('autorizar_descuento_pos'):
-        ident_raw = (
-            request.form.get('supervisor_identificador')
-            or request.form.get('supervisor_correo')
-            or ''
-        ).strip()
-        pwd = request.form.get('supervisor_clave') or ''
-        if not ident_raw or not pwd:
-            flash(
-                "Para aumentar el descuento el supervisor debe ingresar su usuario (o correo) y contraseña.",
-                "warning",
-            )
-            return _redirect_tras_actualizar_item_pos()
-        sup, err_lookup = resolver_usuario_por_identificador_pos(ident_raw)
-        if err_lookup == 'ambiguous_email_local':
-            flash(
-                "Varios correos coinciden con ese texto; el supervisor debe usar el correo completo.",
-                "warning",
-            )
-            return _redirect_tras_actualizar_item_pos()
-        if err_lookup == 'ambiguous_nombre':
-            flash(
-                "Hay más de un usuario con ese nombre; use la parte antes del @ del correo o el correo completo.",
-                "warning",
-            )
-            return _redirect_tras_actualizar_item_pos()
-        if (
-            not sup
-            or err_lookup == 'not_found'
-            or not sup.check_password(pwd)
-            or not usuario_esta_activo(sup)
-            or not usuario_obj_tiene_permiso(sup, 'autorizar_descuento_pos')
-        ):
-            flash(
-                "Autorización inválida: usuario no encontrado, sin permiso o contraseña incorrecta.",
-                "danger",
-            )
-            return _redirect_tras_actualizar_item_pos()
+    supervisor_autorizo = None
+    metodo_auth = None
+    if requiere_auth:
+        _asegurar_columnas_detalle_ventas_legacy()
+        sup, metodo_auth, err_auth = _validar_autorizacion_descuento_pos(descuento, request.form)
+        if err_auth:
+            return _json_tras_actualizar_item_pos(detalle, ok=False, mensaje=err_auth)
+        supervisor_autorizo = sup
         desc_con_credencial_supervisor = True
 
     if detalle.producto:
         f_prev = _factor_venta_a_stock(detalle.producto)
         cons_new = int(round(cantidad * f_prev))
-        disp_t = stock_disponible_venta_tienda(detalle.producto)
-        comprometido = _stock_service.consumo_stock_comprometido_tienda_producto(
-            detalle.producto,
-            excluir_venta_id=detalle.venta.id,
-            caja_id=detalle.venta.caja_id,
-        )
-        if disp_t < comprometido + cons_new:
+        retiro_eff = _stock_service._punto_retiro_efectivo_linea(detalle.venta, detalle)
+        if retiro_eff == 'Bodega':
+            disp_b = stock_disponible_bodega(detalle.producto)
+            if cons_new > disp_b:
+                return _json_tras_actualizar_item_pos(
+                    detalle,
+                    ok=False,
+                    mensaje=(
+                        f'Stock insuficiente en bodega (disponible: {disp_b}, '
+                        f'requerido: {cons_new}).'
+                    ),
+                )
+        if retiro_eff != 'Bodega':
+            disp_t = stock_disponible_venta_tienda(detalle.producto)
+            comprometido = _stock_service.consumo_stock_comprometido_tienda_producto(
+                detalle.producto,
+                excluir_venta_id=detalle.venta.id,
+                caja_id=detalle.venta.caja_id,
+            )
+            cant_prev = detalle.cantidad
+            detalle.cantidad = cantidad
+            need_t = _stock_service._consumo_tienda_linea(detalle.venta, detalle, f_prev)
+            detalle.cantidad = cant_prev
+        if retiro_eff != 'Bodega' and disp_t < comprometido + need_t:
             vpend = _stock_service.venta_pendiente_con_producto(
                 detalle.producto.id,
                 excluir_venta_id=detalle.venta.id,
@@ -13263,6 +13599,44 @@ def actualizar_item():
         detalle.cantidad = cantidad
         detalle.descuento = descuento
         detalle.subtotal = (detalle.precio_unitario * cantidad) * (1 - (descuento / 100))
+        if supervisor_autorizo and desc_con_credencial_supervisor:
+            _registrar_autorizacion_descuento_en_linea(
+                detalle,
+                supervisor_autorizo,
+                metodo_auth,
+                desc_anterior,
+                descuento,
+            )
+        elif (
+            float(descuento or 0) > 1e-6
+            and producto_linea
+            and getattr(producto_linea, 'pos_descuento_preautorizado', False)
+        ):
+            from services.pos_autorizacion_descuento_service import (
+                producto_descuento_preautorizado_cubre,
+            )
+
+            if producto_descuento_preautorizado_cubre(producto_linea, descuento):
+                detalle.descuento_autorizado_por_id = None
+                detalle.descuento_autorizado_en = datetime.utcnow()
+                detalle.descuento_autorizado_metodo = 'producto_preautorizado'
+                try:
+                    _audit_log(
+                        'pos_descuento_preautorizado_producto',
+                        'detalle_venta',
+                        detalle.id,
+                        datos_despues={
+                            'descuento_pct': descuento,
+                            'producto_id': detalle.id_producto,
+                            'venta_id': detalle.id_venta,
+                        },
+                    )
+                except Exception:
+                    pass
+        elif float(descuento or 0) <= 1e-6:
+            detalle.descuento_autorizado_por_id = None
+            detalle.descuento_autorizado_en = None
+            detalle.descuento_autorizado_metodo = None
         detalle.venta.recalcular_total()
     db.session.commit()
 
@@ -14570,7 +14944,7 @@ def abrir_caja():
     caja_activa = obtener_caja_activa()
     if caja_activa:
         flash(f"Ya existe una caja abierta (N°{caja_activa.id}). Debe cerrarla antes de abrir otra.", "info")
-        return redirect(url_for('punto_venta'))
+        return redirect(_pos_url_destino())
 
     if request.method == 'POST':
         monto_inicial = _parse_clp_monto(request.form.get('monto_inicial'))
@@ -14584,7 +14958,10 @@ def abrir_caja():
         db.session.add(caja)
         db.session.commit()
         flash("Caja abierta con monto inicial: ${}".format(monto_inicial))
-        return redirect(url_for('punto_venta'))
+        nxt = (request.args.get('next') or request.form.get('next') or '').strip()
+        if nxt.startswith('/') and not nxt.startswith('//'):
+            return redirect(nxt)
+        return redirect(_pos_url_destino())
     return render_template('abrir_caja.html')
 
 # proceso de registrar movimientos de caja desde pantalla de caja........................................................................
@@ -15434,9 +15811,9 @@ def _login_next_url_seguro():
     raw = (request.form.get('next') or request.args.get('next') or '').strip()
     if not raw.startswith('/') or raw.startswith('//'):
         return None
-    # Atajos POS: /pos solo exige login; el destino real es punto_venta.
+    # Atajos POS: /pos solo exige login; el destino real es pantalla vendedora.
     if raw.rstrip('/') in ('/pos', '/pos/vendedor'):
-        return url_for('punto_venta')
+        return _pos_url_destino()
     return raw
 
 
@@ -15634,7 +16011,13 @@ def admin_empresa():
             "pos_autoprint_ticket_emitido": "1"
             if request.form.get('pos_autoprint_ticket_emitido') == '1'
             else "0",
+            "pos_descuento_umbral_pin_pct": (request.form.get('pos_descuento_umbral_pin_pct') or '20').strip(),
         }
+        try:
+            umbral = float(str(data['pos_descuento_umbral_pin_pct']).replace(',', '.'))
+            data['pos_descuento_umbral_pin_pct'] = str(max(0.0, min(100.0, umbral)))
+        except (TypeError, ValueError):
+            data['pos_descuento_umbral_pin_pct'] = '20'
         if not (data["nombre_comercial"] or '').strip():
             flash("El nombre comercial es obligatorio.", "warning")
             return redirect(url_for('admin_empresa'))
@@ -15651,6 +16034,157 @@ def admin_empresa():
         ])
         flash("Datos de empresa actualizados correctamente.", "success")
     return render_template('admin_empresa.html', empresa=cfg)
+
+
+@app.route('/admin/pos-autorizacion-descuentos', methods=['GET', 'POST'])
+@permisos_required('gestionar_usuarios')
+def admin_pos_autorizacion():
+    """Tarjetas supervisor, PIN 4 dígitos y umbral % para descuentos POS."""
+    from services.pos_autorizacion_descuento_service import generar_token_tarjeta, hash_token_tarjeta
+
+    _asegurar_columnas_usuario_pin_autorizacion()
+    _asegurar_tabla_usuario_tarjeta_autorizacion()
+    _asegurar_columnas_productos_legacy()
+    cfg = obtener_config_empresa()
+
+    if request.method == 'POST':
+        accion = (request.form.get('accion') or '').strip()
+        if accion == 'guardar_producto_preauth':
+            pid = request.form.get('producto_id', type=int)
+            prod = Producto.query.get(pid) if pid else None
+            if not prod:
+                flash('Producto no encontrado.', 'warning')
+                return redirect(url_for('admin_pos_autorizacion'))
+            prod.pos_descuento_preautorizado = request.form.get('pos_descuento_preautorizado') == '1'
+            raw_pct = (request.form.get('pos_descuento_preautorizado_pct') or '').strip()
+            if prod.pos_descuento_preautorizado:
+                try:
+                    pct = float(raw_pct.replace(',', '.')) if raw_pct else 0.0
+                except (TypeError, ValueError):
+                    pct = 0.0
+                pct = max(0.0, min(100.0, pct))
+                if pct <= 1e-6:
+                    flash('Indique el tope % sin supervisor (mayor a 0).', 'warning')
+                    return redirect(url_for('admin_pos_autorizacion', q=prod.codigo_barra))
+                prod.pos_descuento_preautorizado_pct = pct
+            else:
+                prod.pos_descuento_preautorizado_pct = None
+            db.session.commit()
+            flash(f'Producto «{prod.nombre}» actualizado.', 'success')
+            return redirect(url_for('admin_pos_autorizacion', q=prod.codigo_barra))
+
+        if accion == 'guardar_umbral':
+            try:
+                umbral = float((request.form.get('pos_descuento_umbral_pin_pct') or '20').replace(',', '.'))
+                umbral = max(0.0, min(100.0, umbral))
+            except (TypeError, ValueError):
+                umbral = 20.0
+            guardar_config_empresa({'pos_descuento_umbral_pin_pct': str(umbral)})
+            flash(f'Umbral PIN actualizado: {umbral:g}%.', 'success')
+            return redirect(url_for('admin_pos_autorizacion'))
+
+        uid = request.form.get('usuario_id', type=int)
+        sup = Usuario.query.get(uid) if uid else None
+        if not sup or not usuario_obj_tiene_permiso(sup, 'autorizar_descuento_pos'):
+            flash('Seleccione un supervisor con permiso autorizar_descuento_pos.', 'warning')
+            return redirect(url_for('admin_pos_autorizacion'))
+
+        if accion == 'guardar_pin':
+            pin = (request.form.get('pin_autorizacion') or '').strip()
+            if len(pin) != 4 or not pin.isdigit():
+                flash('El PIN debe ser exactamente 4 dígitos numéricos.', 'warning')
+                return redirect(url_for('admin_pos_autorizacion'))
+            sup.set_pin_autorizacion(pin)
+            db.session.commit()
+            flash(f'PIN de autorización actualizado para {sup.nombre}.', 'success')
+            return redirect(url_for('admin_pos_autorizacion'))
+
+        if accion == 'generar_tarjeta':
+            UsuarioTarjetaAutorizacion.query.filter_by(usuario_id=sup.id, activo=True).update(
+                {'activo': False, 'revocado_en': datetime.utcnow()}
+            )
+            token_plano = generar_token_tarjeta()
+            fila = UsuarioTarjetaAutorizacion(
+                usuario_id=sup.id,
+                token_hash=hash_token_tarjeta(token_plano),
+                etiqueta=(request.form.get('etiqueta_tarjeta') or sup.nombre or '')[:80],
+                activo=True,
+            )
+            db.session.add(fila)
+            db.session.commit()
+            session['pos_tarjeta_generada'] = {
+                'usuario_id': sup.id,
+                'nombre': sup.nombre,
+                'token': token_plano,
+            }
+            flash('Tarjeta generada. Imprímala ahora: solo se muestra una vez.', 'success')
+            return redirect(url_for('admin_pos_autorizacion'))
+
+        if accion == 'revocar_tarjeta':
+            UsuarioTarjetaAutorizacion.query.filter_by(usuario_id=sup.id, activo=True).update(
+                {'activo': False, 'revocado_en': datetime.utcnow()}
+            )
+            db.session.commit()
+            flash(f'Tarjetas activas revocadas para {sup.nombre}.', 'info')
+            return redirect(url_for('admin_pos_autorizacion'))
+
+    supervisores = []
+    for u in Usuario.query.order_by(Usuario.nombre).all():
+        if not usuario_esta_activo(u):
+            continue
+        if not usuario_obj_tiene_permiso(u, 'autorizar_descuento_pos'):
+            continue
+        tarjeta_activa = (
+            UsuarioTarjetaAutorizacion.query.filter_by(usuario_id=u.id, activo=True)
+            .order_by(UsuarioTarjetaAutorizacion.id.desc())
+            .first()
+        )
+        supervisores.append({
+            'usuario': u,
+            'tiene_pin': bool(u.pin_autorizacion_hash),
+            'tarjeta': tarjeta_activa,
+        })
+
+    tarjeta_nueva = session.pop('pos_tarjeta_generada', None)
+    q_prod = (request.args.get('q') or '').strip()
+    producto_preauth_edit = None
+    if q_prod:
+        q_like = f'%{q_prod}%'
+        candidatos = (
+            Producto.query.filter(
+                db.or_(
+                    Producto.codigo_barra.ilike(q_prod),
+                    Producto.nombre.ilike(q_like),
+                )
+            )
+            .order_by(Producto.nombre)
+            .limit(12)
+            .all()
+        )
+        if len(candidatos) == 1:
+            producto_preauth_edit = candidatos[0]
+        elif candidatos:
+            exacto = next(
+                (p for p in candidatos if (p.codigo_barra or '').strip().lower() == q_prod.lower()),
+                None,
+            )
+            producto_preauth_edit = exacto or candidatos[0]
+    productos_preauth_lista = (
+        Producto.query.filter_by(pos_descuento_preautorizado=True)
+        .order_by(Producto.nombre)
+        .limit(80)
+        .all()
+    )
+    return render_template(
+        'admin_pos_autorizacion.html',
+        empresa=cfg,
+        supervisores=supervisores,
+        umbral_pin=_pos_descuento_umbral_pin_pct(),
+        tarjeta_nueva=tarjeta_nueva,
+        q_producto_preauth=q_prod,
+        producto_preauth_edit=producto_preauth_edit,
+        productos_preauth_lista=productos_preauth_lista,
+    )
 
 
 @app.route('/admin/facturacion/caf', methods=['GET', 'POST'])
@@ -21735,6 +22269,8 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_ventas_legacy()
         _asegurar_columnas_productos_legacy()
         _asegurar_columnas_detalle_ventas_legacy()
+        _asegurar_columnas_usuario_pin_autorizacion()
+        _asegurar_tabla_usuario_tarjeta_autorizacion()
         _asegurar_tabla_ventas_a_pedido()
         _asegurar_columnas_customer_360_legacy()
         _asegurar_tabla_c360_llamadas_snapshot()

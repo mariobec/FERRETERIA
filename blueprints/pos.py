@@ -169,6 +169,12 @@ def register_pos_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/api/pos/nueva-venta',
+        'api_pos_nueva_venta',
+        _wrap_pos_api_emitir(m.api_pos_nueva_venta),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/api/pos/retiro-linea',
         'api_pos_retiro_linea',
         _wrap_pos_api_emitir(m.api_pos_retiro_linea),

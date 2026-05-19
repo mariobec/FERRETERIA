@@ -221,7 +221,7 @@
     <div class="card-body">
       <div class="row g-2">
         {% if modulo_activo('ventas') %}
-        <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('punto_venta') }}" class="btn qa-btn qa-primary w-100"><i class="fas fa-cash-register me-1"></i>Nueva venta</a></div>
+        <div class="col-lg-2 col-md-4 col-6"><a href="{{ pos_url_destino or url_for('punto_venta') }}" class="btn qa-btn qa-primary w-100"><i class="fas fa-cash-register me-1"></i>Nueva venta</a></div>
         {% endif %}
         {% if modulo_activo('inventario') %}
         <div class="col-lg-2 col-md-4 col-6"><a href="{{ url_for('orden_compra_nueva') }}" class="btn qa-btn qa-outline w-100"><i class="fas fa-file-contract me-1"></i>Nueva OC</a></div>

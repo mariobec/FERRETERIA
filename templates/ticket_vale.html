@@ -245,7 +245,7 @@
                         <tbody>
                           {% for d in rows %}
                           <tr>
-                            <td>{{ ticket_line_etiqueta.get(d.id, '[T]') }} {{ (d.producto.nombre[:24] ~ ('…' if d.producto.nombre|length > 24 else '')) if d.producto else '—' }}</td>
+                            <td>{{ ticket_line_etiqueta.get(d.id, '[T]') }} {{ (d.producto.nombre[:24] ~ ('…' if d.producto.nombre|length > 24 else '')) if d.producto else '—' }}{% if (d.descuento or 0) > 0 %}<br><span class="ticket-line-meta">Dto {{ (d.descuento or 0)|round|int }}%{% if d.supervisor_autorizo %} · Aut: {{ (d.supervisor_autorizo.nombre or '')[:16] }}{% endif %}</span>{% endif %}</td>
                             <td>{{ d.cantidad }}</td>
                             <td>{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
                           </tr>
@@ -277,7 +277,7 @@
                     <tbody>
                         {% for d in detalles %}
                         <tr>
-                            <td>{{ ticket_line_etiqueta.get(d.id, '') }} {{ d.producto.nombre[:26] }}{% if d.producto.nombre|length > 26 %}…{% endif %}</td>
+                            <td>{{ ticket_line_etiqueta.get(d.id, '') }} {{ d.producto.nombre[:26] }}{% if d.producto.nombre|length > 26 %}…{% endif %}{% if (d.descuento or 0) > 0 %}<br><span class="ticket-line-meta">Dto {{ (d.descuento or 0)|round|int }}%{% if d.supervisor_autorizo %} · Aut: {{ (d.supervisor_autorizo.nombre or '')[:16] }}{% endif %}</span>{% endif %}</td>
                             <td>{{ d.cantidad }}</td>
                             <td>{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
                         </tr>

@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-cart-premium-20260525f">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-cart-premium-20260520c">
 {% if pos_layout_fullwidth %}
 <style>
 body.pos-pantalla-vendedora .app-sidebar,
@@ -498,6 +498,9 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
       <a href="#" id="posBtnCartola" class="btn btn-sm btn-outline-warning disabled" target="_blank" rel="noopener" title="Estado de cuenta del cliente identificado" aria-disabled="true"><i class="fas fa-file-invoice"></i><span class="d-none d-lg-inline ms-1">Cartola</span></a>
       <a href="#" id="posBtnBoucher" class="btn btn-sm btn-outline-warning disabled" target="_blank" rel="noopener" title="Boucher con cargos y abonos" aria-disabled="true"><i class="fas fa-receipt"></i><span class="d-none d-lg-inline ms-1">Boucher</span></a>
       {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-light" id="posBtnNuevaVentaChrome" title="Descartar borrador e iniciar venta vacía">
+        <i class="fas fa-file-circle-plus"></i><span class="d-none d-md-inline ms-1">Nueva venta</span>
+      </button>
       <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-success" title="Ir a caja"><i class="fas fa-cash-register"></i><span class="d-none d-md-inline ms-1">Caja</span></a>
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="TV cliente"><i class="fas fa-tv"></i><span class="d-none d-md-inline ms-1">TV</span></a>
@@ -991,33 +994,6 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   </div>
 </div>
 
-<div class="modal fade" id="modalAutorizarDescuentoPos" tabindex="-1" aria-labelledby="modalAutorizarDescuentoPosLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modalAutorizarDescuentoPosLabel">Autorizar mayor descuento</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <p class="small text-muted">Elija de la lista o escriba para filtrar; al elegir se completa el <strong>correo</strong>. Luego ingrese la contraseña.</p>
-        <div class="mb-2 position-relative">
-          <label class="form-label" for="posSupervisorIdentificador">Supervisor</label>
-          <input type="text" class="form-control" id="posSupervisorIdentificador" autocomplete="username" placeholder="Buscar por nombre o correo…">
-          <div id="posSupervisorSuggestWrap" class="list-group position-absolute w-100 mt-1 shadow-sm d-none overflow-auto border rounded" style="z-index: 2000; max-height: 220px;"></div>
-        </div>
-        <div class="mb-0">
-          <label class="form-label" for="posSupervisorClave">Contraseña</label>
-          <input type="password" class="form-control" id="posSupervisorClave" autocomplete="current-password">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="posConfirmarAutorizacionDescuento">Confirmar y aplicar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 {% if pos_cross_sell %}
 <div class="modal fade" id="modalPosCrossSell" tabindex="-1" aria-labelledby="modalPosCrossSellLabel" aria-hidden="true" data-rule-id="{{ pos_cross_sell.rule_id }}">
   <div class="modal-dialog modal-dialog-centered">
@@ -1108,11 +1084,70 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   </div>
 </div>
 </div>
+<div class="modal fade" id="modalAutorizarDescuentoPos" tabindex="-1" aria-labelledby="modalAutorizarDescuentoPosLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalAutorizarDescuentoPosLabel">Autorizar mayor descuento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">Escanee la <strong>tarjeta del supervisor</strong>. Si el descuento supera <span id="posAutorizaUmbralText">20</span>%, también ingrese el <strong>PIN de 4 dígitos</strong>.</p>
+        <div class="mb-2">
+          <label class="form-label fw-semibold" for="posSupervisorTarjeta">Tarjeta supervisor</label>
+          <input type="text" class="form-control font-monospace" id="posSupervisorTarjeta" autocomplete="off" placeholder="Código LHX-SUP-… (escanear)">
+        </div>
+        <div id="posAutorizaPinBlock" class="mb-3 d-none">
+          <label class="form-label fw-semibold" for="posSupervisorPin">PIN supervisor</label>
+          <input type="password" class="form-control font-monospace text-center" id="posSupervisorPin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" placeholder="••••">
+        </div>
+        <hr class="my-2">
+        <p class="small text-muted mb-2">Respaldo: usuario y contraseña del supervisor</p>
+        <div class="mb-2 position-relative">
+          <label class="form-label" for="posSupervisorIdentificador">Correo supervisor</label>
+          <input type="text" class="form-control" id="posSupervisorIdentificador" autocomplete="username" placeholder="Buscar por nombre o correo…">
+          <div id="posSupervisorSuggestWrap" class="list-group position-absolute w-100 mt-1 shadow-sm d-none overflow-auto border rounded" style="z-index: 2000; max-height: 220px;"></div>
+        </div>
+        <div class="mb-0">
+          <label class="form-label" for="posSupervisorClave">Contraseña</label>
+          <input type="password" class="form-control" id="posSupervisorClave" autocomplete="current-password">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="posConfirmarAutorizacionDescuento">Confirmar y aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalPosValeResume" tabindex="-1" aria-labelledby="modalPosValeResumeLabel" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="modalPosValeResumeLabel">Vale en armado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="mb-2">Tienes un vale <strong>#<span id="posValeResumeValeId">—</span></strong> sin emitir con productos en el carrito.</p>
+        <p class="mb-0 text-muted small">
+          <span id="posValeResumeItems">0</span> producto(s) · Total <strong id="posValeResumeTotal">$0</strong>
+        </p>
+        <p class="mt-3 mb-0 small">¿Continuar con este vale o iniciar una venta nueva? (La nueva descarta el borrador actual.)</p>
+      </div>
+      <div class="modal-footer border-0 flex-wrap gap-2 justify-content-stretch">
+        <button type="button" class="btn btn-outline-secondary flex-grow-1" id="posValeResumeContinue">Continuar vale</button>
+        <button type="button" class="btn btn-primary flex-grow-1" id="posValeResumeNueva"><i class="fas fa-file-circle-plus me-1"></i>Nueva venta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script id="pos-config" type="application/json">{{ {
-  'descuento_libre': usuario_tiene_permiso('autorizar_descuento_pos'),
+  'descuento_libre': false,
   'cross_sell_enabled': pos_cross_sell_enabled,
   'producto_ids': pids,
   'urls': {
@@ -1131,8 +1166,10 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
     'retiro_linea': url_for('api_pos_retiro_linea'),
     'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
     'vales_hoy': url_for('api_pos_vales_hoy'),
-    'cotizacion_nueva': url_for('cotizacion_nueva')
+    'cotizacion_nueva': url_for('cotizacion_nueva'),
+    'nueva_venta': url_for('api_pos_nueva_venta')
   },
+  'vale_resume': pos_vale_resume,
   'credito_urls': pos_credito_urls,
   'puede_ver_creditos': puede_ver_creditos,
   'puede_registrar_abono': puede_registrar_abono,
@@ -1141,9 +1178,10 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   'pos_rut_obligatorio': pos_rut_obligatorio,
   'pos_retiro_por_linea': pos_retiro_por_linea,
   'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido,
+  'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260525f"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260520e"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

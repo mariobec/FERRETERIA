@@ -41,6 +41,17 @@ body.pos-pantalla-vendedora .app-main > .alert {
   display: none !important;
 }
 
+/* Modal vale en armado: por encima del panel de búsqueda (portal z-index 1200–1250) */
+body.pos-pantalla-vendedora #modalPosValeResume,
+body.pos-pantalla-vendedora #modalAutorizarDescuentoPos {
+  z-index: 1310;
+}
+
+body.pos-pantalla-vendedora #modalPosValeResume .modal-dialog,
+body.pos-pantalla-vendedora #modalPosValeResume .modal-content {
+  pointer-events: auto;
+}
+
 body.pos-pantalla-vendedora .pos-toast-host {
   top: 4.25rem;
   right: auto;
@@ -541,11 +552,62 @@ body.pos-pantalla-vendedora .pos-search-hero__inner {
   max-width: 100%;
 }
 
-body.pos-pantalla-vendedora .pos-search-filters .btn {
-  border-radius: 9999px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.82rem;
+body.pos-pantalla-vendedora .pos-search-filter-bar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid rgba(12, 35, 64, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+body.pos-pantalla-vendedora .pos-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.42rem 0.95rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #475569;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+body.pos-pantalla-vendedora .pos-filter-pill__icon {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+body.pos-pantalla-vendedora .pos-filter-pill:hover {
+  color: var(--pos-navy-mid, #0c2340);
+  background: rgba(255, 255, 255, 0.75);
+}
+
+body.pos-pantalla-vendedora .pos-filter-pill--active {
+  color: var(--pos-ferre-amarillo-text, #0c2340);
+  background: linear-gradient(165deg, var(--pos-ferre-amarillo, #f5c400) 0%, #e6b800 100%);
+  border-color: rgba(212, 168, 0, 0.55);
+  box-shadow: 0 2px 8px rgba(245, 196, 0, 0.35);
+}
+
+body.pos-pantalla-vendedora .pos-filter-pill--active .pos-filter-pill__icon {
+  opacity: 1;
+}
+
+body.pos-pantalla-vendedora .pos-search-foto-link {
   font-weight: 600;
+  text-decoration: none;
+}
+
+body.pos-pantalla-vendedora .pos-search-foto-link:hover {
+  text-decoration: underline;
 }
 
 body.pos-pantalla-vendedora .pos-search-hero__field {
@@ -1035,6 +1097,11 @@ body.pos-pantalla-vendedora .pos-qty-capsule__input::-webkit-inner-spin-button {
 body.pos-pantalla-vendedora .pos-cart-card__money {
   text-align: right;
   line-height: 1.15;
+  flex-shrink: 0;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__commerce-row {
+  align-items: flex-end;
 }
 
 body.pos-pantalla-vendedora .pos-cart-card__subtotal {
@@ -1084,6 +1151,19 @@ body.pos-pantalla-vendedora .pos-dto-pill input::-webkit-inner-spin-button {
 
 body.pos-pantalla-vendedora .pos-cart-card__more {
   position: relative;
+  z-index: 2;
+}
+
+/* Menú dto abierto: quedar por encima de la línea siguiente del carrito */
+body.pos-pantalla-vendedora .pos-cart-card.pos-cart-card--dto-open,
+body.pos-pantalla-vendedora .pos-cart-card:has(.pos-cart-card__more[open]) {
+  position: relative;
+  z-index: 40;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card.pos-cart-card--dto-open .pos-cart-card__more,
+body.pos-pantalla-vendedora .pos-cart-card:has(.pos-cart-card__more[open]) .pos-cart-card__more {
+  z-index: 41;
 }
 
 body.pos-pantalla-vendedora .pos-cart-card__dto-chip {
@@ -1134,8 +1214,9 @@ body.pos-pantalla-vendedora .pos-cart-card__more[open] .pos-cart-card__dto-chip-
 body.pos-pantalla-vendedora .pos-cart-card__more-panel {
   position: absolute;
   right: 0;
-  top: calc(100% + 0.25rem);
-  z-index: 12;
+  top: auto;
+  bottom: calc(100% + 0.35rem);
+  z-index: 42;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1144,8 +1225,48 @@ body.pos-pantalla-vendedora .pos-cart-card__more-panel {
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.28);
   background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-  min-width: 11rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+  min-width: 12.5rem;
+  pointer-events: auto;
+}
+
+body.pos-pantalla-vendedora .pos-dto-quick {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 0.35rem;
+  margin-bottom: 0.15rem;
+}
+
+body.pos-pantalla-vendedora .pos-dto-quick__btn {
+  flex: 1;
+  min-width: 2.1rem;
+  min-height: 2rem;
+  border: 1px solid rgba(12, 35, 64, 0.18);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--pos-navy-mid);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+body.pos-pantalla-vendedora .pos-dto-quick__btn:hover {
+  background: var(--pos-ferre-amarillo);
+  border-color: #d4a800;
+  color: var(--pos-ferre-amarillo-text);
+}
+
+body.pos-pantalla-vendedora .pos-dto-pill input::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+body.pos-pantalla-vendedora .pos-dto-pill input {
+  min-width: 2.75rem;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 body.pos-pantalla-vendedora .pos-cart-card__dto-label {
@@ -1373,16 +1494,18 @@ body.pos-pantalla-vendedora .pos-cart-card--v3.pos-cart-card--active {
 }
 
 body.pos-pantalla-vendedora .pos-cart-card__status-corner {
-  position: absolute;
-  top: 0.65rem;
-  right: 0.75rem;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.3rem;
-  max-width: 55%;
-  z-index: 2;
+  width: 100%;
+  margin: 0 0 0.35rem;
   pointer-events: none;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__commerce .pos-cart-card__status-corner {
+  flex-shrink: 0;
 }
 
 body.pos-pantalla-vendedora .pos-cart-card__chip {
@@ -1419,7 +1542,6 @@ body.pos-pantalla-vendedora .pos-cart-card__chip--apedido {
 
 body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__nombre {
   font-size: 1.1rem;
-  padding-right: 4.5rem;
 }
 
 body.pos-pantalla-vendedora .pos-cart-card--v3 .pos-cart-card__meta {

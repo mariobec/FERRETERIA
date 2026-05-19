@@ -90,7 +90,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <!-- Estilos Personalizados -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}?v=20260519m">
 </head>
 <body class="index-body erp-landing">
     <header class="landing-nav">
@@ -787,6 +787,7 @@
 
     <!-- Bootstrap JS Local -->
     {% include '_web_analytics_tracker.html' %}
+    {% include '_landing_mobile_js.html' %}
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
     <script>
         (() => {

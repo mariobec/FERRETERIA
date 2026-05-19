@@ -1421,6 +1421,7 @@ class TestHubModulosUrls:
         assert r.status_code == 200
         assert b'Punto de venta' in r.data
         assert b'/punto_venta' in r.data
+        assert b'layout=vendedor' in r.data
 
     def test_resolver_pos_con_caja_abierta(self, app_ctx, caja_abierta):
         user = _get_admin_user()
@@ -1428,6 +1429,7 @@ class TestHubModulosUrls:
         with m.app.test_request_context('/'):
             url = m._hub_url_para_modulo(mod, user)
         assert '/punto_venta' in url
+        assert 'layout=vendedor' in url
 
     def test_resolver_pos_sin_caja_a_abrir_caja(self, app_ctx):
         user = _get_admin_user()
@@ -1450,6 +1452,7 @@ class TestHubModulosUrls:
         assert pos is not None
         assert pos.get('url')
         assert '/punto_venta' in pos['url']
+        assert 'layout=vendedor' in pos['url']
 
 
 # Como correr solo estos tests

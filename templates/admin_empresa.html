@@ -108,6 +108,16 @@
                 </span>
               </span>
             </label>
+            <div class="border rounded p-3 w-100 mt-2">
+              <label class="form-label fw-semibold mb-1">Descuento POS — umbral PIN supervisor (%)</label>
+              <input type="number" class="form-control" name="pos_descuento_umbral_pin_pct" min="0" max="100" step="0.5"
+                     value="{{ empresa.pos_descuento_umbral_pin_pct or '20' }}">
+              <span class="d-block small text-muted mt-1">
+                Tarjetas y PIN se configuran en
+                <a href="{{ url_for('admin_pos_autorizacion') }}">POS — autorización descuentos</a>.
+                Siempre se exige tarjeta al subir el descuento; si supera este %, además PIN de 4 dígitos.
+              </span>
+            </div>
           </div>
           <div class="col-12">
             <hr>
