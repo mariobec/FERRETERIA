@@ -79,12 +79,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}?v=20260519m">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}?v=20260519wordmark">
 </head>
 <body class="index-body erp-landing">
     <header class="landing-nav">
         <a class="landing-brand" href="{{ url_for('index') }}">
-            <img src="{{ lhexia_brand_src }}" alt="LhexIA ERP · www.lhexia.cl" class="landing-brand-logo">
+            <img src="{{ lhexia_brand_src }}" srcset="{{ lhexia_brand_compact_src }} 480w, {{ lhexia_brand_src }} 960w" sizes="(max-width: 720px) 190px, 260px" alt="LhexIA ERP inteligente · www.lhexia.cl" class="landing-brand-logo" width="227" height="96">
             <span class="landing-brand-text">
                 <strong><span class="brand-wordmark">Lhex<span class="brand-ia-accent">IA</span></span> IA ERP</strong>
                 <small>ERP con bodega por voz</small>

@@ -9,8 +9,8 @@ from PIL import Image
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
 STATIC_IMG = os.path.join(ROOT, 'static', 'img')
-# Origen wordmark horizontal (hex + texto hexIA)
-DEFAULT_SOURCE = os.path.join(STATIC_IMG, 'lhexia_logo_origen_v2.png')
+# Origen wordmark horizontal oficial (hex + lhexIA + ERP inteligente)
+DEFAULT_SOURCE = os.path.join(STATIC_IMG, 'lhexia_brand_wordmark_oficial.png')
 # Isotipo núcleo hexagonal (login / sidebar / favicon)
 ICON_SOURCE = os.path.join(STATIC_IMG, 'lhexia-core-reveal-square.png')
 
