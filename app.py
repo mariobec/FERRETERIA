@@ -2057,7 +2057,7 @@ def _construir_modulos_hub(usuario=None):
 
 
 # Cache bust unificado logo / isotipo LhexIA (mayo 2026 — núcleo hexagonal)
-LHEXIA_ASSET_VERSION = 'lhexia20260522corebrand'
+LHEXIA_ASSET_VERSION = 'lhexia20260519naviso'
 
 
 def _lhexia_static_img_url(filename: str) -> str:
@@ -2073,8 +2073,9 @@ def inject_company_context():
     brand_ctx = {
         'lhexia_asset_v': LHEXIA_ASSET_VERSION,
         'lhexia_icon_src': _lhexia_static_img_url('lhexia-icon-approved.png'),
-        'lhexia_brand_src': _lhexia_static_img_url('lhexia-brand-approved.png'),
-        'lhexia_brand_compact_src': _lhexia_static_img_url('lhexia-brand-compact-nav.png'),
+        # Navbar/landings: isotipo cuadrado (brand-approved es lienzo 799px con márgenes → se ve minúsculo).
+        'lhexia_brand_src': _lhexia_static_img_url('lhexia-icon-approved.png'),
+        'lhexia_brand_compact_src': _lhexia_static_img_url('lhexia-icon-approved.png'),
     }
     try:
         if current_user.is_authenticated:
