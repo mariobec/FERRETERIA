@@ -347,15 +347,20 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «Live Wall / Experience Wall — TV cliente».
+**Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «FE Maullín — pausa SII».
 
-**PRIORIDAD (2026-05-20):** validar TV cliente en piso (recomendaciones + tarjetas nuevas). Cache TV **Ctrl+F5** `lhexia20260520reco2`.
+**PRIORIDAD (post 2026-05-20):** carril **SD-1** — **inventario** (enrolamiento + salud) → **caja** en piso. **Casuísticas QA ventas** en repo (`79220c9`). **FE Maullín en pausa** hasta timbraje SII.
 
-**En producción (`4ae0292`):** recomendaciones TV coherentes; tarjetas CFM; cierre caja solo `Pagado`; sidebar scroll; tarjeta supervisor; SQL Neon autorización + rendimiento.
+**FE listo (gatillar manual cuando SII habilite firma):**
+- Petición portal SII folio **77326378627** — *Solicitud folios electrónicos y Timbraje* — estado **Recepcionada** (18/05/2026), RUT **8054120-1**.
+- Firma semilla: C14N + RSA-SHA1 + ISO-8859-1 (`facturacion_sii_soap.py`).
+- ZIP set: `storage/dtes/pruebas_sii/pruebas_sii_dte_verificacion.zip` (Acteco **475200**).
+- API: `GET /api/admin/facturacion/enviar-prueba-sii?dte_tipo=33&folio=1&reload_env=1` (sesión admin).
+- Scripts: `fe_diagnostico_sii.py`, `fe_diagnostico_sii_reintentos.py` (manual, sin bucle en background).
 
-**Pendiente local:** carrito v3 chips (`20260519c`) si no en `main`; QA casuísticas sin commit.
+**TV/caja en prod (`4ae0292`):** recomendaciones TV; cierre caja solo `Pagado`; autorización descuentos POS.
 
-**En `main` ya:** layout `5094d5d`, POS-4 `309f02f`, Live Wall TV `4ae0292`.
+**Pendiente local:** QA casuísticas; carrito v3 (`20260519c`) si falta en `main`.
 
 ---
 
@@ -366,7 +371,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 | Prioridad | Foco |
 |-----------|------|
 | Sprint A | POS + Caja + Stock + Bodega (validar checklist §18.1 en tienda) |
-| Sprint D | FE SII 🟡 — envío SOAP real pendiente |
+| Sprint D | FE SII ⏸ — backend listo; **esperar timbraje SII** (folio 77326378627); Track ID manual en ventana Maullín |
 | Sprint E | C360 + BI según roadmaps en `docs/` |
 
 **Definición “módulo cerrado”:** flujo documentado + RBAC + test smoke/E2E mínimo + checklist §18.x firmado + deuda en §16 del maestro sin sorpresas.
@@ -421,4 +426,4 @@ Detalle: `docs/memory.md` § «Live Wall / Experience Wall». Commit `4ae0292`. 
 
 ---
 
-*Última actualización: 2026-05-20 — Sincronizado con `docs/memory.md` (TV prod `4ae0292`).*
+*Última actualización: 2026-05-20 — FE Maullín cerrado en código; prioridad SD-1 POS/inventario; SII timbraje pendiente.*
