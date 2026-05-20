@@ -1,0 +1,6 @@
+-- DEPRECADO: esquema borrador PLAT-1.1 (desglose por medio).
+-- Usar en su lugar: sql/2026_05_23_arqueo_caja_hito_11.sql
+--
+-- Si esta migración ya se aplicó en un entorno:
+--   DROP TABLE IF EXISTS arqueo_caja CASCADE;
+-- y ejecutar 2026_05_23_arqueo_caja_hito_11.sql

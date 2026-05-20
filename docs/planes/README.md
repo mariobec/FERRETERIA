@@ -33,6 +33,7 @@
 | [`02-producto-lhexia/`](02-producto-lhexia/) | **LX-** | Visión producto, roadmap, arquitectura objetivo |
 | [`03-pos-vendedor/`](03-pos-vendedor/) | **POS-** | UI pantalla vendedor |
 | [`04-tecnico/`](04-tecnico/) | **TEC-** / **CORE-** | Estabilidad, `core/`, optimización `app.py` |
+| [`05-roadmap_plataforma_madre.md`](05-roadmap_plataforma_madre.md) | **PLAT-** | Roadmap canónico 3 etapas (resiliencia → plataforma → IA) |
 | [`05-modulos-backlog/`](05-modulos-backlog/) | **MOD-** | C360, bodega, observabilidad, auditorías |
 | [`06-agentes-ia/`](06-agentes-ia/) | **IA-** | Agentes negocio 24/7 (ferretería) |
 | [`07-agentes-meta-desarrollo/`](07-agentes-meta-desarrollo/) | **META-** | Agentes para desarrollar LhexIA |

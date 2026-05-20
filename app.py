@@ -4721,6 +4721,10 @@ class Caja(db.Model):
     monto_teorico_cierre = db.Column(db.Float, nullable=True)
     monto_contado_cierre = db.Column(db.Float, nullable=True)
     diferencia_cierre = db.Column(db.Float, nullable=True)
+    monto_declarado_cajero = db.Column(db.Integer, nullable=True)
+    boletas_emitidas_qty = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    boletas_sincronizadas_qty = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    monto_total_sii = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     observacion_cierre = db.Column(db.String(255), nullable=True)
     supervisor_cierre = db.Column(db.String(80), nullable=True)
     estado = db.Column(db.String(20), default="Abierta")
@@ -11300,6 +11304,20 @@ def _asegurar_columnas_caja_cuadratura():
         if 'supervisor_cierre' not in cols:
             db.session.execute(text("ALTER TABLE caja ADD COLUMN supervisor_cierre VARCHAR(80) NULL"))
             cambios = True
+        if 'monto_declarado_cajero' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_declarado_cajero INTEGER NULL"))
+            cambios = True
+        if 'boletas_emitidas_qty' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN boletas_emitidas_qty INTEGER NOT NULL DEFAULT 0"))
+            cambios = True
+        if 'boletas_sincronizadas_qty' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE caja ADD COLUMN boletas_sincronizadas_qty INTEGER NOT NULL DEFAULT 0"
+            ))
+            cambios = True
+        if 'monto_total_sii' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_total_sii INTEGER NOT NULL DEFAULT 0"))
+            cambios = True
 
         if cambios:
             db.session.commit()
@@ -15942,15 +15960,23 @@ def cerrar_caja():
     ingresos_manuales = sum(m.monto for m in caja.movimientos if m.tipo == "Ingreso") or 0
     egresos = sum(m.monto for m in caja.movimientos if m.tipo == "Egreso") or 0
     
-    # 5. MONTO TEÓRICO EN GAVETA (Lo que Ana debe entregar en billetes/monedas)
-    # Inicial + Ventas Efec + Abonos Efec + pagos por cambios + Ingresos Manuales - devoluciones efectivo - Gastos
-    monto_teorico = (
-        caja.monto_inicial
-        + total_efectivo
-        + total_abonos_efectivo
-        + cambios_efectivo_recibido
-        + ingresos_manuales
-    ) - cambios_efectivo_devuelto - egresos
+    # 5. MONTO TEÓRICO EN GAVETA (fórmula única — services/cuadratura_arqueo_service.py)
+    from services.cuadratura_arqueo_service import (
+        aplicar_indicadores_sii_caja,
+        calcular_indicadores_sii_turno,
+        calcular_monto_teorico_gaveta_turno,
+    )
+
+    monto_teorico = calcular_monto_teorico_gaveta_turno(
+        monto_inicial=float(caja.monto_inicial or 0),
+        total_efectivo=total_efectivo,
+        total_abonos_efectivo=total_abonos_efectivo,
+        cambios_efectivo_recibido=cambios_efectivo_recibido,
+        ingresos_manuales=ingresos_manuales,
+        cambios_efectivo_devuelto=cambios_efectivo_devuelto,
+        egresos=egresos,
+    )
+    indicadores_sii = calcular_indicadores_sii_turno(ventas_cuadre)
     
     # 6. GRAN TOTAL DE MOVIMIENTOS (Productividad total)
     gran_total_dia = (
@@ -15975,30 +16001,38 @@ def cerrar_caja():
                 "warning",
             )
             return redirect(url_for('caja_pendientes'))
-        monto_contado_raw = (request.form.get('monto_contado') or '').strip()
-        if not monto_contado_raw:
-            flash("Debe ingresar el efectivo contado para realizar la cuadratura.", "warning")
-            return redirect(url_for('cerrar_caja'))
-        if '@' in monto_contado_raw:
+        monto_declarado_raw = (
+            (request.form.get('monto_declarado_cajero') or '').strip()
+            or (request.form.get('monto_contado') or '').strip()
+        )
+        if not monto_declarado_raw:
             flash(
-                "El campo de efectivo contado no debe ser un correo. Ingrese el monto en pesos (CLP), "
-                "por ejemplo el valor de «Efectivo esperado en gaveta» o lo que contó físicamente.",
+                "Debe ingresar el efectivo declarado (cierre a ciegas) para realizar la cuadratura.",
                 "warning",
             )
             return redirect(url_for('cerrar_caja'))
-        monto_contado = _parse_clp_monto(monto_contado_raw)
-        if monto_contado is None:
+        if '@' in monto_declarado_raw:
             flash(
-                "El efectivo contado no es válido. Use pesos chilenos (CLP): solo números, miles con punto "
+                "El campo de efectivo declarado no debe ser un correo. Ingrese el monto en pesos (CLP) "
+                "que contó físicamente en gaveta.",
+                "warning",
+            )
+            return redirect(url_for('cerrar_caja'))
+        monto_declarado = _parse_clp_monto(monto_declarado_raw)
+        if monto_declarado is None:
+            flash(
+                "El efectivo declarado no es válido. Use pesos chilenos (CLP): solo números, miles con punto "
                 "(ej. 340000 o 340.000) o coma decimal (ej. 1234,50).",
                 "danger",
             )
             return redirect(url_for('cerrar_caja'))
-        diferencia_cuadratura = monto_contado - monto_teorico
+        monto_declarado_int = int(round(monto_declarado))
+        monto_teorico_int = int(round(monto_teorico))
+        diferencia_cuadratura = monto_declarado_int - monto_teorico_int
         observacion_cierre = (request.form.get('observacion_cierre') or '').strip()
         supervisor_nombre = None
 
-        if abs(diferencia_cuadratura) >= umbral_diferencia:
+        if abs(diferencia_cuadratura) >= int(round(umbral_diferencia)):
             ident_raw = (request.form.get('supervisor_identificador') or '').strip()
             pwd = request.form.get('supervisor_clave') or ''
             if not ident_raw or not pwd:
@@ -16037,12 +16071,14 @@ def cerrar_caja():
                 return redirect(url_for('cerrar_caja'))
             supervisor_nombre = (sup.nombre or sup.correo or '').strip()[:80]
 
-        # Procesamos el cierre oficial
+        # Procesamos el cierre oficial (una sola verdad: tabla caja, CLP enteros)
         caja.fecha_cierre = datetime.now()
-        caja.monto_final = monto_contado
-        caja.monto_teorico_cierre = monto_teorico
-        caja.monto_contado_cierre = monto_contado
+        caja.monto_declarado_cajero = monto_declarado_int
+        caja.monto_final = monto_declarado_int
+        caja.monto_teorico_cierre = monto_teorico_int
+        caja.monto_contado_cierre = monto_declarado_int
         caja.diferencia_cierre = diferencia_cuadratura
+        aplicar_indicadores_sii_caja(caja, ventas_cuadre)
         caja.observacion_cierre = observacion_cierre[:255] if observacion_cierre else None
         caja.supervisor_cierre = supervisor_nombre
         caja.estado = "Cerrada"
@@ -16053,9 +16089,10 @@ def cerrar_caja():
         except Exception as ex:
             db.session.rollback()
             err = str(ex).lower()
-            if 'unknown column' in err or 'monto_teorico_cierre' in err:
+            if 'unknown column' in err or 'monto_teorico_cierre' in err or 'monto_declarado_cajero' in err:
                 flash(
-                    'Faltan columnas de cuadratura en la tabla caja. Ejecutá la migración sql/2026_05_06_caja_cuadratura_historial.sql.',
+                    'Faltan columnas de cuadratura en caja. Ejecutá '
+                    'sql/2026_05_06_caja_cuadratura_historial.sql y sql/2026_05_23_add_arqueo_ciego_cajas.sql.',
                     'danger',
                 )
             else:
@@ -16078,11 +16115,13 @@ def cerrar_caja():
                                cambios_turno=cambios_turno,
                                ingresos=ingresos_manuales, 
                                egresos=egresos,
-                               monto_teorico=monto_teorico,
-                               monto_contado=monto_contado,
+                               monto_teorico=monto_teorico_int,
+                               monto_contado=monto_declarado_int,
+                               monto_declarado_cajero=monto_declarado_int,
                                diferencia_cuadratura=diferencia_cuadratura,
                                umbral_diferencia=umbral_diferencia,
                                gran_total_ventas=gran_total_dia,
+                               indicadores_sii=indicadores_sii,
                                ventas_turno=ventas_turno)
 
     # Si es GET, mostramos la pantalla de confirmación
@@ -16107,6 +16146,7 @@ def cerrar_caja():
                            monto_teorico=monto_teorico,
                            umbral_diferencia=umbral_diferencia,
                            gran_total_ventas=gran_total_dia,
+                           indicadores_sii=indicadores_sii,
                            ventas_count=len(ventas_cuadre),
                            ventas_turno=ventas_turno)
 

@@ -348,7 +348,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Única prioridad de código hasta cerrar checklist SD-1:** validación **en piso** (inventario → POS/casuísticas → caja). **No abrir** TEC-OFFLINE Fase 1 (IndexedDB) ni commits FE SOAP hasta checklist firmado o dolor explícito de red en mostrador.
+**Prioridad código (2026-05-21):** **PLAT-1.1 ArqueoCaja** ✅ modelo + `cuadratura_arqueo_service` · siguiente **PLAT-1.2** offline cache. Paralelo: validación **SD-1 piso** (inventario, casuísticas). **FE Maullín congelado** (Form. 3230). Sin commits FE SOAP ni envíos Maullín.
 
 ### Carril activo — SD-1 piso (operación + QA manual)
 

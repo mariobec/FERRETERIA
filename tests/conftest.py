@@ -203,6 +203,10 @@ def _limpiar_datos_qa():
 @pytest.fixture(scope='session')
 def app_ctx():
     with m.app.app_context():
+        db.session.rollback()
+        if hasattr(m, '_asegurar_columnas_caja_cuadratura'):
+            m._asegurar_columnas_caja_cuadratura()
+        db.session.rollback()
         yield m.app
 
 
@@ -243,9 +247,15 @@ def _asegurar_caja_abierta_qa():
 @pytest.fixture(autouse=True)
 def _estado_qa_http_listo(app_ctx):
     """Antes de cada test: admin sin FORZAR_CLAVE y caja abierta para @caja_requerida."""
-    _normalizar_admin_qa_para_http()
-    _asegurar_caja_abierta_qa()
+    db.session.rollback()
+    try:
+        _normalizar_admin_qa_para_http()
+        _asegurar_caja_abierta_qa()
+    except Exception:
+        db.session.rollback()
+        raise
     yield
+    db.session.rollback()
 
 
 @pytest.fixture(scope='session')

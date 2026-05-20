@@ -186,7 +186,7 @@
                 Ingrese el efectivo contado para realizar la cuadratura de caja.
             </div>
             <div class="mb-3">
-                <label for="monto_contado_clp" class="form-label fw-bold">Efectivo contado en gaveta (CLP)</label>
+                <label for="monto_declarado_cajero_clp" class="form-label fw-bold">Efectivo declarado en gaveta — cierre a ciegas (CLP)</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light">$</span>
                     <input
@@ -200,8 +200,8 @@
                         data-lpignore="true"
                         data-1p-ignore="true"
                         class="form-control form-control-lg"
-                        id="monto_contado_clp"
-                        name="monto_contado"
+                        id="monto_declarado_cajero_clp"
+                        name="monto_declarado_cajero"
                         required
                         value="{{ monto_contado_sugerido }}"
                         placeholder="Ej: {{ monto_contado_sugerido or '340000' }}"
@@ -261,7 +261,7 @@
 {% block extra_js %}
 <script>
 (() => {
-    const inputContado = document.getElementById('monto_contado_clp');
+    const inputContado = document.getElementById('monto_declarado_cajero_clp');
     const inputSup = document.getElementById('supervisor_identificador');
     const inputClave = document.getElementById('supervisor_clave');
     const alerta = document.getElementById('alerta-diferencia');
