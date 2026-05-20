@@ -14,7 +14,8 @@
 
 {% block content %}
 <div class="closure-card bg-white">
-    {% set ventas_cobradas_dia = (total_efectivo or 0) + (total_debito or 0) + (total_tarjeta_credito or 0) + (total_transferencia or 0) %}
+    {% set ventas_cobradas_dia = (total_efectivo or 0) + (total_debito or 0) + (total_tarjeta_credito or 0) + (total_transferencia or 0) + (total_abonos_efectivo or 0) + (total_abonos_otros or 0) %}
+    {% set monto_contado_sugerido = "{:,.0f}".format(monto_teorico or 0).replace(",", ".") %}
     {% set ventas_comerciales_dia = (gran_total_ventas or 0) %}
     <div class="summary-header">
         <h3 class="fw-bold m-0">Resumen de Cierre</h3>
@@ -75,6 +76,18 @@
             <span><i class="fas fa-money-bill-wave me-2 text-success"></i>Ventas (Efectivo)</span>
             <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(total_efectivo).replace(",", ".") }}</span>
         </div>
+
+        <div class="summary-item">
+            <span><i class="fas fa-hand-holding-usd me-2 text-success"></i>Abonos crédito (efectivo en gaveta)</span>
+            <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(total_abonos_efectivo or 0).replace(",", ".") }}</span>
+        </div>
+        {% if total_abonos_otros %}
+        <div class="summary-item">
+            <span><i class="fas fa-hand-holding-usd me-2 text-secondary"></i>Abonos crédito (otros medios)</span>
+            <span class="fw-bold text-secondary">+ $ {{ "{:,.0f}".format(total_abonos_otros).replace(",", ".") }}</span>
+        </div>
+        {% endif %}
+        <p class="small text-muted mb-2">Ventas del turno: solo documentos <strong>Pagado</strong> (anulados y pendientes no suman).</p>
         
         <div class="summary-item">
             <span><i class="fas fa-credit-card me-2 text-digital"></i>Ventas (Débito / prepago)</span>
@@ -163,29 +176,40 @@
         </div>
         {% endif %}
 
-        <form action="{{ url_for('cerrar_caja') }}" method="POST" class="mt-4">
+        <form action="{{ url_for('cerrar_caja') }}" method="POST" class="mt-4" autocomplete="off">
+            <div class="visually-hidden" aria-hidden="true">
+                <input type="text" name="cierre_autofill_trap_email" tabindex="-1" autocomplete="username" value="">
+                <input type="password" name="cierre_autofill_trap_pass" tabindex="-1" autocomplete="current-password" value="">
+            </div>
             <div class="alert alert-warning small border-0">
                 <i class="fas fa-exclamation-triangle me-2"></i> 
                 Ingrese el efectivo contado para realizar la cuadratura de caja.
             </div>
             <div class="mb-3">
-                <label for="monto_contado" class="form-label fw-bold">Efectivo contado en gaveta (CLP)</label>
+                <label for="monto_contado_clp" class="form-label fw-bold">Efectivo contado en gaveta (CLP)</label>
                 <div class="input-group">
                     <span class="input-group-text bg-light">$</span>
                     <input
-                        type="text"
-                        inputmode="decimal"
-                        autocomplete="off"
+                        type="tel"
+                        inputmode="numeric"
+                        pattern="[0-9.,\\s]*"
+                        autocomplete="transaction-amount"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
                         class="form-control form-control-lg"
-                        id="monto_contado"
+                        id="monto_contado_clp"
                         name="monto_contado"
                         required
-                        placeholder="Ej: 340000 o 340.000"
+                        value="{{ monto_contado_sugerido }}"
+                        placeholder="Ej: {{ monto_contado_sugerido or '340000' }}"
                     >
                 </div>
                 <div class="form-text">
-                    Pesos chilenos. Puede escribir solo dígitos o usar punto como <strong>miles</strong> (340.000 = trescientos cuarenta mil).
-                    No use formato de dólares: el punto <em>no</em> es decimal salvo que lleve 1 o 2 cifras (ej. 12,50 con coma).
+                    Sugerido: mismo valor que <strong>Efectivo esperado en gaveta</strong> si cuadra al contar.
+                    Pesos chilenos; punto como <strong>miles</strong> (340.000). No ingrese correo ni usuario aquí.
                 </div>
             </div>
             <div class="mb-3">
@@ -211,11 +235,13 @@
                 </p>
                 <div class="mb-2">
                     <label for="supervisor_identificador" class="form-label">Usuario o correo supervisor</label>
-                    <input type="text" class="form-control" id="supervisor_identificador" name="supervisor_identificador">
+                    <input type="text" class="form-control" id="supervisor_identificador" name="supervisor_identificador"
+                           autocomplete="username">
                 </div>
                 <div>
                     <label for="supervisor_clave" class="form-label">Contraseña supervisor</label>
-                    <input type="password" class="form-control" id="supervisor_clave" name="supervisor_clave">
+                    <input type="password" class="form-control" id="supervisor_clave" name="supervisor_clave"
+                           autocomplete="current-password">
                 </div>
             </div>
 
@@ -235,7 +261,7 @@
 {% block extra_js %}
 <script>
 (() => {
-    const inputContado = document.getElementById('monto_contado');
+    const inputContado = document.getElementById('monto_contado_clp');
     const inputSup = document.getElementById('supervisor_identificador');
     const inputClave = document.getElementById('supervisor_clave');
     const alerta = document.getElementById('alerta-diferencia');
@@ -279,8 +305,17 @@
         return Number.isFinite(v) ? v : null;
     }
 
+    if (inputContado && /@/.test(inputContado.value)) {
+        inputContado.value = '';
+    }
+
     const evaluar = () => {
+        if (!inputContado) return;
         const raw = (inputContado.value || '').trim();
+        if (/@/.test(raw)) {
+            inputContado.value = '';
+            return;
+        }
         if (!raw) {
             bloque.classList.add('d-none');
             alerta.classList.add('d-none');
@@ -299,8 +334,10 @@
         inputSup.required = requiere;
         inputClave.required = requiere;
     };
-    inputContado.addEventListener('input', evaluar);
-    evaluar();
+    if (inputContado) {
+        inputContado.addEventListener('input', evaluar);
+        evaluar();
+    }
 })();
 </script>
 {% endblock %}

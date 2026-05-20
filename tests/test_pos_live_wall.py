@@ -29,6 +29,58 @@ class TestPosLiveWall:
         assert 'ventas_hoy_documentos' in tk
         assert 'bodega_retiro_cola' in tk
 
+    def test_recomendaciones_tv_con_lineas_en_carrito(self, app_client, catalogo_casuisticas_qa, caja_abierta, cliente_final):
+        """Panel derecho TV: 2-4 recomendaciones con clavo/obra en carrito."""
+        _ensure_caja_abierta()
+        cat = catalogo_casuisticas_qa
+        clavo = cat['by_barcode'].get('TEST-CAS-OFE-001') or cat['oferta_clavo']
+        cemento = cat['cemento']
+        venta, _ = crear_venta_pendiente(
+            [(clavo, 1), (cemento, 1)],
+            caja_abierta,
+            cat['cliente_obra'] or cliente_final,
+            'Tienda',
+        )
+        rec = m._pos_live_wall_recomendaciones_tv(venta)
+        assert rec is not None
+        assert rec.get('titulo')
+        assert rec.get('subtitulo')
+        items = rec.get('items') or []
+        assert 2 <= len(items) <= 4
+        for it in items:
+            assert it.get('id') and it.get('nombre')
+            assert isinstance(it.get('precio'), int)
+            assert 'motivo' in it
+
+    def test_recomendaciones_tv_solo_clavo_coherente(
+        self, app_client, catalogo_casuisticas_qa, caja_abierta, cliente_final
+    ):
+        """Solo clavos: perfil fijación, sin herramientas eléctricas caras."""
+        _ensure_caja_abierta()
+        cat = catalogo_casuisticas_qa
+        clavo = cat['by_barcode'].get('TEST-CAS-OFE-001') or cat['oferta_clavo']
+        venta, _ = crear_venta_pendiente(
+            [(clavo, 2)],
+            caja_abierta,
+            cliente_final,
+            'Tienda',
+        )
+        venta.monto_total = float(clavo.precio_venta or 0) * 2
+        m.db.session.commit()
+        rec = m._pos_live_wall_recomendaciones_tv(venta)
+        if rec is None:
+            pytest.skip('Catálogo QA sin complementos de fijación con stock')
+        titulo = (rec.get('titulo') or '').lower()
+        subtitulo = (rec.get('subtitulo') or '').lower()
+        assert 'fij' in titulo or 'complement' in titulo
+        assert 'clavo' in subtitulo or 'fij' in subtitulo
+        electricas = ('taladro', 'rotomartill', 'amoladora', 'lijador', 'demoledor')
+        for it in rec.get('items') or []:
+            nombre = (it.get('nombre') or '').lower()
+            assert not any(x in nombre for x in electricas), nombre
+            motivo = (it.get('motivo') or '').lower()
+            assert not any(x in motivo for x in electricas)
+
     def test_cliente_snapshot_con_token(self, app_client):
         _ensure_caja_abierta()
         app_client.get('/punto_venta')

@@ -27,16 +27,29 @@ html, body {
     min-height: 100dvh;
 }
 
+/* Shell ERP: scroll vertical de página (no bloquear como login/POS fullscreen). */
+body:not(.index-body):not(.erp-landing):not(.pos-pantalla-vendedora) {
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
 .app-shell {
     min-height: 100vh;
     min-height: 100dvh;
 }
 
-/* Fila principal: misma altura útil en toda la ventana (evita sidebar corto en pestañas altas). */
+/* Fila principal: el main puede crecer; el sidebar NO debe estirarse a esa altura. */
 .app-shell > .row {
     min-height: 100vh;
     min-height: 100dvh;
-    align-items: stretch;
+    align-items: flex-start;
+}
+
+.app-shell > .row > .app-sidebar {
+    align-self: flex-start;
+    position: sticky;
+    top: 0;
+    z-index: 20;
 }
 
 .app-sidebar {
@@ -44,17 +57,12 @@ html, body {
     height: 100dvh;
     max-height: 100vh;
     max-height: 100dvh;
-    position: sticky;
-    top: 0;
-    /* Grid + minmax(0,1fr): la fila del menú tiene altura acotada y overflow-y:auto sí hace scroll
-       (con solo flex + hijos largos, algunos navegadores no acotan bien y se corta el menú). */
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    grid-template-columns: minmax(0, 1fr);
+    /* Flex column: zona central con scroll fiable al abrir <details> (Mantenedores, etc.). */
+    display: flex;
+    flex-direction: column;
     min-height: 0;
     background: #000000;
     box-shadow: 4px 0 20px rgba(0, 0, 0, 0.45);
-    /* El scroll va solo en .app-sidebar-nav; así Cerrar sesión queda siempre visible abajo. */
     overflow: hidden;
 }
 
@@ -139,8 +147,9 @@ html, body {
 }
 
 .app-sidebar-nav {
+    flex: 1 1 auto;
     min-height: 0;
-    max-height: 100%;
+    max-height: calc(100dvh - 7.5rem);
     background: #000000;
     overflow-y: auto;
     overflow-x: hidden;
@@ -154,10 +163,9 @@ html, body {
     padding-bottom: 10px;
 }
 
-/* El padre es grid; ignoramos flex-grow de Bootstrap en esta celda (solo hace falta min-height:0 + scroll). */
 .app-sidebar .app-sidebar-nav.flex-grow-1 {
-    flex-grow: 0 !important;
-    min-height: 0;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
 }
 
 .app-sidebar-nav::-webkit-scrollbar {
@@ -170,12 +178,17 @@ html, body {
 }
 
 .app-sidebar-footer {
-    flex-shrink: 0;
+    flex: 0 0 auto;
     margin-top: 0;
     z-index: 3;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     border-bottom: 0;
     background: #000000;
+}
+
+.app-sidebar-header,
+.app-sidebar-header--compact {
+    flex: 0 0 auto;
 }
 
 .app-nav-link {

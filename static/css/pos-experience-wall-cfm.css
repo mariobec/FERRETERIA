@@ -226,6 +226,12 @@ body.ew-cfm-v2 .ew-bg {
   color: var(--ew-muted);
 }
 
+.ew-cfm-reco-col__subtitle {
+  font-size: clamp(0.78rem, 1.1vw, 0.9rem);
+  line-height: 1.4;
+  color: rgba(203, 213, 225, 0.92);
+}
+
 .ew-cfm-col__meta {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -353,9 +359,10 @@ body.ew-cfm-v2 .ew-bg {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.5rem, 0.9vw, 0.75rem);
+  align-content: stretch;
 }
 
 .ew-cfm-reco-grid.d-none + .ew-cfm-reco-empty,
@@ -385,17 +392,31 @@ body.ew-cfm-v2 .ew-bg {
 }
 
 .ew-cfm-reco-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 0.55rem 0.65rem;
-  border-radius: 14px;
-  background: rgba(2, 6, 23, 0.65);
-  border: 1px solid rgba(0, 255, 159, 0.2);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.88));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 20px rgba(0, 0, 0, 0.25);
+  transition:
+    transform 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Animación solo al montar tarjetas nuevas (evita parpadeo en cada poll). */
+.ew-cfm-reco-grid--live > .ew-cfm-reco-card {
   animation: ew-cfm-reco-in 0.45s ease backwards;
   animation-delay: calc(var(--ew-reco-i, 0) * 0.07s);
-  min-height: 0;
 }
 
 @keyframes ew-cfm-reco-in {
@@ -409,69 +430,145 @@ body.ew-cfm-v2 .ew-bg {
   }
 }
 
+.ew-cfm-reco-card:hover {
+  z-index: 2;
+  transform: scale(1.05);
+  border-color: rgba(34, 197, 94, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(34, 197, 94, 0.2),
+    0 12px 36px rgba(34, 197, 94, 0.18),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+.ew-cfm-reco-card__media {
+  flex-shrink: 0;
+  position: relative;
+  height: clamp(88px, 15vh, 118px);
+  margin: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.5), rgba(2, 6, 23, 0.35));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
 .ew-cfm-reco-card__img {
+  display: block;
   width: 100%;
-  height: clamp(52px, 10vh, 72px);
+  height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.6);
-  margin-bottom: 0.4rem;
+  object-position: center;
+  padding: 0.5rem 0.65rem;
+  box-sizing: border-box;
 }
 
 .ew-cfm-reco-card__img--ph {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ew-muted);
-  font-size: 1.25rem;
+  width: 100%;
+  height: 100%;
+  color: rgba(34, 197, 94, 0.55);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 40%, rgba(34, 197, 94, 0.12), transparent 70%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.85));
 }
 
-.ew-cfm-reco-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(0, 255, 159, 0.45);
-  box-shadow: 0 8px 28px rgba(0, 255, 159, 0.12);
+.ew-cfm-reco-card__img--ph i {
+  filter: drop-shadow(0 0 12px rgba(34, 197, 94, 0.35));
+}
+
+.ew-cfm-reco-card__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.65rem 0.75rem 0.4rem;
 }
 
 .ew-cfm-reco-card__name {
-  font-size: clamp(0.78rem, 1.15vw, 0.92rem);
-  font-weight: 700;
-  line-height: 1.2;
-  margin: 0 0 0.35rem;
+  margin: 0;
+  font-size: clamp(1rem, 1.35vw, 1.2rem);
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: #f8fafc;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+.ew-cfm-reco-card__motivo {
+  margin: 0;
+  font-size: clamp(0.8rem, 1.05vw, 0.875rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.35;
+  color: #94a3b8;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ew-cfm-reco-card__foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem 0.7rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.35);
+}
+
 .ew-cfm-reco-card__price {
+  margin: 0;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: clamp(0.85rem, 1.25vw, 1rem);
-  color: var(--ew-neon);
-  margin: 0 0 0.5rem;
+  font-size: clamp(1.05rem, 1.5vw, 1.3rem);
+  font-weight: 700;
+  line-height: 1;
+  color: #22c55e;
+  text-shadow: 0 0 18px rgba(34, 197, 94, 0.45);
+  white-space: nowrap;
 }
 
 .ew-cfm-reco-card__btn {
   appearance: none;
   border: none;
-  width: 100%;
-  padding: 0.45rem 0.5rem;
+  flex-shrink: 0;
+  max-width: 58%;
+  padding: 0.45rem 0.7rem;
   border-radius: 10px;
   font-family: inherit;
-  font-size: clamp(0.72rem, 1vw, 0.8rem);
+  font-size: clamp(0.62rem, 0.85vw, 0.72rem);
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  line-height: 1.15;
   color: #022c22;
-  background: linear-gradient(180deg, #00ff9f, #10b981);
+  background: linear-gradient(180deg, #4ade80, #22c55e);
   cursor: default;
-  box-shadow: 0 4px 16px rgba(0, 255, 159, 0.25);
-  transition: filter 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 14px rgba(34, 197, 94, 0.35);
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
-.ew-cfm-reco-card__btn span {
-  pointer-events: none;
-  font-size: 0.68em;
-  letter-spacing: 0.04em;
+.ew-cfm-reco-card:hover .ew-cfm-reco-card__btn {
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5);
+}
+
+@media (min-width: 1600px) {
+  .ew-cfm-reco-card__name {
+    font-size: 1.2rem;
+  }
+
+  .ew-cfm-reco-card__motivo {
+    font-size: 0.875rem;
+  }
+
+  .ew-cfm-reco-card__price {
+    font-size: 1.28rem;
+  }
 }
 
 /* Idle overlay */

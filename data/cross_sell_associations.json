@@ -1,5 +1,16 @@
 [
   {
+    "rule_id": "fijacion_herramientas_manual",
+    "if_cart_contains_any": [
+      "clavo", "clavos", "tornillo", "tornill", "escuadra", "escuadras",
+      "perno", "pernos", "tuerca", "arandela", "tarugo", "grampo", "fijacion"
+    ],
+    "if_cart_missing_any": ["martillo", "cinta metrica", "cinta métrica", "nivel", "alicate"],
+    "suggest_keywords": ["martillo", "alicate", "cinta metrica", "nivel", "guante", "destornillador"],
+    "titulo": "¿Le falta algo para fijar mejor?",
+    "stat_copy": "Suele faltar martillo, cinta o nivel cuando llevan clavos o tornillos."
+  },
+  {
     "rule_id": "pvc_pegamento_li",
     "if_cart_contains_any": ["pvc", "tub", "tuber", "tubería", "tuberia", "codo", "tee", "union", "reduccion", "reducción", "cañería", "caneria", "presion", "presión"],
     "if_cart_missing_any": ["pegamento", "lija"],
@@ -9,7 +20,10 @@
   },
   {
     "rule_id": "obra_arena_herramientas",
-    "if_cart_contains_any": ["cement", "morter", "yeso", "malla", "hormigon", "hormigón", "saco", "bolsa", "cal ", "cal hidra"],
+    "if_cart_contains_any": [
+      "cement", "morter", "yeso", "malla", "hormigon", "hormigón",
+      "saco cement", "bolsa cement", "saco morter", "bolsa morter", "cal hidra", "cal hidráulica"
+    ],
     "if_cart_missing_any": ["arena", "carretilla", "espatula", "llana"],
     "suggest_keywords": ["arena", "carretilla", "espatula", "llana", "cubeta"],
     "titulo": "¿Completar obra (arena, carro, acabado)?",

@@ -7,6 +7,8 @@
 **Alcance prototipo (~2 semanas):** POS + inventario (toma física)  
 **URL producción:** [www.lhexia.cl](https://www.lhexia.cl)  
 
+**Propuesta equipamiento inventario (cliente):** [`PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md`](PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md)
+
 ---
 
 ## Antes de la toma de inventario (D0)

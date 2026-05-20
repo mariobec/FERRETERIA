@@ -131,10 +131,14 @@ def _borrar_cliente_test(sa_text):
 # ── Limpieza FK-safe ───────────────────────────────────────────────
 def _limpiar_datos_qa():
     from sqlalchemy import text as sa_text
+    from tests.qa_catalogo_casuisticas import QA_CAS_USER, limpiar_catalogo_casuisticas
+
     db.session.rollback()
     try:
+        limpiar_catalogo_casuisticas(db, m, sa_text)
         vids = [r[0] for r in db.session.execute(
-            sa_text("SELECT id FROM ventas WHERE usuario = :u"), {'u': QA_USER}).fetchall()]
+            sa_text("SELECT id FROM ventas WHERE usuario IN :u"),
+            {'u': (QA_USER, QA_CAS_USER)}).fetchall()]
         if vids:
             vt = tuple(vids)
             db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': vt})
@@ -276,6 +280,28 @@ def app_client(app_ctx):
 
 
 @pytest.fixture(scope='session')
+def catalogo_casuisticas_qa(app_ctx, limpieza_qa, productos_con_stock):
+    """Productos/clientes TEST-CAS para flujos venta→caja→entrega."""
+    from tests.qa_catalogo_casuisticas import upsert_catalogo_casuisticas
+
+    productos, clientes = upsert_catalogo_casuisticas(db, m)
+    by_barcode = {p.codigo_barra: p for p in productos}
+    by_rut = {c.rut: c for c in clientes}
+    return dict(
+        productos=productos,
+        clientes=clientes,
+        by_barcode=by_barcode,
+        cliente_saldo_favor=by_rut.get('22.222.222-2'),
+        cliente_obra=by_rut.get('33.333.333-3'),
+        cliente_credito_cas=by_rut.get('44.444.444-4'),
+        oferta_clavo=by_barcode.get('TEST-CAS-OFE-001'),
+        cemento=by_barcode.get('TEST-CAS-CEM-001'),
+        arena=by_barcode.get('TEST-CAS-ARE-001'),
+        pvc=by_barcode.get('TEST-CAS-PVC-001'),
+    )
+
+
+@pytest.fixture(scope='session')
 def productos_con_stock(app_ctx, limpieza_qa):
     productos = []
     for data in PRODUCTOS_TEST:
@@ -365,25 +391,102 @@ def audit_snapshot(app_ctx):
 
 
 # ── Helpers / Factories ─────────────────────────────────────────────
-def crear_venta_pendiente(productos_cantidades, caja, cliente, punto_retiro='Tienda'):
+def crear_venta_pendiente(productos_cantidades, caja, cliente, punto_retiro='Tienda', usuario=None):
     venta = m.Venta(
-        fecha=datetime.now(), monto_total=0, usuario=QA_USER,
+        fecha=datetime.now(), monto_total=0, usuario=usuario or QA_USER,
         estado='Abierta', caja_id=caja.id, cliente_id=cliente.id,
         punto_retiro=punto_retiro)
     db.session.add(venta)
     db.session.flush()
     dets = []
-    for prod, qty in productos_cantidades:
+    for item in productos_cantidades:
+        if len(item) == 3:
+            prod, qty, retiro_linea = item
+        else:
+            prod, qty = item
+            retiro_linea = punto_retiro
         d = m.DetalleVenta(
             id_venta=venta.id, id_producto=prod.id,
             cantidad=qty, precio_unitario=prod.precio_venta,
-            subtotal=qty * prod.precio_venta)
+            subtotal=qty * prod.precio_venta,
+            punto_retiro_linea=(retiro_linea or punto_retiro or 'Tienda').strip())
         db.session.add(d)
         dets.append(d)
     venta.recalcular_total()
+    retiros = {(getattr(d, 'punto_retiro_linea', None) or punto_retiro or 'Tienda').strip() for d in dets}
+    if len(retiros) > 1:
+        venta.punto_retiro = 'Mixto'
     venta.estado = 'Pendiente'
     db.session.commit()
     return venta, dets
+
+
+def ultima_venta_pendiente(caja_id=None):
+    q = m.Venta.query.filter_by(estado='Pendiente').order_by(m.Venta.id.desc())
+    if caja_id:
+        q = q.filter_by(caja_id=caja_id)
+    return q.first()
+
+
+def procesar_cobro_http(app_client, venta, *, metodo_pago='Efectivo', monto_recibido=None,
+                        usar_saldo_favor=0, tipo_documento='Boleta'):
+    total = float(venta.monto_total or 0)
+    if monto_recibido is None:
+        monto_recibido = total + 500 if metodo_pago != 'Credito' else 0
+    return app_client.post(
+        f'/procesar_cobro_caja/{venta.id}',
+        data={
+            'metodo_pago': metodo_pago,
+            'tipo_documento': tipo_documento,
+            'monto_recibido': str(int(monto_recibido)),
+            'usar_saldo_favor': str(int(usar_saldo_favor or 0)),
+        },
+        follow_redirects=True,
+    )
+
+
+def pos_escanear_agregar(app_client, codigo_barra, *, punto_retiro_linea=None, a_pedido=False):
+    payload = {'codigo': codigo_barra}
+    if punto_retiro_linea:
+        payload['punto_retiro_linea'] = punto_retiro_linea
+    if a_pedido:
+        payload['a_pedido'] = True
+    return app_client.post(
+        '/api/pos/escanear-agregar',
+        json=payload,
+        content_type='application/json',
+    )
+
+
+def pos_emitir_vale_http(app_client, lineas, *, cliente_rut=None, cliente_final=True,
+                         punto_retiro='Tienda', compromiso_confirmado=False):
+    """lineas: lista de dict {codigo, qty?, retiro?, a_pedido?} o codigos str."""
+    app_client.get('/punto_venta')
+    for linea in lineas:
+        if isinstance(linea, str):
+            codigo, qty, retiro, a_ped = linea, 1, None, False
+        else:
+            codigo = linea['codigo']
+            qty = int(linea.get('qty') or 1)
+            retiro = linea.get('retiro')
+            a_ped = bool(linea.get('a_pedido'))
+        for _ in range(qty):
+            r = pos_escanear_agregar(app_client, codigo, punto_retiro_linea=retiro, a_pedido=a_ped)
+            if r.status_code == 409 and (r.get_json() or {}).get('error') == 'en_vale_pendiente':
+                return r
+            if r.status_code != 200:
+                return r
+    data = {
+        'punto_retiro': punto_retiro,
+        'compromiso_confirmado': '1' if compromiso_confirmado else '',
+    }
+    if cliente_final:
+        data['cliente_final'] = '1'
+    else:
+        data['cliente_final'] = '0'
+        data['cliente_rut'] = cliente_rut or ''
+        data['cliente_nombre'] = data.get('cliente_nombre') or 'Cliente QA'
+    return app_client.post('/finalizar_venta', data=data, follow_redirects=False)
 
 
 def cobrar_venta_efectivo(venta, caja):

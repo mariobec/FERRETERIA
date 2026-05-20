@@ -12,7 +12,10 @@
 | **Alineación Mario · Grok · Cursor** | [`00-alineacion/MEMORY_GROK.md`](00-alineacion/MEMORY_GROK.md) |
 | **Configurar Grok Project (5 archivos)** | [`00-alineacion/GROK_PROJECT_SETUP.md`](00-alineacion/GROK_PROJECT_SETUP.md) |
 | **Ritmo equipo (Daily / Weekly / Sprint)** | [`00-alineacion/EQUIPO_RITMO_ASYNC.md`](00-alineacion/EQUIPO_RITMO_ASYNC.md) |
+| **Plantilla documentos cliente** | [`00-alineacion/PLANTILLA_DOCUMENTO_CLIENTE.md`](00-alineacion/PLANTILLA_DOCUMENTO_CLIENTE.md) |
 | **Producto LhexIA (portal)** | [`02-producto-lhexia/LHEXIA_PRODUCTO.md`](02-producto-lhexia/LHEXIA_PRODUCTO.md) |
+| **Fidelización + sorteo TV (backlog)** | [`02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`](02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md) |
+| **Vitácora reunión SD (puntos + chocolate)** | [`01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md`](01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md) |
 | **Santo Domingo entrega (portal)** | [`01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
 
 **Bitácora técnica diaria:** [`../memory.md`](../memory.md)
@@ -38,7 +41,7 @@
 
 | Archivo | Rol |
 |---------|-----|
-| `ERP_MAESTRO.md` | Mapa técnico del sistema |
+| `ERP_MAESTRO.md` | **Mapa técnico** del sistema (modelos, rutas, deploy, tests) — actualizado 2026-05-21 |
 | `FLUJOS_CRITICOS.md` | Secuencias que no romper |
 | `MIGRACION_RENDER_NEON.md` | Deploy y Neon |
 | `CASUISTICAS_PRUEBAS.md` | QA |

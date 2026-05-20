@@ -67,8 +67,8 @@ flowchart LR
 |------|--------|----------|--------|-------|
 | **SD-1** | **Go-live POS + Inventario** | Toma física + venta diaria en sucursal(es) piloto | 🟡 **En curso** | Inventario: herramientas listas; POS en prod |
 | SD-1.1 | Inventario — toma física | Enrolamiento, sesiones, salud, kardex | 🟡 Operación mañana | `/inventario/enrolamiento`, `/inventario/salud` |
-| SD-1.2 | POS — venta diaria | Vale → caja → cobro; búsqueda usable | 🟡 Validar piso | Layout ✅ prod; Fase 4 código local sin push |
-| SD-1.3 | Infra y capacitación | Backup Neon, permisos, 3 almacenes | ⏳ | Checklist en `CLIENTE_SANTO_DOMINGO.md` |
+| SD-1.2 | POS — venta diaria | Vale → caja → cobro; búsqueda usable | 🟡 Validar piso | POS-3 ✅ prod; POS-4 ✅ `main` (`309f02f`) |
+| SD-1.3 | Infra y capacitación | Backup Neon, permisos, 3 almacenes, **índices + Render/Neon**, equipo inventario | ⏳ | `CLIENTE_SANTO_DOMINGO.md` · `PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md` · `04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md` |
 | **SD-2** | Caja multi-sucursal | Cierre diario, cola cobro en 3 tiendas | ⏳ Post SD-1 | Caja madura en código |
 | **SD-3** | Compras + FE producción | OC, recepción, DTE en operación real | ⏳ | FE 🟡 certificación |
 
@@ -86,7 +86,7 @@ flowchart LR
 | Fase 1 | **POS-1** Hero búsqueda | ✅ | `unified_search_vendedor.html`, portal |
 | Fase 2 | **POS-2** Carrito v3 | ✅ | `premium_cart_cards.html`, retiro línea |
 | Fase 3 | **POS-3** Layout + dock 78vh | ✅ Prod | `5094d5d`, Mario aprobó |
-| Fase 4 | **POS-4** Pulido F8/toasts/búsqueda | ✅ Código local | `20260525f` — **pendiente commit/push** |
+| Fase 4 | **POS-4** Pulido F8/toasts/búsqueda | ✅ En `main` | `20260525f` — validar en piso |
 
 **Backlog POS (post SD-1):** modo oscuro, animaciones, QA semáforo `POS-SEM-*`.
 
@@ -214,6 +214,8 @@ Planes **válidos** pero **no prioritarios** para las 2 semanas de Santo Domingo
 | MOD-OBS | Observabilidad 2026–2030 | `../05-modulos-backlog/roadmap_observabilidad_lhexia_2026_2030.md` | Largo plazo |
 | MOD-AUD | Auditorías inventario | `../05-modulos-backlog/PLAN_TRABAJO_CONSOLIDADO_AUDITORIAS.md` | Referencia |
 | MOD-CASU | Casuísticas QA | `docs/CASUISTICAS_PRUEBAS.md` | 200+ tests |
+| **LX-FID** | Fidelización puntos → descuento caja | `../02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md` §A | 📋 Post SD-1 |
+| **LX-PROMO** | Sorteo aleatorio premio (TV Experience) | `../02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md` §B | 📋 Post SD-1 |
 
 ---
 
@@ -261,7 +263,7 @@ Sep–Dic   ░░░░░░░░████████  IA-1…3  Agentes 
 |---|--------|-----|-------------|
 | 1 | Validar 3 almacenes + permisos enrolamiento | SD-1.1 | Mario / operación |
 | 2 | Toma inventario con `/inventario/enrolamiento` | SD-1.1 | Piso |
-| 3 | Commit + push **POS-4** (`20260525f`) si búsqueda OK en prueba | POS-4 | Cursor / Mario |
+| 3 | Validar **POS-4** en piso (`20260525f` en `main` desde `309f02f`) | POS-4 | Mario / piso |
 | 4 | Piloto vale → caja sucursal 1 | SD-1.2 | Piso |
 | 5 | No iniciar **LX-1** multi-tenant hasta cerrar SD-1 | LX | Decisión |
 | 6 | IA-0: diseño `agents/` + tool lectura en QA (sin Celery prod) | IA-0 | Cursor / Grok |

@@ -205,11 +205,14 @@ Casuísticas: [`CASUISTICAS_PRUEBAS.md`](CASUISTICAS_PRUEBAS.md)
 
 | Tema | Archivo |
 |------|---------|
-| Runbook 1 página piso | `product/CLIENTE_SANTO_DOMINGO.md` |
+| **Propuesta equipamiento + cotización (cliente)** | [`PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md`](PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md) |
+| Runbook 1 página piso | [`CLIENTE_SANTO_DOMINGO.md`](CLIENTE_SANTO_DOMINGO.md) |
 | Config cliente | `clients/santo_domingo/README.md` (si existe) |
 | POS fases UI | `POS_ALINEACION_CURSOR_GROK.md` |
 | Índice planes SD/POS | `PLAN_INDICE_LHEXIA.md` §1–2 |
 | Bitácora sesiones | `memory.md` |
+| **Vitácora reunión fidelización + sorteo TV** | [`VITACORA_REUNION_FIDELIZACION_PROMO_SD.md`](VITACORA_REUNION_FIDELIZACION_PROMO_SD.md) 📅 programada |
+| Plan técnico LX-FID / LX-PROMO | [`../02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`](../02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md) |
 
 ---
 

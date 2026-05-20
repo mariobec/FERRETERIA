@@ -14270,44 +14270,493 @@ def _venta_a_dict_para_cambio(v):
     }
 
 
+def _pos_tv_reco_item_dict(prod, motivo=''):
+    """Ítem enriquecido para TV cliente (precio POS efectivo + imagen)."""
+    if not prod:
+        return None
+    try:
+        precio = int(round(float(precio_efectivo_pos_producto(prod) or prod.precio_venta or 0)))
+    except (TypeError, ValueError):
+        precio = 0
+    img = (getattr(prod, 'imagen_url', None) or '').strip()
+    return {
+        'id': int(prod.id),
+        'nombre': (prod.nombre or 'Producto')[:80],
+        'precio': precio,
+        'imagen_url': img[:500] if img else None,
+        'motivo': (motivo or '').strip()[:120],
+    }
+
+
+_POS_TV_ELECTRIC_EXPENSIVE = (
+    'taladro', 'rotomartill', 'rotomartillo', 'amoladora', 'esmeril', 'pulidora', 'lijador',
+    'generador', 'soldador', 'compresor', 'demoledor', 'caladora', 'sierra circular',
+    'martillo demoledor', 'atornillador de impacto',
+)
+
+_POS_TV_FIJACION_TRIGGERS = (
+    'clavo', 'clavos', 'tornillo', 'tornill', 'escuadra', 'escuadras', 'perno', 'pernos',
+    'tuerca', 'arandela', 'tarugo', 'grampo', 'fijacion', 'fijación',
+)
+
+_POS_TV_OBRA_PESADA_TRIGGERS = (
+    'cemento', 'mortero', 'yeso', 'hormigon', 'hormigón', 'arena gruesa', 'cal hidra',
+    'cal hidráulica', 'saco cement', 'bolsa cement',
+)
+
+_POS_TV_PERFIL_FIJACION = {
+    'familia': 'fijacion',
+    'titulo': 'Complementos para su fijación',
+    'subtitulo': 'Ideas útiles para quien lleva {ancla}',
+    'exclude_nombre': _POS_TV_ELECTRIC_EXPENSIVE,
+    'sugerencias': (
+        ('martillo', 'Perfecto para acompañar {ancla}', 100),
+        ('alicate', 'Sujeta y corta al clavar', 98),
+        ('cinta metrica', 'Mida antes de fijar', 96),
+        ('cinta métrica', 'Mida antes de fijar', 96),
+        ('nivel', 'Nivelación más precisa', 94),
+        ('guante', 'Protege las manos al clavar', 92),
+        ('destornillador', 'Útil si también usa tornillos', 88),
+        ('cincel', 'Ajusta o saca clavos mal puestos', 82),
+        ('flexometro', 'Medición rápida en terreno', 80),
+    ),
+}
+
+_POS_TV_PERFIL_PINTURA = {
+    'familia': 'pintura',
+    'titulo': 'Complete su trabajo de pintura',
+    'subtitulo': 'Accesorios habituales cuando llevan pintura o látex',
+    'exclude_nombre': _POS_TV_ELECTRIC_EXPENSIVE,
+    'sugerencias': (
+        ('brocha', 'Para aplicar la pintura que lleva', 100),
+        ('rodillo', 'Acabado más rápido en muros', 98),
+        ('lija', 'Prepara la superficie antes de pintar', 96),
+        ('thinner', 'Dilución y limpieza de herramientas', 90),
+        ('cinta masking', 'Protege bordes y marcos', 88),
+        ('bandeja', 'Cómoda para cargar brocha o rodillo', 85),
+    ),
+}
+
+_POS_TV_PERFIL_PVC = {
+    'familia': 'pvc',
+    'titulo': '¿Completar la instalación PVC?',
+    'subtitulo': 'Suele faltar pegamento o lija al llevar tubería',
+    'exclude_nombre': _POS_TV_ELECTRIC_EXPENSIVE,
+    'sugerencias': (
+        ('pegamento pvc', 'Pega y sella tuberías PVC', 100),
+        ('pegamento', 'Pegamento para tubería', 95),
+        ('lija', 'Lija para preparar unión', 90),
+        ('codo', 'Codos de repuesto', 85),
+    ),
+}
+
+_POS_TV_PERFIL_OBRA = {
+    'familia': 'obra_pesada',
+    'titulo': '¿Completar materiales de obra?',
+    'subtitulo': 'Con mortero o cemento suele faltar arena, carretilla o llana',
+    'exclude_nombre': (),
+    'permite_electrico_caro': True,
+    'sugerencias': (
+        ('arena', 'Para mezclar con el cemento o mortero', 100),
+        ('carretilla', 'Transporta mezcla en obra', 98),
+        ('llana', 'Extiende y alisa mortero', 96),
+        ('espatula', 'Acabados y mezclas pequeñas', 94),
+        ('cubeta', 'Mezclas en cantidades medias', 90),
+    ),
+}
+
+_POS_TV_PERFIL_MADERA = {
+    'familia': 'madera',
+    'titulo': 'Herramientas para trabajar madera',
+    'subtitulo': 'Complementos habituales en carpintería y tabiquería',
+    'exclude_nombre': ('generador', 'soldador'),
+    'permite_electrico_caro': False,
+    'sugerencias': (
+        ('serrucho', 'Corte manual de madera', 100),
+        ('lijadora', 'Lija y acabado en madera', 95),
+        ('clavo', 'Fijación en madera', 92),
+        ('tornillo madera', 'Fijación más firme', 90),
+        ('cola fria', 'Pegado de piezas de madera', 88),
+    ),
+}
+
+_POS_TV_PERFIL_GENERAL = {
+    'familia': 'general',
+    'titulo': 'LhexIA IA recomienda para su compra',
+    'subtitulo': 'Sugerencias útiles según lo que lleva hoy',
+    'exclude_nombre': _POS_TV_ELECTRIC_EXPENSIVE,
+    'sugerencias': (
+        ('cinta metrica', 'Medición básica en ferretería', 90),
+        ('guante', 'Protección en obra', 88),
+        ('destornillador', 'Herramienta versátil', 86),
+        ('martillo', 'Uso frecuente en hogar y obra', 84),
+    ),
+}
+
+
+def _pos_tv_precio_producto(prod):
+    try:
+        return float(precio_efectivo_pos_producto(prod) or prod.precio_venta or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _pos_tv_ancla_texto(combined_lower):
+    if 'clavo' in combined_lower or re.search(r'\bclav', combined_lower):
+        return 'los clavos'
+    if 'tornillo' in combined_lower:
+        return 'los tornillos'
+    if 'escuadra' in combined_lower:
+        return 'las escuadras'
+    if 'perno' in combined_lower:
+        return 'los pernos'
+    return 'sus fijaciones'
+
+
+def _pos_tv_detectar_familias(combined_lower):
+    fam = []
+    if any(t in combined_lower for t in _POS_TV_FIJACION_TRIGGERS):
+        fam.append('fijacion')
+    if any(t in combined_lower for t in _POS_TV_OBRA_PESADA_TRIGGERS):
+        fam.append('obra_pesada')
+    if any(t in combined_lower for t in ('pintura', 'latex', 'esmalte', 'barniz', 'sellador')):
+        fam.append('pintura')
+    if any(t in combined_lower for t in ('pvc', 'tuber', 'tubo', 'cañer', 'caner', 'codo pvc')):
+        fam.append('pvc')
+    if any(t in combined_lower for t in ('madera', 'mdf', 'melamina', 'contrachap')):
+        fam.append('madera')
+    if any(t in combined_lower for t in ('fierro', 'perfil', 'malla acma', 'alambre', 'clavo esp')):
+        if 'fijacion' not in fam:
+            fam.append('madera')
+    return fam or ['general']
+
+
+def _pos_tv_contexto_carrito(prods_cart, venta):
+    combined_lower = ' '.join(_pos_blob_producto(p) for p in (prods_cart or [])).lower()
+    familias = _pos_tv_detectar_familias(combined_lower)
+    ticket = float(getattr(venta, 'monto_total', None) or 0)
+    ticket_bajo = ticket < 28000
+    ticket_medio = ticket < 75000
+    obra_pesada = 'obra_pesada' in familias
+    fijacion_dom = 'fijacion' in familias and not obra_pesada
+    permite_electrico = obra_pesada or (
+        not fijacion_dom and ticket >= 75000 and any(
+            t in combined_lower for t in ('madera', 'fierro', 'perfil', 'tabique', 'hormigon', 'cemento')
+        )
+    )
+    return {
+        'combined_lower': combined_lower,
+        'familias': familias,
+        'familia_principal': familias[0],
+        'ticket_total': ticket,
+        'ticket_bajo': ticket_bajo,
+        'ticket_medio': ticket_medio,
+        'permite_electrico_caro': permite_electrico,
+        'ancla_label': _pos_tv_ancla_texto(combined_lower),
+        'fijacion_dom': fijacion_dom,
+    }
+
+
+def _pos_tv_perfil_recomendacion(ctx):
+    fam = ctx.get('familia_principal') or 'general'
+    if fam == 'fijacion' and ctx.get('fijacion_dom'):
+        return _POS_TV_PERFIL_FIJACION
+    if fam == 'obra_pesada':
+        return _POS_TV_PERFIL_OBRA
+    if fam == 'pintura':
+        return _POS_TV_PERFIL_PINTURA
+    if fam == 'pvc':
+        return _POS_TV_PERFIL_PVC
+    if fam == 'madera':
+        return _POS_TV_PERFIL_MADERA
+    if 'fijacion' in ctx.get('familias', []):
+        return _POS_TV_PERFIL_FIJACION
+    return _POS_TV_PERFIL_GENERAL
+
+
+def _pos_tv_max_precio_item(ctx, perfil):
+    if ctx.get('permite_electrico_caro') or perfil.get('permite_electrico_caro'):
+        return None
+    ticket = float(ctx.get('ticket_total') or 0)
+    if ctx.get('ticket_bajo'):
+        return max(12000, min(32000, ticket * 1.35 if ticket > 0 else 28000))
+    if ctx.get('ticket_medio'):
+        return 48000
+    return 65000
+
+
+def _pos_tv_nombre_excluido(nombre_lower, exclude_patterns, max_precio, prod):
+    if any(ex in nombre_lower for ex in (exclude_patterns or ())):
+        return True
+    if max_precio and _pos_tv_precio_producto(prod) > max_precio:
+        return True
+    return False
+
+
+def _pos_tv_candidates_for_keyword(kw, excluded_ids, limit=50):
+    likes = _pos_cross_sell_sql_likes_for_keyword(kw)
+    if not likes:
+        return []
+    ors = []
+    for like in likes:
+        ors.append(
+            db.or_(
+                db.func.lower(Producto.nombre).like(like),
+                db.func.lower(db.func.coalesce(Producto.subcategoria, '')).like(like),
+                db.func.lower(db.func.coalesce(Producto.categoria, '')).like(like),
+            )
+        )
+    q = Producto.query.filter(Producto.activo == True, Producto.stock > 0, db.or_(*ors))
+    if excluded_ids:
+        q = q.filter(~Producto.id.in_(list(excluded_ids)))
+    canon_kw = _pos_cross_sell_canonical_suggest_keyword(kw)
+    if canon_kw == 'lija':
+        q = q.filter(~db.func.lower(Producto.nombre).like('%lijador%'))
+    cands = q.order_by(Producto.precio_venta.asc(), Producto.nombre.asc()).limit(limit).all()
+    if not cands and canon_kw and canon_kw in _POS_CROSS_SELL_KW_LIKE_PATTERNS:
+        like_fallback = f'%{canon_kw}%'
+        q2 = Producto.query.filter(
+            Producto.activo == True,
+            Producto.stock > 0,
+            db.or_(
+                db.func.lower(Producto.nombre).like(like_fallback),
+                db.func.lower(db.func.coalesce(Producto.subcategoria, '')).like(like_fallback),
+                db.func.lower(db.func.coalesce(Producto.categoria, '')).like(like_fallback),
+            ),
+        )
+        if excluded_ids:
+            q2 = q2.filter(~Producto.id.in_(list(excluded_ids)))
+        if canon_kw == 'lija':
+            q2 = q2.filter(~db.func.lower(Producto.nombre).like('%lijador%'))
+        cands = q2.order_by(Producto.precio_venta.asc(), Producto.nombre.asc()).limit(limit).all()
+    return cands
+
+
+def _pos_tv_score_candidato(prod, kw, ctx, max_precio):
+    n = (prod.nombre or '').lower()
+    sc = _pos_cross_sell_rank_sugerencia(prod, kw)
+    precio = _pos_tv_precio_producto(prod)
+    if ctx.get('ticket_bajo'):
+        sc += max(0.0, 35.0 - precio / 1200.0)
+    elif ctx.get('ticket_medio'):
+        sc += max(0.0, 18.0 - precio / 2500.0)
+    if max_precio and precio <= max_precio * 0.65:
+        sc += 12.0
+    if any(ex in n for ex in _POS_TV_ELECTRIC_EXPENSIVE):
+        sc -= 200.0
+    return sc, precio
+
+
+def _pos_tv_pick_coherente(kw, motivo, seen, ctx, perfil):
+    max_precio = _pos_tv_max_precio_item(ctx, perfil)
+    exclude = tuple(perfil.get('exclude_nombre') or ())
+    if not ctx.get('permite_electrico_caro'):
+        exclude = tuple(set(exclude + _POS_TV_ELECTRIC_EXPENSIVE))
+    best_p, best_sc = None, -99999.0
+    for p in _pos_tv_candidates_for_keyword(kw, seen):
+        n = (p.nombre or '').lower()
+        if _pos_tv_nombre_excluido(n, exclude, max_precio, p):
+            continue
+        sc, _ = _pos_tv_score_candidato(p, kw, ctx, max_precio)
+        if sc > best_sc:
+            best_sc, best_p = sc, p
+    if best_p is None or best_sc < 8.0:
+        return None
+    return best_p, motivo
+
+
+def _pos_tv_productos_historial_cliente(cliente_id, exclude_ids, ctx, perfil, limit=2):
+    """Productos que el cliente ya compró (Pagado), filtrados por coherencia TV."""
+    if not cliente_id:
+        return []
+    try:
+        cid = int(cliente_id)
+    except (TypeError, ValueError):
+        return []
+    excl = {int(x) for x in (exclude_ids or []) if x is not None}
+    cut = datetime.now() - timedelta(days=420)
+    pid_counts = defaultdict(int)
+    rows = (
+        db.session.query(DetalleVenta.id_producto)
+        .join(Venta, Venta.id == DetalleVenta.id_venta)
+        .filter(
+            Venta.cliente_id == cid,
+            Venta.estado == 'Pagado',
+            Venta.fecha >= cut,
+            DetalleVenta.id_producto.isnot(None),
+        )
+        .all()
+    )
+    for (pid,) in rows:
+        try:
+            ip = int(pid)
+        except (TypeError, ValueError):
+            continue
+        if ip not in excl:
+            pid_counts[ip] += 1
+    if not pid_counts:
+        return []
+    top_ids = sorted(pid_counts.keys(), key=lambda x: -pid_counts[x])[: max(limit * 3, 6)]
+    prods = (
+        Producto.query.filter(
+            Producto.id.in_(top_ids),
+            Producto.activo == True,
+            Producto.stock > 0,
+        )
+        .all()
+    )
+    prods.sort(key=lambda p: -pid_counts.get(p.id, 0))
+    max_precio = _pos_tv_max_precio_item(ctx, perfil)
+    exclude = tuple(perfil.get('exclude_nombre') or ())
+    if not ctx.get('permite_electrico_caro'):
+        exclude = tuple(set(exclude + _POS_TV_ELECTRIC_EXPENSIVE))
+    out = []
+    for p in prods:
+        n = (p.nombre or '').lower()
+        if _pos_tv_nombre_excluido(n, exclude, max_precio, p):
+            continue
+        out.append(p)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _pos_tv_same_category_fill(prods_cart, exclude_ids, max_add=4):
+    """Otros productos de la misma categoría/subcategoría con stock."""
+    excl = set(exclude_ids or [])
+    cats = {(p.categoria or '').strip() for p in (prods_cart or []) if (p.categoria or '').strip()}
+    subs = {(p.subcategoria or '').strip() for p in (prods_cart or []) if (p.subcategoria or '').strip()}
+    ors = []
+    for c in cats:
+        ors.append(Producto.categoria == c)
+    for s in subs:
+        ors.append(Producto.subcategoria == s)
+    if not ors:
+        return []
+    q = Producto.query.filter(Producto.activo == True, Producto.stock > 0, db.or_(*ors))
+    if excl:
+        q = q.filter(~Producto.id.in_(list(excl)))
+    return q.order_by(Producto.stock.desc(), Producto.nombre.asc()).limit(max_add).all()
+
+
+def _pos_tv_popular_fill(exclude_ids, max_add=4):
+    """Último recurso: productos activos con más stock (ferretería general)."""
+    excl = set(exclude_ids or [])
+    q = Producto.query.filter(Producto.activo == True, Producto.stock > 0)
+    if excl:
+        q = q.filter(~Producto.id.in_(list(excl)))
+    return q.order_by(Producto.stock.desc(), Producto.nombre.asc()).limit(max_add).all()
+
+
 def _pos_live_wall_recomendaciones_tv(venta):
-    """Cross-sell para TV cliente: no usa sesión POS (polling anónimo con token)."""
+    """
+    Recomendaciones coherentes para TV cliente (sin sesión POS).
+    Perfil por familia de producto + tope de precio según ticket.
+    """
     if not venta or not venta.detalles:
         return None
-    pids = [d.id_producto for d in venta.detalles if d.id_producto]
+    pids = [int(d.id_producto) for d in venta.detalles if d.id_producto]
     if not pids:
         return None
-    panel = _pos_cross_sell_match_rules(pids, rejected_rule_ids=[])
-    if not panel or not isinstance(panel, dict):
-        return None
-    items_tv = []
-    for it in (panel.get('items') or [])[:4]:
-        if not isinstance(it, dict):
+
+    prods_cart = Producto.query.filter(Producto.id.in_(pids)).all()
+    ctx = _pos_tv_contexto_carrito(prods_cart, venta)
+    perfil = _pos_tv_perfil_recomendacion(ctx)
+    ancla = ctx.get('ancla_label') or 'sus productos'
+
+    titulo = (perfil.get('titulo') or 'LhexIA IA recomienda para su compra')[:120]
+    try:
+        subtitulo = (perfil.get('subtitulo') or 'Sugerencias según lo que lleva hoy').format(ancla=ancla)[:200]
+    except (KeyError, ValueError):
+        subtitulo = 'Sugerencias según lo que lleva hoy'
+
+    seen = set(pids)
+    candidatos = []
+
+    for kw, motivo_tpl, prio in perfil.get('sugerencias') or ():
+        if len(candidatos) >= 6:
+            break
+        try:
+            motivo = motivo_tpl.format(ancla=ancla)
+        except (KeyError, ValueError):
+            motivo = motivo_tpl
+        picked = _pos_tv_pick_coherente(kw, motivo, seen, ctx, perfil)
+        if not picked:
             continue
-        pid = it.get('id')
-        img = None
-        if pid:
-            try:
-                prod = Producto.query.get(int(pid))
-                if prod and (prod.imagen_url or '').strip():
-                    img = (prod.imagen_url or '').strip()[:500]
-            except (TypeError, ValueError):
-                pass
-        items_tv.append(
-            {
-                'id': pid,
-                'nombre': (it.get('nombre') or 'Producto')[:80],
-                'precio': int(round(float(it.get('precio') or 0))),
-                'codigo': (it.get('codigo') or '')[:40],
-                'imagen_url': img,
-            }
-        )
-    if not items_tv:
+        prod, mot = picked
+        if prod.id in seen:
+            continue
+        seen.add(prod.id)
+        candidatos.append((prio, prod.id, mot))
+
+    if venta.cliente_id and len(candidatos) < 4:
+        for prod in _pos_tv_productos_historial_cliente(venta.cliente_id, seen, ctx, perfil, limit=2):
+            if prod.id in seen:
+                continue
+            seen.add(prod.id)
+            candidatos.append((72, prod.id, 'Lo compró antes — le puede servir de nuevo'))
+
+    familia_perfil = perfil.get('familia') or 'general'
+    if len(candidatos) < 4 and familia_perfil in ('obra_pesada', 'pvc', 'pintura'):
+        panel = _pos_cross_sell_match_rules(pids, rejected_rule_ids=[])
+        if panel and isinstance(panel, dict):
+            stat = (panel.get('mensaje') or panel.get('stat_copy') or '').strip()
+            if stat and familia_perfil != 'fijacion':
+                subtitulo = stat[:200]
+            prio_base = 68
+            for it in (panel.get('items') or [])[:4]:
+                if not isinstance(it, dict):
+                    continue
+                try:
+                    pid = int(it.get('id') or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not pid or pid in seen:
+                    continue
+                prod = db.session.get(Producto, pid)
+                if not prod:
+                    continue
+                n = (prod.nombre or '').lower()
+                max_p = _pos_tv_max_precio_item(ctx, perfil)
+                if _pos_tv_nombre_excluido(n, perfil.get('exclude_nombre'), max_p, prod):
+                    continue
+                seen.add(pid)
+                motivo = stat[:120] if stat else 'Suele llevarse junto en esta compra'
+                candidatos.append((prio_base, pid, motivo))
+                prio_base -= 2
+
+    if len(candidatos) < 2:
+        for kw, motivo_tpl, prio in _POS_TV_PERFIL_GENERAL.get('sugerencias', ()):
+            picked = _pos_tv_pick_coherente(kw, motivo_tpl, seen, ctx, _POS_TV_PERFIL_GENERAL)
+            if not picked:
+                continue
+            prod, mot = picked
+            if prod.id in seen:
+                continue
+            seen.add(prod.id)
+            candidatos.append((prio - 20, prod.id, mot))
+            if len(candidatos) >= 4:
+                break
+
+    candidatos.sort(key=lambda x: (-x[0], x[1]))
+    items_tv = []
+    for _, pid, motivo in candidatos:
+        if len(items_tv) >= 4:
+            break
+        prod = db.session.get(Producto, pid)
+        row = _pos_tv_reco_item_dict(prod, motivo)
+        if row and row.get('id'):
+            items_tv.append(row)
+
+    if len(items_tv) < 2:
         return None
+
+    items_tv.sort(key=lambda x: int(x.get('precio') or 0))
+
     return {
-        'titulo': (panel.get('titulo') or 'Productos sugeridos')[:120],
-        'subtitulo': (panel.get('mensaje') or '')[:200],
-        'items': items_tv,
+        'titulo': titulo,
+        'subtitulo': subtitulo,
+        'items': items_tv[:4],
     }
 
 
@@ -15387,6 +15836,11 @@ def anular_vales_caja_lote():
     return redirect(url_for('caja_pendientes'))
 
 
+def _venta_cuenta_en_cuadre_caja(venta):
+    """Solo ventas cobradas (Pagado) entran al arqueo; Pendiente/Abierta/Anulada no mueven caja."""
+    return (getattr(venta, 'estado', None) or '').strip() == 'Pagado'
+
+
 def _documentos_bloquean_cierre_caja(caja):
     """Vales pendientes sin método de pago y ventas POS en estado Abierta de esta caja (bloquean cerrar_caja)."""
     if not caja:
@@ -15438,6 +15892,7 @@ def cerrar_caja():
         )
         .all()
     )
+    ventas_cuadre = [v for v in ventas if _venta_cuenta_en_cuadre_caja(v)]
 
     def _metodo_pago(v):
         return (v.metodo_pago or "").strip()
@@ -15445,13 +15900,13 @@ def cerrar_caja():
     def _monto_cobrado_por_medio(v):
         return max(0.0, float(v.monto_total or 0) - float(getattr(v, 'saldo_favor_usado', 0) or 0))
 
-    total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Efectivo") or 0
-    total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Debito") or 0
-    total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "TarjetaCredito") or 0
-    total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Transferencia") or 0
-    total_fiado = sum(v.monto_total for v in ventas if _metodo_pago(v).lower() == "credito") or 0
+    total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Efectivo") or 0
+    total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Debito") or 0
+    total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "TarjetaCredito") or 0
+    total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Transferencia") or 0
+    total_fiado = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v).lower() == "credito") or 0
 
-    ventas_turno = [v for v in ventas if v.estado != "Abierta"]
+    ventas_turno = [v for v in ventas if (v.estado or '').strip() not in ('Abierta',)]
     ventas_turno.sort(key=lambda x: x.fecha or datetime.min, reverse=True)
     
     # 3. Cálculos de ABONOS (Dinero de deudas cobrado hoy)
@@ -15520,6 +15975,13 @@ def cerrar_caja():
         monto_contado_raw = (request.form.get('monto_contado') or '').strip()
         if not monto_contado_raw:
             flash("Debe ingresar el efectivo contado para realizar la cuadratura.", "warning")
+            return redirect(url_for('cerrar_caja'))
+        if '@' in monto_contado_raw:
+            flash(
+                "El campo de efectivo contado no debe ser un correo. Ingrese el monto en pesos (CLP), "
+                "por ejemplo el valor de «Efectivo esperado en gaveta» o lo que contó físicamente.",
+                "warning",
+            )
             return redirect(url_for('cerrar_caja'))
         monto_contado = _parse_clp_monto(monto_contado_raw)
         if monto_contado is None:
@@ -15630,6 +16092,8 @@ def cerrar_caja():
                            total_tarjeta_credito=total_tarjeta_credito,
                            total_transferencia=total_transferencia,
                            total_fiado=total_fiado,
+                           total_abonos_efectivo=total_abonos_efectivo,
+                           total_abonos_otros=total_abonos_otros,
                            cambios_efectivo_recibido=cambios_efectivo_recibido,
                            cambios_efectivo_devuelto=cambios_efectivo_devuelto,
                            cambios_saldo_generado=cambios_saldo_generado,
@@ -15640,13 +16104,14 @@ def cerrar_caja():
                            monto_teorico=monto_teorico,
                            umbral_diferencia=umbral_diferencia,
                            gran_total_ventas=gran_total_dia,
-                           ventas_count=len(ventas),
+                           ventas_count=len(ventas_cuadre),
                            ventas_turno=ventas_turno)
 
 
 def _resumen_caja_cerrada(caja):
     """Recalcula el desglose operativo de una caja cerrada para auditoría/reimpresión."""
     ventas = Venta.query.filter_by(caja_id=caja.id).all()
+    ventas_cuadre = [v for v in ventas if _venta_cuenta_en_cuadre_caja(v)]
 
     def _metodo_pago(v):
         return (v.metodo_pago or "").strip()
@@ -15654,11 +16119,11 @@ def _resumen_caja_cerrada(caja):
     def _monto_cobrado_por_medio(v):
         return max(0.0, float(v.monto_total or 0) - float(getattr(v, 'saldo_favor_usado', 0) or 0))
 
-    total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Efectivo") or 0
-    total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Debito") or 0
-    total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "TarjetaCredito") or 0
-    total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas if _metodo_pago(v) == "Transferencia") or 0
-    total_fiado = sum(float(v.monto_total or 0) for v in ventas if _metodo_pago(v).lower() == "credito") or 0
+    total_efectivo = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Efectivo") or 0
+    total_debito = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Debito") or 0
+    total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "TarjetaCredito") or 0
+    total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Transferencia") or 0
+    total_fiado = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v).lower() == "credito") or 0
     ventas_turno = [v for v in ventas if v.estado != "Abierta"]
     ventas_turno.sort(key=lambda x: x.fecha or datetime.min, reverse=True)
 
@@ -16274,10 +16739,14 @@ def admin_pos_autorizacion():
             )
             db.session.add(fila)
             db.session.commit()
+            rol_nom = (sup.rol.nombre if sup.rol else '') or 'Supervisor'
             session['pos_tarjeta_generada'] = {
                 'usuario_id': sup.id,
                 'nombre': sup.nombre,
                 'token': token_plano,
+                'rol': rol_nom,
+                'empresa': (cfg.get('nombre_comercial') or cfg.get('razon_social') or 'Ferretería')[:80],
+                'generada_en': datetime.now().strftime('%d/%m/%Y %H:%M'),
             }
             flash('Tarjeta generada. Imprímala ahora: solo se muestra una vez.', 'success')
             return redirect(url_for('admin_pos_autorizacion'))

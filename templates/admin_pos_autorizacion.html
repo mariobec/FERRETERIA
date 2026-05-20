@@ -1,5 +1,11 @@
 {% extends 'base.html' %}
 
+{% block extra_css %}
+{% if tarjeta_nueva %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-supervisor-card.css') }}?v=lhexia20260522supcard2">
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -35,16 +41,63 @@
   </div>
 
   {% if tarjeta_nueva %}
-  <div class="alert alert-success border-success">
-    <strong>Tarjeta nueva para {{ tarjeta_nueva.nombre }}</strong> — imprima o copie el código; no volverá a mostrarse.
-    <div class="mt-3 p-3 bg-white rounded border text-center">
-      <svg id="barcodeTarjetaSup" jsbarcode-format="CODE128"
-           jsbarcode-value="{{ tarjeta_nueva.token }}"
-           jsbarcode-width="2" jsbarcode-height="56" jsbarcode-displayvalue="true"
-           jsbarcode-fontsize="14" jsbarcode-margin="8"></svg>
-      <p class="small text-muted mt-2 mb-0 font-monospace">{{ tarjeta_nueva.token }}</p>
-      <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="window.print()"><i class="fas fa-print me-1"></i> Imprimir tarjeta</button>
+  <div class="alert alert-success tarjeta-sup-reveal no-print mb-4">
+    <strong>Tarjeta nueva para {{ tarjeta_nueva.nombre }}</strong>
+    <p class="mb-0 small mt-1 opacity-90">Imprímala o copie el código ahora; por seguridad no se volverá a mostrar en pantalla.</p>
+    <div class="tarjeta-sup-reveal__actions">
+      <button type="button" class="btn btn-sm btn-ds-primary" id="btnImprimirTarjetaSup">
+        <i class="fas fa-print me-1"></i> Imprimir tarjeta
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopiarCodigoTarjetaSup" data-token="{{ tarjeta_nueva.token }}">
+        <i class="fas fa-copy me-1"></i> Copiar código
+      </button>
     </div>
+  </div>
+
+  <div class="tarjeta-sup-wrap mb-4" id="tarjetaSupPrint"
+       data-css-url="{{ url_for('static', filename='css/pos-supervisor-card.css') }}?v=lhexia20260522supcard2"
+       data-jsbarcode-url="{{ url_for('static', filename='vendor/jsbarcode/JsBarcode.all.min.js') }}">
+    <article class="tarjeta-sup-card" aria-label="Tarjeta supervisor {{ tarjeta_nueva.nombre }}">
+      <div class="tarjeta-sup-card__inner">
+        <header class="tarjeta-sup-card__head">
+          <div class="tarjeta-sup-card__brand">
+            <img src="{{ lhexia_icon_src }}" alt="" class="tarjeta-sup-card__logo" width="36" height="36">
+            <div class="tarjeta-sup-card__brand-text">
+              <span class="tarjeta-sup-card__product">LhexIA ERP</span>
+              <span class="tarjeta-sup-card__domain d-block">www.lhexia.cl</span>
+            </div>
+          </div>
+          <span class="tarjeta-sup-card__chip" aria-hidden="true"></span>
+        </header>
+
+        <div class="tarjeta-sup-card__body">
+          <span class="tarjeta-sup-card__label">Autorización de descuentos · POS</span>
+          <h3 class="tarjeta-sup-card__nombre">{{ tarjeta_nueva.nombre }}</h3>
+          {% if tarjeta_nueva.rol %}
+          <span class="tarjeta-sup-card__rol">{{ tarjeta_nueva.rol }}</span>
+          {% endif %}
+          {% if tarjeta_nueva.empresa %}
+          <p class="tarjeta-sup-card__empresa">{{ tarjeta_nueva.empresa }}</p>
+          {% endif %}
+        </div>
+
+        <footer class="tarjeta-sup-card__foot">
+          <div class="tarjeta-sup-card__barcode-box">
+            <svg id="barcodeTarjetaSup" jsbarcode-format="CODE128"
+                 jsbarcode-value="{{ tarjeta_nueva.token }}"
+                 jsbarcode-width="2" jsbarcode-height="48" jsbarcode-displayvalue="false"
+                 jsbarcode-margin="4" jsbarcode-background="#ffffff" jsbarcode-linecolor="#0f172a"></svg>
+          </div>
+          <p class="tarjeta-sup-card__codigo">{{ tarjeta_nueva.token }}</p>
+          <div class="tarjeta-sup-card__meta">
+            <span>Supervisor autorizado</span>
+            {% if tarjeta_nueva.generada_en %}
+            <span>{{ tarjeta_nueva.generada_en }}</span>
+            {% endif %}
+          </div>
+        </footer>
+      </div>
+    </article>
   </div>
   {% endif %}
 
@@ -189,11 +242,93 @@
 
 {% block extra_js %}
 {% if tarjeta_nueva %}
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/jsbarcode/JsBarcode.all.min.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   if (typeof JsBarcode !== 'undefined') {
     JsBarcode('#barcodeTarjetaSup').init();
+  }
+
+  function absStaticUrl(path) {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) return path;
+    var base = window.location.origin || '';
+    return base + (path.charAt(0) === '/' ? path : '/' + path);
+  }
+
+  function imprimirTarjetaSup() {
+    var wrap = document.getElementById('tarjetaSupPrint');
+    var card = wrap && wrap.querySelector('.tarjeta-sup-card');
+    if (!card) return;
+    var cssUrl = absStaticUrl((wrap.getAttribute('data-css-url') || '').trim());
+    var jsUrl = absStaticUrl((wrap.getAttribute('data-jsbarcode-url') || '').trim());
+    var html = '<!DOCTYPE html><html lang="es-CL"><head><meta charset="utf-8"><title>Tarjeta supervisor</title>';
+    if (cssUrl) {
+      html += '<link rel="stylesheet" href="' + cssUrl.replace(/"/g, '&quot;') + '">';
+    }
+    html += '<style>'
+      + 'html,body{margin:0;padding:0;background:#fff;}'
+      + 'body.tarjeta-sup-print-doc{display:flex;min-height:100vh;align-items:center;justify-content:center;}'
+      + '.tarjeta-sup-wrap{padding:10mm;display:flex;justify-content:center;}'
+      + '@media print{@page{size:85.6mm 54mm;margin:0;}body{padding:0;}.tarjeta-sup-wrap{padding:0;}}'
+      + '</style></head><body class="tarjeta-sup-print-doc">';
+    html += '<div class="tarjeta-sup-wrap">' + card.outerHTML + '</div>';
+    if (jsUrl) {
+      html += '<script src="' + jsUrl.replace(/"/g, '&quot;') + '"><\/script>';
+    }
+    html += '<script>window.onload=function(){';
+    html += 'if(window.JsBarcode){try{JsBarcode("#barcodeTarjetaSup").init();}catch(e){}}';
+    html += 'setTimeout(function(){window.focus();window.print();},450);';
+    html += '};<\/script></body></html>';
+
+    var oldFrame = document.getElementById('tarjetaSupPrintFrame');
+    if (oldFrame) oldFrame.remove();
+
+    var frame = document.createElement('iframe');
+    frame.id = 'tarjetaSupPrintFrame';
+    frame.setAttribute('title', 'Impresión tarjeta supervisor');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(frame);
+
+    var doc = frame.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    var cleaned = false;
+    function cleanup() {
+      if (cleaned) return;
+      cleaned = true;
+      setTimeout(function () {
+        if (frame.parentNode) frame.parentNode.removeChild(frame);
+      }, 300);
+    }
+    frame.contentWindow.onafterprint = cleanup;
+    setTimeout(cleanup, 120000);
+  }
+
+  var btnPrint = document.getElementById('btnImprimirTarjetaSup');
+  if (btnPrint) {
+    btnPrint.addEventListener('click', function (e) {
+      e.preventDefault();
+      imprimirTarjetaSup();
+    });
+  }
+  var btnCopy = document.getElementById('btnCopiarCodigoTarjetaSup');
+  if (btnCopy) {
+    btnCopy.addEventListener('click', function () {
+      var tok = btnCopy.getAttribute('data-token') || '';
+      if (!tok) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(tok).then(function () {
+          btnCopy.innerHTML = '<i class="fas fa-check me-1"></i> Copiado';
+          setTimeout(function () {
+            btnCopy.innerHTML = '<i class="fas fa-copy me-1"></i> Copiar código';
+          }, 2000);
+        });
+      }
+    });
   }
 });
 </script>

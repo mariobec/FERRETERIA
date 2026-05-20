@@ -15,6 +15,7 @@
   }
 
   let lastPaintKey = "";
+  let lastRecoPaintKey = "";
   let lastValeEmitShown = null;
   let valeCornerHideTimer = null;
 
@@ -39,6 +40,17 @@
     let s = String(isNaN(v) ? 0 : v);
     while (s.length < 6) s = "0" + s;
     return s;
+  }
+
+  function shortMotivo(text, maxLen) {
+    maxLen = maxLen || 68;
+    var s = String(text || "").trim();
+    if (!s) return "";
+    if (s.length <= maxLen) return s;
+    var cut = s.slice(0, maxLen - 1);
+    var sp = cut.lastIndexOf(" ");
+    if (sp > maxLen * 0.55) cut = cut.slice(0, sp);
+    return cut.trim() + "\u2026";
   }
 
   function truncName(str, max) {
@@ -296,6 +308,21 @@
     }
   }
 
+  function recoPaintKey(d, abierta) {
+    const rec = d.recomendaciones;
+    if (!abierta) return "off:" + (d.estado || "");
+    if (!rec || !Array.isArray(rec.items) || !rec.items.length) {
+      return "empty:" + (d.venta_id || "");
+    }
+    const itemsSig = rec.items
+      .slice(0, 4)
+      .map(function (it) {
+        return [it.id, it.precio, it.nombre, it.motivo, it.imagen_url || ""].join(":");
+      })
+      .join("|");
+    return [rec.titulo || "", rec.subtitulo || "", itemsSig].join("~");
+  }
+
   function renderCfmRecommendations(d, abierta) {
     const grid = document.getElementById("ewRecoCards");
     const empty = document.getElementById("ewRecoEmpty");
@@ -308,54 +335,72 @@
     const items = abierta && rec && Array.isArray(rec.items) ? rec.items : [];
     const identified = clienteIdentificado(d, d.cliente_vitrina);
     const nItems = abierta && Array.isArray(d.lineas) ? d.lineas.length : 0;
+    const rk = recoPaintKey(d, abierta);
+    const recoSinCambio = rk === lastRecoPaintKey;
 
     if (recoIdle) {
       recoIdle.classList.toggle("d-none", identified || !abierta || nItems === 0);
     }
 
     if (titulo) {
-      titulo.textContent =
+      const t =
         rec && rec.titulo ? rec.titulo : "LhexIA IA recomienda para tu proyecto";
+      if (titulo.textContent !== t) titulo.textContent = t;
     }
 
-    if (sub && rec && rec.subtitulo) {
-      sub.textContent = rec.subtitulo;
-    } else if (sub) {
-      sub.textContent = identified
-        ? "Basado en su historial de compras y lo que lleva hoy"
-        : "Sugerencias según los productos de su compra actual";
+    if (sub) {
+      const st =
+        rec && rec.subtitulo
+          ? rec.subtitulo
+          : identified
+            ? "Sugerencias según su historial y esta compra"
+            : "Sugerencias según lo que lleva en su compra";
+      if (sub.textContent !== st) sub.textContent = st;
     }
+
+    if (recoSinCambio) return;
+
+    lastRecoPaintKey = rk;
 
     if (!items.length) {
       grid.innerHTML = "";
       grid.classList.add("d-none");
+      grid.classList.remove("ew-cfm-reco-grid--live");
       if (empty) empty.classList.remove("d-none");
       return;
     }
 
     if (empty) empty.classList.add("d-none");
     grid.classList.remove("d-none");
+    grid.classList.add("ew-cfm-reco-grid--live");
     grid.innerHTML = items
       .slice(0, 4)
       .map(function (it, idx) {
         const imgUrl = String(it.imagen_url || "").trim();
-        const thumb = imgUrl
-          ? '<img class="ew-cfm-reco-card__img" src="' +
+        const media = imgUrl
+          ? '<div class="ew-cfm-reco-card__media"><img class="ew-cfm-reco-card__img" src="' +
             esc(imgUrl) +
-            '" alt="" loading="lazy" referrerpolicy="no-referrer" />'
-          : '<div class="ew-cfm-reco-card__img ew-cfm-reco-card__img--ph" aria-hidden="true"><i class="fas fa-box-open"></i></div>';
+            '" alt="" loading="lazy" referrerpolicy="no-referrer" /></div>'
+          : '<div class="ew-cfm-reco-card__media"><div class="ew-cfm-reco-card__img ew-cfm-reco-card__img--ph" aria-hidden="true"><i class="fas fa-screwdriver-wrench"></i></div></div>';
+        const motivo = shortMotivo(it.motivo, 68);
+        const motivoHtml = motivo
+          ? '<p class="ew-cfm-reco-card__motivo">' + esc(motivo) + "</p>"
+          : "";
         return (
           '<article class="ew-cfm-reco-card" style="--ew-reco-i:' +
           idx +
           '">' +
-          thumb +
+          media +
+          '<div class="ew-cfm-reco-card__body">' +
           '<p class="ew-cfm-reco-card__name">' +
-          esc(truncName(it.nombre, 64)) +
+          esc(truncName(it.nombre, 52)) +
           "</p>" +
+          motivoHtml +
+          "</div>" +
+          '<footer class="ew-cfm-reco-card__foot">' +
           '<p class="ew-cfm-reco-card__price">' +
           esc(fmt(it.precio || 0)) +
-          '</p><button type="button" class="ew-cfm-reco-card__btn" tabindex="-1" aria-hidden="true">' +
-          "<span>Pida en mostrador</span></button></article>"
+          '</p><button type="button" class="ew-cfm-reco-card__btn" tabindex="-1" aria-hidden="true">Pida en mostrador</button></footer></article>'
         );
       })
       .join("");
@@ -492,7 +537,6 @@
       const total = abierta ? d.total || 0 : 0;
 
       renderCfmHeader(d, abierta);
-      renderCfmRecommendations(d, abierta);
 
       const showThanks = !abierta && !sinVenta;
       if (thanks) thanks.classList.toggle("d-none", !showThanks);
@@ -509,6 +553,7 @@
         sub.textContent = "Esperando la próxima venta en mostrador…";
         if (lastPaintKey !== "__sin_venta__") {
           lastPaintKey = "__sin_venta__";
+          lastRecoPaintKey = "";
           totalEl.textContent = fmt(0);
           renderLiveProductLines(itemsEl, []);
           renderCfmHeader(d, false);
@@ -549,7 +594,7 @@
           bumpTotalEl(totalEl);
           renderLiveProductLines(itemsEl, lines);
         }
-        renderCfmRecommendations(d, abierta);
+        renderCfmRecommendations(d, true);
 
         const identified = clienteIdentificado(d, d.cliente_vitrina);
         const showIdle = !identified && nItems === 0;
@@ -567,6 +612,8 @@
       } else {
         sub.textContent = d.mensaje_cliente || "Venta finalizada.";
         lastPaintKey = "";
+        lastRecoPaintKey = "";
+        renderCfmRecommendations(d, false);
         if (shell) {
           shell.classList.remove("ew-shell--dense-lines", "ew-shell--compact-total", "ew-shell--mega-dense");
         }

@@ -160,6 +160,7 @@ core/
 
 | Pregunta | Documento |
 |----------|-----------|
+| Rendimiento BD / POS (SD-1) | `../04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md` |
 | Plan TEC completo (cerrado) | `../04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` |
 | Detalle capas y fases CORE | `../04-tecnico/ARQUITECTURA_CAPAS.md` |
 | Flujos que no romper | `docs/FLUJOS_CRITICOS.md` |
