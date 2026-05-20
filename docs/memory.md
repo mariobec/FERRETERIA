@@ -348,29 +348,29 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**PRIORIDAD (2026-05-19):** validar en navegador **carrito v3** (chips `T/B`, menú descuento 5–20 %, autorización supervisor si aplica) → luego **commit** bloque POS local (autorización descuentos + UX carrito). **Ctrl+F5** cache `20260519c`.
+**PRIORIDAD (2026-05-20):** validar en piso **TV cliente** (recomendaciones coherentes + tarjetas CFM nuevas) y **cierre de caja** (monto contado sin autofill email). **Ctrl+F5** en TV: cache `lhexia20260520reco2`.
 
-**Hecho esta sesión (local, sin push):**
-- Carrito: chips stock siempre **`X T / Y B`** + badge retiro **TIENDA/BODEGA** (ver § abajo).
-- Chips reubicados en columna comercio (no tapar precio).
-- Descuento: botones **5/10/15/20**, foco+selección al abrir `⋯`, **Enter** guarda, placeholder si 0 %.
-- Menú dto abre **hacia arriba**; línea activa `z-index` (`pos-cart-card--dto-open`).
+**En producción (`main` commit `4ae0292`, push 2026-05-20):**
+- Live Wall TV: recomendaciones por **perfil** (fijación, obra, pintura, PVC, madera); sin herramientas eléctricas caras en tickets bajos.
+- Tarjetas recomendación rediseñadas (`pos-experience-wall-cfm.css` + `renderCfmRecommendations`).
+- Cierre caja: arqueo solo ventas **`Pagado`**; anti-autofill en efectivo contado.
+- Sidebar `/modulos`: scroll en menú lateral.
+- Impresión tarjeta supervisor (`pos-supervisor-card.css`, iframe sin popup).
+- Cross-sell JSON: regla fijación + triggers obra sin confundir «bolsa» de clavos.
 
-**Pendiente operación / git:**
-- Commit cuando Mario lo pida: `premium_cart_cards.html`, `pos-premium-layout.css`, `pos.js`, `punto_venta.html` + bloque autorización descuentos (2026-05-18).
-- SD-1 piso: piloto POS + inventario (`CLIENTE_SANTO_DOMINGO.md`).
-- SQL Neon: `2026_05_18_pos_autorizacion_descuento.sql` si no migró `init_db`.
+**SQL Neon aplicado (misma fecha):** `2026_05_18_pos_autorizacion_descuento.sql`, `2026_05_21_rendimiento_sd1_postgresql.sql` vía `scripts/apply_sql_neon.py`.
 
-**Hecho previo en `main`:** layout vendedor `5094d5d`, POS-4 `309f02f`, asistente búsqueda `8c9535c`.
+**Pendiente local (sin commit):** QA casuísticas (`docs/CASUISTICAS_VENTAS_QA.md`, `tests/qa_catalogo_casuisticas.py`), scaffold `adapters/`/`domain/`, logos 3D.
 
-**Siguiente técnico (post-commit POS):** Fase 1.5 core — flags bodega post-cobro; test cobro crédito HTTP.
+**Siguiente técnico:** fotos por categoría en placeholder TV; commit bloque carrito v3 (`20260519c`) si aún no está en `main`; Fase 1.5 core post SD-1.
 
 **No hacer aún:** Alembic, multi-tenant, refactor masivo `app.py`.
 
 **Comandos útiles:**
 ```bash
+pytest tests/test_pos_live_wall.py -m smoke -q
 pytest tests/test_pos_autorizacion_descuento.py -q
-pytest tests/ -m smoke -q --tb=no
+python scripts/apply_sql_neon.py sql/ARCHIVO.sql
 ```
 
 ---
@@ -632,7 +632,7 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ## POS — Autorización de descuentos (sesión chat 2026-05-18, transcript `2bee32c7-0747-4320-9f77-33b17db4c0d0`)
 
-**Estado:** implementado en **local**; **sin commit** explícito del usuario a `main`/Render al cierre de esta sesión. Tests: `pytest tests/test_pos_autorizacion_descuento.py` → 4 passed.
+**Estado:** en **`main`/producción** (servicio + SQL Neon aplicado 2026-05-20). Impresión tarjeta vía iframe en `admin_pos_autorizacion.html` + `static/css/pos-supervisor-card.css` (commit `4ae0292`). Tests: `pytest tests/test_pos_autorizacion_descuento.py` → 4 passed.
 
 ### Reglas de negocio acordadas
 
@@ -676,9 +676,8 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ### Pendiente / no mezclar en SD-1
 
-- Commit + deploy Render cuando Mario lo pida.
-- Ejecutar SQL en Neon si no usa auto-migrate `_asegurar_*` al arranque.
-- Hub POS → pantalla vendedora (`_pos_url_destino`, `?layout=vendedor`) — conversación previa; verificar si ya está en `main` aparte de este bloque.
+- Validar en piso tarjeta impresa y flujo PIN con supervisores reales.
+- Hub POS → pantalla vendedora (`_pos_url_destino`, `?layout=vendedor`) — verificar en sucursal.
 
 ### Comandos útiles
 
@@ -739,4 +738,57 @@ Los botones rápidos llaman `posIntentarGuardarLineaConAutorizacionDesc` — mis
 
 ---
 
-*Última actualización: 2026-05-19 — POS carrito chips T/B + UX descuento rápido + menú dto z-index; revisión sincronía memory; todo local sin commit.*
+---
+
+## Live Wall / Experience Wall — TV cliente (sesión 2026-05-19 / 2026-05-20)
+
+**Estado:** en **`main`/producción** — commit `4ae0292` (2026-05-20). Prod: [www.lhexia.cl](https://www.lhexia.cl).
+
+### Rutas y archivos
+
+| Ruta / archivo | Rol |
+|----------------|-----|
+| GET `/pos/live-wall/cliente`, `/pos/experience-wall?token=` | HTML TV (CFM v2) |
+| GET `/api/pos/live-wall/snapshot` | JSON carrito + `recomendaciones` + `cliente_vitrina` |
+| `templates/pos_live_wall_cliente.html` | Layout 50/50 carrito \| recomendaciones |
+| `static/js/pos-experience-wall.js` | Poll snapshot, `renderCfmRecommendations`, anti-parpadeo (`lastRecoPaintKey`) |
+| `static/css/pos-experience-wall-cfm.css` | Grid 2×2 tarjetas, tipografía TV |
+| `app.py` | `_pos_live_wall_recomendaciones_tv`, perfiles `_POS_TV_PERFIL_*`, helpers scoring |
+| `data/cross_sell_associations.json` | Reglas POS vendedor + coherencia obra/fijación |
+| `tests/test_pos_live_wall.py` | 17 tests smoke (incl. `test_recomendaciones_tv_solo_clavo_coherente`) |
+
+### Lógica de recomendaciones (TV)
+
+1. **Perfil** según carrito: `fijacion` (clavos, tornillos, escuadras…), `obra_pesada`, `pintura`, `pvc`, `madera`, `general`.
+2. **Exclusión** herramientas eléctricas caras (`taladro`, `rotomartill`, `amoladora`, …) salvo obra pesada o ticket alto con materiales construcción.
+3. **Tope precio** por ítem según ticket (bajo &lt; $28k → complementos económicos).
+4. **Motivos cortos** con ancla dinámica (`los clavos`, `los tornillos`, …).
+5. **Cross-sell JSON** solo refuerza perfiles obra/pintura/PVC (no pisa fijación).
+6. Regla `obra_arena_herramientas`: triggers `saco cement`, `bolsa cement` — **no** activa con «bolsa 1kg» de clavos.
+
+### UI tarjetas (2026-05-20)
+
+- Estructura: imagen → nombre (18–20px bold) → motivo (italic gris) → pie precio `#22c55e` + botón «Pida en mostrador».
+- Hover: `scale(1.05)` + glow verde.
+- Cache assets TV: `?v=lhexia20260520reco2`.
+
+### Cierre de caja (misma entrega prod)
+
+- `_venta_cuenta_en_cuadre_caja()`: solo estado **`Pagado`** suma al arqueo.
+- `confirmar_cierre.html`: campo efectivo `type=tel`, `autocomplete=transaction-amount`, rechazo si monto contiene `@`.
+
+### Sidebar menú
+
+- `design-system.css`: scroll en `.app-sidebar-nav`, `align-self: flex-start` en sidebar.
+
+### Deploy y SQL (2026-05-20)
+
+```bash
+git push origin main   # Render auto-deploy
+python scripts/apply_sql_neon.py sql/2026_05_18_pos_autorizacion_descuento.sql
+python scripts/apply_sql_neon.py sql/2026_05_21_rendimiento_sd1_postgresql.sql
+```
+
+---
+
+*Última actualización: 2026-05-20 — Live Wall TV recomendaciones + tarjetas CFM en prod (`4ae0292`); SQL Neon autorización + rendimiento aplicados.*

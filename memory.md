@@ -347,15 +347,15 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «POS carrito v3 — chips y descuento UX (2026-05-19)».
+**Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «Live Wall / Experience Wall — TV cliente».
 
-**PRIORIDAD (2026-05-19):** validar carrito v3 en navegador (chips `T/B`, descuento 5–20 %, menú no tapado) → **commit** bloque POS local. Cache **Ctrl+F5** `20260519c`.
+**PRIORIDAD (2026-05-20):** validar TV cliente en piso (recomendaciones + tarjetas nuevas). Cache TV **Ctrl+F5** `lhexia20260520reco2`.
 
-**Hecho sesión 2026-05-19 (local):** chips unificados; descuento UX; menú dto hacia arriba + z-index. Ver `docs/memory.md`.
+**En producción (`4ae0292`):** recomendaciones TV coherentes; tarjetas CFM; cierre caja solo `Pagado`; sidebar scroll; tarjeta supervisor; SQL Neon autorización + rendimiento.
 
-**Pendiente:** commit (autorización descuentos 2026-05-18 + UX carrito); SD-1 piso.
+**Pendiente local:** carrito v3 chips (`20260519c`) si no en `main`; QA casuísticas sin commit.
 
-**En `main` ya:** layout `5094d5d`, POS-4 `309f02f`.
+**En `main` ya:** layout `5094d5d`, POS-4 `309f02f`, Live Wall TV `4ae0292`.
 
 ---
 
@@ -405,7 +405,11 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## POS — Autorización descuentos (2026-05-18)
 
-Detalle: `docs/memory.md` § «POS — Autorización de descuentos». Local sin commit. Tests: `pytest tests/test_pos_autorizacion_descuento.py -q`.
+Detalle: `docs/memory.md` § «POS — Autorización de descuentos». **En prod** + SQL Neon. Tests: `pytest tests/test_pos_autorizacion_descuento.py -q`.
+
+## Live Wall TV — recomendaciones (2026-05-20)
+
+Detalle: `docs/memory.md` § «Live Wall / Experience Wall». Commit `4ae0292`. Tests: `pytest tests/test_pos_live_wall.py -m smoke -q`.
 
 ---
 
@@ -417,4 +421,4 @@ Detalle: `docs/memory.md` § «POS — Autorización de descuentos». Local sin 
 
 ---
 
-*Última actualización: 2026-05-19 — Sincronizado con `docs/memory.md`.*
+*Última actualización: 2026-05-20 — Sincronizado con `docs/memory.md` (TV prod `4ae0292`).*

@@ -67,7 +67,7 @@ flowchart LR
 |------|--------|----------|--------|-------|
 | **SD-1** | **Go-live POS + Inventario** | Toma física + venta diaria en sucursal(es) piloto | 🟡 **En curso** | Inventario: herramientas listas; POS en prod |
 | SD-1.1 | Inventario — toma física | Enrolamiento, sesiones, salud, kardex | 🟡 Operación mañana | `/inventario/enrolamiento`, `/inventario/salud` |
-| SD-1.2 | POS — venta diaria | Vale → caja → cobro; búsqueda usable | 🟡 Validar piso | POS-3 ✅ prod; POS-4 ✅ `main` (`309f02f`) |
+| SD-1.2 | POS — venta diaria | Vale → caja → cobro; búsqueda usable; TV cliente | 🟡 Validar piso | POS-3 ✅ prod; POS-4 ✅ `309f02f`; TV recomendaciones ✅ `4ae0292` |
 | SD-1.3 | Infra y capacitación | Backup Neon, permisos, 3 almacenes, **índices + Render/Neon**, equipo inventario | ⏳ | `CLIENTE_SANTO_DOMINGO.md` · `PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md` · `04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md` |
 | **SD-2** | Caja multi-sucursal | Cierre diario, cola cobro en 3 tiendas | ⏳ Post SD-1 | Caja madura en código |
 | **SD-3** | Compras + FE producción | OC, recepción, DTE en operación real | ⏳ | FE 🟡 certificación |

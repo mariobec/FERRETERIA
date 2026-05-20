@@ -2,7 +2,7 @@
 
 > Sistema ERP integral para ferretería. Gestión de ventas (POS + formulario), caja, inventario multi-almacén, bodega con despacho por voz (IA), compras, créditos, BI, y Customer 360.
 
-**Última actualización:** 2026-05-21  
+**Última actualización:** 2026-05-20  
 **Versión operativa:** v2.0 (cerrado) + **cierre módulos v3** + **SD-1** (go-live Santo Domingo)  
 **Líneas `app.py`:** ~20.570 (monolito; rutas también en `blueprints/*`)  
 **Paquete `core/`:** ~974 líneas (venta/cobro/stock post-cobro — Clean Architecture ligera)  
@@ -383,15 +383,39 @@ sistema_ventas_limpio/
 
 **Política:** el cobro **no se revierte** si falla FE; la venta queda en cola para reintento.
 
-### 4.14 POS Live Wall (segundo monitor / TV cliente)
+### 4.14 POS Live Wall / Experience Wall (segundo monitor / TV cliente)
 
 | Ruta | Función |
 |---|---|
 | GET `/pos/live-wall/staff` | Panel cajero/vendedor: KPIs tienda + cola bodega |
-| GET `/pos/live-wall/cliente` | TV cliente: token firmado en query (`?t=`) |
-| GET `/api/pos/live-wall/snapshot` | JSON estado venta abierta + KPIs (staff autenticado o token válido) |
+| GET `/pos/live-wall/cliente` | TV cliente CFM v2 (layout 50/50 carrito \| recomendaciones) |
+| GET `/pos/experience-wall` | Alias TV con `?token=` firmado |
+| GET `/api/pos/live-wall/snapshot` | JSON: líneas, total, `cliente_vitrina`, `recomendaciones`, `vale_emitido` |
 
-Token: `itsdangerous` (`pos_live_wall_token_create`), TTL configurable. Tests: `tests/test_pos_live_wall.py`.
+**Autenticación snapshot:** sesión staff (`session['_user_id']`) o token `itsdangerous` (`pos_live_wall_token_create` / `pos_live_wall_token_create_station`). TTL configurable vía env.
+
+**Recomendaciones TV (`recomendaciones` en JSON):**
+
+| Campo | Descripción |
+|-------|-------------|
+| `titulo` | Ej. «Complementos para su fijación» |
+| `subtitulo` | Con `{ancla}` resuelto («los clavos», «los tornillos», …) |
+| `items[]` | Hasta 4: `id`, `nombre`, `precio`, `imagen_url`, `motivo` |
+
+**Motor backend:** `app.py` → `_pos_live_wall_recomendaciones_tv(venta)`:
+
+- Perfiles: `_POS_TV_PERFIL_FIJACION`, `_OBRA`, `_PINTURA`, `_PVC`, `_MADERA`, `_GENERAL`.
+- Contexto: `_pos_tv_contexto_carrito` (familias, ticket bajo/medio, `permite_electrico_caro`).
+- Pick producto: `_pos_tv_pick_coherente` (score + tope precio + exclusión eléctricas caras).
+- Reglas JSON POS: `data/cross_sell_associations.json` + `_pos_cross_sell_match_rules` (refuerzo obra/PVC/pintura; regla `fijacion_herramientas_manual`).
+
+**Frontend TV:** `static/js/pos-experience-wall.js` (`renderCfmRecommendations`, `recoPaintKey` anti-parpadeo); `static/css/pos-experience-wall-cfm.css` (grid 2×2, tarjetas con imagen/nombre/motivo/precio/botón). Cache bust en template: `?v=lhexia20260520reco2`.
+
+**Tests:** `tests/test_pos_live_wall.py` (smoke; incluye coherencia clavo sin taladros).
+
+**Admin descuentos (relacionado POS):** GET `/admin/pos-autorizacion-descuentos` — tarjeta supervisor LHX-SUP; servicio `services/pos_autorizacion_descuento_service.py`; DDL `sql/2026_05_18_pos_autorizacion_descuento.sql`.
+
+**Cierre caja (2026-05-20):** arqueo solo ventas `Pagado` (`_venta_cuenta_en_cuadre_caja`); `confirmar_cierre.html` anti-autofill email en monto contado.
 
 ### 4.15 Caja — limpieza cola cierre
 
@@ -714,6 +738,9 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | 2026-05-17 | **CORE-1.2–1.4** en `core/` (venta/cobro, stock al cobro, post-cobro crédito/saldo favor) |
 | 2026-05-18 | Ritmo equipo async (`EQUIPO_RITMO_ASYNC.md`); POS-4 en `main` |
 | 2026-05-21 | **Plan rendimiento BD SD-1**: índices `pg_trgm`, `render.yaml` (standard, 6 threads), doc `PLAN_RENDIMIENTO_BD_SD1.md` |
+| 2026-05-20 | **TV recomendaciones coherentes** (`4ae0292`): perfiles fijación/obra, cross-sell JSON, tarjetas CFM rediseñadas, tests `test_recomendaciones_tv_solo_clavo_coherente` |
+| 2026-05-20 | **Cierre caja**: arqueo solo `Pagado`; anti-autofill monto contado; sidebar scroll `/modulos` |
+| 2026-05-20 | **SQL Neon prod**: `apply_sql_neon` — autorización descuentos + índices rendimiento SD-1 |
 
 ---
 
@@ -728,6 +755,7 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | `docs/FLUJOS_CRITICOS.md` | Flujos de negocio que no romper |
 | `docs/MIGRACION_RENDER_NEON.md` | Deploy Render + Neon, variables, sync datos |
 | `docs/CASUISTICAS_PRUEBAS.md` | Matriz QA manual |
+| `docs/CASUISTICAS_VENTAS_QA.md` | Catálogo QA venta→caja→entrega (local, sin commit prod aún) |
 | `docs/PROMPT_MAESTRO_ERP.md` | Prompt arquitecto (legacy) |
 
 ### Planes (`docs/planes/`)

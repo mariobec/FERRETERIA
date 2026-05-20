@@ -57,7 +57,8 @@ NO AHORA      →  multi-tenant, mover todo app.py, agentes IA en prod, refactor
 |------|--------|------|
 | **SD-1** | 🟡 En curso | Toma inventario + venta diaria |
 | POS-1…3 | ✅ Prod | Layout dock aprobado Mario (`5094d5d`) |
-| POS-4 | ✅ Código local | F8, búsqueda 2 chars — verificar push |
+| POS-4 | ✅ Prod | F8, búsqueda 2 chars (`309f02f`) |
+| **TV cliente** | ✅ Prod | Recomendaciones coherentes + tarjetas CFM (`4ae0292`, mayo 2026) |
 | TEC-1A…4 | ✅ Cerrado | Transacciones, servicios, blueprints |
 | CORE-1.2…1.4 | ✅ | Venta/cobro/stock en `core/` |
 | CORE-1.5 | ⏳ | Post SD-1 |
@@ -161,6 +162,7 @@ Evitar «Fase 3» suelta. Usar **prefijo + número**:
 | 2026-05-17 | Planes IA-* y META-* en `docs/planes/` |
 | 2026-05-17 | POS-3 prod `5094d5d`; POS-4 local; SD-1 en curso |
 | 2026-05-16 | CORE 1.2–1.4 + TEC v2 cerrado |
+| 2026-05-20 | TV cliente: recomendaciones por perfil fijación/obra + UI tarjetas; deploy `4ae0292`; SQL Neon rendimiento + descuentos |
 
 *Detalle técnico diario → `docs/memory.md` § sesiones.*
 
@@ -180,4 +182,4 @@ Responde en español. Si propones código, indica que Cursor debe verificar en r
 
 ---
 
-*Última revisión: 2026-05-17 · Mario / Cursor — Grok debe recibir actualizaciones cuando cambie la fila «Prioridad absoluta».*
+*Última revisión: 2026-05-20 · Mario / Cursor — TV cliente en prod; SD-1 sigue en curso.*
