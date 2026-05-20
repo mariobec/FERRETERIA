@@ -76,10 +76,8 @@ class Money:
 
     @staticmethod
     def desglosar_iva_desde_total_bruto(total_bruto: Money) -> tuple[Money, Money]:
-        """Neto + IVA desde total con IVA 19% incluido (regla Venta.desglosar_iva en app.py)."""
-        if total_bruto.amount_clp <= 0:
-            return Money.zero(), Money.zero()
-        bruto = Decimal(total_bruto.amount_clp)
-        neto = (bruto / IVA_CHILE_FACTOR).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-        iva = bruto - neto
-        return Money(int(neto)), Money(int(iva))
+        """Neto + IVA desde total bruto (política única `desglosar_iva_clp`)."""
+        from core.domain.shared.iva_chile import desglosar_iva_clp
+
+        neto, iva, _total = desglosar_iva_clp(int(total_bruto.amount_clp))
+        return Money(neto), Money(iva)

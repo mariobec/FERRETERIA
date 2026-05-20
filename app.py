@@ -487,6 +487,8 @@ def _config_empresa_default():
         "pos_descuento_umbral_pin_pct": "20",
         # Futuro: autorización por comportamiento de compra/pago del cliente (0=apagado)
         "pos_descuento_autorizacion_por_cliente": "0",
+        # FE SII: RUT emisor (override con EMPRESA_RUT en .env)
+        "rut_emisor": (os.getenv("EMPRESA_RUT") or "").strip(),
     }
 
 
@@ -585,18 +587,21 @@ def _pos_autoprint_ticket_emitido_empresa():
 
 
 def _ticket_linea_subtotal_clp(detalle):
-    """Subtotal línea en CLP antes de impuestos (respeta descuento % como el POS)."""
+    """Subtotal línea en CLP (precio bruto mostrador, Decimal — sin float)."""
     if detalle is None:
-        return 0.0
-    cant = float(detalle.cantidad or 0)
-    pu = float(detalle.precio_unitario or 0)
-    desc = float(detalle.descuento or 0)
-    return max(0.0, cant * pu * (1.0 - desc / 100.0))
+        return 0
+    from core.domain.shared.iva_chile import subtotal_linea_bruto_clp
+
+    return subtotal_linea_bruto_clp(
+        int(detalle.cantidad or 0),
+        detalle.precio_unitario,
+        detalle.descuento,
+    )
 
 
 def _venta_bruto_desde_detalles_lineas(detalles):
-    """Suma bruto CLP desde líneas (descuento % por línea). Misma regla que `Venta.recalcular_total`."""
-    return float(sum(_ticket_linea_subtotal_clp(d) for d in (detalles or [])))
+    """Suma bruto CLP desde líneas. Misma regla que `Venta.recalcular_total`."""
+    return sum(_ticket_linea_subtotal_clp(d) for d in (detalles or []))
 
 
 def _ticket_agrupar_detalles_por_retiro(venta):
@@ -3298,23 +3303,21 @@ class Venta(db.Model):
         cascade="all, delete-orphan"
     )
 
-    # Lógica Tributaria: Desglose de IVA (Chile 19%)
+    # Lógica Tributaria: Desglose de IVA (Chile 19% — única fuente: desglosar_iva_clp)
     def desglosar_iva(self):
-        """Calcula Neto e IVA a partir del Monto Total"""
-        if self.monto_total > 0:
-            self.neto = round(self.monto_total / 1.19)
-            self.iva = self.monto_total - self.neto
-        else:
-            self.neto = 0.0
-            self.iva = 0.0
+        """Calcula Neto e IVA desde monto_total bruto (Decimal, ROUND_HALF_UP)."""
+        from core.domain.shared.iva_chile import desglosar_iva_clp
+
+        bruto = int(round(float(self.monto_total or 0)))
+        neto, iva, total = desglosar_iva_clp(bruto)
+        self.neto = float(neto)
+        self.iva = float(iva)
+        self.monto_total = float(total)
 
     # Método para recalcular el total automáticamente
     def recalcular_total(self):
-        bruto = _venta_bruto_desde_detalles_lineas(self.detalles)
-        # En CLP no se cobran centavos: redondeamos al peso entero más cercano
-        # para evitar inputs HTML con step inválidos (ej. 538893.48 vs 550000).
-        self.monto_total = float(round(bruto or 0))
-        # Aprovechamos de actualizar impuestos si ya tenemos el total
+        bruto = int(_venta_bruto_desde_detalles_lineas(self.detalles) or 0)
+        self.monto_total = float(bruto)
         self.desglosar_iva()
 
     @property
@@ -22718,6 +22721,33 @@ def api_admin_facturacion_emitir_prueba():
 
     modo = (request.args.get('modo') or body.get('modo') or '').strip().lower()
 
+    if modo in ('seed_caf_certificacion', 'seed_caf_maullin', 'caf_certificacion'):
+        try:
+            _load_env_archivos(force_local_overwrite=True)
+        except Exception:
+            app.logger.exception('emitir-prueba seed CAF cert: recarga entorno falló')
+        from services import facturacion_caf_certificacion as caf_cert
+
+        _asegurar_tabla_cafs_y_columnas_ventas_fe()
+        cfg = obtener_config_empresa()
+        rut_emisor = (os.getenv('EMPRESA_RUT') or cfg.get('rut_emisor') or '8054120-1').strip()
+        razon_emisor = (cfg.get('razon_social') or cfg.get('nombre_comercial') or 'EMPRESA').strip()
+        paths = caf_cert.guardar_cafs_certificacion(
+            app.root_path, rut_emisor=rut_emisor, razon_social=razon_emisor
+        )
+        rows = caf_cert.insertar_cafs_certificacion_bd(
+            db.session, Caf, rut_emisor=rut_emisor, razon_social=razon_emisor, reemplazar=True
+        )
+        db.session.commit()
+        return jsonify(
+            ok=True,
+            modo='seed_caf_certificacion',
+            rut_emisor=rut_emisor,
+            archivos={str(k): v for k, v in paths.items()},
+            cafs_bd=[{'tipo_dte': r.tipo_dte, 'id': r.id, 'rango': [r.rango_desde, r.rango_hasta]} for r in rows.values()],
+            nota='CAF laboratorio Maullín (RSASK). No sustituye CAF del portal SII en certificación formal.',
+        )
+
     if modo in ('set_certificacion', 'set_sii', 'casos_sii'):
         # Siempre releer .env.qa / .env.local para tomar SII_CERT_* actualizados sin reiniciar Gunicorn/Flask.
         try:
@@ -22745,7 +22775,7 @@ def api_admin_facturacion_emitir_prueba():
         )
 
         cfg = obtener_config_empresa()
-        rut_emisor = (os.getenv('EMPRESA_RUT') or cfg.get('rut_emisor') or '76.192.028-5').strip()
+        rut_emisor = (os.getenv('EMPRESA_RUT') or cfg.get('rut_emisor') or '8054120-1').strip()
         razon_emisor = (cfg.get('razon_social') or cfg.get('nombre_comercial') or 'EMPRESA').strip()
 
         casos, paths = cert_sii.ejecutar_set_certificacion_sii(
@@ -22789,8 +22819,130 @@ def api_admin_facturacion_emitir_prueba():
         folio = int(raw_f) if raw_f is not None and str(raw_f).strip() != '' else 1
     except (TypeError, ValueError):
         folio = 1
-    payload = fe_svc.emitir_prueba_xml(dte_tipo, folio=folio)
+
+    raw_caf_id = request.args.get('caf_id') or body.get('caf_id')
+    reservar = str(request.args.get('reservar_folio') or body.get('reservar_folio') or '').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+        'si',
+    )
+    caf_xml_b = None
+    caf_info: dict = {}
+    if raw_caf_id is not None and str(raw_caf_id).strip() != '':
+        try:
+            cid = int(raw_caf_id)
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error='caf_id_invalido'), 400
+        _asegurar_tabla_cafs_y_columnas_ventas_fe()
+        caf_row = db.session.get(Caf, cid)
+        if not caf_row:
+            return jsonify(ok=False, error='caf_no_encontrado', caf_id=cid), 404
+        if int(caf_row.tipo_dte or 0) != int(dte_tipo):
+            return jsonify(
+                ok=False,
+                error='caf_tipo_dte_distinto',
+                caf_id=cid,
+                caf_tipo_dte=caf_row.tipo_dte,
+                dte_tipo_solicitado=dte_tipo,
+            ), 400
+        r0, r1 = int(caf_row.rango_desde or 0), int(caf_row.rango_hasta or 0)
+        folio_en_rango = r0 <= int(folio) <= r1
+        caf_info = {
+            'caf_id': cid,
+            'tipo_dte': int(caf_row.tipo_dte),
+            'rango_desde': r0,
+            'rango_hasta': r1,
+            'usado_hasta_antes': int(caf_row.usado_hasta or 0),
+            'folio_solicitado': int(folio),
+            'folio_en_rango': folio_en_rango,
+        }
+        if not folio_en_rango:
+            return jsonify(ok=False, error='folio_fuera_de_rango_caf', **caf_info), 400
+        if caf_row.caf_xml:
+            caf_xml_b = str(caf_row.caf_xml).encode('utf-8', errors='replace')
+        if reservar and folio_en_rango:
+            last = int(caf_row.usado_hasta or 0)
+            if int(folio) > last:
+                caf_row.usado_hasta = int(folio)
+                db.session.commit()
+                caf_info['usado_hasta_despues'] = int(folio)
+                caf_info['folio_reservado'] = True
+            else:
+                caf_info['usado_hasta_despues'] = last
+                caf_info['folio_reservado'] = False
+                caf_info['nota_correlatividad'] = 'folio_ya_consumido_o_menor_que_usado_hasta'
+
+    payload = fe_svc.emitir_prueba_xml(dte_tipo, folio=folio, caf_autorizacion_xml=caf_xml_b)
+    if caf_info:
+        payload['caf'] = caf_info
     return jsonify(payload)
+
+
+@app.route('/api/admin/facturacion/diagnostico-sii', methods=['GET'])
+@login_required
+def api_admin_facturacion_diagnostico_sii():
+    """Semilla + token SII (sin subir DTE). Requiere SII_CERT_* y opcional SII_SOAP_ENABLED."""
+    if not _usuario_puede_api_facturacion_prueba():
+        return jsonify(ok=False, error='forbidden'), 403
+    try:
+        if request.args.get('reload_env', '').strip().lower() in ('1', 'true', 'yes'):
+            _load_env_archivos(force_local_overwrite=True)
+    except Exception:
+        app.logger.exception('diagnostico-sii: recarga entorno falló')
+    from services import facturacion_sii_soap as sii_soap
+
+    cfg = obtener_config_empresa()
+    amb = request.args.get('ambiente') or os.getenv('SII_AMBIENTE')
+    diag = sii_soap.diagnostico_sii(amb)
+    diag['rut_emisor_config'] = (os.getenv('EMPRESA_RUT') or cfg.get('rut_emisor') or '').strip()
+    diag['ok'] = bool(diag.get('semilla_ok')) and (
+        not diag.get('pfx_configurado') or bool(diag.get('token_ok'))
+    )
+    return jsonify(diag)
+
+
+@app.route('/api/admin/facturacion/enviar-prueba-sii', methods=['GET', 'POST'])
+@login_required
+def api_admin_facturacion_enviar_prueba_sii():
+    """
+    Envía al SII un DTE del set en storage/dtes/pruebas_sii/ (requiere token válido).
+    Query: dte_tipo=33, folio=1, ambiente=certificacion, reload_env=1
+    """
+    if not _usuario_puede_api_facturacion_prueba():
+        return jsonify(ok=False, error='forbidden'), 403
+    try:
+        if request.args.get('reload_env', '').strip().lower() in ('1', 'true', 'yes'):
+            _load_env_archivos(force_local_overwrite=True)
+    except Exception:
+        app.logger.exception('enviar-prueba-sii: recarga entorno falló')
+
+    body = request.get_json(silent=True) or {} if request.method == 'POST' else {}
+
+    def _int_param(name, default):
+        v = request.args.get(name)
+        if v is None or str(v).strip() == '':
+            v = body.get(name)
+        try:
+            return int(v) if v is not None and str(v).strip() != '' else int(default)
+        except (TypeError, ValueError):
+            return int(default)
+
+    from services import facturacion_electronica_service as fe_svc
+
+    dte_tipo = _int_param('dte_tipo', 33)
+    folio = _int_param('folio', 1)
+    amb = (request.args.get('ambiente') or body.get('ambiente') or os.getenv('SII_AMBIENTE') or '').strip() or None
+    cfg = obtener_config_empresa()
+    rut_emisor = (os.getenv('EMPRESA_RUT') or cfg.get('rut_emisor') or '8054120-1').strip()
+    payload = fe_svc.enviar_xml_prueba_sii_desde_storage(
+        app.root_path,
+        dte_tipo=dte_tipo,
+        folio=folio,
+        ambiente=amb,
+        rut_emisor=rut_emisor,
+    )
+    return jsonify(payload), (200 if payload.get('ok') else 502)
 
 
 @app.route('/api/admin/facturacion/cafs', methods=['GET', 'POST'])
