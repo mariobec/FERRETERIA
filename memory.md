@@ -2,9 +2,9 @@
 
 Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agente lo usan para **recordar contexto entre sesiones**.
 
-**Copia en documentación:** `docs/memory.md` (mismo contenido; mantener sincronizado al actualizar).
+**Copia canónica (detalle completo):** `docs/memory.md` — mantener sincronizado al actualizar. Este archivo = índice + «Dónde quedamos» breve.
 
-**Planes:** `docs/planes/README.md` · **Memory Grok:** `docs/planes/00-alineacion/MEMORY_GROK.md`
+**Planes:** `docs/planes/README.md` · **Memory Grok:** `docs/planes/00-alineacion/MEMORY_GROK.md` · **Backlog post SD-1 (puntos + sorteo TV):** `docs/planes/02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`
 
 ## Cómo usarlo
 
@@ -347,31 +347,15 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**PRIORIDAD AL VOLVER (2026-05-16):** validar en navegador el **dock fijo 3 zonas** y carrito sin reload. Leer sección **«POS — Dock fijo 3 zonas + carrito AJAX»** en `docs/memory.md`. Si OK → commit + tag `checkpoint/pos-dock-3zonas-2026-05-16`.
+**Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «POS carrito v3 — chips y descuento UX (2026-05-19)».
 
-**PRIORIDAD ANTERIOR (rediseño):** fases A–C del análisis premium; parte de Fase C (dock/grid) ya avanzada en local.
+**PRIORIDAD (2026-05-19):** validar carrito v3 en navegador (chips `T/B`, descuento 5–20 %, menú no tapado) → **commit** bloque POS local. Cache **Ctrl+F5** `20260519c`.
 
-**Hecho (POS UX — listo para productivo tras commit/push):**
-- Asistente búsqueda manual en `punto_venta` (`pos.js`, `punto_venta.html`, `design-system.css`, `buscar_producto` enriquecido en `app.py`).
+**Hecho sesión 2026-05-19 (local):** chips unificados; descuento UX; menú dto hacia arriba + z-index. Ver `docs/memory.md`.
 
-**Hecho (Fases 1.2–1.4 operativas, parte sin commit):**
-- Dominio venta, use cases, stock cobro, **post-cobro crédito** (`PostCobroCreditoService`), **saldo favor** (`PostCobroSaldoFavorService`), adapters y `bootstrap.py`.
-- **`procesar_cobro_caja`**: use case + stock + post-cobro crédito/saldo favor delegados a `core/`.
-- **`tests/conftest.py` `cobrar_venta_efectivo`**: alineado a producción (efectivo; sin crédito).
-- Efectos colaterales **aún en app.py**: alta/edición cliente al finalizar, flags bodega post-cobro, `erp_audit_log`, FE post-commit.
+**Pendiente:** commit (autorización descuentos 2026-05-18 + UX carrito); SD-1 piso.
 
-**Siguiente paso recomendado (Fase 1.5):**
-1. Extraer flags bodega post-cobro (`bodega_preparacion_*`, `bodega_sugerido_*`).
-2. Opcional: `agregar_producto_venta` / carrito Abierta → dominio.
-3. Test HTTP cobro a crédito con plan de cuotas en `test_routes_criticas`.
-
-**No hacer aún:** Alembic, multi-tenant, mover modelos ORM fuera de `app.py`.
-
-**Comandos útiles:**
-```bash
-pytest tests/test_core_domain_venta.py -q
-pytest tests/test_end_to_end.py -m "smoke and happy_path" -q --tb=short
-```
+**En `main` ya:** layout `5094d5d`, POS-4 `309f02f`.
 
 ---
 
@@ -417,4 +401,20 @@ pytest tests/test_end_to_end.py -m "smoke and happy_path" -q --tb=short
 
 ---
 
-*Última actualización: 2026-05-16 — Dock 3 zonas en local; validación UI pendiente.*
+---
+
+## POS — Autorización descuentos (2026-05-18)
+
+Detalle: `docs/memory.md` § «POS — Autorización de descuentos». Local sin commit. Tests: `pytest tests/test_pos_autorizacion_descuento.py -q`.
+
+---
+
+## POS carrito v3 — chips + descuento UX (2026-05-19)
+
+**Resumen:** chips **`X T / Y B`** (stock) + **`TIENDA`/`BODEGA`** (retiro); menú **5/10/15/20** %; panel dto sin tapar línea de abajo. Archivos: `premium_cart_cards.html`, `pos-premium-layout.css`, `pos.js`. Cache `20260519c`.
+
+**Detalle:** `docs/memory.md` § «POS carrito v3 — chips stock y descuento UX».
+
+---
+
+*Última actualización: 2026-05-19 — Sincronizado con `docs/memory.md`.*

@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-cart-premium-20260520c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-pedidos-apedido-20260520">
 {% if pos_layout_fullwidth %}
 <style>
 body.pos-pantalla-vendedora .app-sidebar,
@@ -501,6 +501,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
       <button type="button" class="btn btn-sm btn-outline-light" id="posBtnNuevaVentaChrome" title="Descartar borrador e iniciar venta vacía">
         <i class="fas fa-file-circle-plus"></i><span class="d-none d-md-inline ms-1">Nueva venta</span>
       </button>
+      {% include 'pos/includes/premium_pedidos_apedido_btn.html' %}
       <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-success" title="Ir a caja"><i class="fas fa-cash-register"></i><span class="d-none d-md-inline ms-1">Caja</span></a>
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="TV cliente"><i class="fas fa-tv"></i><span class="d-none d-md-inline ms-1">TV</span></a>
@@ -1042,6 +1043,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   </div>
 </div>
 
+{% include 'pos/includes/premium_pedidos_apedido_panel.html' %}
 {% include 'pos/includes/compromiso_entrega_modal.html' %}
 
 <div class="modal fade" id="modalConfirmarPuntoRetiro" tabindex="-1" aria-labelledby="modalConfirmarPuntoRetiroLabel" aria-hidden="true">
@@ -1166,6 +1168,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
     'retiro_linea': url_for('api_pos_retiro_linea'),
     'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
     'vales_hoy': url_for('api_pos_vales_hoy'),
+    'pedidos_apedido': url_for('api_pos_pedidos_apedido'),
     'cotizacion_nueva': url_for('cotizacion_nueva'),
     'nueva_venta': url_for('api_pos_nueva_venta')
   },
@@ -1181,7 +1184,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-premium-layout-20260520e"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-pedidos-apedido-20260520"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

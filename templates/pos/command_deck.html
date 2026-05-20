@@ -21,6 +21,7 @@
       <button type="button" class="btn btn-sm btn-outline-light" id="deckBtnFullscreen" title="F11">
         <i class="fas fa-expand"></i>
       </button>
+      {% include 'pos/includes/premium_pedidos_apedido_btn.html' %}
       <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-outline-secondary">POS clásico</a>
       <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-secondary">Inicio</a>
     </div>
@@ -254,7 +255,8 @@
     'cross_sell_reject': url_for('api_pos_cross_sell_reject'),
     'vincular_cliente': url_for('api_pos_vincular_cliente'),
     'escanear_agregar': url_for('api_pos_escanear_agregar'),
-    'producto_alta_rapida': url_for('api_pos_producto_alta_rapida')
+    'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
+    'pedidos_apedido': url_for('api_pos_pedidos_apedido')
   },
   'cliente_vitrina': cliente_vitrina,
   'cliente_ui': cliente_ui,
@@ -270,7 +272,7 @@
 <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/bootstrap.bundle.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/select2/select2.min.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-filtro-fix-20260520f"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-pedidos-apedido-20260520"></script>
 <script src="{{ url_for('static', filename='js/pos-command-deck.js') }}"></script>
 </body>
 </html>

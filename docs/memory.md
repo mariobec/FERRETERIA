@@ -241,6 +241,8 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 | 2026-05-17 | **Convención ambientes:** desarrollo = local, productivo = Render (+ Neon). |
 | 2026-05-17 | **POS asistente búsqueda manual:** commit `8c9535c` — input `#posBuscarManual`, panel tarjetas, `/buscar_producto?enriquecido=1`. **Pendiente `git push` a Render.** |
 | 2026-05-20 | **POS pantalla vendedora (WIP local):** semáforo, filtros, compromiso entrega, layout sin sidebar, tarjetas carrito, `/pos` acceso directo. **Análisis rediseño profundo guardado abajo — pendiente aprobación usuario.** |
+| 2026-05-19 | **POS carrito v3 UX (sesión Cursor):** chips stock unificados `X T / Y B`; chips fuera del precio; descuento rápido 5/10/15/20 + Enter; menú dto hacia arriba + z-index. Ver § «POS carrito v3 — chips y descuento UX». Cache `20260519c`. **Local sin commit.** |
+| 2026-05-19 | **Revisión memory.md:** `docs/memory.md` = canónico; raíz desactualizada; prioridad «dock 3 zonas» ya superseded por `5094d5d`. |
 
 ---
 
@@ -346,28 +348,29 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**PRIORIDAD AL VOLVER (2026-05-16):** validar dock fijo 3 zonas + carrito AJAX en `/punto_venta` (rol vendedor). Sección **«POS — Dock fijo 3 zonas + carrito AJAX»** abajo. Si OK → commit + tag `checkpoint/pos-dock-3zonas-2026-05-16`.
+**PRIORIDAD (2026-05-19):** validar en navegador **carrito v3** (chips `T/B`, menú descuento 5–20 %, autorización supervisor si aplica) → luego **commit** bloque POS local (autorización descuentos + UX carrito). **Ctrl+F5** cache `20260519c`.
 
-**Hecho (POS UX — listo para productivo tras commit/push):**
-- Asistente búsqueda manual en `punto_venta` (`pos.js`, `punto_venta.html`, `design-system.css`, `buscar_producto` enriquecido en `app.py`).
+**Hecho esta sesión (local, sin push):**
+- Carrito: chips stock siempre **`X T / Y B`** + badge retiro **TIENDA/BODEGA** (ver § abajo).
+- Chips reubicados en columna comercio (no tapar precio).
+- Descuento: botones **5/10/15/20**, foco+selección al abrir `⋯`, **Enter** guarda, placeholder si 0 %.
+- Menú dto abre **hacia arriba**; línea activa `z-index` (`pos-cart-card--dto-open`).
 
-**Hecho (Fases 1.2–1.4 operativas, parte sin commit):**
-- Dominio venta, use cases, stock cobro, **post-cobro crédito** (`PostCobroCreditoService`), **saldo favor** (`PostCobroSaldoFavorService`), adapters y `bootstrap.py`.
-- **`procesar_cobro_caja`**: use case + stock + post-cobro crédito/saldo favor delegados a `core/`.
-- **`tests/conftest.py` `cobrar_venta_efectivo`**: alineado a producción (efectivo; sin crédito).
-- Efectos colaterales **aún en app.py**: alta/edición cliente al finalizar, flags bodega post-cobro, `erp_audit_log`, FE post-commit.
+**Pendiente operación / git:**
+- Commit cuando Mario lo pida: `premium_cart_cards.html`, `pos-premium-layout.css`, `pos.js`, `punto_venta.html` + bloque autorización descuentos (2026-05-18).
+- SD-1 piso: piloto POS + inventario (`CLIENTE_SANTO_DOMINGO.md`).
+- SQL Neon: `2026_05_18_pos_autorizacion_descuento.sql` si no migró `init_db`.
 
-**Siguiente paso recomendado (Fase 1.5):**
-1. Extraer flags bodega post-cobro (`bodega_preparacion_*`, `bodega_sugerido_*`).
-2. Opcional: `agregar_producto_venta` / carrito Abierta → dominio.
-3. Test HTTP cobro a crédito con plan de cuotas en `test_routes_criticas`.
+**Hecho previo en `main`:** layout vendedor `5094d5d`, POS-4 `309f02f`, asistente búsqueda `8c9535c`.
 
-**No hacer aún:** Alembic, multi-tenant, mover modelos ORM fuera de `app.py`.
+**Siguiente técnico (post-commit POS):** Fase 1.5 core — flags bodega post-cobro; test cobro crédito HTTP.
+
+**No hacer aún:** Alembic, multi-tenant, refactor masivo `app.py`.
 
 **Comandos útiles:**
 ```bash
-pytest tests/test_core_domain_venta.py -q
-pytest tests/test_end_to_end.py -m "smoke and happy_path" -q --tb=short
+pytest tests/test_pos_autorizacion_descuento.py -q
+pytest tests/ -m smoke -q --tb=no
 ```
 
 ---
@@ -438,10 +441,6 @@ git tag checkpoint/pos-dock-3zonas-2026-05-16
 ```
 
 **Estado git al 2026-05-16:** `main` ahead 2 commits de `origin/main`; muchos archivos modificados sin commit (incl. dock 3 zonas).
-
----
-
-*Última actualización: 2026-05-16 — Dock 3 zonas + AJAX carrito implementado en local; validación UI pendiente.*
 
 ---
 
@@ -534,17 +533,61 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ## Daily equipo — 2026-05-18
 
-**Mario**
-- **Ayer:** Grok Project configurado (prompt único + confirmación 5 bullets). Docs `docs/planes/` en GitHub (`309f02f`, `c423864`).
-- **Hoy:** SD-1.1 preparar toma inventario (almacenes, permisos, backup Neon); SD-1.2 validar POS en piso si hay venta.
-- **Bloqueos:** (completar en piso)
+### Bloque único (copiar a Grok)
 
-**Cursor (sesión)**
-- **Ayer/logrado:** `docs/planes/` reorganizado; `MEMORY_GROK`, `GROK_PROMPT_UNICO`, `GROK_PROJECT_SETUP`; commit `309f02f` + push; guía Grok Project `c423864`.
-- **Hoy:** Commit ritmo async `EQUIPO_RITMO_ASYNC.md` + prompt único; apoyo SD-1 según prioridad Mario.
+```markdown
+## Daily — 2026-05-18
+
+**Ayer logré:**
+- Grok Project LhexIA: prompt único + confirmación 5 bullets alineada
+- Repo: carpeta `docs/planes/` (00–07), portales producto/SD, MEMORY_GROK
+- Commits en `main`: `309f02f` (planes + POS-4 + core post-cobro), `c423864` (Grok Project), `30aa8c6` (ritmo async + GROK_PROMPT_UNICO)
+- Modelo Daily / Weekly / Sprint 14d adoptado (EQUIPO_RITMO_ASYNC.md)
+
+**Hoy voy a:**
+- [SD-1.1] Mario: validar 3 almacenes + permisos `enrolamiento_inventario`; backup Neon; iniciar `/inventario/enrolamiento`
+- [SD-1.2] Mario: piloto POS en sucursal — Ctrl+F5, búsqueda 2+ letras, filtro **Catálogo** si Operativo vacío, vale → caja
+- [Cursor] Disponible hotfix SD-1; smoke tests si Mario pide «corre pytest smoke»
+- [Grok] Checklist operativo D0 inventario o user stories POS piso (si Mario lo pide en Project)
+
+**Bloqueos / Necesito ayuda con:**
+- **Operación (Mario):** confirmar IDs/nombres de 3 almacenes activos y usuarios con permiso enrolamiento
+- **Piso:** primera toma inventario y primer vale completo aún por validar (criterio cierre SD-1)
+- **Técnico menor:** `render.yaml` + `scripts/sync_local_neon_render.py` con cambios locales sin commit (no bloquea SD-1)
+
+**Notas importantes:**
+- **POS-4** ya en producción vía `main` (`309f02f`): cache `20260525f`, búsqueda ≥2 chars, F8 `posEmitirValeAtajo`
+- Deploy Render: auto-deploy en push — verificar www.lhexia.cl tras Ctrl+F5 en caja
+- No iniciar LX-1 / IA prod / refactor masivo hasta cerrar SD-1
+
+**Eje:** SD-1
+```
+
+---
+
+### Detalle por rol (repo)
+
+**Mario**
+- **Ayer:** Grok Project OK; documentación planes en GitHub.
+- **Hoy:** SD-1.1 inventario + SD-1.2 POS piso (ver checklist `CLIENTE_SANTO_DOMINGO.md`).
+- **Bloqueos:** almacenes/permisos en operación; validación flujo real en sucursal.
+
+**Cursor**
+- **Ayer/logrado:** `docs/planes/`; commits `309f02f`, `c423864`, `30aa8c6` pusheados; POS-4 en `main`.
+- **Hoy (completado sesión):** Daily documentado; pendiente SD-1 = hotfix bajo demanda, pytest smoke bajo pedido.
+- **Sin commit pendiente crítico** para SD-1. Local sin commitear: `render.yaml`, `sync_local_neon_render.py` (sync Neon).
 
 **Grok**
-- Propuesta Daily / Weekly / Sprint 14d — adoptada → `docs/planes/00-alineacion/EQUIPO_RITMO_ASYNC.md`.
+- Ritmo async documentado; apoyo planificación/checklists SD-1 en Project.
+
+**Estado técnico rápido (Cursor)**
+
+| Ítem | Estado |
+|------|--------|
+| POS-4 en `main` | ✅ `309f02f` (`20260525f`, búsqueda 2+, F8) |
+| Inventario enrolamiento/salud | ✅ código listo — operación SD-1.1 |
+| Tests smoke | No corridos hoy — ejecutar antes de hotfix si hay duda |
+| `main` vs origin | ✅ al día (`30aa8c6`) |
 
 **Eje:** SD-1
 
@@ -569,7 +612,7 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 | Prioridad | Fase | Estado |
 |-----------|------|--------|
 | **Ahora** | **SD-1** Santo Domingo POS + inventario | 🟡 En curso |
-| Cerrado | POS-1…4 UI vendedor | ✅ (POS-4 local sin push) |
+| Cerrado | POS-1…4 UI vendedor | ✅ POS-4 en `main` (`309f02f`) — validar piso |
 | Cerrado | TEC-1A…4 estabilidad v2 | ✅ |
 | Paralelo | LX-0 producto (docs) | 🟡 |
 | Después | LX-1 multi-tenant | ⏳ |
@@ -585,4 +628,115 @@ Referencia visual: `assets/.../Captura_de_pantalla_2026-05-17_133426-401f5c61-15
 
 ---
 
-*Última actualización: 2026-05-18 — Ritmo equipo async; planes en docs/planes/.*
+---
+
+## POS — Autorización de descuentos (sesión chat 2026-05-18, transcript `2bee32c7-0747-4320-9f77-33b17db4c0d0`)
+
+**Estado:** implementado en **local**; **sin commit** explícito del usuario a `main`/Render al cierre de esta sesión. Tests: `pytest tests/test_pos_autorizacion_descuento.py` → 4 passed.
+
+### Reglas de negocio acordadas
+
+1. **Todo descuento > 0** en POS exige autorización de **supervisor** (tarjeta código `LHX-SUP-…` + **PIN 4 dígitos** si % > umbral empresa, default **20%**).
+2. **Excepción:** productos marcados en catálogo como **preautorizados** (`pos_descuento_preautorizado` + tope `pos_descuento_preautorizado_pct`) — sin tarjeta hasta ese tope.
+3. **Futuro (no implementado):** autorización por **comportamiento del cliente** (historial compras/pagos). Flag config `pos_descuento_autorizacion_por_cliente: "0"` en `_config_empresa_default()`.
+4. El permiso `autorizar_descuento_pos` identifica **quién puede autorizar** (tarjeta/PIN), **no** exime al vendedor en caja (incl. usuario Admin — fix sesión 2026-05-18).
+
+### Archivos clave
+
+| Archivo | Rol |
+|---------|-----|
+| `services/pos_autorizacion_descuento_service.py` | Token tarjeta, PIN, umbral, `requiere_autorizacion_supervisor_pos`, `detalle_descuento_autorizacion_valida`, producto preauth |
+| `sql/2026_05_18_pos_autorizacion_descuento.sql` | DDL: pin usuario, tabla tarjetas, columnas detalle_ventas, columnas productos preauth |
+| `app.py` | Modelos `UsuarioTarjetaAutorizacion`, columnas `DetalleVenta`/`Producto`; `_validar_autorizacion_descuento_pos`, `actualizar_item`, `finalizar_venta` (bloqueo si descuento sin traza), ruta `/admin/pos-autorizacion-descuentos` |
+| `templates/admin_pos_autorizacion.html` | Umbral %, supervisores (PIN/tarjeta), buscar producto preautorizado |
+| `templates/punto_venta.html` | Modal `#modalAutorizarDescuentoPos`; `descuento_libre: false` en config POS |
+| `static/js/pos.js` | Modal al cambiar % (blur/`change`) o ✓; bloqueo emitir vale; `posHayDescuentosSinGuardarOAutorizar` |
+| `templates/ticket_vale.html` | Línea: `Dto X% · Aut: Nombre` si hay supervisor |
+| `tests/test_pos_autorizacion_descuento.py` | Smoke tarjeta+PIN + reglas preauth |
+
+### Flujo operativo (local)
+
+1. Admin → **POS autorización descuentos** (`/admin/pos-autorizacion-descuentos`): generar tarjeta (código una vez + JsBarcode), PIN 4 dígitos, umbral %.
+2. En POS vendedor: poner **Dto %** → salir del campo o **✓** → modal tarjeta (+ PIN si > umbral) → guardar línea.
+3. **Emitir vale** solo si cada línea con descuento tiene traza en BD (`descuento_autorizado_metodo`: `tarjeta`, `tarjeta_pin`, `password`, o `producto_preautorizado`).
+4. **Ctrl+F5** tras cambios en `pos.js`.
+
+### UX stock en carrito (misma sesión)
+
+- Mensaje carrito vendedor: **«Excede stock en tienda»** o **«Excede stock en bodega»** según retiro por línea (`posLimiteStockLinea` en `pos.js`; `data-stock-bodega` en tarjetas). **Bug corregido:** retiro **Bodega** ya no compara contra stock tienda (0 T / 3 B dejaba emitir en gris). `actualizar_item` valida bodega si retiro=Bodega.
+- Líneas **a pedido** no aplican validación de stock mostrador.
+
+### Problemas detectados y corregidos en chat
+
+| Síntoma | Causa | Fix |
+|---------|--------|-----|
+| No pedía clave/PIN | Admin tenía bypass por `autorizar_descuento_pos` / `descuento_libre: true` | Siempre pedir tarjeta en POS; `descuento_libre: false` |
+| Emitía vale igual | `finalizar_venta` no validaba autorización; descuento solo en pantalla | Validación servidor + bloqueo JS al emitir |
+| Modal solo al ✓ | Descuento no persistía al salir del campo | `change` en `.descuento-input` abre flujo autorización |
+
+### Pendiente / no mezclar en SD-1
+
+- Commit + deploy Render cuando Mario lo pida.
+- Ejecutar SQL en Neon si no usa auto-migrate `_asegurar_*` al arranque.
+- Hub POS → pantalla vendedora (`_pos_url_destino`, `?layout=vendedor`) — conversación previa; verificar si ya está en `main` aparte de este bloque.
+
+### Comandos útiles
+
+```bash
+pytest tests/test_pos_autorizacion_descuento.py -q
+python app.py   # local + Ctrl+F5 en /punto_venta?layout=vendedor
+```
+
+---
+
+## POS carrito v3 — chips stock y descuento UX (sesión 2026-05-19)
+
+**Estado:** implementado en **local**; sin commit/push al cierre de sesión. **Cache bust:** `pos-cart-premium-20260519c` / `pos-premium-layout-20260519c` en `punto_venta.html`.
+
+### Chips en cada línea del carrito (congruencia)
+
+Cada tarjeta muestra **dos badges** distintos:
+
+| Badge | Ejemplo | Significado |
+|-------|---------|-------------|
+| Verde/amarillo con cajita | `200 T / 0 B` | Stock **Tienda (T)** / **Bodega (B)** en unidades de venta |
+| Amarillo texto | `TIENDA`, `BODEGA` | **Punto de retiro** de la línea (`punto_retiro_linea`) |
+
+**Antes (confuso):** si había stock en tienda → `200 CAJA`; si solo bodega → `0 T / 3 B`. Mezclaba unidad de venta con códigos de almacén.
+
+**Ahora:** siempre `X T / Y B`. Tooltip: tienda, bodega y unidad (`CAJA`, etc.). Clase `pos-cart-card__chip--stock-bodega` si tienda=0 y bodega>0.
+
+**Layout:** `.pos-cart-card__status-corner` pasó de `position:absolute` (esquina tarjeta, tapaba el **$**) a la columna **`pos-cart-card__commerce`**, arriba de cantidad/precio.
+
+### Menú descuento % (UX vendedor)
+
+| Mejora | Detalle |
+|--------|---------|
+| Botones rápidos | **5 · 10 · 15 · 20** en panel `⋯` — aplican % y disparan guardado (+ modal supervisor si aplica) |
+| Foco | Al abrir `⋯`, foco en input y **select all**; si 0 % el campo va vacío con `placeholder="0"` |
+| Enter | Guarda línea (equivale a ✓); cierra menú si guardó OK |
+| Superposición | Panel abre **hacia arriba** (`bottom: calc(100% + …)`); tarjeta abierta `pos-cart-card--dto-open` + `z-index: 40` para no quedar bajo la línea de abajo |
+
+### Archivos tocados
+
+| Archivo | Cambio |
+|---------|--------|
+| `templates/pos/includes/premium_cart_cards.html` | Chips T/B; panel dto con quick buttons |
+| `static/css/pos-premium-layout.css` | Chips en commerce; `.pos-dto-quick*`; z-index menú abierto |
+| `static/js/pos.js` | `posFocusDescuentoInput`, `posCerrarMenuDto`, `posAplicarDescuentoRapido`; Enter; clase `--dto-open`; `actualizarItem` retorna bool |
+| `templates/punto_venta.html` | Query cache `20260519c` |
+
+### Validación sugerida
+
+1. Ctrl+F5 `/punto_venta` o `/pos` rol vendedor.
+2. Dos productos: uno con stock tienda, otro solo bodega — verificar chips `T/B` + retiro.
+3. Abrir `⋯` en línea del medio del carrito — botones 5–20 clicables sin tapar producto de abajo.
+4. Descuento > umbral → modal tarjeta/PIN; emitir vale bloqueado si falta autorización.
+
+### Relación con autorización descuentos (2026-05-18)
+
+Los botones rápidos llaman `posIntentarGuardarLineaConAutorizacionDesc` — misma regla: todo dto > 0 exige supervisor salvo producto preautorizado. Ver § «POS — Autorización de descuentos» arriba.
+
+---
+
+*Última actualización: 2026-05-19 — POS carrito chips T/B + UX descuento rápido + menú dto z-index; revisión sincronía memory; todo local sin commit.*

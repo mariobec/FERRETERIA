@@ -1,0 +1,663 @@
+/* =============================================================================
+   LhexIA Customer Facing Monitor (CFM) v2 — layout 50/50, dark + neón verde
+   Cargado al final de pos-experience-wall.css
+   ============================================================================= */
+
+body.ew-cfm-v2 {
+  font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+body.ew-cfm-v2 .ew-bg {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(0, 255, 159, 0.14), transparent 58%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(56, 189, 248, 0.08), transparent 50%),
+    #020617;
+}
+
+/* Shell fullscreen 16:9-friendly */
+.ew-cfm {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  max-height: 100vh;
+  padding: clamp(0.75rem, 1.8vh, 1.35rem) clamp(1rem, 2.2vw, 2rem);
+  box-sizing: border-box;
+}
+
+/* —— Header —— */
+.ew-cfm-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: clamp(0.5rem, 1.2vh, 0.85rem);
+  border-bottom: 1px solid rgba(0, 255, 159, 0.12);
+}
+
+.ew-cfm-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.ew-cfm-header__logo {
+  width: clamp(2.5rem, 4.5vw, 3.25rem);
+  height: clamp(2.5rem, 4.5vw, 3.25rem);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(0, 255, 159, 0.22), rgba(56, 189, 248, 0.12));
+  border: 1px solid rgba(0, 255, 159, 0.35);
+  color: var(--ew-neon);
+  font-size: 1.35rem;
+  box-shadow: 0 0 24px rgba(0, 255, 159, 0.2);
+  overflow: hidden;
+}
+
+.ew-cfm-header__logo-img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 159, 0.5));
+}
+
+.ew-cfm-header__title {
+  font-weight: 800;
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.ew-cfm-header__title span {
+  color: var(--ew-neon);
+  font-weight: 700;
+}
+
+.ew-cfm-header__store {
+  font-size: clamp(0.72rem, 1.1vw, 0.85rem);
+  color: var(--ew-muted);
+  margin-top: 0.15rem;
+}
+
+.ew-cfm-header__center {
+  text-align: center;
+}
+
+.ew-cfm-header__status {
+  margin: 0;
+  font-size: clamp(0.8rem, 1.25vw, 0.95rem);
+  color: var(--ew-muted);
+}
+
+.ew-cfm-header__greet {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.ew-cfm-hello {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  text-shadow: 0 0 28px rgba(0, 255, 159, 0.35);
+}
+
+.ew-cfm-credit-badge {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: clamp(0.72rem, 1.05vw, 0.82rem);
+  font-weight: 700;
+  color: #022c22;
+  background: linear-gradient(90deg, #00ff9f, #34d399);
+  box-shadow: 0 0 20px rgba(0, 255, 159, 0.45);
+}
+
+.ew-cfm-credit-badge::before {
+  content: "\f09d";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+}
+
+.ew-cfm-saldo-badge {
+  margin: 0;
+  display: inline-flex;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: clamp(0.7rem, 1vw, 0.8rem);
+  font-weight: 700;
+  color: #e0f2fe;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.ew-cfm-live {
+  font-size: 0.72rem;
+  color: var(--ew-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ew-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ew-neon);
+  box-shadow: 0 0 10px var(--ew-neon);
+  animation: ew-cfm-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes ew-cfm-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+
+/* —— Main split 50/50 —— */
+.ew-cfm-main {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ew-cfm-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(0.75rem, 1.5vw, 1.25rem);
+  height: 100%;
+  min-height: 0;
+  transition: opacity 0.35s ease;
+}
+
+.ew-cfm-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--ew-border);
+  border-radius: 18px;
+  padding: clamp(0.85rem, 1.6vw, 1.15rem);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.ew-cfm-col--reco {
+  border-color: rgba(0, 255, 159, 0.15);
+  background: linear-gradient(165deg, rgba(0, 255, 159, 0.06), rgba(15, 23, 42, 0.6));
+}
+
+.ew-cfm-col__head {
+  flex-shrink: 0;
+  margin-bottom: 0.65rem;
+}
+
+.ew-cfm-col__title {
+  margin: 0 0 0.25rem;
+  font-size: clamp(1rem, 1.65vw, 1.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ew-cfm-col__title i {
+  color: var(--ew-neon);
+  font-size: 0.9em;
+}
+
+.ew-cfm-col__subtitle,
+.ew-cfm-col__meta {
+  margin: 0;
+  font-size: clamp(0.72rem, 1vw, 0.82rem);
+  color: var(--ew-muted);
+}
+
+.ew-cfm-col__meta {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Lista carrito */
+.ew-cfm-items {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 255, 159, 0.35) transparent;
+}
+
+.ew-cfm-line {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  animation: ew-cfm-line-in 0.35s ease;
+}
+
+@keyframes ew-cfm-line-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ew-cfm-line .ew-thumb-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ew-cfm-line .ew-thumb,
+.ew-cfm-line .ew-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ew-cfm-line .ew-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(30, 41, 59, 0.8);
+  color: var(--ew-muted);
+}
+
+.ew-cfm-line__name {
+  font-size: clamp(0.88rem, 1.35vw, 1.02rem);
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0 0 0.2rem;
+}
+
+.ew-cfm-line__meta {
+  font-size: 0.75rem;
+  color: var(--ew-muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.ew-cfm-line__qty {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ew-blue);
+  margin-left: 0.35rem;
+}
+
+.ew-cfm-line__price {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: clamp(0.95rem, 1.4vw, 1.1rem);
+  font-weight: 600;
+  color: var(--ew-neon);
+  white-space: nowrap;
+}
+
+.ew-cfm-empty-inline {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ew-muted);
+  font-size: clamp(0.85rem, 1.2vw, 0.95rem);
+  padding: 1rem;
+}
+
+.ew-cfm-empty-inline p {
+  margin: 0;
+  max-width: 22ch;
+}
+
+/* Recomendaciones 2×2 */
+.ew-cfm-reco-idle {
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px dashed rgba(56, 189, 248, 0.28);
+  color: var(--ew-muted);
+  font-size: clamp(0.75rem, 1.05vw, 0.85rem);
+  text-align: center;
+}
+
+.ew-cfm-reco-idle p {
+  margin: 0;
+}
+
+.ew-cfm-col--reco {
+  position: relative;
+}
+
+.ew-cfm-reco-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.ew-cfm-reco-grid.d-none + .ew-cfm-reco-empty,
+.ew-cfm-reco-empty:not(.d-none) {
+  display: flex;
+}
+
+.ew-cfm-reco-empty {
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.65rem;
+  color: var(--ew-muted);
+  font-size: clamp(0.82rem, 1.15vw, 0.92rem);
+  padding: 1rem;
+}
+
+.ew-cfm-reco-empty.d-none {
+  display: none !important;
+}
+
+.ew-cfm-reco-empty i {
+  font-size: 1.75rem;
+  color: rgba(0, 255, 159, 0.45);
+}
+
+.ew-cfm-reco-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0.55rem 0.65rem;
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.65);
+  border: 1px solid rgba(0, 255, 159, 0.2);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: ew-cfm-reco-in 0.45s ease backwards;
+  animation-delay: calc(var(--ew-reco-i, 0) * 0.07s);
+  min-height: 0;
+}
+
+@keyframes ew-cfm-reco-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ew-cfm-reco-card__img {
+  width: 100%;
+  height: clamp(52px, 10vh, 72px);
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6);
+  margin-bottom: 0.4rem;
+}
+
+.ew-cfm-reco-card__img--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ew-muted);
+  font-size: 1.25rem;
+}
+
+.ew-cfm-reco-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 255, 159, 0.45);
+  box-shadow: 0 8px 28px rgba(0, 255, 159, 0.12);
+}
+
+.ew-cfm-reco-card__name {
+  font-size: clamp(0.78rem, 1.15vw, 0.92rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 0.35rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ew-cfm-reco-card__price {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: clamp(0.85rem, 1.25vw, 1rem);
+  color: var(--ew-neon);
+  margin: 0 0 0.5rem;
+}
+
+.ew-cfm-reco-card__btn {
+  appearance: none;
+  border: none;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: clamp(0.72rem, 1vw, 0.8rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #022c22;
+  background: linear-gradient(180deg, #00ff9f, #10b981);
+  cursor: default;
+  box-shadow: 0 4px 16px rgba(0, 255, 159, 0.25);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.ew-cfm-reco-card__btn span {
+  pointer-events: none;
+  font-size: 0.68em;
+  letter-spacing: 0.04em;
+}
+
+/* Idle overlay */
+.ew-cfm-idle {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  background: rgba(2, 6, 23, 0.88);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  transition: opacity 0.4s ease;
+}
+
+.ew-cfm-idle__scan {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ew-cfm-idle__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 255, 159, 0.25);
+  animation: ew-cfm-ring 2.4s ease-out infinite;
+}
+
+.ew-cfm-idle__ring::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 255, 159, 0.5);
+  animation: ew-cfm-ring 2.4s ease-out infinite 0.35s;
+}
+
+@keyframes ew-cfm-ring {
+  0% { transform: scale(0.85); opacity: 0.9; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.ew-cfm-idle__icon {
+  font-size: 2.25rem;
+  color: var(--ew-neon);
+  z-index: 1;
+}
+
+.ew-cfm-idle h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 800;
+}
+
+.ew-cfm-idle p {
+  margin: 0;
+  max-width: 36ch;
+  font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+  color: var(--ew-muted);
+  line-height: 1.45;
+}
+
+/* Thanks */
+.ew-cfm-thanks {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: rgba(2, 6, 23, 0.92);
+  border-radius: 18px;
+}
+
+.ew-cfm-thanks__icon {
+  font-size: 3.5rem;
+  color: var(--ew-neon);
+  margin-bottom: 0.75rem;
+  filter: drop-shadow(0 0 24px rgba(0, 255, 159, 0.5));
+}
+
+.ew-cfm-thanks h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.5rem, 2.8vw, 2rem);
+}
+
+.ew-cfm-thanks p {
+  margin: 0;
+  color: var(--ew-muted);
+}
+
+/* Footer total */
+.ew-cfm-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding-top: clamp(0.5rem, 1.2vh, 0.85rem);
+  border-top: 1px solid rgba(0, 255, 159, 0.12);
+}
+
+.ew-cfm-footer__label {
+  display: block;
+  font-size: clamp(0.75rem, 1.1vw, 0.88rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ew-muted);
+  margin-bottom: 0.15rem;
+}
+
+.ew-cfm-total {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: clamp(2.25rem, 5.5vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(0, 255, 159, 0.25);
+  transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+.ew-cfm-total--glow {
+  color: var(--ew-neon);
+  text-shadow:
+    0 0 12px rgba(0, 255, 159, 0.9),
+    0 0 36px rgba(0, 255, 159, 0.45),
+    0 0 64px rgba(0, 255, 159, 0.2);
+  animation: ew-cfm-total-glow 0.85s ease-out;
+}
+
+@keyframes ew-cfm-total-glow {
+  0% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.ew-cfm-footer__credito {
+  margin: 0;
+  font-size: clamp(0.78rem, 1.1vw, 0.88rem);
+  color: var(--ew-blue);
+  font-weight: 600;
+}
+
+.ew-cfm-footer__catalog a {
+  color: var(--ew-muted);
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.ew-cfm-footer__catalog a:hover {
+  color: var(--ew-neon);
+}
+
+/* Densidad muchas líneas */
+.ew-cfm--dense .ew-cfm-line {
+  padding: 0.4rem 0.5rem;
+}
+
+.ew-cfm--dense .ew-cfm-line .ew-thumb-wrap {
+  width: 42px;
+  height: 42px;
+}
+
+@media (max-width: 900px) {
+  .ew-cfm-header {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+  .ew-cfm-header__greet {
+    align-items: center;
+    text-align: center;
+  }
+  .ew-cfm-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+}

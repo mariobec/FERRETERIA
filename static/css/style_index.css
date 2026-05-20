@@ -76,12 +76,11 @@ body:not(.index-body) {
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    /* Logo grande por alto; PNG ya recortado al contenido (sin lienzo transparente) */
-    padding: 8px clamp(20px, 5vw, 72px);
+    padding: 0 clamp(16px, 4vw, 56px);
     box-sizing: border-box;
-    background: rgba(12, 16, 24, 0.72);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(18px);
+    background: #000000;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    backdrop-filter: none;
 }
 
 .landing-brand,
@@ -91,21 +90,93 @@ body:not(.index-body) {
 }
 
 .landing-brand {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: 0;
+    margin: 0;
+    padding: 6px 12px 6px 0;
+    background: #000000;
+    isolation: isolate;
+}
+
+/* Halo detrás del wordmark (visible sobre fondo #000) */
+.landing-brand::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    z-index: 0;
+    width: clamp(140px, 34vw, 240px);
+    height: clamp(48px, 11vw, 62px);
+    border-radius: 14px;
+    pointer-events: none;
+    transform: translateY(-50%) scale(0.96);
+    opacity: 0.35;
+    animation: lhexiaBrandAura 2.8s ease-in-out infinite;
+}
+
+@keyframes lhexiaBrandAura {
+    0%, 100% {
+        opacity: 0.2;
+        box-shadow:
+            0 0 12px rgba(243, 112, 33, 0.22),
+            0 0 8px rgba(57, 255, 159, 0.12);
+        transform: translateY(-50%) scale(0.96);
+    }
+    50% {
+        opacity: 0.95;
+        box-shadow:
+            0 0 32px rgba(243, 112, 33, 0.72),
+            0 0 48px rgba(57, 255, 159, 0.42),
+            0 0 72px rgba(243, 112, 33, 0.28);
+        transform: translateY(-50%) scale(1.04);
+    }
+}
+
+@keyframes lhexiaBrandPulse {
+    0%, 100% {
+        filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.45)) brightness(1);
+        transform: scale(1);
+    }
+    50% {
+        filter:
+            drop-shadow(0 0 26px rgba(243, 112, 33, 0.78))
+            drop-shadow(0 0 16px rgba(57, 255, 159, 0.52))
+            brightness(1.1);
+        transform: scale(1.055);
+    }
 }
 
 .landing-brand-logo {
+    position: relative;
+    z-index: 1;
     display: block;
     flex: 0 0 auto;
-    height: clamp(38px, 9vw, 52px);
+    height: clamp(44px, 10vw, 56px);
     width: auto;
-    max-width: min(260px, 62vw);
-    max-height: 52px;
+    max-width: min(300px, 72vw);
+    max-height: 56px;
     object-fit: contain;
     object-position: left center;
-    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.38));
+    vertical-align: middle;
+    transform-origin: left center;
+    will-change: transform, filter;
+    animation: lhexiaBrandPulse 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .landing-brand::after {
+        animation: none;
+        opacity: 0;
+        box-shadow: none;
+    }
+
+    .landing-brand-logo {
+        animation: none;
+        filter: none;
+        transform: none;
+    }
 }
 
 /* El wordmark PNG ya incluye «lhexIA» y «ERP inteligente» */
@@ -1687,18 +1758,21 @@ body.erp-landing [data-ai-whatsapp]:focus {
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-        padding: 10px 14px;
+        padding: 8px 14px;
+        background: #000000;
     }
 
     .landing-brand {
         flex: 1 1 auto;
         min-width: 0;
+        padding: 4px 8px 4px 0;
+        background: #000000;
     }
 
     .landing-brand-logo {
-        height: 36px;
-        max-height: 38px;
-        max-width: min(190px, 58vw);
+        height: 42px;
+        max-height: 44px;
+        max-width: min(240px, 78vw);
     }
 
     .landing-nav-toggle {

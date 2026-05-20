@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
-  <title>{{ empresa_cfg.get('nombre_comercial') or 'LhexIA' }} — Su compra</title>
+  <title>{{ empresa_cfg.get('nombre_comercial') or 'LhexIA' }} — Experience Wall</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=DM+Sans:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260215ew10">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260521cfm3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall-cfm.css') }}?v=lhexia20260521cfm3">
 </head>
-<body class="ew-body">
+<body class="ew-body ew-cfm-v2">
   <div class="ew-bg" aria-hidden="true"></div>
 
   {% if error == 'invalid_token' %}
@@ -24,52 +25,106 @@
     <h2 class="ew-error-title">Venta no encontrada</h2>
   </div>
   {% else %}
-  <div class="ew-shell" id="ewShell">
-    <header class="ew-topbar">
-      <div class="ew-brand">
-        <div class="ew-brand-mark"><i class="fas fa-receipt"></i></div>
+
+  {# ——— Shell principal CFM 1920×1080 ——— #}
+  <div class="ew-cfm" id="ewShell" role="application" aria-label="Pantalla cliente LhexIA">
+
+    {# Header: marca + saludo + crédito #}
+    <header class="ew-cfm-header">
+      <div class="ew-cfm-header__brand">
+        <div class="ew-cfm-header__logo" aria-hidden="true">
+          <img src="{{ url_for('static', filename='img/lhexia-icon-hex-login.png') }}" alt="" class="ew-cfm-header__logo-img">
+        </div>
         <div>
-          <div class="ew-brand-line">LhexIA <span>Experience</span></div>
+          <div class="ew-cfm-header__title">LhexIA <span>Experience</span></div>
           {% if empresa_cfg.get('nombre_comercial') %}
-          <div class="ew-store-name">{{ empresa_cfg.nombre_comercial }}</div>
+          <div class="ew-cfm-header__store">{{ empresa_cfg.nombre_comercial }}</div>
           {% endif %}
         </div>
       </div>
-      <div class="ew-live"><span class="ew-live-dot"></span> En vivo</div>
+
+      <div class="ew-cfm-header__center" aria-live="polite">
+        <p id="ewSub" class="ew-cfm-header__status">Conectando…</p>
+      </div>
+
+      <div class="ew-cfm-header__greet">
+        <p id="ewHello" class="ew-cfm-hello d-none">¡Hola!</p>
+        <p id="ewSaldoBadge" class="ew-cfm-saldo-badge d-none"></p>
+        <p id="ewCreditoBadge" class="ew-cfm-credit-badge d-none"></p>
+        <span class="ew-cfm-live"><span class="ew-live-dot"></span> En vivo</span>
+      </div>
     </header>
 
-    <section class="ew-hero">
-      <div id="ewGreeting" class="ew-greeting d-none"></div>
-      <h1>Su compra</h1>
-      <p id="ewClienteNombre" class="ew-cliente-nombre d-none" aria-live="polite"></p>
-      <p id="ewSub">Actualizando en vivo…</p>
-    </section>
+    {# Cuerpo 50/50 #}
+    <main class="ew-cfm-main" id="ewCfmMain">
 
-    <div id="ewShopping" class="ew-shopping">
-      <div class="ew-total-card" id="ewTotalCard">
-        <div class="ew-total-label">Total estimado</div>
-        <div class="ew-total" id="ewTotal">$0</div>
+      {# Pantalla de agradecimiento post-emisión #}
+      <div id="ewThanks" class="ew-cfm-thanks d-none" role="status">
+        <div class="ew-cfm-thanks__icon"><i class="fas fa-circle-check"></i></div>
+        <h2 id="ewThanksText">¡Gracias por su compra!</h2>
+        <p>Le atenderemos en el mostrador para el pago y retiro.</p>
       </div>
 
-      <div id="ewItems" class="ew-items" aria-live="polite" aria-label="Productos en el vale"></div>
-
-      <div id="ewIdlePanel" class="ew-empty ew-idle-panel">
-        <div class="ew-empty-icon" aria-hidden="true"><i class="fas fa-handshake"></i></div>
-        <h2>Listos para atenderle</h2>
-        <p>Pantalla preparada para la próxima compra.</p>
+      {# Idle: sin venta activa o invitación a identificarse #}
+      <div id="ewIdleOverlay" class="ew-cfm-idle d-none" aria-live="polite">
+        <div class="ew-cfm-idle__scan" aria-hidden="true">
+          <span class="ew-cfm-idle__ring"></span>
+          <i class="fas fa-display ew-cfm-idle__icon"></i>
+        </div>
+        <h2 id="ewIdleTitle">Acérquese al monitor</h2>
+        <p id="ewIdleText">para ver recomendaciones personalizadas y su compra en vivo.</p>
       </div>
-    </div>
 
-    <div id="ewThanks" class="ew-thanks-panel d-none">
-      <div class="ew-thanks-icon"><i class="fas fa-circle-check"></i></div>
-      <h2 id="ewThanksText">¡Gracias por su compra!</h2>
-      <p>Le atenderemos en el mostrador para el pago y retiro.</p>
-    </div>
+      <div id="ewShopping" class="ew-cfm-split">
+        {# Columna izquierda: carrito en vivo #}
+        <section class="ew-cfm-col ew-cfm-col--cart" aria-labelledby="ewCartHeading">
+          <header class="ew-cfm-col__head">
+            <h2 id="ewCartHeading" class="ew-cfm-col__title">
+              <i class="fas fa-shopping-basket" aria-hidden="true"></i> Tu compra actual
+            </h2>
+            <span id="ewCartCount" class="ew-cfm-col__meta">0 productos</span>
+          </header>
+          <div id="ewItems" class="ew-cfm-items" aria-live="polite" aria-label="Productos en el vale"></div>
+          <div id="ewCartEmpty" class="ew-cfm-empty-inline d-none">
+            <p>Aquí verá cada producto mientras el vendedor lo carga.</p>
+          </div>
+        </section>
 
-    <footer class="ew-footer" id="ewFoot"></footer>
+        {# Columna derecha: recomendaciones LhexIA #}
+        <section class="ew-cfm-col ew-cfm-col--reco" aria-labelledby="ewRecoHeading">
+          <header class="ew-cfm-col__head">
+            <h2 id="ewRecoHeading" class="ew-cfm-col__title">
+              <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
+              <span id="ewRecoTitulo">LhexIA IA recomienda para tu proyecto</span>
+            </h2>
+            <p id="ewRecoSub" class="ew-cfm-col__subtitle">
+              Basado en su historial de compras y lo que lleva hoy
+            </p>
+          </header>
+          <div id="ewRecoIdle" class="ew-cfm-reco-idle d-none" aria-hidden="true">
+            <p>Identifíquese en mostrador para recomendaciones con su historial.</p>
+          </div>
+          <div id="ewRecoCards" class="ew-cfm-reco-grid" aria-live="polite"></div>
+          <div id="ewRecoEmpty" class="ew-cfm-reco-empty">
+            <i class="fas fa-lightbulb" aria-hidden="true"></i>
+            <p>Las sugerencias aparecerán cuando identifiquemos su compra en mostrador.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    {# Footer: total grande + crédito disponible #}
+    <footer class="ew-cfm-footer">
+      <div class="ew-cfm-footer__total-block">
+        <span class="ew-cfm-footer__label">Total estimado</span>
+        <div id="ewTotal" class="ew-cfm-total" aria-live="polite">$0</div>
+      </div>
+      <p id="ewCreditoFoot" class="ew-cfm-footer__credito d-none"></p>
+      <div class="ew-cfm-footer__catalog" id="ewFoot"></div>
+    </footer>
   </div>
 
-  {# Ticket compacto al emitir vale (no sustituye la vista principal) #}
+  {# Ticket térmico esquina al emitir vale #}
   <div id="ewValeCorner" class="ew-vale-corner d-none" role="status" aria-live="polite">
     <div class="ew-vale-corner-header">
       <span class="ew-vale-corner-title"><i class="fas fa-receipt me-1"></i>Vale para caja</span>
@@ -82,7 +137,7 @@
 
   <script id="ew-snap-config" type="application/json">{{ {'url': api_snapshot_url} | tojson }}</script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260215ew10"></script>
+  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260521cfm3"></script>
   {% endif %}
 </body>
 </html>

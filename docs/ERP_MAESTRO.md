@@ -2,10 +2,20 @@
 
 > Sistema ERP integral para ferretería. Gestión de ventas (POS + formulario), caja, inventario multi-almacén, bodega con despacho por voz (IA), compras, créditos, BI, y Customer 360.
 
-**Última actualización:** 2026-05-16  
-**Versión operativa:** v2.0 (cerrado) + **cierre de módulos v3** (en curso)  
-**Líneas de código `app.py`:** ~22,300 (monolito; handlers también en `blueprints/*`)  
-**Suite de tests:** ~263 tests recogidos (`pytest tests/ --collect-only`)  
+**Última actualización:** 2026-05-21  
+**Versión operativa:** v2.0 (cerrado) + **cierre módulos v3** + **SD-1** (go-live Santo Domingo)  
+**Líneas `app.py`:** ~20.570 (monolito; rutas también en `blueprints/*`)  
+**Paquete `core/`:** ~974 líneas (venta/cobro/stock post-cobro — Clean Architecture ligera)  
+**Suite de tests:** ~289 tests (`pytest tests/ --collect-only`)  
+
+**Documentación complementaria (no duplicar aquí):**
+
+| Tipo | Dónde |
+|------|--------|
+| Planes producto, SD-1, comercial, agentes | [`docs/planes/README.md`](planes/README.md) |
+| Índice fases (SD-, POS-, TEC-, CORE-, LX-, IA-, META-) | [`docs/planes/00-alineacion/PLAN_INDICE_LHEXIA.md`](planes/00-alineacion/PLAN_INDICE_LHEXIA.md) |
+| Memoria viva sesiones | [`docs/memory.md`](memory.md) |
+| Rendimiento BD (~4k SKU, 6 estaciones) | [`docs/planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md) |
 
 ---
 
@@ -21,7 +31,7 @@
 | JS interactivo | Vanilla JS (`pos.js`, timers SLA, etc.) |
 | IA | OpenAI Whisper (transcripción voz), GPT-4o-mini (parsing comandos bodega), OCR facturas |
 | Reportes | pandas + openpyxl (Excel), pdfkit (PDF), QR codes |
-| Deploy | Gunicorn (`render.yaml`), compatible Render/Railway |
+| Deploy | Gunicorn en Render (`render.yaml`: plan **standard**, 1 worker × **6 threads**); BD Neon con pooler |
 | WhatsApp | API Cloud (cobranza, alertas) |
 | Notificaciones | Slack webhooks (alertas operativas) |
 
@@ -56,6 +66,8 @@ sistema_ventas_limpio/
 │   ├── stock_service.py      #   Stock multi-almacén, invariante, reversión bodega
 │   ├── kardex_service.py     #   Movimientos kardex, bitácoras costo/precio
 │   ├── venta_service.py      #   transaccion_critica() context manager
+│   ├── pos_busqueda_service.py      # Semáforo POS, enriquecimiento búsqueda
+│   ├── pos_compromiso_entrega_service.py
 │   ├── whatsapp_service.py   #   WhatsApp Cloud API (cobranza, alertas)
 │   ├── audit_service.py      #   erp_audit_log (eventos críticos)
 │   ├── unidades_service.py   #   Unidades de medida, factores conversión
@@ -65,6 +77,13 @@ sistema_ventas_limpio/
 │   ├── facturacion_caf_service.py          # Parseo e inserción CAF (folios SII)
 │   ├── facturacion_dte_storage.py          # Persistencia XML firmado en storage/dtes/emitidos/
 │   └── facturacion_sii_certificacion.py    # Set de prueba certificación SII (XML casos 33/39/61)
+│
+├── core/                     # Dominio + casos de uso (CORE-1.x, post TEC-1)
+│   ├── domain/venta/         #   Entidades, value objects, excepciones
+│   ├── application/ventas/   #   Emitir/cobrar, post-cobro saldo favor
+│   ├── application/creditos/
+│   ├── application/inventario/  # Stock al cobro
+│   └── infrastructure/       #   Repositorios y adapters hacia services/ORM
 │
 ├── templates/                # 89 templates Jinja2
 │   ├── base.html             #   Layout principal (sidebar dinámico por permisos)
@@ -81,8 +100,8 @@ sistema_ventas_limpio/
 │   ├── pos-live-wall-*.js    #   Live Wall staff / cliente
 │   └── pos-experience-wall.js
 │
-├── sql/                      # ~39 migraciones SQL incrementales
-│   └── 2026_MM_DD_*.sql      #   Formato fecha para orden cronológico
+├── sql/                      # ~40+ migraciones SQL incrementales
+│   └── 2026_MM_DD_*.sql      #   Incl. 2026_05_21_rendimiento_sd1_postgresql.sql (índices POS/caja/bodega)
 │
 ├── scripts/                  # Utilidades, seeds y sync BD
 │   ├── sync_local_neon_render.py  # Migraciones + copia local→Neon + verificación conteos (`--verify-only`)
@@ -94,17 +113,25 @@ sistema_ventas_limpio/
 │   ├── empresa_config.json   #   Config empresa (módulos, datos fiscales)
 │   └── proveedores_config.json
 │
-└── docs/                     # Documentación
-    ├── ERP_MAESTRO.md        #   ← ESTE DOCUMENTO
-    ├── memory.md             #   Memoria viva (sincronizada con memory.md en raíz)
-    ├── FLUJOS_CRITICOS.md    #   Diagramas de flujos de negocio
+└── docs/                     # Documentación técnica + planes
+    ├── ERP_MAESTRO.md        #   ← ESTE DOCUMENTO (mapa técnico del sistema)
+    ├── memory.md             #   Memoria viva Cursor (sincronizada con raíz si aplica)
+    ├── FLUJOS_CRITICOS.md    #   Secuencias que no romper
     ├── MIGRACION_RENDER_NEON.md
     ├── CASUISTICAS_PRUEBAS.md
-    ├── BODEGA_ULTRA_PREMIUM.md
-    ├── PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md
-    ├── roadmap_customer_360_ferreteria_2026.md
-    └── manual_operacion_customer_360.md
+    └── planes/               #   Planificación producto / SD-1 / técnico (carpetas 00–07)
+        ├── README.md
+        ├── 00-alineacion/    #   PLAN_INDICE, MEMORY_GROK, ritmo equipo
+        ├── 01-entrega-santo-domingo/
+        ├── 02-producto-lhexia/
+        ├── 03-pos-vendedor/
+        ├── 04-tecnico/       #   TEC, CORE, ESTADO_OPTIMIZACION_APP, PLAN_RENDIMIENTO_BD_SD1
+        ├── 05-modulos-backlog/
+        ├── 06-agentes-ia/
+        └── 07-agentes-meta-desarrollo/
 ```
+
+> Rutas antiguas en `docs/` raíz (p. ej. `BODEGA_ULTRA_PREMIUM.md`) pueden tener stub **«Movido»** → ver `docs/planes/`.
 
 ---
 
@@ -116,7 +143,7 @@ sistema_ventas_limpio/
 |---|---|---|
 | `Venta` | `ventas` | Ventas, vales POS; estados: Abierta → Pendiente → Pagado / Anulada |
 | `DetalleVenta` | `detalle_ventas` | Líneas de venta (producto, cantidad, precio, descuento) |
-| `VentaCuotaCredito` | `ventas_cuota_credito` | Plan cuotas 30/60/90 |
+| `VentaCuotaCredito` | `ventas_cuotas_credito` | Plan cuotas 30/60/90 |
 | `Cotizacion` | `cotizaciones` | Cotizaciones comerciales |
 | `CotizacionDetalle` | `cotizacion_detalles` | Líneas de cotización |
 | `AbonoCredito` | `abonos_credito` | Pagos parciales a cuentas crédito |
@@ -637,8 +664,13 @@ python app.py
 ### Producción
 
 ```bash
-gunicorn app:app  # ver render.yaml
+# render.yaml (referencia): plan standard, 1 worker × 6 threads
+gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 ```
+
+**Variables recomendadas (Render):** `DATABASE_URL` con **pooler** Neon; `DB_POOL_SIZE=10`, `DB_MAX_OVERFLOW=5`, `DB_POOL_TIMEOUT=30`.
+
+**Rendimiento ~4k SKU / 6 estaciones (4 POS + caja + bodega + TV bodega 30s):** ejecutar en Neon `sql/2026_05_21_rendimiento_sd1_postgresql.sql` y seguir [`docs/planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md).
 
 ---
 
@@ -678,22 +710,43 @@ gunicorn app:app  # ver render.yaml
 | 2026-05-15 | Caja: `POST /caja/limpiar_cola_cierre` (anulación masiva admin para desbloquear cierre) |
 | 2026-05-16 | **Plan cierre módulos v3** documentado (§18); ERP maestro + memory actualizados |
 | 2026-05-16 | Sync **local → Neon**: `scripts/sync_local_neon_render.py` con `--verify-only`, verificación post-sync (código salida 1 si difieren conteos), trazas con `flush`; Neon **host directo** recomendado para el script |
+| 2026-05-17 | Reorganización **`docs/planes/`** (00–07); portales LhexIA + Santo Domingo; planes IA-* y META-* |
+| 2026-05-17 | **CORE-1.2–1.4** en `core/` (venta/cobro, stock al cobro, post-cobro crédito/saldo favor) |
+| 2026-05-18 | Ritmo equipo async (`EQUIPO_RITMO_ASYNC.md`); POS-4 en `main` |
+| 2026-05-21 | **Plan rendimiento BD SD-1**: índices `pg_trgm`, `render.yaml` (standard, 6 threads), doc `PLAN_RENDIMIENTO_BD_SD1.md` |
 
 ---
 
 ## 15. Documentación relacionada
 
+### Técnica (este repo, `docs/` raíz)
+
 | Documento | Contenido |
 |---|---|
-| `memory.md` / `docs/memory.md` | Memoria viva del proyecto (contexto entre sesiones; mantener sincronizados) |
-| `docs/FLUJOS_CRITICOS.md` | Diagramas Mermaid de flujos de negocio |
-| `docs/BODEGA_ULTRA_PREMIUM.md` | Especificación módulo bodega (3 fases) |
-| `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` | Plan v2.0 cerrado |
-| `docs/roadmap_customer_360_ferreteria_2026.md` | Roadmap C360 por fases |
-| `docs/roadmap_observabilidad_lhexia_2026_2030.md` | Roadmap de analítica, SEO y growth intelligence |
-| `docs/manual_operacion_customer_360.md` | Manual operativo C360 |
-| `docs/MIGRACION_RENDER_NEON.md` | Deploy Render + Postgres Neon, variables y sync de datos |
-| `docs/CASUISTICAS_PRUEBAS.md` | Casuísticas y matriz de pruebas manuales / QA |
+| `docs/ERP_MAESTRO.md` | **Este documento** — mapa técnico del sistema |
+| `docs/memory.md` | Memoria viva entre sesiones (Cursor) |
+| `docs/FLUJOS_CRITICOS.md` | Flujos de negocio que no romper |
+| `docs/MIGRACION_RENDER_NEON.md` | Deploy Render + Neon, variables, sync datos |
+| `docs/CASUISTICAS_PRUEBAS.md` | Matriz QA manual |
+| `docs/PROMPT_MAESTRO_ERP.md` | Prompt arquitecto (legacy) |
+
+### Planes (`docs/planes/`)
+
+| Documento | Contenido |
+|---|---|
+| [`planes/README.md`](planes/README.md) | Mapa carpetas 00–07 |
+| [`planes/00-alineacion/PLAN_INDICE_LHEXIA.md`](planes/00-alineacion/PLAN_INDICE_LHEXIA.md) | Índice SD-, POS-, TEC-, CORE-, LX-, IA-, META- |
+| [`planes/00-alineacion/MEMORY_GROK.md`](planes/00-alineacion/MEMORY_GROK.md) | Prioridades equipo Mario · Grok · Cursor |
+| [`planes/02-producto-lhexia/LHEXIA_PRODUCTO.md`](planes/02-producto-lhexia/LHEXIA_PRODUCTO.md) | Producto comercial LhexIA |
+| [`planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) | Go-live cliente #1 |
+| [`planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md`](planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md) | Refactor monolito / TEC / CORE |
+| [`planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md) | Infra rendimiento ~4k SKU |
+| [`planes/04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`](planes/04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md) | Plan TEC v2 cerrado |
+| [`planes/05-modulos-backlog/BODEGA_ULTRA_PREMIUM.md`](planes/05-modulos-backlog/BODEGA_ULTRA_PREMIUM.md) | Especificación bodega |
+| [`planes/05-modulos-backlog/roadmap_customer_360_ferreteria_2026.md`](planes/05-modulos-backlog/roadmap_customer_360_ferreteria_2026.md) | Roadmap C360 |
+| [`planes/05-modulos-backlog/manual_operacion_customer_360.md`](planes/05-modulos-backlog/manual_operacion_customer_360.md) | Manual operativo C360 |
+| [`planes/06-agentes-ia/PLAN_AGENTES_IA_v1.md`](planes/06-agentes-ia/PLAN_AGENTES_IA_v1.md) | Agentes negocio 24/7 |
+| [`planes/07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md`](planes/07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md) | Agentes desarrollo producto |
 
 ---
 
@@ -800,7 +853,12 @@ python scripts/seed_demo_data.py --clean   # limpia datos DEMO
 | 🟡 | Operativo con deuda técnica documentada |
 | ⏳ | En trabajo / no listo para producción |
 
-### Matriz de módulos (2026-05-16)
+### Prioridad operativa (SD-1)
+
+**Cliente #1:** Ferretería Santo Domingo — 3 sucursales, ~20 personas, ~4.000 SKU.  
+**Foco actual:** POS + inventario (toma física) + operación diaria estable. Detalle: [`planes/01-entrega-santo-domingo/`](planes/01-entrega-santo-domingo/).
+
+### Matriz de módulos (2026-05-21)
 
 | # | Módulo | Estado | Criterio de cierre |
 |---|---|---|---|
@@ -871,4 +929,4 @@ Un módulo se considera **cerrado** cuando:
 
 ---
 
-*Última revisión maestra: 2026-05-16 — métricas (`app.py` ~22.3k líneas, ~263 tests), blueprints POS ampliados, sync Neon documentado, alineado con código y scripts actuales.*
+*Última revisión maestra: 2026-05-21 — `app.py` ~20.6k líneas, `core/` ~974 líneas, ~289 tests; `docs/planes/` como índice de planificación; rendimiento SD-1 y deploy 6 threads documentados.*

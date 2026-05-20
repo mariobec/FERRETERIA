@@ -84,17 +84,15 @@ def main() -> int:
         out.save(path, 'PNG', optimize=True)
         print('OK', name, size, '->', out.size)
 
-    icon_src = ICON_SOURCE if os.path.isfile(ICON_SOURCE) else src
-    with Image.open(icon_src) as raw_icon:
-        iso = autocrop_rgba(raw_icon)
-    icon = fit_on_canvas(iso, ICON_OUT[1])
-    icon_path = os.path.join(STATIC_IMG, ICON_OUT[0])
-    icon.save(icon_path, 'PNG', optimize=True)
-    print('OK', ICON_OUT[0], ICON_OUT[1], 'from', os.path.basename(icon_src), '->', icon.size)
-
-    login_icon = fit_on_canvas(iso, (128, 128))
-    login_icon.save(os.path.join(STATIC_IMG, 'lhexia-icon-login.png'), 'PNG', optimize=True)
-    print('OK lhexia-icon-login.png (128, 128)')
+    # Isotipo cuadrado: NO regenerar desde wordmark (rompe el sidebar). Usar hex-login.
+    icon_hex = os.path.join(STATIC_IMG, 'lhexia-icon-hex-login.png')
+    if os.path.isfile(icon_hex):
+        print('SKIP isotipo — conservar', icon_hex, '(regenerar con scripts/procesar_logo_nav_definitivo solo wordmark)')
+    elif os.path.isfile(ICON_SOURCE):
+        with Image.open(ICON_SOURCE) as raw_icon:
+            iso = autocrop_rgba(raw_icon)
+        fit_on_canvas(iso, ICON_OUT[1]).save(os.path.join(STATIC_IMG, ICON_OUT[0]), 'PNG', optimize=True)
+        print('OK', ICON_OUT[0], 'from', os.path.basename(ICON_SOURCE))
 
     return 0
 

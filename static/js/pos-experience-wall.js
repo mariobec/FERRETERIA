@@ -226,35 +226,139 @@
     }, 12000);
   }
 
-  function renderGreeting(cv, abierta) {
-    const el = document.getElementById("ewGreeting");
-    if (!el) return;
-    if (!abierta || !cv || cv.es_cliente_final) {
-      el.classList.add("d-none");
-      el.innerHTML = "";
+  function clienteNombreVitrina(d) {
+    const tv = d.tv_ticket || {};
+    let nom = (tv.cliente_nombre && String(tv.cliente_nombre).trim()) || "";
+    if (!nom || nom === "—") {
+      const cv = d.cliente_vitrina;
+      if (cv && cv.nombre_publico) nom = String(cv.nombre_publico).trim();
+    }
+    return nom && nom !== "—" ? nom : "";
+  }
+
+  function clienteIdentificado(d, cv) {
+    if (cv && cv.es_cliente_final) return false;
+    return !!clienteNombreVitrina(d);
+  }
+
+  function renderCfmHeader(d, abierta) {
+    const hello = document.getElementById("ewHello");
+    const saldoBadge = document.getElementById("ewSaldoBadge");
+    const credBadge = document.getElementById("ewCreditoBadge");
+    const credFoot = document.getElementById("ewCreditoFoot");
+    const cv = d.cliente_vitrina;
+
+    if (hello) {
+      if (!abierta || !clienteIdentificado(d, cv)) {
+        hello.classList.add("d-none");
+        hello.textContent = "¡Hola!";
+      } else {
+        hello.textContent = "¡Hola, " + clienteNombreVitrina(d) + "!";
+        hello.classList.remove("d-none");
+      }
+    }
+
+    if (saldoBadge) {
+      if (abierta && cv && !cv.es_cliente_final && (cv.saldo_favor || 0) > 0) {
+        saldoBadge.textContent = "Saldo a favor: " + fmt(cv.saldo_favor);
+        saldoBadge.classList.remove("d-none");
+      } else {
+        saldoBadge.classList.add("d-none");
+        saldoBadge.textContent = "";
+      }
+    }
+
+    if (credBadge) {
+      const showCred =
+        abierta && cv && !cv.es_cliente_final && cv.credito_activo && !cv.credito_bloqueado;
+      if (showCred) {
+        credBadge.textContent = "Compra con crédito habilitado";
+        credBadge.classList.remove("d-none");
+      } else {
+        credBadge.classList.add("d-none");
+        credBadge.textContent = "";
+      }
+    }
+
+    if (credFoot) {
+      const cred = cv && cv.credito;
+      if (abierta && cred && cred.tiene_linea && cred.cupo_disponible != null) {
+        credFoot.textContent =
+          "Crédito disponible: " + fmt(cred.cupo_disponible);
+        credFoot.classList.remove("d-none");
+      } else if (abierta && cv && cv.saldo_favor > 0) {
+        credFoot.textContent = "Saldo a favor: " + fmt(cv.saldo_favor);
+        credFoot.classList.remove("d-none");
+      } else {
+        credFoot.classList.add("d-none");
+        credFoot.textContent = "";
+      }
+    }
+  }
+
+  function renderCfmRecommendations(d, abierta) {
+    const grid = document.getElementById("ewRecoCards");
+    const empty = document.getElementById("ewRecoEmpty");
+    const sub = document.getElementById("ewRecoSub");
+    const titulo = document.getElementById("ewRecoTitulo");
+    const recoIdle = document.getElementById("ewRecoIdle");
+    if (!grid) return;
+
+    const rec = d.recomendaciones;
+    const items = abierta && rec && Array.isArray(rec.items) ? rec.items : [];
+    const identified = clienteIdentificado(d, d.cliente_vitrina);
+    const nItems = abierta && Array.isArray(d.lineas) ? d.lineas.length : 0;
+
+    if (recoIdle) {
+      recoIdle.classList.toggle("d-none", identified || !abierta || nItems === 0);
+    }
+
+    if (titulo) {
+      titulo.textContent =
+        rec && rec.titulo ? rec.titulo : "LhexIA IA recomienda para tu proyecto";
+    }
+
+    if (sub && rec && rec.subtitulo) {
+      sub.textContent = rec.subtitulo;
+    } else if (sub) {
+      sub.textContent = identified
+        ? "Basado en su historial de compras y lo que lleva hoy"
+        : "Sugerencias según los productos de su compra actual";
+    }
+
+    if (!items.length) {
+      grid.innerHTML = "";
+      grid.classList.add("d-none");
+      if (empty) empty.classList.remove("d-none");
       return;
     }
-    let html = "";
-    if (cv.nombre_publico) {
-      html += "Hola, " + esc(cv.nombre_publico);
-    } else {
-      html += "Bienvenido";
-    }
-    const subs = [];
-    if (cv.saldo_favor > 0) {
-      subs.push("Tiene " + fmt(cv.saldo_favor) + " de saldo a favor");
-    }
-    if (cv.credito_activo) {
-      subs.push("Compra con crédito habilitado");
-    }
-    if (cv.credito_bloqueado) {
-      subs.push("Crédito no disponible — consulte en caja");
-    }
-    if (subs.length) {
-      html += '<span class="ew-greeting-sub">' + esc(subs.join(" · ")) + "</span>";
-    }
-    el.innerHTML = html;
-    el.classList.remove("d-none");
+
+    if (empty) empty.classList.add("d-none");
+    grid.classList.remove("d-none");
+    grid.innerHTML = items
+      .slice(0, 4)
+      .map(function (it, idx) {
+        const imgUrl = String(it.imagen_url || "").trim();
+        const thumb = imgUrl
+          ? '<img class="ew-cfm-reco-card__img" src="' +
+            esc(imgUrl) +
+            '" alt="" loading="lazy" referrerpolicy="no-referrer" />'
+          : '<div class="ew-cfm-reco-card__img ew-cfm-reco-card__img--ph" aria-hidden="true"><i class="fas fa-box-open"></i></div>';
+        return (
+          '<article class="ew-cfm-reco-card" style="--ew-reco-i:' +
+          idx +
+          '">' +
+          thumb +
+          '<p class="ew-cfm-reco-card__name">' +
+          esc(truncName(it.nombre, 64)) +
+          "</p>" +
+          '<p class="ew-cfm-reco-card__price">' +
+          esc(fmt(it.precio || 0)) +
+          '</p><button type="button" class="ew-cfm-reco-card__btn" tabindex="-1" aria-hidden="true">' +
+          "<span>Pida en mostrador</span></button></article>"
+        );
+      })
+      .join("");
   }
 
   function renderValeEmitido(ve) {
@@ -267,6 +371,7 @@
 
   function paintKeyFromSnap(d, lines, total, abierta) {
     const tv = d.tv_ticket ? Object.assign({}, d.tv_ticket) : defaultTvTicket(d);
+    const cv = d.cliente_vitrina || {};
     return [
       abierta ? "abierta" : d.estado,
       d.venta_id || "",
@@ -275,33 +380,10 @@
       tv.fecha_hora_txt,
       tv.punto_retiro,
       tv.cliente_nombre || "",
+      cv.nombre_publico || "",
+      cv.credito_activo ? "1" : "0",
+      JSON.stringify(d.recomendaciones || null),
     ].join("~");
-  }
-
-  /** Nombre para vitrina: ticket (nombre completo o «Cliente») o primer nombre vitrina. */
-  function renderClienteBar(d, abierta) {
-    const el = document.getElementById("ewClienteNombre");
-    if (!el) return;
-    if (!abierta) {
-      el.classList.add("d-none");
-      el.textContent = "";
-      return;
-    }
-    const tv = d.tv_ticket || {};
-    let nom = (tv.cliente_nombre && String(tv.cliente_nombre).trim()) || "";
-    if (!nom || nom === "—") {
-      const cv = d.cliente_vitrina;
-      if (cv && cv.nombre_publico) {
-        nom = String(cv.nombre_publico).trim();
-      }
-    }
-    if (!nom || nom === "—") {
-      el.classList.add("d-none");
-      el.textContent = "";
-      return;
-    }
-    el.textContent = nom;
-    el.classList.remove("d-none");
   }
 
   function renderLiveProductLines(container, lineas) {
@@ -328,6 +410,24 @@
         const metaBits = [];
         if (tag) metaBits.push(tag);
         metaBits.push(pu + " c/u");
+        const useCfm = document.body.classList.contains("ew-cfm-v2");
+        if (useCfm) {
+          return (
+            '<div class="ew-cfm-line ew-line" data-linea-id="' +
+            esc(id) +
+            '"><div class="ew-thumb-wrap">' +
+            thumb +
+            '</div><div><p class="ew-cfm-line__name">' +
+            name +
+            '</p><span class="ew-cfm-line__meta">' +
+            esc(metaBits.join(" · ")) +
+            '<span class="ew-cfm-line__qty">× ' +
+            esc(String(qty)) +
+            "</span></span></div><div class=\"ew-cfm-line__price\">" +
+            esc(subtot) +
+            "</div></div>"
+          );
+        }
         return (
           '<div class="ew-line" data-linea-id="' +
           esc(id) +
@@ -349,9 +449,16 @@
 
   function bumpTotalEl(el) {
     if (!el) return;
-    el.classList.remove("ew-total-bump");
+    const cfm = document.body.classList.contains("ew-cfm-v2");
+    const cls = cfm ? "ew-cfm-total--glow" : "ew-total-bump";
+    el.classList.remove("ew-total-bump", "ew-cfm-total--glow");
     void el.offsetWidth;
-    el.classList.add("ew-total-bump");
+    el.classList.add(cls);
+    if (cfm) {
+      setTimeout(function () {
+        el.classList.remove("ew-cfm-total--glow");
+      }, 900);
+    }
   }
 
   async function poll() {
@@ -360,7 +467,7 @@
     const shopping = document.getElementById("ewShopping");
     const itemsEl = document.getElementById("ewItems");
     const totalEl = document.getElementById("ewTotal");
-    const idlePanel = document.getElementById("ewIdlePanel");
+    const idleOverlay = document.getElementById("ewIdleOverlay");
     const shell = document.getElementById("ewShell");
     if (!sub || !itemsEl || !totalEl) return;
 
@@ -384,37 +491,55 @@
       const nItems = lines.length;
       const total = abierta ? d.total || 0 : 0;
 
-      renderGreeting(d.cliente_vitrina, abierta);
-      renderClienteBar(d, abierta);
+      renderCfmHeader(d, abierta);
+      renderCfmRecommendations(d, abierta);
 
       const showThanks = !abierta && !sinVenta;
       if (thanks) thanks.classList.toggle("d-none", !showThanks);
       if (shopping) shopping.classList.toggle("d-none", showThanks);
 
       if (shell) {
+        shell.classList.toggle("ew-cfm--dense", abierta && nItems >= 5);
         shell.classList.toggle("ew-shell--dense-lines", abierta && nItems >= 4);
         shell.classList.toggle("ew-shell--compact-total", abierta && nItems >= 5);
         shell.classList.toggle("ew-shell--mega-dense", abierta && nItems >= 7);
       }
 
       if (sinVenta) {
-        sub.textContent = "Esperando el siguiente pedido…";
+        sub.textContent = "Esperando la próxima venta en mostrador…";
         if (lastPaintKey !== "__sin_venta__") {
           lastPaintKey = "__sin_venta__";
           totalEl.textContent = fmt(0);
           renderLiveProductLines(itemsEl, []);
+          renderCfmHeader(d, false);
+          renderCfmRecommendations(d, false);
         }
         if (shell) {
-          shell.classList.remove("ew-shell--dense-lines", "ew-shell--compact-total", "ew-shell--mega-dense");
+          shell.classList.remove("ew-shell--dense-lines", "ew-shell--compact-total", "ew-shell--mega-dense", "ew-cfm--dense");
         }
-        if (idlePanel) idlePanel.classList.remove("d-none");
+        if (shopping) shopping.classList.add("d-none");
+        if (idleOverlay) {
+          idleOverlay.classList.remove("d-none");
+          const idleTitle = document.getElementById("ewIdleTitle");
+          const idleText = document.getElementById("ewIdleText");
+          if (idleTitle) idleTitle.textContent = "Acérquese al monitor";
+          if (idleText) {
+            idleText.textContent =
+              "para ver recomendaciones personalizadas";
+          }
+        }
       } else if (abierta) {
+        const cartCount = document.getElementById("ewCartCount");
+        const cartEmpty = document.getElementById("ewCartEmpty");
+        if (cartCount) {
+          cartCount.textContent =
+            nItems === 1 ? "1 producto" : nItems + " productos";
+        }
+        if (cartEmpty) cartEmpty.classList.toggle("d-none", nItems > 0);
+
         sub.textContent = nItems
-          ? nItems +
-            (nItems === 1
-              ? " producto en su compra · total arriba"
-              : " productos en su compra · total arriba")
-          : "Aquí verá cada producto y el total mientras lo cargamos.";
+          ? "Su compra se actualiza en vivo"
+          : "Agregando productos a su vale…";
 
         const pk = paintKeyFromSnap(d, lines, total, true);
         const changed = pk !== lastPaintKey;
@@ -424,15 +549,28 @@
           bumpTotalEl(totalEl);
           renderLiveProductLines(itemsEl, lines);
         }
+        renderCfmRecommendations(d, abierta);
 
-        if (idlePanel) idlePanel.classList.toggle("d-none", nItems > 0);
+        const identified = clienteIdentificado(d, d.cliente_vitrina);
+        const showIdle = !identified && nItems === 0;
+        if (idleOverlay) {
+          idleOverlay.classList.toggle("d-none", !showIdle);
+          const idleTitle = document.getElementById("ewIdleTitle");
+          const idleText = document.getElementById("ewIdleText");
+          if (idleTitle) idleTitle.textContent = "Acérquese al monitor";
+          if (idleText) {
+            idleText.textContent =
+              "para ver recomendaciones personalizadas";
+          }
+        }
+        if (shopping) shopping.classList.toggle("d-none", showIdle);
       } else {
         sub.textContent = d.mensaje_cliente || "Venta finalizada.";
         lastPaintKey = "";
         if (shell) {
           shell.classList.remove("ew-shell--dense-lines", "ew-shell--compact-total", "ew-shell--mega-dense");
         }
-        if (idlePanel) idlePanel.classList.add("d-none");
+        if (idleOverlay) idleOverlay.classList.add("d-none");
       }
 
       const txtThanks = document.getElementById("ewThanksText");

@@ -591,14 +591,15 @@ body.pos-pantalla-vendedora .pos-filter-pill:hover {
 }
 
 body.pos-pantalla-vendedora .pos-filter-pill--active {
-  color: var(--pos-ferre-amarillo-text, #0c2340);
-  background: linear-gradient(165deg, var(--pos-ferre-amarillo, #f5c400) 0%, #e6b800 100%);
-  border-color: rgba(212, 168, 0, 0.55);
-  box-shadow: 0 2px 8px rgba(245, 196, 0, 0.35);
+  color: #ffffff;
+  background: linear-gradient(165deg, var(--pos-navy-mid, #0c2340) 0%, #081a30 100%);
+  border-color: rgba(12, 35, 64, 0.65);
+  box-shadow: 0 2px 10px rgba(12, 35, 64, 0.28);
 }
 
 body.pos-pantalla-vendedora .pos-filter-pill--active .pos-filter-pill__icon {
   opacity: 1;
+  color: #ffffff;
 }
 
 body.pos-pantalla-vendedora .pos-search-foto-link {
@@ -702,15 +703,15 @@ body.pos-layout-fullwidth:not(.pos-pantalla-vendedora) .pos-unified-search-card 
 }
 
 body.pos-pantalla-vendedora .pos-unified-search__filters .btn-primary {
-  background: var(--pos-ferre-amarillo);
-  border-color: #d4a800;
-  color: var(--pos-ferre-amarillo-text);
+  background: var(--pos-navy-mid, #0c2340);
+  border-color: #081a30;
+  color: #ffffff;
 }
 
 body.pos-pantalla-vendedora .pos-unified-search__filters .btn-primary:hover {
-  background: var(--pos-ferre-amarillo-hover);
-  border-color: #c99a00;
-  color: var(--pos-ferre-amarillo-text);
+  background: #0a1c33;
+  border-color: #061428;
+  color: #ffffff;
 }
 
 body.pos-pantalla-vendedora .pos-unified-search__filters .btn-outline-secondary {
@@ -1901,4 +1902,62 @@ body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-identity {
   body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-left {
     padding-bottom: 0.25rem;
   }
+}
+
+/* Bandeja pedidos a pedido (offcanvas vendedora) */
+.pos-pedidos-offcanvas {
+  width: min(420px, 100vw);
+  --bs-offcanvas-width: min(420px, 100vw);
+}
+
+.pos-pedidos-offcanvas__header {
+  background: linear-gradient(135deg, var(--pos-navy) 0%, var(--pos-navy-mid) 100%);
+  color: #f1f5f9;
+}
+
+.pos-pedidos-offcanvas__header .btn-close {
+  filter: invert(1);
+  opacity: 0.85;
+}
+
+.pos-pedido-card {
+  border: 1px solid rgba(12, 35, 64, 0.12);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.65rem;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(12, 35, 64, 0.06);
+}
+
+.pos-pedido-card--vencido {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: linear-gradient(180deg, #fff5f5 0%, #fff 100%);
+}
+
+.pos-pedido-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.pos-pedido-card__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--pos-navy);
+}
+
+.pos-pedido-card__actions .btn {
+  font-size: 0.78rem;
+}
+
+body.pos-pantalla-vendedora #posBtnPedidosApedido {
+  border-color: rgba(245, 196, 0, 0.55);
+  color: #fde68a;
+}
+
+body.pos-pantalla-vendedora #posBtnPedidosApedido:hover {
+  background: rgba(245, 196, 0, 0.15);
+  color: #fff;
 }

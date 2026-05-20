@@ -2057,7 +2057,7 @@ def _construir_modulos_hub(usuario=None):
 
 
 # Cache bust unificado logo / isotipo LhexIA (mayo 2026 — núcleo hexagonal)
-LHEXIA_ASSET_VERSION = 'lhexia20260519wordmark'
+LHEXIA_ASSET_VERSION = 'lhexia20260519isodef'
 
 
 def _lhexia_static_img_url(filename: str) -> str:
@@ -2073,7 +2073,7 @@ def inject_company_context():
     brand_ctx = {
         'lhexia_asset_v': LHEXIA_ASSET_VERSION,
         'lhexia_icon_src': _lhexia_static_img_url('lhexia-icon-approved.png'),
-        # Wordmark oficial horizontal (hex + lhexIA + ERP inteligente) — ver static/img/lhexia_brand_wordmark_oficial.png
+        # Wordmark fondo negro recortado (lhexIA + ERP inteligente) — scripts/procesar_logo_nav_definitivo.py
         'lhexia_brand_src': _lhexia_static_img_url('lhexia-brand-navbar.png'),
         'lhexia_brand_compact_src': _lhexia_static_img_url('lhexia-brand-compact-nav.png'),
     }
@@ -2206,6 +2206,8 @@ def permisos_required(*permisos):
                 permisos_rol = [rp.permiso.nombre for rp in current_user.rol.rol_permisos if rp.permiso]
                 if any(p in permisos_rol for p in permisos):
                     return f(*args, **kwargs)
+            if (request.path or '').startswith('/api/'):
+                return jsonify(ok=False, mensaje='No tienes permisos para esta acción.'), 403
             flash("No tienes permisos para acceder a esta acción.", "danger")
             if (request.endpoint or '').strip() == 'cerrar_caja':
                 return redirect(url_for('inicio'))
@@ -2268,6 +2270,13 @@ _ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA = frozenset({
     'anular_vale_caja',
     'anular_vales_caja_lote',
     'ver_ticket_cobro',
+    # Cambios/devoluciones: permitir mientras se regulariza caja de día anterior
+    'caja_cambios',
+    'caja_cambios_historial',
+    'api_cambios_producto',
+    'api_cambios_buscar_venta',
+    'api_cambios_venta_detalle',
+    'ticket_cambio',
 })
 
 
@@ -2287,6 +2296,8 @@ def caja_requerida(f):
         # Buscamos si existe una caja que esté en estado 'Abierta'
         caja_activa = Caja.query.filter_by(estado='Abierta').order_by(Caja.id.desc()).first()
         if not caja_activa:
+            if (request.path or '').startswith('/api/'):
+                return jsonify(ok=False, mensaje='Debe abrir caja para operar.'), 403
             flash("⚠️ Debe abrir caja para operar ventas/cobranza.", "warning")
             return redirect(url_for('abrir_caja'))
         # Si la caja abierta es de un día anterior, obligamos su cierre.
@@ -2298,12 +2309,28 @@ def caja_requerida(f):
             and ep not in _ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA
         ):
             if usuario_puede_cerrar_caja():
+                if (request.path or '').startswith('/api/'):
+                    return jsonify(
+                        ok=False,
+                        mensaje=(
+                            f"La caja N°{caja_activa.id} quedó abierta desde "
+                            f"{fecha_apertura.strftime('%d/%m/%Y')}. Debe cerrarla antes de continuar."
+                        ),
+                    ), 403
                 flash(
                     f"La caja N°{caja_activa.id} quedó abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
                     "Debe cerrar esa caja antes de continuar en el POS.",
                     "warning",
                 )
                 return redirect(url_for('cerrar_caja'))
+            if (request.path or '').startswith('/api/'):
+                return jsonify(
+                    ok=False,
+                    mensaje=(
+                        f"La caja N°{caja_activa.id} sigue abierta desde "
+                        f"{fecha_apertura.strftime('%d/%m/%Y')}. Un encargado debe cerrarla."
+                    ),
+                ), 403
             flash(
                 f"La caja N°{caja_activa.id} sigue abierta desde {fecha_apertura.strftime('%d/%m/%Y')}. "
                 "Un encargado o cajera debe cerrarla antes de que pueda usar el punto de venta.",
@@ -2509,6 +2536,8 @@ def forzar_cambio_clave_si_corresponde():
     ep = request.endpoint or ''
     permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
     if ep in permitidos:
+        return None
+    if (request.path or '').startswith('/api/'):
         return None
     if usuario_requiere_cambio_clave(current_user):
         flash("Debes actualizar tu contraseña para continuar.", "warning")
@@ -5486,6 +5515,12 @@ def robots_txt():
     response = Response(payload, status=200)
     response.headers['Content-Type'] = 'text/plain; charset=utf-8'
     return response
+
+
+@app.route('/demo/logo-3d')
+def demo_logo_3d():
+    """Vista previa del logo LhexIA en Three.js (build en static/lhexia-logo-3d/)."""
+    return render_template('demo_logo_3d.html')
 
 
 @app.route('/healthz')
@@ -10662,11 +10697,19 @@ def _pos_live_wall_payload(venta, *, staff=False):
         lineas.append(row)
 
     sugerencia = None
+    recomendaciones = None
     try:
-        if _pos_cross_sell_enabled_session():
-            panel = _pos_cross_sell_build_for_venta(venta.id)
-            if panel and isinstance(panel, dict):
-                sugerencia = (panel.get('headline') or panel.get('mensaje') or '')[:200] or None
+        if staff:
+            if _pos_cross_sell_enabled_session():
+                panel = _pos_cross_sell_build_for_venta(venta.id)
+                if panel and isinstance(panel, dict):
+                    sugerencia = (panel.get('titulo') or panel.get('mensaje') or '')[:200] or None
+        else:
+            recomendaciones = _pos_live_wall_recomendaciones_tv(venta)
+            if recomendaciones:
+                sugerencia = (
+                    recomendaciones.get('titulo') or recomendaciones.get('subtitulo') or ''
+                )[:200] or None
     except Exception:
         pass
 
@@ -10699,6 +10742,7 @@ def _pos_live_wall_payload(venta, *, staff=False):
         'cliente': cliente,
         'cliente_vitrina': cliente_vitrina,
         'sugerencia': sugerencia,
+        'recomendaciones': recomendaciones,
         'catalogo_url': cat_url,
         'ts': time.time(),
     }
@@ -12494,6 +12538,65 @@ def api_pos_vales_hoy():
     return jsonify({'ok': True, 'items': items})
 
 
+def api_pos_pedidos_apedido():
+    """Bandeja vendedora: compromisos / líneas a pedido (ventas_a_pedido)."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'error': 'sin_permiso', 'items': []}), 403
+    if not _asegurar_tabla_ventas_a_pedido():
+        return jsonify({'ok': False, 'error': 'tabla', 'items': []}), 503
+
+    from services.pos_pedidos_a_pedido_service import (
+        contar_pedidos_abiertos,
+        listar_pedidos_apedido,
+        serializar_pedido,
+    )
+
+    modo = (request.args.get('estado') or 'abiertos').strip().lower()
+    solo_abiertos = modo != 'todos'
+    try:
+        filas, hoy = listar_pedidos_apedido(solo_abiertos=solo_abiertos)
+        cfg = obtener_config_empresa()
+        empresa = (cfg.get('nombre_comercial') or cfg.get('razon_social') or 'Ferretería')[:80]
+
+        def _ticket_url(vid: int):
+            return url_for('pos_ticket_vale', venta_id=vid)
+
+        items = [serializar_pedido(r, hoy, empresa, _ticket_url) for r in filas]
+        resumen = contar_pedidos_abiertos()
+        return jsonify({'ok': True, 'items': items, 'resumen': resumen})
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_pos_pedidos_apedido: %s', ex)
+        return jsonify({'ok': False, 'error': 'consulta', 'items': []}), 500
+
+
+def api_pos_pedidos_apedido_estado(pedido_id: int):
+    """Actualiza estado_entrega de un registro ventas_a_pedido."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'mensaje': 'Sin permiso.'}), 403
+    if not _asegurar_tabla_ventas_a_pedido():
+        return jsonify({'ok': False, 'mensaje': 'Tabla no disponible.'}), 503
+
+    from services.pos_pedidos_a_pedido_service import actualizar_estado_pedido, contar_pedidos_abiertos
+
+    data = request.get_json(silent=True) or {}
+    estado = (data.get('estado') or request.form.get('estado') or '').strip()
+    try:
+        ok, msg = actualizar_estado_pedido(int(pedido_id), estado, _nombre_usuario_pos_actual())
+        if not ok:
+            return jsonify({'ok': False, 'mensaje': msg}), 400
+        db.session.commit()
+        return jsonify({
+            'ok': True,
+            'mensaje': msg,
+            'resumen': contar_pedidos_abiertos(),
+        })
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_pos_pedidos_apedido_estado: %s', ex)
+        return jsonify({'ok': False, 'mensaje': 'No se pudo actualizar.'}), 500
+
+
 def api_pos_nueva_venta():
     """Descarta el borrador Abierta actual (si tiene líneas) y deja un vale vacío listo."""
     if not usuario_tiene_permiso('pos_emitir_vale'):
@@ -14166,6 +14269,47 @@ def _venta_a_dict_para_cambio(v):
     }
 
 
+def _pos_live_wall_recomendaciones_tv(venta):
+    """Cross-sell para TV cliente: no usa sesión POS (polling anónimo con token)."""
+    if not venta or not venta.detalles:
+        return None
+    pids = [d.id_producto for d in venta.detalles if d.id_producto]
+    if not pids:
+        return None
+    panel = _pos_cross_sell_match_rules(pids, rejected_rule_ids=[])
+    if not panel or not isinstance(panel, dict):
+        return None
+    items_tv = []
+    for it in (panel.get('items') or [])[:4]:
+        if not isinstance(it, dict):
+            continue
+        pid = it.get('id')
+        img = None
+        if pid:
+            try:
+                prod = Producto.query.get(int(pid))
+                if prod and (prod.imagen_url or '').strip():
+                    img = (prod.imagen_url or '').strip()[:500]
+            except (TypeError, ValueError):
+                pass
+        items_tv.append(
+            {
+                'id': pid,
+                'nombre': (it.get('nombre') or 'Producto')[:80],
+                'precio': int(round(float(it.get('precio') or 0))),
+                'codigo': (it.get('codigo') or '')[:40],
+                'imagen_url': img,
+            }
+        )
+    if not items_tv:
+        return None
+    return {
+        'titulo': (panel.get('titulo') or 'Productos sugeridos')[:120],
+        'subtitulo': (panel.get('mensaje') or '')[:200],
+        'items': items_tv,
+    }
+
+
 def _parse_folio_vale(q):
     """Acepta 'VL000123', 'VL123', '123' y devuelve int o None."""
     if not q:
@@ -14180,12 +14324,59 @@ def _parse_folio_vale(q):
         return None
 
 
+def _cliente_por_rut_cambios(q):
+    """Busca cliente por RUT (formato flexible). None si no hay coincidencia."""
+    q = (q or '').strip()
+    if not q:
+        return None
+    rut_limpio = q.replace('.', '').replace('-', '').replace(' ', '').upper()
+    rut_db_normalizado = q.replace('.', '').upper()
+    if '-' not in rut_db_normalizado and len(rut_db_normalizado) >= 2:
+        rut_db_normalizado = rut_db_normalizado[:-1] + '-' + rut_db_normalizado[-1]
+    return (
+        Cliente.query.filter(
+            or_(
+                Cliente.rut == q,
+                Cliente.rut == rut_db_normalizado,
+                db.func.replace(db.func.replace(Cliente.rut, '.', ''), '-', '') == rut_limpio,
+            )
+        ).first()
+    )
+
+
+def _json_cambios_lista_ventas_cliente(cliente):
+    ventas = (
+        Venta.query.filter(Venta.cliente_id == cliente.id)
+        .order_by(Venta.fecha.desc(), Venta.id.desc())
+        .limit(15)
+        .all()
+    )
+    return jsonify(
+        ok=True,
+        modo='lista',
+        cliente={
+            'id': cliente.id,
+            'nombre': cliente.nombre,
+            'rut': cliente.rut or '',
+        },
+        ventas=[
+            {
+                'id': v.id,
+                'fecha': v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '',
+                'estado': v.estado or '',
+                'monto_total': float(v.monto_total or 0),
+            }
+            for v in ventas
+        ],
+    )
+
+
 def api_cambios_buscar_venta():
     """Busca venta original para precargar líneas en cambio.
 
     Reglas de búsqueda:
-      - Si el texto contiene letras/dígito verificador típico de RUT, busca cliente y devuelve sus últimas ventas.
-      - Si el texto es numérico (con o sin prefijo 'VL'), busca por folio de venta.
+      - Prefijo VL o folio numérico → venta directa.
+      - RUT (con guión/puntos o dígitos válidos) → lista de ventas del cliente.
       - Si no encuentra nada, retorna ok=False con mensaje claro.
     """
     q = (request.args.get('q') or '').strip()
@@ -14203,53 +14394,20 @@ def api_cambios_buscar_venta():
             return jsonify(ok=False, mensaje=f'No existe vale con folio #{folio}.'), 404
         return jsonify(ok=True, modo='venta', venta=_venta_a_dict_para_cambio(v))
 
+    parece_rut = ('-' in q) or ('.' in q) or validar_rut(q)
+    if parece_rut:
+        cliente = _cliente_por_rut_cambios(q)
+        if not cliente:
+            return jsonify(ok=False, mensaje=f'No se encontró cliente con RUT {q}.'), 404
+        return _json_cambios_lista_ventas_cliente(cliente)
+
     if q.isdigit():
         folio = int(q.lstrip('0') or '0')
         if folio > 0:
             v = Venta.query.get(folio)
             if v:
                 return jsonify(ok=True, modo='venta', venta=_venta_a_dict_para_cambio(v))
-
-    rut_limpio = q.replace('.', '').replace('-', '').replace(' ', '').upper()
-    if validar_rut(q):
-        rut_db_normalizado = q.replace('.', '').upper()
-        if '-' not in rut_db_normalizado and len(rut_db_normalizado) >= 2:
-            rut_db_normalizado = rut_db_normalizado[:-1] + '-' + rut_db_normalizado[-1]
-        cliente = (
-            Cliente.query.filter(
-                or_(
-                    Cliente.rut == q,
-                    Cliente.rut == rut_db_normalizado,
-                    db.func.replace(db.func.replace(Cliente.rut, '.', ''), '-', '') == rut_limpio,
-                )
-            ).first()
-        )
-        if not cliente:
-            return jsonify(ok=False, mensaje=f'No se encontró cliente con RUT {q}.'), 404
-        ventas = (
-            Venta.query.filter(Venta.cliente_id == cliente.id)
-            .order_by(Venta.fecha.desc(), Venta.id.desc())
-            .limit(15)
-            .all()
-        )
-        return jsonify(
-            ok=True,
-            modo='lista',
-            cliente={
-                'id': cliente.id,
-                'nombre': cliente.nombre,
-                'rut': cliente.rut or '',
-            },
-            ventas=[
-                {
-                    'id': v.id,
-                    'fecha': v.fecha.strftime('%d/%m/%Y %H:%M') if v.fecha else '',
-                    'estado': v.estado or '',
-                    'monto_total': float(v.monto_total or 0),
-                }
-                for v in ventas
-            ],
-        )
+        return jsonify(ok=False, mensaje=f'No existe vale con folio #{folio}.'), 404
 
     return jsonify(ok=False, mensaje='Sin resultados. Pruebe folio (ej. 1234 o VL001234) o RUT del cliente.'), 404
 
@@ -14291,8 +14449,10 @@ def caja_cambios_historial():
 
     if q_vendedor:
         like_v = f"%{q_vendedor}%"
-        q = q.outerjoin(Usuario, CambioOperacion.usuario_id == Usuario.id).filter(
-            or_(Usuario.nombre.like(like_v), Usuario.correo.like(like_v))
+        q = (
+            q.outerjoin(Usuario, CambioOperacion.usuario_id == Usuario.id)
+            .filter(or_(Usuario.nombre.like(like_v), Usuario.correo.like(like_v)))
+            .distinct()
         )
 
     try:

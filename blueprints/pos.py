@@ -163,6 +163,18 @@ def register_pos_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/api/pos/pedidos-apedido',
+        'api_pos_pedidos_apedido',
+        _wrap_pos_api_emitir(m.api_pos_pedidos_apedido),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/pedidos-apedido/<int:pedido_id>/estado',
+        'api_pos_pedidos_apedido_estado',
+        _wrap_pos_api_emitir(m.api_pos_pedidos_apedido_estado),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/api/pos/carrito-html',
         'api_pos_carrito_html',
         _wrap_pos_api_emitir(m.api_pos_carrito_html),

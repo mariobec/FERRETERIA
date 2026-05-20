@@ -222,7 +222,7 @@
     const hid = document.getElementById("posFiltroBusqueda");
     const v = hid ? String(hid.value || "").trim().toLowerCase() : "";
     if (v === "operativo" || v === "tienda" || v === "catalogo") return v;
-    return "tienda";
+    return "operativo";
   }
 
   function setPosFiltroBusqueda(modo) {
@@ -290,9 +290,231 @@
       });
     }
     if (hidFiltro && !String(hidFiltro.value || "").trim()) {
-      setPosFiltroBusqueda("tienda");
+      setPosFiltroBusqueda("operativo");
     }
     syncPosFiltroBusquedaBotones();
+  }
+
+  function wirePosPedidosApedido(urls) {
+    const listEl = document.getElementById("posPedidosApedidoList");
+    const panelEl = document.getElementById("posPedidosApedidoPanel");
+    const baseUrl = urls && urls.pedidos_apedido;
+    if (!listEl || !baseUrl) return;
+
+    if (panelEl) posAnclarModalEnBody(panelEl);
+
+    let filtroActivo = "abiertos";
+
+    function pedidoEstadoUrl(id) {
+      return String(baseUrl).replace(/\/?$/, "") + "/" + encodeURIComponent(String(id)) + "/estado";
+    }
+
+    function posRenderPedidosResumen(resumen) {
+      const box = document.getElementById("posPedidosApedidoResumen");
+      const badge = document.getElementById("posPedidosApedidoBadge");
+      const r = resumen || {};
+      const total = parseInt(r.total, 10) || 0;
+      const vencidos = parseInt(r.vencidos, 10) || 0;
+      const listos = parseInt(r.listos, 10) || 0;
+      if (badge) {
+        badge.textContent = String(total);
+        badge.classList.toggle("d-none", total <= 0);
+      }
+      if (!box) return;
+      if (!total) {
+        box.innerHTML = '<span class="badge text-bg-secondary">Sin pedidos abiertos</span>';
+        return;
+      }
+      let html =
+        '<span class="badge text-bg-primary">' +
+        total +
+        " abiertos</span>";
+      if (listos) html += '<span class="badge text-bg-info">' + listos + " listos retiro</span>";
+      if (vencidos) html += '<span class="badge text-bg-danger">' + vencidos + " vencidos</span>";
+      box.innerHTML = html;
+    }
+
+    function posRenderPedidosApedido(items) {
+      if (!items || !items.length) {
+        listEl.innerHTML =
+          '<p class="text-muted small py-4 mb-0 text-center">No hay pedidos en esta vista.</p>';
+        return;
+      }
+      listEl.innerHTML = items
+        .map(function (it) {
+          const venc = it.vencido ? " pos-pedido-card--vencido" : "";
+          const wa = it.notificar_whatsapp
+            ? '<span class="badge text-bg-success"><i class="fab fa-whatsapp me-1"></i>WA</span>'
+            : "";
+          const tel = it.telefono
+            ? '<span class="text-muted font-monospace small">' + escapeHtmlPosJs(it.telefono) + "</span>"
+            : '<span class="text-danger small">Sin teléfono</span>';
+          let acciones = "";
+          if (it.estado === "por_pedir") {
+            acciones +=
+              '<button type="button" class="btn btn-sm btn-outline-primary pos-pedido-accion" data-accion="listo" data-id="' +
+              it.id +
+              '">Marcar listo</button>';
+          }
+          if (it.estado === "listo" || it.estado === "por_pedir") {
+            if (it.whatsapp_url) {
+              acciones +=
+                '<a class="btn btn-sm btn-success" target="_blank" rel="noopener" href="' +
+                escapeHtmlPosJs(it.whatsapp_url) +
+                '" data-accion="wa" data-id="' +
+                it.id +
+                '"><i class="fab fa-whatsapp me-1"></i>Avisar</a>';
+            }
+            acciones +=
+              '<button type="button" class="btn btn-sm btn-outline-success pos-pedido-accion" data-accion="entregado" data-id="' +
+              it.id +
+              '">Entregado</button>';
+          }
+          if (it.estado === "avisado") {
+            acciones +=
+              '<button type="button" class="btn btn-sm btn-success pos-pedido-accion" data-accion="entregado" data-id="' +
+              it.id +
+              '">Entregado</button>';
+          }
+          const ticket = it.ticket_url
+            ? '<a class="btn btn-sm btn-link py-0" href="' +
+              escapeHtmlPosJs(it.ticket_url) +
+              '" target="_blank" rel="noopener">Vale #' +
+              escapeHtmlPosJs(String(it.venta_id)) +
+              "</a>"
+            : "Vale #" + escapeHtmlPosJs(String(it.venta_id));
+          return (
+            '<article class="pos-pedido-card' +
+            venc +
+            '" data-pedido-id="' +
+            it.id +
+            '">' +
+            '<div class="pos-pedido-card__head">' +
+            '<span class="badge text-bg-' +
+            escapeHtmlPosJs(it.estado_badge || "secondary") +
+            '">' +
+            escapeHtmlPosJs(it.estado_label || it.estado) +
+            "</span>" +
+            wa +
+            (it.vencido ? '<span class="badge text-bg-danger ms-1">Vencido</span>' : "") +
+            "</div>" +
+            '<h6 class="pos-pedido-card__title mb-1">' +
+            escapeHtmlPosJs(it.producto_nombre) +
+            ' <span class="text-muted">×' +
+            escapeHtmlPosJs(String(it.cantidad)) +
+            "</span></h6>" +
+            '<p class="small mb-1"><strong>' +
+            escapeHtmlPosJs(it.cliente_nombre) +
+            "</strong>" +
+            (it.cliente_rut ? " · " + escapeHtmlPosJs(it.cliente_rut) : "") +
+            "</p>" +
+            '<p class="small text-muted mb-1"><i class="fas fa-calendar-day me-1"></i>' +
+            escapeHtmlPosJs(it.fecha_promesa_fmt) +
+            " · " +
+            escapeHtmlPosJs(it.modalidad_label) +
+            "</p>" +
+            '<p class="small mb-2 d-flex flex-wrap align-items-center gap-2">' +
+            tel +
+            " · " +
+            ticket +
+            " · " +
+            escapeHtmlPosJs(it.vale_estado) +
+            " " +
+            escapeHtmlPosJs(it.vale_total_fmt || "") +
+            "</p>" +
+            '<div class="pos-pedido-card__actions d-flex flex-wrap gap-1">' +
+            acciones +
+            "</div></article>"
+          );
+        })
+        .join("");
+    }
+
+    async function posCargarPedidosApedido() {
+      listEl.innerHTML = '<p class="text-muted small py-3 mb-0">Cargando…</p>';
+      const q = filtroActivo === "todos" ? "?estado=todos" : "?estado=abiertos";
+      try {
+        const res = await fetch(baseUrl + q, {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+        const data = await res.json();
+        if (data && data.ok) {
+          posRenderPedidosResumen(data.resumen);
+          posRenderPedidosApedido(data.items || []);
+        } else {
+          listEl.innerHTML =
+            '<p class="text-danger small py-3 mb-0">No se pudo cargar la bandeja.</p>';
+        }
+      } catch (_err) {
+        listEl.innerHTML =
+          '<p class="text-danger small py-3 mb-0">Error de conexión.</p>';
+      }
+    }
+
+    async function posActualizarEstadoPedido(id, estado, silent) {
+      try {
+        const res = await fetch(pedidoEstadoUrl(id), {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ estado: estado }),
+        });
+        const data = await res.json();
+        if (data && data.ok) {
+          if (data.resumen) posRenderPedidosResumen(data.resumen);
+          if (!silent) mostrarPosToast(data.mensaje || "Estado actualizado.");
+          await posCargarPedidosApedido();
+          return true;
+        }
+        mostrarPosToast((data && data.mensaje) || "No se pudo actualizar.", { variant: "warning" });
+      } catch (_err) {
+        mostrarPosToast("Error al actualizar pedido.", { variant: "danger" });
+      }
+      return false;
+    }
+
+    document.querySelectorAll(".pos-pedidos-filtro").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        filtroActivo = btn.getAttribute("data-pedidos-filtro") || "abiertos";
+        document.querySelectorAll(".pos-pedidos-filtro").forEach(function (b) {
+          const on = b === btn;
+          b.classList.toggle("btn-primary", on);
+          b.classList.toggle("btn-outline-secondary", !on);
+          b.classList.toggle("active", on);
+        });
+        posCargarPedidosApedido();
+      });
+    });
+
+    const btnRef = document.getElementById("posPedidosApedidoRefresh");
+    if (btnRef) btnRef.addEventListener("click", posCargarPedidosApedido);
+
+    listEl.addEventListener("click", function (e) {
+      const btn = e.target.closest(".pos-pedido-accion");
+      if (btn) {
+        e.preventDefault();
+        const id = btn.getAttribute("data-id");
+        const acc = btn.getAttribute("data-accion");
+        const map = { listo: "listo", entregado: "entregado" };
+        if (id && map[acc]) posActualizarEstadoPedido(id, map[acc]);
+        return;
+      }
+      const wa = e.target.closest("a[data-accion='wa']");
+      if (wa) {
+        const id = wa.getAttribute("data-id");
+        if (id) {
+          window.setTimeout(function () {
+            posActualizarEstadoPedido(id, "avisado", true);
+          }, 600);
+        }
+      }
+    });
+
+    if (panelEl) {
+      panelEl.addEventListener("shown.bs.offcanvas", posCargarPedidosApedido);
+    }
+    posCargarPedidosApedido();
   }
 
   function posResumeStorageKey(ventaId) {
@@ -3308,8 +3530,26 @@
     let submitCompromisoConfirmado = false;
     let modalCompromisoInst = null;
     let fechaCompromisoCalculada = null;
+    const modalPuntoRetiroElEarly = document.getElementById("modalConfirmarPuntoRetiro");
+    [modalCompromisoEl, modalPuntoRetiroElEarly, document.getElementById("modalPosValeResume")].forEach(function (el) {
+      if (el) posAnclarModalEnBody(el);
+    });
     if (modalCompromisoEl && typeof bootstrap !== "undefined") {
       modalCompromisoInst = bootstrap.Modal.getOrCreateInstance(modalCompromisoEl);
+    }
+
+    function posProgramarTrasCerrarModal(modalEl, modalInst, fn) {
+      if (!fn) return;
+      if (modalEl && modalEl.classList.contains("show")) {
+        modalEl.addEventListener("hidden.bs.modal", fn, { once: true });
+        if (modalInst) modalInst.hide();
+        return;
+      }
+      fn();
+    }
+
+    function posRequestEmitirValeForm(formEl) {
+      if (formEl) formEl.requestSubmit();
     }
 
     function posRellenarModalCompromiso() {
@@ -3375,11 +3615,15 @@
     }
 
     function posConfirmarCompromisoYContinuar() {
+      if (btnConfirmarCompromiso && btnConfirmarCompromiso.disabled) return;
       posAplicarCompromisoHiddens();
       submitCompromisoConfirmado = true;
-      if (modalCompromisoInst) modalCompromisoInst.hide();
       const formEmitir = document.getElementById("formEmitirVale");
-      if (formEmitir) formEmitir.requestSubmit();
+      if (btnConfirmarCompromiso) btnConfirmarCompromiso.disabled = true;
+      posProgramarTrasCerrarModal(modalCompromisoEl, modalCompromisoInst, function () {
+        if (btnConfirmarCompromiso) btnConfirmarCompromiso.disabled = false;
+        posRequestEmitirValeForm(formEmitir);
+      });
     }
 
     if (btnConfirmarCompromiso) {
@@ -3423,6 +3667,7 @@
 
     if (btnConfirmarPuntoRetiro) {
       btnConfirmarPuntoRetiro.addEventListener("click", function () {
+        if (btnConfirmarPuntoRetiro.disabled) return;
         if (!modalPuntoRetiroSelect || !puntoRetiroFormEl || !formEmitir) return;
         const valor = (modalPuntoRetiroSelect.value || "").trim();
         if (!valor || valor === "__PENDIENTE__") {
@@ -3431,8 +3676,11 @@
         }
         puntoRetiroFormEl.value = valor;
         submitConfirmadoDesdeModal = true;
-        if (modalPuntoRetiroInst) modalPuntoRetiroInst.hide();
-        formEmitir.requestSubmit();
+        btnConfirmarPuntoRetiro.disabled = true;
+        posProgramarTrasCerrarModal(modalPuntoRetiroEl, modalPuntoRetiroInst, function () {
+          btnConfirmarPuntoRetiro.disabled = false;
+          posRequestEmitirValeForm(formEmitir);
+        });
       });
     }
 
@@ -3470,6 +3718,7 @@
           e.preventDefault();
           posRellenarModalCompromiso();
           if (modalCompromisoInst) {
+            posAnclarModalEnBody(modalCompromisoEl);
             modalCompromisoInst.show();
           } else {
             mostrarPosToast("Confirme el compromiso de entrega antes de emitir.");
@@ -3480,6 +3729,7 @@
           e.preventDefault();
           sincronizarSelectPuntoRetiroEnModal();
           if (modalPuntoRetiroInst) {
+            posAnclarModalEnBody(modalPuntoRetiroEl);
             modalPuntoRetiroInst.show();
           } else {
             mostrarPosToast("Seleccione punto de retiro antes de emitir.");
@@ -3838,6 +4088,8 @@
     const btnHistRefresh = document.getElementById("posHistorialRefresh");
     if (btnHistRefresh) btnHistRefresh.addEventListener("click", posCargarHistorialHoy);
     if (document.getElementById("posHistorialHoyList")) posCargarHistorialHoy();
+
+    wirePosPedidosApedido(u);
 
 
   function posEmitirValeAtajo() {

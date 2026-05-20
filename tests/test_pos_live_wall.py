@@ -47,6 +47,7 @@ class TestPosLiveWall:
         assert 'tienda_kpis' not in cj
         if cj.get('estado') == 'abierta':
             assert 'mensaje_cliente' not in cj
+            assert 'recomendaciones' in cj
 
     def test_snapshot_sin_auth_401(self):
         c = m.app.test_client(use_cookies=False)
