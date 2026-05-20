@@ -257,8 +257,12 @@ class TestPosLiveWall:
         _ensure_caja_abierta()
         p = productos_con_stock[3]
         aid = m.id_almacen_tienda()
+        bid = m.id_almacen_bodega()
         if aid:
             m.fijar_stock_almacen(p.id, aid, 1)
+        if bid:
+            m.fijar_stock_almacen(p.id, bid, 0)
+        if aid or bid:
             m.db.session.commit()
         app_client.get('/punto_venta')
         codigo = p.codigo_barra
@@ -314,27 +318,25 @@ class TestPosLiveWall:
     def test_snapshot_total_coincide_suma_lineas_dos_productos(self, app_client, productos_con_stock):
         """TV cliente: total del JSON debe coincidir con la suma de subtotales (no monto_total stale)."""
         _ensure_caja_abierta()
-        p0, p1 = productos_con_stock[0], productos_con_stock[1]
+        p0, p1 = productos_con_stock[2], productos_con_stock[3]
         aid = m.id_almacen_tienda()
         if aid:
             m.fijar_stock_almacen(p0.id, aid, 30)
             m.fijar_stock_almacen(p1.id, aid, 30)
             m.db.session.commit()
         app_client.get('/punto_venta')
-        r0 = app_client.post(
-            '/api/pos/escanear-agregar',
-            json={'codigo': p0.codigo_barra},
-            content_type='application/json',
-        )
-        if r0.status_code == 409 and r0.get_json().get('error') == 'en_vale_pendiente':
-            pytest.skip('Producto bloqueado por vale pendiente previo en QA')
-        assert r0.status_code == 200, r0.get_json()
-        r1 = app_client.post(
-            '/api/pos/escanear-agregar',
-            json={'codigo': p1.codigo_barra},
-            content_type='application/json',
-        )
-        assert r1.status_code == 200, r1.get_json()
+        for p, resp in (
+            (p0, 'r0'),
+            (p1, 'r1'),
+        ):
+            r = app_client.post(
+                '/api/pos/escanear-agregar',
+                json={'codigo': p.codigo_barra},
+                content_type='application/json',
+            )
+            if r.status_code == 409 and r.get_json().get('error') == 'en_vale_pendiente':
+                pytest.skip('Producto bloqueado por vale pendiente previo en QA')
+            assert r.status_code == 200, (resp, r.get_json())
         rs = app_client.get('/api/pos/live-wall/snapshot')
         assert rs.status_code == 200
         j = rs.get_json()

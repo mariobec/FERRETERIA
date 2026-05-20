@@ -2534,10 +2534,11 @@ def forzar_cambio_clave_si_corresponde():
             else:
                 app.config.pop('_SCHEMA_ENSURE_BACKOFF_UNTIL', None)
     ep = request.endpoint or ''
-    permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static'}
+    permitidos = {'cambiar_password', 'logout', 'logout_forzar', 'centro_ayuda', 'static', 'healthz'}
     if ep in permitidos:
         return None
-    if (request.path or '').startswith('/api/'):
+    path = (request.path or '')
+    if path.startswith('/api/') or path == '/healthz':
         return None
     if usuario_requiere_cambio_clave(current_user):
         flash("Debes actualizar tu contraseña para continuar.", "warning")

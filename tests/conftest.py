@@ -209,17 +209,63 @@ def limpieza_qa(app_ctx):
     _limpiar_datos_qa()
 
 
+_ADMIN_ROLES_QA = ['Admin', 'admin', 'Administrador', 'administrador', 'SuperAdmin']
+_PERFILES_BLOQUEO_CLAVE = ('FORZAR_CLAVE', 'ACTIVO_FORZAR_CLAVE')
+
+
+def _normalizar_admin_qa_para_http():
+    """Evita redirects a /cambiar_password en suite HTTP (orden de tests)."""
+    admin = m.Usuario.query.join(m.Rol).filter(m.Rol.nombre.in_(_ADMIN_ROLES_QA)).first()
+    if admin and m.usuario_requiere_cambio_clave(admin):
+        admin.perfil = 'ACTIVO'
+        db.session.commit()
+
+
+def _asegurar_caja_abierta_qa():
+    caja = m.Caja.query.filter_by(estado='Abierta').order_by(m.Caja.id.desc()).first()
+    if caja:
+        return caja
+    caja = m.Caja(
+        monto_inicial=50000,
+        usuario_apertura=QA_USER,
+        estado='Abierta',
+        fecha_apertura=datetime.now(),
+    )
+    db.session.add(caja)
+    db.session.commit()
+    return caja
+
+
+@pytest.fixture(autouse=True)
+def _estado_qa_http_listo(app_ctx):
+    """Antes de cada test: admin sin FORZAR_CLAVE y caja abierta para @caja_requerida."""
+    _normalizar_admin_qa_para_http()
+    _asegurar_caja_abierta_qa()
+    yield
+
+
 @pytest.fixture(scope='session')
 def app_client(app_ctx):
     """Flask test client autenticado como admin para pruebas HTTP."""
     m.app.config['TESTING'] = True
     m.app.config['WTF_CSRF_ENABLED'] = False
 
-    admin = m.Usuario.query.join(m.Rol).filter(
-        m.Rol.nombre.in_(['Admin', 'admin', 'Administrador', 'administrador', 'SuperAdmin'])
-    ).first()
+    admin = (
+        m.Usuario.query.join(m.Rol)
+        .filter(
+            m.Rol.nombre.in_(_ADMIN_ROLES_QA),
+            db.or_(
+                m.Usuario.perfil.is_(None),
+                ~m.Usuario.perfil.in_(_PERFILES_BLOQUEO_CLAVE),
+            ),
+        )
+        .first()
+    )
+    if not admin:
+        admin = m.Usuario.query.join(m.Rol).filter(m.Rol.nombre.in_(_ADMIN_ROLES_QA)).first()
     if not admin:
         admin = m.Usuario.query.first()
+    _normalizar_admin_qa_para_http()
 
     client = m.app.test_client()
     if admin:
