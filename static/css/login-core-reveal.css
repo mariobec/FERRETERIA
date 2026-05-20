@@ -1,7 +1,7 @@
 /* Núcleo LhexIA — animación continua (4 fases en bucle ~11s) */
 
 :root {
-    --login-core-size: 220px;
+    --login-core-size: 168px;
 }
 
 .login-brand-stage {
@@ -10,7 +10,7 @@
     align-items: center;
     width: 100%;
     min-height: var(--login-core-size);
-    margin: 0 auto 0.85rem;
+    margin: 0 auto 0.45rem;
 }
 
 .login-core-reveal {
@@ -22,7 +22,17 @@
 
 @media (max-width: 575.98px) {
     :root {
-        --login-core-size: 188px;
+        --login-core-size: 148px;
+    }
+}
+
+/* Pantallas bajas (laptops 768px, tablets horizontal) */
+@media (max-height: 860px) {
+    :root {
+        --login-core-size: 140px;
+    }
+    .login-brand-stage {
+        margin-bottom: 0.35rem;
     }
 }
 

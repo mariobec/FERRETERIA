@@ -7,7 +7,7 @@
     <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/login-core-reveal.css') }}?v=lhexia20260522core6">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login-core-reveal.css') }}?v=lhexia20260522core7">
     <style>
         :root {
             --login-bg: #0b0f19;
@@ -91,6 +91,17 @@
             position: relative;
             z-index: 1;
             min-height: 100vh;
+            align-items: flex-start !important;
+            padding: 0.35rem 0 1.25rem;
+        }
+
+        .login-shell .container {
+            padding-top: 0.25rem !important;
+            padding-bottom: 0.5rem !important;
+        }
+
+        .login-shell .text-center.mb-3 {
+            margin-bottom: 0.5rem !important;
         }
 
         .back-home-btn {
@@ -147,9 +158,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0.6rem;
+            gap: 0.5rem;
             color: #fff;
-            font-size: 1.38rem;
+            font-size: 1.15rem;
             font-weight: 800;
             letter-spacing: -0.02em;
             line-height: 1.25;
@@ -178,8 +189,20 @@
         }
 
         .login-card .card-body {
-            padding: 1.6rem !important;
+            padding: 1rem 1.15rem 1.1rem !important;
             background: transparent;
+        }
+
+        .login-card .card-body form .mb-3 {
+            margin-bottom: 0.55rem !important;
+        }
+
+        .login-card .card-body form .mb-4 {
+            margin-bottom: 0.65rem !important;
+        }
+
+        .login-card .card-body .mt-3 {
+            margin-top: 0.65rem !important;
         }
 
         .login-card .alert {
@@ -195,7 +218,7 @@
         }
 
         .login-card .form-control {
-            min-height: 46px;
+            min-height: 42px;
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.12);
             background: var(--login-input);
@@ -291,7 +314,7 @@
     <div class="aurora-blob blob-deep"></div>
 </div>
 <div class="login-shell d-flex align-items-center">
-    <div class="container py-4">
+    <div class="container py-2">
         <div class="row justify-content-center">
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="text-center mb-3">
@@ -306,7 +329,7 @@
                                 <div class="login-core-viewport">
                                     <span class="login-core-orbit"></span>
                                     <div class="login-core-inner">
-                                    <img src="{{ url_for('static', filename='img/lhexia-core-reveal-square.png') }}?v=lhexia20260522core1" alt="" class="login-core-art" width="220" height="220">
+                                    <img src="{{ url_for('static', filename='img/lhexia-core-reveal-square.png') }}?v=lhexia20260522core1" alt="" class="login-core-art" width="168" height="168">
                                     <div class="login-core-fx">
                                         <span class="login-core-pulse"></span>
                                         <span class="login-core-wave"></span>
