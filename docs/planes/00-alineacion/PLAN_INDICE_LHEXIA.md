@@ -2,7 +2,7 @@
 
 **Propósito:** Mapa de **todos los frentes/planes** del repo, con **nombres únicos** de fases y estado.
 
-**Última actualización:** 2026-05-17  
+**Última actualización:** 2026-05-21  
 **Product Owner:** Mario Becerra Olea  
 
 ## Entrada en dos documentos (leer según necesidad)
@@ -46,6 +46,7 @@ Cada frente usa un **prefijo de eje** + número:
 | **IA-** | Agentes IA 24/7 negocio (CrewAI) | `../06-agentes-ia/PLAN_AGENTES_IA_v1.md` |
 | **META-** | Agentes meta desarrollo producto | `../07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md` |
 | **MOD-** | Módulos / roadmaps paralelos | Ver §8 |
+| **TEC-OFFLINE-** | POS contingencia (IndexedDB + sync) | `../04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md` |
 
 **Prioridad hoy:** solo **SD-1** (POS + inventario). El resto es referencia o backlog.
 
@@ -67,7 +68,7 @@ flowchart LR
 |------|--------|----------|--------|-------|
 | **SD-1** | **Go-live POS + Inventario** | Toma física + venta diaria en sucursal(es) piloto | 🟡 **En curso** | Inventario: herramientas listas; POS en prod |
 | SD-1.1 | Inventario — toma física | Enrolamiento, sesiones, salud, kardex | 🟡 Operación mañana | `/inventario/enrolamiento`, `/inventario/salud` |
-| SD-1.2 | POS — venta diaria | Vale → caja → cobro; búsqueda usable; TV cliente | 🟡 Validar piso | POS-3 ✅ prod; POS-4 ✅ `309f02f`; TV recomendaciones ✅ `4ae0292` |
+| SD-1.2 | POS — venta diaria | Vale → caja → cobro; búsqueda usable; TV cliente | 🟡 **Validar piso** | TV prod `4ae0292`; casuísticas QA repo `79220c9` + `CASUISTICAS_VENTAS_QA.md` |
 | SD-1.3 | Infra y capacitación | Backup Neon, permisos, 3 almacenes, **índices + Render/Neon**, equipo inventario | ⏳ | `CLIENTE_SANTO_DOMINGO.md` · `PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md` · `04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md` |
 | **SD-2** | Caja multi-sucursal | Cierre diario, cola cobro en 3 tiendas | ⏳ Post SD-1 | Caja madura en código |
 | **SD-3** | Compras + FE producción | OC, recepción, DTE en operación real | ⏳ | FE 🟡 certificación |
@@ -106,6 +107,23 @@ flowchart LR
 | 4 | **TEC-4** Salud + cron Slack | ✅ (alcance v2) |
 
 **Backlog TEC v3+:** métricas finas, más rutas masivas en `transaccion_critica()`.
+
+---
+
+## 3b. Eje TEC-OFFLINE — Continuidad operacional (POS)
+
+**Documentos:** `../04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`, `ADR_OFFLINE_FIRST.md`, `OFFLINE_API_V1_CONTRACT.md`  
+**Estado:** Fase 0 ✅ (`dbe03ed`, tag `checkpoint/offline-design-2026-05-20`). **Fase 1+ ⏸** hasta cerrar SD-1 piso o definir caja piloto.
+
+| Fase | Nombre | Estado |
+|------|--------|--------|
+| **TEC-OFFLINE-0** | ADR + contrato API + paridad IVA JS | ✅ |
+| TEC-OFFLINE-1 | Local Cache (IndexedDB + catálogo) | ⏳ Post SD-1 |
+| TEC-OFFLINE-2 | Circuit Breaker | ⏳ |
+| TEC-OFFLINE-3 | Reconciliation batch | ⏳ |
+| TEC-OFFLINE-4 | Arqueo + panel conciliación DTE | ⏳ |
+
+**Regla:** no competir con SD-1.1 inventario en la misma semana sin caja piloto nombrada.
 
 ---
 

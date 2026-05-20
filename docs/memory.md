@@ -348,30 +348,59 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**PRIORIDAD (2026-05-20):** validar en piso **TV cliente** (recomendaciones coherentes + tarjetas CFM nuevas) y **cierre de caja** (monto contado sin autofill email). **Ctrl+F5** en TV: cache `lhexia20260520reco2`.
+**Única prioridad de código hasta cerrar checklist SD-1:** validación **en piso** (inventario → POS/casuísticas → caja). **No abrir** TEC-OFFLINE Fase 1 (IndexedDB) ni commits FE SOAP hasta checklist firmado o dolor explícito de red en mostrador.
 
-**En producción (`main` commit `4ae0292`, push 2026-05-20):**
-- Live Wall TV: recomendaciones por **perfil** (fijación, obra, pintura, PVC, madera); sin herramientas eléctricas caras en tickets bajos.
-- Tarjetas recomendación rediseñadas (`pos-experience-wall-cfm.css` + `renderCfmRecommendations`).
-- Cierre caja: arqueo solo ventas **`Pagado`**; anti-autofill en efectivo contado.
-- Sidebar `/modulos`: scroll en menú lateral.
-- Impresión tarjeta supervisor (`pos-supervisor-card.css`, iframe sin popup).
-- Cross-sell JSON: regla fijación + triggers obra sin confundir «bolsa» de clavos.
+### Carril activo — SD-1 piso (operación + QA manual)
 
-**SQL Neon aplicado (misma fecha):** `2026_05_18_pos_autorizacion_descuento.sql`, `2026_05_21_rendimiento_sd1_postgresql.sql` vía `scripts/apply_sql_neon.py`.
+| Orden | Qué | Evidencia / herramienta |
+|-------|-----|-------------------------|
+| 1 | **Inventario** — enrolamiento + salud | `/inventario/enrolamiento`, `/inventario/salud` |
+| 2 | **POS + caja** — flujo vale completo | `docs/CASUISTICAS_VENTAS_QA.md` + `python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo` |
+| 3 | **TV + cierre** — prod ya desplegado | Ctrl+F5 TV cache `lhexia20260520reco2`; arqueo solo `Pagado` |
 
-**Pendiente local (sin commit):** QA casuísticas (`docs/CASUISTICAS_VENTAS_QA.md`, `tests/qa_catalogo_casuisticas.py`), scaffold `adapters/`/`domain/`, logos 3D.
+**Cierre SD-1:** conteo por sucursal + ≥1 sucursal con vale → cobro sin bloqueos críticos (`SANTO_DOMINGO_ENTREGA.md`).
 
-**Siguiente técnico:** fotos por categoría en placeholder TV; commit bloque carrito v3 (`20260519c`) si aún no está en `main`; Fase 1.5 core post SD-1.
+### En repo `main` local (commits recientes — 2026-05-20/21)
 
-**No hacer aún:** Alembic, multi-tenant, refactor masivo `app.py`.
+| Commit | Contenido |
+|--------|-----------|
+| `4ae0292` | **Prod referencia** — TV recomendaciones, tarjetas CFM, cierre caja, cross-sell |
+| `79220c9` | Casuísticas QA TEST-CAS (11 tests smoke) |
+| `d9a9594` | Política IVA `desglosar_iva_clp`, PrcItem SII, `FALLO_MATEMATICO` |
+| `dbe03ed` | **TEC-OFFLINE Fase 0** — ADR, contrato API v1, `iva-chile.js`, tag `checkpoint/offline-design-2026-05-20` |
 
-**Comandos útiles:**
+**TV/caja en prod (`4ae0292`):** validar recomendaciones + cierre; anti-autofill monto contado.
+
+**SQL Neon aplicado:** `2026_05_18_pos_autorizacion_descuento.sql`, `2026_05_21_rendimiento_sd1_postgresql.sql`.
+
+### En pausa (no atacar código)
+
+| Tema | Motivo |
+|------|--------|
+| **FE Maullín** | Form. 3230 folio **77326378627** — *Recepcionada* (§ FE abajo). Sin `emitir-prueba` ni reintentos background. |
+| **TEC-OFFLINE F1+** | Fase 0 diseño lista; implementar tras SD-1 o caja piloto offline |
+| **FE SOAP/TED sin commit** | Archivos locales `??` — commit en rama aparte cuando retome FE |
+
+### Pendiente local (sin commit, no mezclar con SD-1)
+
+Scaffold `adapters/`/`domain/`, logos 3D, scripts FE diagnóstico, `facturacion_sii_soap.py` / TED.
+
+### Backlog post SD-1
+
+Fotos placeholder TV; `PLAN_RENDIMIENTO_BD_SD1` índices; Fase 4 cuadratura DTE panel; fidelización TV (`PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`).
+
+**No hacer aún:** Alembic masivo, multi-tenant en queries prod, refactor big-bang `app.py`.
+
+**Comandos útiles (SD-1):**
 ```bash
+python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo
+pytest tests/test_ventas_casuisticas_flujo.py -m casuisticas -q
 pytest tests/test_pos_live_wall.py -m smoke -q
-pytest tests/test_pos_autorizacion_descuento.py -q
+pytest tests/test_iva_chile.py tests/test_iva_chile_js_parity.py -q
 python scripts/apply_sql_neon.py sql/ARCHIVO.sql
 ```
+
+**Planes offline:** `docs/planes/04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`, `ADR_OFFLINE_FIRST.md`.
 
 ---
 
@@ -382,7 +411,7 @@ python scripts/apply_sql_neon.py sql/ARCHIVO.sql
 | Prioridad | Foco |
 |-----------|------|
 | Sprint A | POS + Caja + Stock + Bodega (validar checklist §18.1 en tienda) |
-| Sprint D | FE SII 🟡 — envío SOAP real pendiente |
+| Sprint D | FE SII ⏸ — código listo; esperar **timbraje SII** + prueba manual Track ID |
 | Sprint E | C360 + BI según roadmaps en `docs/` |
 
 **Definición “módulo cerrado”:** flujo documentado + RBAC + test smoke/E2E mínimo + checklist §18.x firmado + deuda en §16 del maestro sin sorpresas.
@@ -791,4 +820,39 @@ python scripts/apply_sql_neon.py sql/2026_05_21_rendimiento_sd1_postgresql.sql
 
 ---
 
-*Última actualización: 2026-05-20 — Live Wall TV recomendaciones + tarjetas CFM en prod (`4ae0292`); SQL Neon autorización + rendimiento aplicados.*
+## FE Maullín — pausa SII (sesión 2026-05-20, cierre jornada)
+
+**Emisor:** RUT `8054120-1` — LUIS GASTON RIVERA PEREZ. **Dev solo certificación:** `SII_AMBIENTE=certificacion`, host `maullin.sii.cl`.
+
+### Bloqueo administrativo SII (no es bug LhexIA)
+
+- Portal SII → *Estado mis peticiones administrativas* → folio **77326378627**.
+- Materia: **Solicitud de folios electrónicos y Timbraje Dctos**.
+- Estado al 20/05/2026: **Recepcionada** (18/05/2026). **Esperar cierre/aprobación** antes de CAF oficiales y certificación formal.
+
+### Hecho en código (backend listo)
+
+| Pieza | Detalle |
+|-------|---------|
+| Firma semilla/token | `services/facturacion_sii_soap.py` — C14N `REC-xml-c14n-20010315`, SHA1, RSA-SHA1, `always_add_key_value`, salida **ISO-8859-1**, SOAP getToken en ISO-8859-1 |
+| Acteco ferretería | `475200` en factura 33 (set + API) |
+| Set certificación | `verificar_firma_sii_certificacion.py` → ZIP `storage/dtes/pruebas_sii/pruebas_sii_dte_verificacion.zip` (39/33/61 FIRMADO; 39+33 TIMBRADO) |
+| CAF laboratorio | `fe_setup_caf_certificacion_maullin.py --bd` (no sustituye CAF SII) |
+| API emitir prueba | `emitir-prueba` con `caf_id`, `reservar_folio=1`, folio 2 correlativo OK |
+| API envío SII | **`GET /api/admin/facturacion/enviar-prueba-sii?dte_tipo=33&folio=1&reload_env=1`** → sube `DTE_33_FOLIO_1.xml` |
+| Diagnóstico | `diagnostico-sii`, scripts `fe_diagnostico_sii.py`, `fe_diagnostico_sii_reintentos.py` |
+| Red Maullín | 503 intermitente en CrSeed/GetToken; firma **no** rechazada con estado 10 en últimos ciclos — **no** ejecutar reintentos en background (DoS) |
+
+### Retomar FE (manual, cuando SII habilite timbraje)
+
+1. Confirmar petición **77326378627** cerrada/aprobada en portal SII.
+2. Timbraje + descarga CAF oficiales Maullín → cargar en `/admin/facturacion/caf`.
+3. `GET /api/admin/facturacion/diagnostico-sii?reload_env=1` → `token_estado: "00"`.
+4. `GET /api/admin/facturacion/enviar-prueba-sii?dte_tipo=33&folio=1&reload_env=1` → capturar **Track ID**.
+5. Si `token_estado: "10"` estable → revisar Transforms en `Reference` (signxml añade C14N extra además de enveloped).
+
+**Doc:** `docs/planes/04-tecnico/FE_CERTIFICACION_MAULLIN.md`, `FE_SII_DIA_RUT_AUTORIZADO.md`.
+
+---
+
+*Última actualización: 2026-05-21 — Repo: casuísticas `79220c9`, IVA/FE `d9a9594`, offline F0 `dbe03ed`. Prioridad única: SD-1 piso. FE y offline F1+ en pausa.*

@@ -349,7 +349,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 **Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «FE Maullín — pausa SII».
 
-**PRIORIDAD (post 2026-05-20):** carril **SD-1** — **inventario** (enrolamiento + salud) → **caja** en piso. **Casuísticas QA ventas** en repo (`79220c9`). **FE Maullín en pausa** hasta timbraje SII.
+**PRIORIDAD (2026-05-21):** solo **SD-1 piso** — inventario → casuísticas/caja/TV (checklist). Repo: `79220c9`, `d9a9594`, `dbe03ed` (offline F0). **Sin código nuevo** hasta cerrar checklist. FE ⏸ SII · Offline F1+ ⏸.
 
 **FE listo (gatillar manual cuando SII habilite firma):**
 - Petición portal SII folio **77326378627** — *Solicitud folios electrónicos y Timbraje* — estado **Recepcionada** (18/05/2026), RUT **8054120-1**.
@@ -360,7 +360,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 **TV/caja en prod (`4ae0292`):** recomendaciones TV; cierre caja solo `Pagado`; autorización descuentos POS.
 
-**Pendiente local:** QA casuísticas; carrito v3 (`20260519c`) si falta en `main`.
+**Pendiente local:** FE SOAP/TED sin commit; scaffold adapters; logos 3D. Casuísticas ✅ `79220c9`.
 
 ---
 

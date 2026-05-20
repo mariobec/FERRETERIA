@@ -17,8 +17,10 @@
 | **Fidelización + sorteo TV (backlog)** | [`02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`](02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md) |
 | **Vitácora reunión SD (puntos + chocolate)** | [`01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md`](01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md) |
 | **Santo Domingo entrega (portal)** | [`01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
+| **POS offline-first (roadmap)** | [`04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md) |
+| **Casuísticas QA ventas** | [`../CASUISTICAS_VENTAS_QA.md`](../CASUISTICAS_VENTAS_QA.md) |
 
-**Bitácora técnica diaria:** [`../memory.md`](../memory.md)
+**Bitácora técnica diaria:** [`../memory.md`](../memory.md) — § «Dónde quedamos» = foco SD-1 piso.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Cliente #1 LhexIA ERP** · **Alcance actual: SD-1** (POS + inventario)  
 **URL producción:** [www.lhexia.cl](https://www.lhexia.cl)  
-**Última actualización:** 2026-05-17
+**Última actualización:** 2026-05-21
 
 > **Este es el documento de entrada para todo lo operativo y técnico de Santo Domingo** (go-live, POS, inventario, infra, criterios de cierre).  
 > **Visión producto LhexIA** (comercial, multi-tenant, agentes globales) → [`LHEXIA_PRODUCTO.md`](LHEXIA_PRODUCTO.md).  
@@ -40,7 +40,7 @@ flowchart LR
 |------|----------|--------|-------------------|
 | **SD-1** | Go-live POS + inventario | 🟡 **En curso** | Este doc §3–7 |
 | SD-1.1 | Toma física | 🟡 Operación | §4 |
-| SD-1.2 | POS venta diaria | 🟡 Validar piso | §5 |
+| SD-1.2 | POS venta diaria | 🟡 Validar piso + casuísticas QA | §5 · `docs/CASUISTICAS_VENTAS_QA.md` |
 | SD-1.3 | Infra + capacitación | ⏳ | §6 |
 | **SD-2** | Caja multi-sucursal | ⏳ Post SD-1 | Caja ya madura en código |
 | **SD-3** | Compras + FE producción | ⏳ | FE 🟡 certificación |
@@ -136,7 +136,7 @@ Detalle paso a paso: [`product/CLIENTE_SANTO_DOMINGO.md`](product/CLIENTE_SANTO_
 | Backup | `scripts/sync_local_neon_render.py`, consola Neon |
 | Entornos | Prod www.lhexia.cl · Local `.env.local` para pytest |
 
-Docs: [`MIGRACION_RENDER_NEON.md`](MIGRACION_RENDER_NEON.md) · [`RESPALDO_PROYECTO.md`](RESPALDO_PROYECTO.md)
+Docs: [`MIGRACION_RENDER_NEON.md`](MIGRACION_RENDER_NEON.md) · [`RESPALDO_PROYECTO.md`](RESPALDO_PROYECTO.md) · **[Diagramas nube / intranet (impresión)](ARQUITECTURA_MODELOS_IMPRESION.md)**
 
 **Antes de cada deploy crítico POS:** smoke tests `pytest tests/ -m smoke`
 
@@ -162,6 +162,16 @@ Flujos que no deben romperse: [`FLUJOS_CRITICOS.md`](FLUJOS_CRITICOS.md)
 | Inventario | 3 sucursales con conteo o plan de corrección documentado |
 | POS | ≥1 sucursal flujo vale completo sin bloqueos críticos |
 | Datos | Códigos de barra críticos en catálogo |
+
+### Checklist piso SD-1 (2026-05-21 — sin código nuevo hasta firmar)
+
+1. [ ] Sesión enrolamiento en almacén piloto  
+2. [ ] Revisión `/inventario/salud` (export desajustes si aplica)  
+3. [ ] `python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo` en BD del entorno de prueba  
+4. [ ] Recorrer CAS-V01…V05 según [`CASUISTICAS_VENTAS_QA.md`](../../CASUISTICAS_VENTAS_QA.md)  
+5. [ ] TV cliente + cierre caja (solo ventas `Pagado`) en sucursal piloto  
+
+**Memoria viva:** [`docs/memory.md`](../../memory.md) § «Dónde quedamos».
 | Equipo | ≥2 usuarios capacitados por módulo |
 
 ---
