@@ -755,7 +755,7 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | `docs/FLUJOS_CRITICOS.md` | Flujos de negocio que no romper |
 | `docs/MIGRACION_RENDER_NEON.md` | Deploy Render + Neon, variables, sync datos |
 | `docs/CASUISTICAS_PRUEBAS.md` | Matriz QA manual |
-| `docs/CASUISTICAS_VENTAS_QA.md` | Catálogo QA venta→caja→entrega (local, sin commit prod aún) |
+| `docs/CASUISTICAS_VENTAS_QA.md` | Catálogo QA venta→caja→entrega (`79220c9`, TEST-CAS) |
 | `docs/PROMPT_MAESTRO_ERP.md` | Prompt arquitecto (legacy) |
 
 ### Planes (`docs/planes/`)
