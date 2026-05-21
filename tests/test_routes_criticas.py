@@ -694,7 +694,14 @@ class TestCajaExtra:
 
     def test_cerrar_caja_post(self, app_client):
         _ensure_caja_abierta()
-        r = app_client.post('/cerrar_caja', follow_redirects=True)
+        r = app_client.post(
+            '/cerrar_caja',
+            data={
+                'monto_declarado_cajero': '50000',
+                'monto_declarado_tarjeta': '0',
+            },
+            follow_redirects=True,
+        )
         assert r.status_code in (200, 302)
         _ensure_caja_abierta()
 

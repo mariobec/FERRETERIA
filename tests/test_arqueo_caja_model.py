@@ -51,6 +51,7 @@ def test_caja_modelo_tiene_campos_arqueo_ciego(app_ctx):
 
     cols = {c.name for c in m.Caja.__table__.columns}
     assert 'monto_declarado_cajero' in cols
+    assert 'monto_declarado_tarjeta' in cols
     assert 'boletas_emitidas_qty' in cols
     assert 'boletas_sincronizadas_qty' in cols
     assert 'monto_total_sii' in cols

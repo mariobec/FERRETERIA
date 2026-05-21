@@ -1,0 +1,204 @@
+{#
+  PLAT-1.1 — Cierre a ciegas (cajero)
+  Ruta objetivo: GET/POST /cerrar_caja → render_template('caja/cerrar_caja.html', ...)
+
+  RESTRICCIÓN: NO pasar ni renderizar monto_teorico, totales por medio, gran_total, indicadores_sii.
+
+  Variables GET esperadas:
+    - caja (id, usuario_apertura, fecha_apertura)
+    - punto_venta_label (str, ej. "CAJA 01 - Matriz") — opcional
+    - vales_pendientes_cierre, tickets_abiertos_cierre (listas; bloquean submit)
+    - csrf_token — si aplica WTForms/Flask-WTF
+
+  Campos POST (names):
+    - monto_declarado_cajero (int CLP, obligatorio) — efectivo gaveta
+    - monto_declarado_tarjeta (int CLP, obligatorio) — voucher Transbank/Getnet [backend pendiente]
+    - observacion_cierre (max 255)
+    - billete_<denominacion>_qty (opcional, solo ayuda UX; el total va a monto_declarado_cajero)
+    - supervisor_identificador, supervisor_clave (si diferencia > umbral; fase 2)
+#}
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-cierre-ciego.css') }}">
+{% endblock %}
+
+{% block body_class %}caja-cierre-ciego-page{% endblock %}
+
+{% block content %}
+<div class="caja-cierre-ciego py-3">
+
+  <header class="caja-cierre-ciego__hero">
+    <img src="{{ lhexia_icon_src }}" alt="LhexIA" width="48" height="48">
+    <h1 class="caja-cierre-ciego__title mb-1">Cierre de turno a ciegas</h1>
+    <p class="caja-cierre-ciego__meta mb-0">
+      Punto de venta:
+      <strong>{{ punto_venta_label or ('Caja #' ~ caja.id) }}</strong>
+      · Operador: <strong>{{ caja.usuario_apertura or current_user.nombre }}</strong>
+    </p>
+  </header>
+
+  {% if vales_pendientes_cierre or tickets_abiertos_cierre %}
+  <div class="alert alert-danger mx-2">
+    <strong><i class="fas fa-ban me-1"></i>No puede cerrar:</strong>
+    hay {{ (vales_pendientes_cierre|length) + (tickets_abiertos_cierre|length) }} documento(s) pendientes.
+    <a href="{{ url_for('caja_pendientes') }}" class="alert-link fw-bold">Resolver en caja</a>
+  </div>
+  {% endif %}
+
+  <form method="post"
+        action="{{ url_for('cerrar_caja') }}"
+        id="formCierreCiego"
+        class="px-2"
+        autocomplete="off"
+        {% if vales_pendientes_cierre or tickets_abiertos_cierre %}onsubmit="return false;"{% endif %}>
+
+    {# --- Desglose físico opcional (billetes CLP) --- #}
+    <section class="caja-cierre-ciego__card" aria-labelledby="secBilletes">
+      <h2 id="secBilletes" class="h6 fw-bold text-uppercase text-muted mb-3">
+        <i class="fas fa-coins me-2"></i>Declaración física de efectivo (opcional)
+      </h2>
+      <p class="small text-muted mb-3">
+        Ingrese cantidades; el sistema calcula el subtotal. Puede corregir el total final abajo.
+      </p>
+      <div class="table-responsive caja-cierre-billetes-table">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>CLP</th>
+              <th class="text-center">Cantidad</th>
+              <th class="text-end">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody id="tablaBilletes">
+            {% set denominaciones = [20000, 10000, 5000, 2000, 1000, 500, 100, 50, 10] %}
+            {% for d in denominaciones %}
+            <tr data-denominacion="{{ d }}">
+              <td class="fw-semibold">${{ "{:,.0f}".format(d).replace(",", ".") }}</td>
+              <td>
+                <input type="number"
+                       min="0" step="1"
+                       class="form-control form-control-sm js-billete-qty"
+                       name="billete_{{ d }}_qty"
+                       value="0"
+                       inputmode="numeric"
+                       aria-label="Cantidad billetes {{ d }}">
+              </td>
+              <td class="text-end fw-bold js-billete-subtotal">$0</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-warning">
+              <td colspan="2" class="fw-bold">Suma billetes + monedas</td>
+              <td class="text-end fw-bold" id="sumaBilletes">$0</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    {# --- Monto declarado efectivo (obligatorio, sin pista de teórico) --- #}
+    <section class="caja-cierre-ciego__card">
+      <label for="monto_declarado_cajero" class="form-label fw-bold text-uppercase small text-muted">
+        Total declarado efectivo (CLP) <span class="text-danger">*</span>
+      </label>
+      <input type="text"
+             id="monto_declarado_cajero"
+             name="monto_declarado_cajero"
+             class="form-control caja-cierre-ciego__input-hero caja-cierre-ciego__input-hero--pulse"
+             placeholder="Ingrese lo contado en gaveta"
+             inputmode="numeric"
+             required
+             maxlength="16"
+             aria-describedby="helpEfectivo">
+      <div id="helpEfectivo" class="form-text">Solo el monto que contó físicamente. El sistema no muestra saldos esperados.</div>
+    </section>
+
+    {# --- Tarjetas / vouchers --- #}
+    <section class="caja-cierre-ciego__card">
+      <label for="monto_declarado_tarjeta" class="form-label fw-bold text-uppercase small text-muted">
+        Monto vouchers tarjeta (CLP) <span class="text-danger">*</span>
+      </label>
+      <input type="text"
+             id="monto_declarado_tarjeta"
+             name="monto_declarado_tarjeta"
+             class="form-control form-control-lg text-center fw-bold"
+             placeholder="Total cierre Transbank / Getnet"
+             inputmode="numeric"
+             required
+             maxlength="16">
+      <div class="form-text">Transcriba el total del voucher de cierre del POS externo.</div>
+    </section>
+
+    {# --- Observaciones --- #}
+    <section class="caja-cierre-ciego__card">
+      <label for="observacion_cierre" class="form-label fw-bold text-uppercase small text-muted">
+        Observaciones
+      </label>
+      <textarea id="observacion_cierre"
+                name="observacion_cierre"
+                class="form-control"
+                rows="3"
+                maxlength="255"
+                placeholder="Ej: Cliente última hora sin sencillo…"></textarea>
+      <div class="form-text text-end"><span id="obsCount">0</span>/255</div>
+    </section>
+
+    <section class="caja-cierre-ciego__card border-warning">
+      <p class="fw-bold small mb-2"><i class="fas fa-user-shield me-1"></i>Autorización supervisor (si el sistema lo solicita)</p>
+      <p class="small text-muted mb-2">Complete solo si al cerrar le indica que la diferencia supera el umbral.</p>
+      <div class="mb-2">
+        <label for="supervisor_identificador" class="form-label small">Usuario o correo supervisor</label>
+        <input type="text" class="form-control" id="supervisor_identificador" name="supervisor_identificador" autocomplete="username">
+      </div>
+      <div>
+        <label for="supervisor_clave" class="form-label small">Contraseña supervisor</label>
+        <input type="password" class="form-control" id="supervisor_clave" name="supervisor_clave" autocomplete="current-password">
+      </div>
+    </section>
+
+    <button type="submit" class="caja-cierre-ciego__btn-submit mb-4">
+      <i class="fas fa-lock me-2"></i>Enviar y cerrar turno
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const fmt = (n) => '$' + Math.round(n).toLocaleString('es-CL');
+  const parseCLP = (raw) => {
+    const s = String(raw || '').replace(/\s/g, '').replace(/\$/g, '').replace(/\./g, '').replace(/,/g, '');
+    const v = parseInt(s, 10);
+    return Number.isFinite(v) ? v : 0;
+  };
+  const filas = document.querySelectorAll('#tablaBilletes tr[data-denominacion]');
+  const inputEfectivo = document.getElementById('monto_declarado_cajero');
+  const sumaEl = document.getElementById('sumaBilletes');
+
+  function recalcBilletes() {
+    let suma = 0;
+    filas.forEach((tr) => {
+      const den = parseInt(tr.dataset.denominacion, 10);
+      const qty = parseInt(tr.querySelector('.js-billete-qty')?.value || '0', 10) || 0;
+      const sub = den * qty;
+      tr.querySelector('.js-billete-subtotal').textContent = fmt(sub);
+      suma += sub;
+    });
+    sumaEl.textContent = fmt(suma);
+    if (suma > 0 && !inputEfectivo.dataset.userTouched) {
+      inputEfectivo.value = suma.toLocaleString('es-CL');
+    }
+  }
+  filas.forEach((tr) => tr.querySelector('.js-billete-qty')?.addEventListener('input', recalcBilletes));
+  inputEfectivo?.addEventListener('input', () => { inputEfectivo.dataset.userTouched = '1'; });
+  recalcBilletes();
+
+  const obs = document.getElementById('observacion_cierre');
+  const obsCount = document.getElementById('obsCount');
+  obs?.addEventListener('input', () => { obsCount.textContent = String(obs.value.length); });
+})();
+</script>
+{% endblock %}

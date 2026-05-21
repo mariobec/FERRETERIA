@@ -4722,6 +4722,7 @@ class Caja(db.Model):
     monto_contado_cierre = db.Column(db.Float, nullable=True)
     diferencia_cierre = db.Column(db.Float, nullable=True)
     monto_declarado_cajero = db.Column(db.Integer, nullable=True)
+    monto_declarado_tarjeta = db.Column(db.Integer, nullable=True)
     boletas_emitidas_qty = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     boletas_sincronizadas_qty = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     monto_total_sii = db.Column(db.Integer, nullable=False, default=0, server_default='0')
@@ -11307,6 +11308,9 @@ def _asegurar_columnas_caja_cuadratura():
         if 'monto_declarado_cajero' not in cols:
             db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_declarado_cajero INTEGER NULL"))
             cambios = True
+        if 'monto_declarado_tarjeta' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_declarado_tarjeta INTEGER NULL"))
+            cambios = True
         if 'boletas_emitidas_qty' not in cols:
             db.session.execute(text("ALTER TABLE caja ADD COLUMN boletas_emitidas_qty INTEGER NOT NULL DEFAULT 0"))
             cambios = True
@@ -15888,24 +15892,16 @@ def _documentos_bloquean_cierre_caja(caja):
     return vales, tickets
 
 
-# Cierre de caja (cuadratura y ticket)
-@app.route('/cerrar_caja', methods=['GET', 'POST'])
-@login_required
-@permisos_required('caja_cerrar')
-def cerrar_caja():
-    # 1. Buscamos la caja activa
-    caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
-    
-    if not caja:
-        flash("No hay ninguna caja abierta para cerrar.", "info")
-        return _redirigir_home_erp()
+def _calcular_contexto_turno_caja(caja, *, fin_turno=None):
+    """Totales del turno para POST cierre, ticket y panel admin (no usar en GET ciego)."""
+    from services.cuadratura_arqueo_service import (
+        calcular_indicadores_sii_turno,
+        calcular_monto_esperado_tarjeta_turno,
+        calcular_monto_teorico_gaveta_turno,
+    )
 
-    vales_pendientes_cierre, tickets_abiertos_cierre = _documentos_bloquean_cierre_caja(caja)
-
-    # 2. Cálculos de VENTAS del turno
-    # Defensa ante datos demo/importados: consideramos solo movimientos desde la apertura.
     apertura_turno = caja.fecha_apertura or datetime.min
-    ahora_turno = datetime.now()
+    ahora_turno = fin_turno or caja.fecha_cierre or datetime.now()
     ventas = (
         Venta.query.filter(
             Venta.caja_id == caja.id,
@@ -15926,12 +15922,9 @@ def cerrar_caja():
     total_tarjeta_credito = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "TarjetaCredito") or 0
     total_transferencia = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v) == "Transferencia") or 0
     total_fiado = sum(_monto_cobrado_por_medio(v) for v in ventas_cuadre if _metodo_pago(v).lower() == "credito") or 0
-
     ventas_turno = [v for v in ventas if (v.estado or '').strip() not in ('Abierta',)]
     ventas_turno.sort(key=lambda x: x.fecha or datetime.min, reverse=True)
-    
-    # 3. Cálculos de ABONOS (Dinero de deudas cobrado hoy)
-    # Importante: Esto suma dinero real a la caja
+
     abonos_hoy = (
         AbonoCredito.query.filter(
             AbonoCredito.caja_id == caja.id,
@@ -15942,7 +15935,6 @@ def cerrar_caja():
     total_abonos_efectivo = sum(a.monto_abono for a in abonos_hoy if a.metodo_pago == "Efectivo") or 0
     total_abonos_otros = sum(a.monto_abono for a in abonos_hoy if a.metodo_pago != "Efectivo") or 0
 
-    # Cambios/devoluciones del turno: solo el efectivo pagado/devuelto afecta gaveta.
     cambios_turno = (
         CambioOperacion.query.filter(
             CambioOperacion.caja_id == caja.id,
@@ -15955,17 +15947,9 @@ def cerrar_caja():
     cambios_efectivo_devuelto = sum(float(c.monto_devuelto_efectivo or 0) for c in cambios_turno) or 0
     cambios_saldo_generado = sum(float(c.saldo_generado or 0) for c in cambios_turno) or 0
     cambios_saldo_usado = sum(float(c.saldo_usado or 0) for c in cambios_turno) or 0
-    
-    # 4. Movimientos manuales de Caja (Ingresos/Egresos)
+
     ingresos_manuales = sum(m.monto for m in caja.movimientos if m.tipo == "Ingreso") or 0
     egresos = sum(m.monto for m in caja.movimientos if m.tipo == "Egreso") or 0
-    
-    # 5. MONTO TEÓRICO EN GAVETA (fórmula única — services/cuadratura_arqueo_service.py)
-    from services.cuadratura_arqueo_service import (
-        aplicar_indicadores_sii_caja,
-        calcular_indicadores_sii_turno,
-        calcular_monto_teorico_gaveta_turno,
-    )
 
     monto_teorico = calcular_monto_teorico_gaveta_turno(
         monto_inicial=float(caja.monto_inicial or 0),
@@ -15977,8 +15961,6 @@ def cerrar_caja():
         egresos=egresos,
     )
     indicadores_sii = calcular_indicadores_sii_turno(ventas_cuadre)
-    
-    # 6. GRAN TOTAL DE MOVIMIENTOS (Productividad total)
     gran_total_dia = (
         total_efectivo
         + total_debito
@@ -15989,166 +15971,222 @@ def cerrar_caja():
         + total_abonos_otros
     )
 
-    umbral_diferencia = float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000')
+    return dict(
+        ventas=ventas,
+        ventas_cuadre=ventas_cuadre,
+        ventas_turno=ventas_turno,
+        total_efectivo=total_efectivo,
+        total_debito=total_debito,
+        total_tarjeta_credito=total_tarjeta_credito,
+        total_transferencia=total_transferencia,
+        total_fiado=total_fiado,
+        total_abonos_efectivo=total_abonos_efectivo,
+        total_abonos_otros=total_abonos_otros,
+        cambios_turno=cambios_turno,
+        cambios_efectivo_recibido=cambios_efectivo_recibido,
+        cambios_efectivo_devuelto=cambios_efectivo_devuelto,
+        cambios_saldo_generado=cambios_saldo_generado,
+        cambios_saldo_usado=cambios_saldo_usado,
+        ingresos_manuales=ingresos_manuales,
+        egresos=egresos,
+        monto_teorico=monto_teorico,
+        monto_esperado_tarjeta=calcular_monto_esperado_tarjeta_turno(ventas_cuadre),
+        indicadores_sii=indicadores_sii,
+        gran_total_dia=gran_total_dia,
+    )
 
-    if request.method == 'POST':
-        if vales_pendientes_cierre or tickets_abiertos_cierre:
-            total_bloqueo = len(vales_pendientes_cierre) + len(tickets_abiertos_cierre)
-            flash(
-                f"No se puede cerrar caja: hay {total_bloqueo} documento(s) en vuelo "
-                f"({len(vales_pendientes_cierre)} pendiente(s) sin método y {len(tickets_abiertos_cierre)} abierto(s)). "
-                "Debes resolverlos antes de cerrar.",
-                "warning",
-            )
-            return redirect(url_for('caja_pendientes'))
-        monto_declarado_raw = (
-            (request.form.get('monto_declarado_cajero') or '').strip()
-            or (request.form.get('monto_contado') or '').strip()
+
+# Cierre de caja (cuadratura y ticket)
+@app.route('/cerrar_caja', methods=['GET', 'POST'])
+@login_required
+@permisos_required('caja_cerrar')
+def cerrar_caja():
+    caja = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
+
+    if not caja:
+        flash("No hay ninguna caja abierta para cerrar.", "info")
+        return _redirigir_home_erp()
+
+    vales_pendientes_cierre, tickets_abiertos_cierre = _documentos_bloquean_cierre_caja(caja)
+
+    if request.method == 'GET':
+        return render_template(
+            'caja/cerrar_caja.html',
+            caja=caja,
+            vales_pendientes_cierre=vales_pendientes_cierre,
+            tickets_abiertos_cierre=tickets_abiertos_cierre,
+            punto_venta_label=f'Caja #{caja.id}',
+            umbral_diferencia=int(round(float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000'))),
         )
-        if not monto_declarado_raw:
+
+    ctx = _calcular_contexto_turno_caja(caja)
+    ventas_cuadre = ctx['ventas_cuadre']
+    ventas_turno = ctx['ventas_turno']
+    monto_teorico = ctx['monto_teorico']
+    indicadores_sii = ctx['indicadores_sii']
+    gran_total_dia = ctx['gran_total_dia']
+    total_efectivo = ctx['total_efectivo']
+    total_debito = ctx['total_debito']
+    total_tarjeta_credito = ctx['total_tarjeta_credito']
+    total_transferencia = ctx['total_transferencia']
+    total_fiado = ctx['total_fiado']
+    total_abonos_efectivo = ctx['total_abonos_efectivo']
+    total_abonos_otros = ctx['total_abonos_otros']
+    cambios_turno = ctx['cambios_turno']
+    cambios_efectivo_recibido = ctx['cambios_efectivo_recibido']
+    cambios_efectivo_devuelto = ctx['cambios_efectivo_devuelto']
+    cambios_saldo_generado = ctx['cambios_saldo_generado']
+    cambios_saldo_usado = ctx['cambios_saldo_usado']
+    ingresos_manuales = ctx['ingresos_manuales']
+    egresos = ctx['egresos']
+
+    umbral_diferencia = float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000')
+    from services.cuadratura_arqueo_service import aplicar_indicadores_sii_caja
+
+    if vales_pendientes_cierre or tickets_abiertos_cierre:
+        total_bloqueo = len(vales_pendientes_cierre) + len(tickets_abiertos_cierre)
+        flash(
+            f"No se puede cerrar caja: hay {total_bloqueo} documento(s) en vuelo "
+            f"({len(vales_pendientes_cierre)} pendiente(s) sin método y {len(tickets_abiertos_cierre)} abierto(s)). "
+            "Debes resolverlos antes de cerrar.",
+            "warning",
+        )
+        return redirect(url_for('caja_pendientes'))
+    monto_declarado_raw = (
+        (request.form.get('monto_declarado_cajero') or '').strip()
+        or (request.form.get('monto_contado') or '').strip()
+    )
+    if not monto_declarado_raw:
+        flash(
+            "Debe ingresar el efectivo declarado (cierre a ciegas) para realizar la cuadratura.",
+            "warning",
+        )
+        return redirect(url_for('cerrar_caja'))
+    if '@' in monto_declarado_raw:
+        flash(
+            "El campo de efectivo declarado no debe ser un correo. Ingrese el monto en pesos (CLP) "
+            "que contó físicamente en gaveta.",
+            "warning",
+        )
+        return redirect(url_for('cerrar_caja'))
+    monto_declarado = _parse_clp_monto(monto_declarado_raw)
+    if monto_declarado is None:
+        flash(
+            "El efectivo declarado no es válido. Use pesos chilenos (CLP): solo números, miles con punto "
+            "(ej. 340000 o 340.000) o coma decimal (ej. 1234,50).",
+            "danger",
+        )
+        return redirect(url_for('cerrar_caja'))
+    monto_tarjeta_raw = (request.form.get('monto_declarado_tarjeta') or '').strip()
+    if not monto_tarjeta_raw:
+        flash("Debe ingresar el monto de vouchers tarjeta (cierre Transbank/Getnet).", "warning")
+        return redirect(url_for('cerrar_caja'))
+    monto_tarjeta = _parse_clp_monto(monto_tarjeta_raw)
+    if monto_tarjeta is None:
+        flash("El monto de tarjetas no es válido. Use solo pesos chilenos (CLP).", "danger")
+        return redirect(url_for('cerrar_caja'))
+    monto_declarado_int = int(round(monto_declarado))
+    monto_declarado_tarjeta_int = int(round(monto_tarjeta))
+    monto_teorico_int = int(round(monto_teorico))
+    diferencia_cuadratura = monto_declarado_int - monto_teorico_int
+    observacion_cierre = (request.form.get('observacion_cierre') or '').strip()
+    supervisor_nombre = None
+
+    if abs(diferencia_cuadratura) >= int(round(umbral_diferencia)):
+        ident_raw = (request.form.get('supervisor_identificador') or '').strip()
+        pwd = request.form.get('supervisor_clave') or ''
+        if not ident_raw or not pwd:
             flash(
-                "Debe ingresar el efectivo declarado (cierre a ciegas) para realizar la cuadratura.",
+                f"La diferencia supera el umbral (${umbral_diferencia:,.0f}). "
+                "Debe autorizar un supervisor con credenciales.",
                 "warning",
             )
             return redirect(url_for('cerrar_caja'))
-        if '@' in monto_declarado_raw:
-            flash(
-                "El campo de efectivo declarado no debe ser un correo. Ingrese el monto en pesos (CLP) "
-                "que contó físicamente en gaveta.",
-                "warning",
-            )
+        sup, err_lookup = resolver_usuario_por_identificador_pos(ident_raw)
+        if err_lookup == 'ambiguous_email_local':
+            flash("Varios correos coinciden; use el correo completo del supervisor.", "warning")
             return redirect(url_for('cerrar_caja'))
-        monto_declarado = _parse_clp_monto(monto_declarado_raw)
-        if monto_declarado is None:
+        if err_lookup == 'ambiguous_nombre':
+            flash("Hay más de un usuario con ese nombre; use usuario/correo único.", "warning")
+            return redirect(url_for('cerrar_caja'))
+        if not sup or err_lookup == 'not_found':
             flash(
-                "El efectivo declarado no es válido. Use pesos chilenos (CLP): solo números, miles con punto "
-                "(ej. 340000 o 340.000) o coma decimal (ej. 1234,50).",
+                "No se encontró un usuario con ese nombre o correo. "
+                "Use el login real del jefe de turno (mismo que para entrar al ERP).",
                 "danger",
             )
             return redirect(url_for('cerrar_caja'))
-        monto_declarado_int = int(round(monto_declarado))
-        monto_teorico_int = int(round(monto_teorico))
-        diferencia_cuadratura = monto_declarado_int - monto_teorico_int
-        observacion_cierre = (request.form.get('observacion_cierre') or '').strip()
-        supervisor_nombre = None
-
-        if abs(diferencia_cuadratura) >= int(round(umbral_diferencia)):
-            ident_raw = (request.form.get('supervisor_identificador') or '').strip()
-            pwd = request.form.get('supervisor_clave') or ''
-            if not ident_raw or not pwd:
-                flash(
-                    f"La diferencia supera el umbral (${umbral_diferencia:,.0f}). "
-                    "Debe autorizar un supervisor con credenciales.",
-                    "warning",
-                )
-                return redirect(url_for('cerrar_caja'))
-            sup, err_lookup = resolver_usuario_por_identificador_pos(ident_raw)
-            if err_lookup == 'ambiguous_email_local':
-                flash("Varios correos coinciden; use el correo completo del supervisor.", "warning")
-                return redirect(url_for('cerrar_caja'))
-            if err_lookup == 'ambiguous_nombre':
-                flash("Hay más de un usuario con ese nombre; use usuario/correo único.", "warning")
-                return redirect(url_for('cerrar_caja'))
-            if not sup or err_lookup == 'not_found':
-                flash(
-                    "No se encontró un usuario con ese nombre o correo. "
-                    "Use el login real del jefe de turno (mismo que para entrar al ERP).",
-                    "danger",
-                )
-                return redirect(url_for('cerrar_caja'))
-            if not usuario_esta_activo(sup):
-                flash("Ese usuario está inactivo; use otro supervisor.", "danger")
-                return redirect(url_for('cerrar_caja'))
-            if not sup.check_password(pwd):
-                flash("Contraseña del supervisor incorrecta.", "danger")
-                return redirect(url_for('cerrar_caja'))
-            if not usuario_puede_autorizar_diferencia_cierre_caja(sup):
-                flash(
-                    "Ese usuario no puede autorizar diferencias de cierre. "
-                    "Se requiere rol administrador, permiso «gestionar usuarios» o «ver gerencia».",
-                    "danger",
-                )
-                return redirect(url_for('cerrar_caja'))
-            supervisor_nombre = (sup.nombre or sup.correo or '').strip()[:80]
-
-        # Procesamos el cierre oficial (una sola verdad: tabla caja, CLP enteros)
-        caja.fecha_cierre = datetime.now()
-        caja.monto_declarado_cajero = monto_declarado_int
-        caja.monto_final = monto_declarado_int
-        caja.monto_teorico_cierre = monto_teorico_int
-        caja.monto_contado_cierre = monto_declarado_int
-        caja.diferencia_cierre = diferencia_cuadratura
-        aplicar_indicadores_sii_caja(caja, ventas_cuadre)
-        caja.observacion_cierre = observacion_cierre[:255] if observacion_cierre else None
-        caja.supervisor_cierre = supervisor_nombre
-        caja.estado = "Cerrada"
-        caja.usuario_cierre = current_user.nombre
-        
-        try:
-            db.session.commit()
-        except Exception as ex:
-            db.session.rollback()
-            err = str(ex).lower()
-            if 'unknown column' in err or 'monto_teorico_cierre' in err or 'monto_declarado_cajero' in err:
-                flash(
-                    'Faltan columnas de cuadratura en caja. Ejecutá '
-                    'sql/2026_05_06_caja_cuadratura_historial.sql y sql/2026_05_23_add_arqueo_ciego_cajas.sql.',
-                    'danger',
-                )
-            else:
-                flash(f'No se pudo cerrar caja: {ex}', 'danger')
+        if not usuario_esta_activo(sup):
+            flash("Ese usuario está inactivo; use otro supervisor.", "danger")
             return redirect(url_for('cerrar_caja'))
-        
-        # Redirigimos al ticket con toda la info
-        return render_template('ticket_cierre.html', 
-                               caja=caja, 
-                               total_efectivo=total_efectivo,
-                               total_debito=total_debito,
-                               total_tarjeta_credito=total_tarjeta_credito,
-                               total_transferencia=total_transferencia,
-                               total_abonos=(total_abonos_efectivo + total_abonos_otros),
-                               total_fiado=total_fiado,
-                               cambios_efectivo_recibido=cambios_efectivo_recibido,
-                               cambios_efectivo_devuelto=cambios_efectivo_devuelto,
-                               cambios_saldo_generado=cambios_saldo_generado,
-                               cambios_saldo_usado=cambios_saldo_usado,
-                               cambios_turno=cambios_turno,
-                               ingresos=ingresos_manuales, 
-                               egresos=egresos,
-                               monto_teorico=monto_teorico_int,
-                               monto_contado=monto_declarado_int,
-                               monto_declarado_cajero=monto_declarado_int,
-                               diferencia_cuadratura=diferencia_cuadratura,
-                               umbral_diferencia=umbral_diferencia,
-                               gran_total_ventas=gran_total_dia,
-                               indicadores_sii=indicadores_sii,
-                               ventas_turno=ventas_turno)
+        if not sup.check_password(pwd):
+            flash("Contraseña del supervisor incorrecta.", "danger")
+            return redirect(url_for('cerrar_caja'))
+        if not usuario_puede_autorizar_diferencia_cierre_caja(sup):
+            flash(
+                "Ese usuario no puede autorizar diferencias de cierre. "
+                "Se requiere rol administrador, permiso «gestionar usuarios» o «ver gerencia».",
+                "danger",
+            )
+            return redirect(url_for('cerrar_caja'))
+        supervisor_nombre = (sup.nombre or sup.correo or '').strip()[:80]
 
-    # Si es GET, mostramos la pantalla de confirmación
-    return render_template('confirmar_cierre.html', 
-                           caja=caja, 
-                           vales_pendientes_cierre=vales_pendientes_cierre,
-                           tickets_abiertos_cierre=tickets_abiertos_cierre,
-                           total_efectivo=total_efectivo,
-                           total_debito=total_debito,
-                           total_tarjeta_credito=total_tarjeta_credito,
-                           total_transferencia=total_transferencia,
-                           total_fiado=total_fiado,
-                           total_abonos_efectivo=total_abonos_efectivo,
-                           total_abonos_otros=total_abonos_otros,
-                           cambios_efectivo_recibido=cambios_efectivo_recibido,
-                           cambios_efectivo_devuelto=cambios_efectivo_devuelto,
-                           cambios_saldo_generado=cambios_saldo_generado,
-                           cambios_saldo_usado=cambios_saldo_usado,
-                           cambios_turno=cambios_turno,
-                           ingresos=ingresos_manuales,
-                           egresos=egresos,
-                           monto_teorico=monto_teorico,
-                           umbral_diferencia=umbral_diferencia,
-                           gran_total_ventas=gran_total_dia,
-                           indicadores_sii=indicadores_sii,
-                           ventas_count=len(ventas_cuadre),
-                           ventas_turno=ventas_turno)
+    caja.fecha_cierre = datetime.now()
+    caja.monto_declarado_cajero = monto_declarado_int
+    caja.monto_declarado_tarjeta = monto_declarado_tarjeta_int
+    caja.monto_final = monto_declarado_int
+    caja.monto_teorico_cierre = monto_teorico_int
+    caja.monto_contado_cierre = monto_declarado_int
+    caja.diferencia_cierre = diferencia_cuadratura
+    aplicar_indicadores_sii_caja(caja, ventas_cuadre)
+    caja.observacion_cierre = observacion_cierre[:255] if observacion_cierre else None
+    caja.supervisor_cierre = supervisor_nombre
+    caja.estado = "Cerrada"
+    caja.usuario_cierre = current_user.nombre
+
+    try:
+        db.session.commit()
+    except Exception as ex:
+        db.session.rollback()
+        err = str(ex).lower()
+        if 'unknown column' in err or 'monto_teorico_cierre' in err or 'monto_declarado' in err:
+            flash(
+                'Faltan columnas de cuadratura en caja. Ejecutá '
+                'sql/2026_05_06_caja_cuadratura_historial.sql, '
+                'sql/2026_05_23_add_arqueo_ciego_cajas.sql y '
+                'sql/2026_05_24_add_monto_declarado_tarjeta_caja.sql.',
+                'danger',
+            )
+        else:
+            flash(f'No se pudo cerrar caja: {ex}', 'danger')
+        return redirect(url_for('cerrar_caja'))
+
+    return render_template(
+        'ticket_cierre.html',
+        caja=caja,
+        total_efectivo=total_efectivo,
+        total_debito=total_debito,
+        total_tarjeta_credito=total_tarjeta_credito,
+        total_transferencia=total_transferencia,
+        total_abonos=(total_abonos_efectivo + total_abonos_otros),
+        total_fiado=total_fiado,
+        cambios_efectivo_recibido=cambios_efectivo_recibido,
+        cambios_efectivo_devuelto=cambios_efectivo_devuelto,
+        cambios_saldo_generado=cambios_saldo_generado,
+        cambios_saldo_usado=cambios_saldo_usado,
+        cambios_turno=cambios_turno,
+        ingresos=ingresos_manuales,
+        egresos=egresos,
+        monto_teorico=monto_teorico_int,
+        monto_contado=monto_declarado_int,
+        monto_declarado_cajero=monto_declarado_int,
+        monto_declarado_tarjeta=monto_declarado_tarjeta_int,
+        diferencia_cuadratura=diferencia_cuadratura,
+        umbral_diferencia=umbral_diferencia,
+        gran_total_ventas=gran_total_dia,
+        indicadores_sii=indicadores_sii,
+        ventas_turno=ventas_turno,
+    )
 
 
 def _resumen_caja_cerrada(caja):
@@ -16294,6 +16332,57 @@ def ticket_cierre_historico(id):
         umbral_diferencia=float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000'),
         **resumen,
     )
+
+
+@app.route('/admin/caja/arqueo/<int:id>')
+@login_required
+@permisos_required('gestionar_usuarios')
+def admin_detalle_arqueo_caja(id):
+    """Panel analítico de arqueo (financiero + SII) para caja cerrada."""
+    caja = Caja.query.get_or_404(id)
+    if (caja.estado or '').strip() != 'Cerrada':
+        flash('Solo se puede auditar un turno ya cerrado.', 'warning')
+        return redirect(url_for('caja_historial_cierres'))
+
+    ctx = _calcular_contexto_turno_caja(caja, fin_turno=caja.fecha_cierre)
+    umbral_diferencia_clp = int(round(float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000')))
+    diff = int(round(float(caja.diferencia_cierre or 0)))
+    requiere_supervisor = abs(diff) >= umbral_diferencia_clp and not (caja.supervisor_cierre or '').strip()
+    emitidas = int(caja.boletas_emitidas_qty or 0)
+    sincronizadas = int(caja.boletas_sincronizadas_qty or 0)
+    boletas_pendientes_sii = max(0, emitidas - sincronizadas)
+
+    resumen_iva = None
+    try:
+        from core.domain.shared.iva_chile import desglosar_iva_clp
+
+        bruto = int(ctx['indicadores_sii'].get('monto_total_ventas') or 0)
+        if bruto > 0:
+            neto, iva, total = desglosar_iva_clp(bruto)
+            resumen_iva = {'neto_clp': neto, 'iva_clp': iva, 'total_bruto_clp': total}
+    except Exception:
+        resumen_iva = None
+
+    url_reintentar = None
+    if boletas_pendientes_sii > 0:
+        try:
+            url_reintentar = url_for('admin_facturacion_cola')
+        except Exception:
+            url_reintentar = None
+
+    return render_template(
+        'admin/detalle_arqueo.html',
+        caja=caja,
+        monto_esperado_tarjeta=ctx['monto_esperado_tarjeta'],
+        monto_declarado_tarjeta=caja.monto_declarado_tarjeta,
+        monto_total_ventas_turno=ctx['indicadores_sii'].get('monto_total_ventas', 0),
+        resumen_iva=resumen_iva,
+        umbral_diferencia_clp=umbral_diferencia_clp,
+        requiere_supervisor=requiere_supervisor,
+        boletas_pendientes_sii=boletas_pendientes_sii,
+        url_reintentar_sii=url_reintentar,
+    )
+
 
 # editar usuario....................................................................................
 

@@ -33,6 +33,16 @@ def _monto_cobrado_venta_clp(venta: Any) -> int:
     return max(0, bruto - favor)
 
 
+def calcular_monto_esperado_tarjeta_turno(ventas_cuadre: List[Any]) -> int:
+    """Suma ventas del turno cobradas con débito, tarjeta crédito o transferencia."""
+    total = 0
+    for v in ventas_cuadre or []:
+        mp = _metodo_pago_normalizado(getattr(v, 'metodo_pago', None))
+        if mp in ('Debito', 'TarjetaCredito', 'Transferencia'):
+            total += _monto_cobrado_venta_clp(v)
+    return total
+
+
 def calcular_monto_teorico_gaveta_turno(
     *,
     monto_inicial: float,

@@ -126,9 +126,12 @@
                             $ {{ "{:,.0f}".format(c.diferencia_cierre or 0).replace(",", ".") }}
                         </td>
                         <td>{{ c.supervisor_cierre or '-' }}</td>
-                        <td class="text-end">
+                        <td class="text-end text-nowrap">
+                            <a href="{{ url_for('admin_detalle_arqueo_caja', id=c.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-chart-pie me-1"></i>Arqueo
+                            </a>
                             <a href="{{ url_for('ticket_cierre_historico', id=c.id) }}" target="_blank" class="btn btn-sm btn-outline-dark">
-                                <i class="fas fa-receipt me-1"></i>Ver
+                                <i class="fas fa-receipt me-1"></i>Ticket
                             </a>
                         </td>
                     </tr>

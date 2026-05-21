@@ -1,0 +1,150 @@
+/* Cierre a ciegas — cajero (PLAT-1.1 UI) */
+.caja-cierre-ciego {
+  --cierre-accent: var(--ds-primary);
+  --cierre-accent-soft: rgba(243, 112, 33, 0.12);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.caja-cierre-ciego__hero {
+  text-align: center;
+  padding: 1.25rem 1rem 0.5rem;
+}
+
+.caja-cierre-ciego__hero img {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 0.5rem;
+}
+
+.caja-cierre-ciego__title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.caja-cierre-ciego__meta {
+  color: var(--ds-text-muted);
+  font-size: 0.9rem;
+}
+
+.caja-cierre-ciego__card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-md);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.caja-cierre-ciego__input-hero {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  border: 2px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: 0.75rem 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.caja-cierre-ciego__input-hero:focus {
+  border-color: var(--cierre-accent);
+  box-shadow: 0 0 0 4px var(--cierre-accent-soft);
+  outline: none;
+}
+
+.caja-cierre-ciego__input-hero--pulse:not(:focus):placeholder-shown {
+  animation: cierreInputPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes cierreInputPulse {
+  0%, 100% { border-color: var(--ds-border); }
+  50% { border-color: var(--cierre-accent); box-shadow: 0 0 0 3px var(--cierre-accent-soft); }
+}
+
+.caja-cierre-billetes-table input {
+  text-align: center;
+  font-weight: 600;
+  max-width: 5rem;
+  margin: 0 auto;
+}
+
+.caja-cierre-ciego__btn-submit {
+  background: var(--cierre-accent);
+  border: none;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 1rem 1.25rem;
+  border-radius: var(--ds-radius-md);
+  width: 100%;
+  font-size: 1.05rem;
+}
+
+.caja-cierre-ciego__btn-submit:hover {
+  background: var(--ds-primary-strong);
+  color: #fff;
+}
+
+/* Admin detalle arqueo — panel oscuro ejecutivo */
+.admin-arqueo {
+  --arq-bg: #0f172a;
+  --arq-surface: #1e293b;
+  --arq-border: #334155;
+  --arq-text: #f1f5f9;
+  --arq-muted: #94a3b8;
+  color: var(--arq-text);
+}
+
+.admin-arqueo .admin-arqueo__shell {
+  background: linear-gradient(180deg, #0b1220 0%, var(--arq-bg) 100%);
+  border-radius: var(--ds-radius-lg);
+  padding: 1.5rem;
+  border: 1px solid var(--arq-border);
+}
+
+.admin-arqueo__kpi {
+  border-radius: var(--ds-radius-md);
+  padding: 1rem 1.25rem;
+  font-weight: 800;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.admin-arqueo__kpi--ok {
+  background: rgba(22, 163, 74, 0.2);
+  border: 1px solid #16a34a;
+  color: #86efac;
+}
+
+.admin-arqueo__kpi--bad {
+  background: rgba(220, 38, 38, 0.25);
+  border: 1px solid #dc2626;
+  color: #fecaca;
+}
+
+.admin-arqueo__widget {
+  background: var(--arq-surface);
+  border: 1px solid var(--arq-border);
+  border-radius: var(--ds-radius-md);
+  padding: 1.25rem;
+  height: 100%;
+}
+
+.admin-arqueo__progress .progress {
+  height: 1.25rem;
+  background: #0f172a;
+}
+
+.admin-arqueo__diff-neg { color: #f87171; font-weight: 700; }
+.admin-arqueo__diff-ok { color: #4ade80; font-weight: 700; }
+
+.admin-arqueo__btn-retry {
+  animation: arqueoRetryPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes arqueoRetryPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; transform: scale(1.02); }
+}

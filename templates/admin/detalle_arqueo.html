@@ -1,0 +1,201 @@
+{#
+  PLAT-1.1 — Detalle de arqueo (administrador / supervisor)
+  Ruta objetivo: GET /admin/caja/arqueo/<caja_id> (por definir)
+         render_template('admin/detalle_arqueo.html', ...)
+
+  Variables esperadas:
+    - caja: ORM Caja cerrada
+        .id, .usuario_apertura, .usuario_cierre, .fecha_apertura, .fecha_cierre
+        .monto_teorico_cierre, .monto_declarado_cajero, .monto_contado_cierre
+        .diferencia_cierre, .observacion_cierre, .supervisor_cierre
+        .boletas_emitidas_qty, .boletas_sincronizadas_qty, .monto_total_sii
+    - monto_esperado_tarjeta (int) — teórico tarjetas turno [calcular en vista]
+    - monto_declarado_tarjeta (int|null) — declarado cajero [columna futura]
+    - monto_total_ventas_turno (int) — suma ventas cuadre ERP
+    - resumen_iva: { neto_clp, iva_clp, total_bruto_clp } — opcional widget financiero
+    - umbral_diferencia_clp (int, default 5000)
+    - cuadra (bool) — derivado: diferencia_cierre == 0
+    - requiere_supervisor (bool) — abs(diferencia) >= umbral y sin supervisor_cierre
+    - boletas_pendientes_sii (int) — emitidas - sincronizadas
+    - url_reintentar_sii (str) — url_for('api_admin_facturacion_reintentar_cola') stub
+#}
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-cierre-ciego.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set diff = (caja.diferencia_cierre or 0)|int %}
+{% set cuadra = diff == 0 %}
+{% set umbral = umbral_diferencia_clp|default(5000)|int %}
+{% set req_sup = requiere_supervisor|default(diff|abs >= umbral and not caja.supervisor_cierre) %}
+{% set emitidas = caja.boletas_emitidas_qty or 0 %}
+{% set sync = caja.boletas_sincronizadas_qty or 0 %}
+{% set pend_sii = boletas_pendientes_sii|default(emitidas - sync) %}
+{% set pct_sii = (100 * sync / emitidas)|round(1) if emitidas else 100 %}
+
+<div class="admin-arqueo container-fluid py-4">
+  <div class="admin-arqueo__shell">
+
+    <header class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+      <div>
+        <img src="{{ lhexia_icon_src }}" alt="" width="40" height="40" class="mb-2">
+        <h1 class="h4 fw-bold mb-1 text-white">Detalle de arqueo de caja</h1>
+        <p class="mb-0 small" style="color: var(--arq-muted, #94a3b8);">
+          Turno #{{ caja.id }} · {{ caja.usuario_apertura }} → {{ caja.usuario_cierre or '—' }}
+          <br>
+          {{ caja.fecha_apertura.strftime('%d-%m-%Y %H:%M') if caja.fecha_apertura else '—' }}
+          — {{ caja.fecha_cierre.strftime('%d-%m-%Y %H:%M') if caja.fecha_cierre else '—' }}
+        </p>
+      </div>
+      <a href="{{ url_for('caja_historial_cierres') }}" class="btn btn-outline-light btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Historial
+      </a>
+    </header>
+
+    {# KPI semáforo descuadre #}
+    <div class="admin-arqueo__kpi mb-4 {{ 'admin-arqueo__kpi--ok' if cuadra else 'admin-arqueo__kpi--bad' }}">
+      {% if cuadra %}
+        <i class="fas fa-circle-check me-2"></i>ESTADO: CUADRADO · DIFERENCIA $0
+      {% else %}
+        <i class="fas fa-triangle-exclamation me-2"></i>ESTADO: DESCUADRE REGISTRADO
+        · DIFERENCIA
+        <span class="{{ 'admin-arqueo__diff-neg' if diff < 0 else 'admin-arqueo__diff-ok' }}">
+          {{ "{:+,.0f}".format(diff).replace(",", ".") }} CLP
+        </span>
+      {% endif %}
+    </div>
+
+    {% if req_sup %}
+    <div class="alert alert-danger border-0 mb-4">
+      <strong><i class="fas fa-user-shield me-2"></i>Requiere autorización de supervisor</strong>
+      <p class="mb-0 small">
+        La diferencia superó el umbral de ${{ "{:,.0f}".format(umbral).replace(",", ".") }} CLP.
+        {% if caja.supervisor_cierre %}
+          Autorizado por: <strong>{{ caja.supervisor_cierre }}</strong>
+        {% else %}
+          Turno bloqueado para liberación hasta firma digital.
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="row g-3 mb-3">
+      {# Widget financiero #}
+      <div class="col-lg-7">
+        <div class="admin-arqueo__widget">
+          <h2 class="h6 fw-bold text-uppercase mb-3" style="color:#94a3b8;">
+            <i class="fas fa-scale-balanced me-2"></i>Conciliación financiera
+          </h2>
+          <div class="table-responsive">
+            <table class="table table-dark table-borderless table-sm mb-0 align-middle">
+              <thead>
+                <tr style="color:#94a3b8;">
+                  <th>Concepto</th>
+                  <th class="text-end">Teórico (LhexIA)</th>
+                  <th class="text-end">Declarado (cajero)</th>
+                  <th class="text-end">Diferencia</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% set teor_ef = (caja.monto_teorico_cierre or 0)|int %}
+                {% set decl_ef = (caja.monto_declarado_cajero or caja.monto_contado_cierre or 0)|int %}
+                {% set teor_tj = (monto_esperado_tarjeta or 0)|int %}
+                {% set decl_tj = (monto_declarado_tarjeta or 0)|int %}
+                <tr>
+                  <td class="fw-semibold">Efectivo gaveta</td>
+                  <td class="text-end">${{ "{:,.0f}".format(teor_ef).replace(",", ".") }}</td>
+                  <td class="text-end">${{ "{:,.0f}".format(decl_ef).replace(",", ".") }}</td>
+                  <td class="text-end {{ 'admin-arqueo__diff-neg' if (decl_ef - teor_ef) < 0 else ('admin-arqueo__diff-ok' if (decl_ef - teor_ef) == 0 else '') }}">
+                    {{ "{:+,.0f}".format(decl_ef - teor_ef).replace(",", ".") }}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="fw-semibold">Tarjetas / vouchers</td>
+                  <td class="text-end">${{ "{:,.0f}".format(teor_tj).replace(",", ".") }}</td>
+                  <td class="text-end">${{ "{:,.0f}".format(decl_tj).replace(",", ".") }}</td>
+                  <td class="text-end">{{ "{:+,.0f}".format(decl_tj - teor_tj).replace(",", ".") }}</td>
+                </tr>
+                <tr class="border-top border-secondary">
+                  <td class="fw-bold">Total turno (referencia)</td>
+                  <td class="text-end fw-bold">${{ "{:,.0f}".format(teor_ef + teor_tj).replace(",", ".") }}</td>
+                  <td class="text-end fw-bold">${{ "{:,.0f}".format(decl_ef + decl_tj).replace(",", ".") }}</td>
+                  <td class="text-end fw-bold {{ 'admin-arqueo__diff-neg' if diff < 0 else 'admin-arqueo__diff-ok' }}">
+                    {{ "{:+,.0f}".format(diff).replace(",", ".") }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {% if resumen_iva %}
+          <hr class="border-secondary my-3">
+          <div class="row g-2 small">
+            <div class="col-4"><span class="text-muted">Neto</span><br><strong>${{ "{:,.0f}".format(resumen_iva.neto_clp).replace(",", ".") }}</strong></div>
+            <div class="col-4"><span class="text-muted">IVA</span><br><strong>${{ "{:,.0f}".format(resumen_iva.iva_clp).replace(",", ".") }}</strong></div>
+            <div class="col-4"><span class="text-muted">Bruto ventas</span><br><strong>${{ "{:,.0f}".format(resumen_iva.total_bruto_clp).replace(",", ".") }}</strong></div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Widget SII #}
+      <div class="col-lg-5">
+        <div class="admin-arqueo__widget admin-arqueo__progress h-100">
+          <h2 class="h6 fw-bold text-uppercase mb-3" style="color:#94a3b8;">
+            <i class="fas fa-file-invoice me-2"></i>Conciliación tributaria (SII)
+          </h2>
+          <p class="small mb-2" style="color:#94a3b8;">Ventas registradas en LhexIA (turno)</p>
+          <div class="progress mb-3">
+            <div class="progress-bar bg-secondary" style="width: 100%">100% · {{ monto_total_ventas_turno|default(0) }} CLP ref.</div>
+          </div>
+          <p class="small mb-2" style="color:#94a3b8;">Documentos con Track ID exitoso</p>
+          <div class="progress mb-2">
+            <div class="progress-bar {{ 'bg-success' if pct_sii >= 100 else 'bg-warning' }}"
+                 style="width: {{ pct_sii }}%;">{{ pct_sii }}% · {{ sync }}/{{ emitidas }}</div>
+          </div>
+          <ul class="list-unstyled small mb-3">
+            <li>Boletas emitidas: <strong>{{ emitidas }}</strong></li>
+            <li>Boletas sincronizadas: <strong>{{ sync }}</strong></li>
+            <li>Monto acumulado SII: <strong>${{ "{:,.0f}".format(caja.monto_total_sii or 0).replace(",", ".") }}</strong></li>
+          </ul>
+          {% if pend_sii > 0 and url_reintentar_sii %}
+          <a href="{{ url_reintentar_sii }}"
+             class="btn btn-danger w-100 fw-bold admin-arqueo__btn-retry"
+             title="Cola DTE pendientes de sincronizar con SII">
+            <i class="fas fa-rotate me-2"></i>Sincronizar {{ pend_sii }} documento(s) retenidos
+          </a>
+          {% elif pend_sii > 0 %}
+          <button type="button" class="btn btn-danger w-100 fw-bold admin-arqueo__btn-retry" disabled>
+            Reintentar envío (API pendiente)
+          </button>
+          {% else %}
+          <span class="badge text-bg-success w-100 py-2">SII al día en este turno</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Supervisión / observaciones #}
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="admin-arqueo__widget">
+          <h2 class="h6 fw-bold text-uppercase mb-2" style="color:#94a3b8;">Supervisión</h2>
+          {% if caja.supervisor_cierre %}
+          <p class="mb-0"><i class="fas fa-signature me-2 text-success"></i>Firma: <strong>{{ caja.supervisor_cierre }}</strong></p>
+          {% else %}
+          <p class="mb-0 text-warning"><i class="fas fa-lock me-2"></i>Sin firma de supervisor registrada.</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="admin-arqueo__widget">
+          <h2 class="h6 fw-bold text-uppercase mb-2" style="color:#94a3b8;">Observaciones del cajero</h2>
+          <p class="mb-0">{{ caja.observacion_cierre or '—' }}</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
