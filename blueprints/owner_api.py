@@ -19,16 +19,16 @@ def register_owner_api_routes(app):
         base = request.url_root.rstrip('/')
         payload = {
             'id': f'{base}/owner-mobile',
-            'name': 'LhexIA Dueño',
-            'short_name': 'Dueño',
-            'description': 'Control en un vistazo — caja e inventario',
+            'name': 'Lhexia Guardián',
+            'short_name': 'Guardián',
+            'description': 'Agente móvil de control — caja e inventario en vivo',
             'start_url': f'{base}/owner-mobile',
             'scope': f'{base}/',
             'display': 'standalone',
             'display_override': ['standalone', 'fullscreen'],
             'orientation': 'portrait',
-            'background_color': '#0f172a',
-            'theme_color': '#0f172a',
+            'background_color': '#020617',
+            'theme_color': '#020617',
             'lang': 'es-CL',
             'categories': ['business', 'finance'],
             'icons': [

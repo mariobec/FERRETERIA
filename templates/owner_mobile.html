@@ -1,66 +1,76 @@
 {% extends 'base.html' %}
 
-{% block body_class %}owner-pwa-shell{% endblock %}
+{% block body_class %}owner-pwa-shell owner-guardian-shell{% endblock %}
 
 {% block extra_css %}
 <link rel="manifest" href="{{ url_for('owner_pwa_manifest') }}">
-<meta name="theme-color" content="#1e1b4b">
+<meta name="theme-color" content="#020617">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="LhexIA Dueño">
+<meta name="apple-mobile-web-app-title" content="Lhexia Guardián">
 <link rel="apple-touch-icon" href="{{ lhexia_icon_transparent_src | default(lhexia_icon_src) }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=owner-pwa-premium-3">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-1">
 {% endblock %}
 
 {% block content %}
-<div id="ownerInstallBanner" class="owner-install-banner d-none" role="region" aria-label="Instalar aplicación">
+<div class="owner-guardian-ambient" aria-hidden="true"></div>
+
+<div id="ownerInstallBanner" class="owner-install-banner d-none" role="region" aria-label="Instalar Lhexia Guardián">
   <div class="owner-install-banner-inner">
     <div class="owner-install-banner-text">
-      <strong>Instalar en el teléfono</strong>
-      <span class="d-block small opacity-90">Acceso directo «Dueño» — un toque desde el inicio</span>
+      <strong>Instalar Lhexia Guardián</strong>
+      <span class="d-block small opacity-90">Escudo de control en su teléfono — un toque</span>
     </div>
-    <button type="button" id="ownerBtnInstall" class="btn btn-warning btn-sm fw-bold text-dark d-none">Instalar</button>
+    <button type="button" id="ownerBtnInstall" class="btn btn-sm fw-bold d-none owner-install-cta">Instalar</button>
     <button type="button" id="ownerInstallDismiss" class="btn btn-sm btn-outline-light" aria-label="Cerrar">×</button>
   </div>
 </div>
 
-<header class="owner-pwa-toolbar" role="banner">
-  <div class="owner-pwa-toolbar-brand">
-    <div class="owner-pwa-toolbar-kicker">LhexIA · {{ fecha_hoy_str }}</div>
-    <div class="owner-pwa-toolbar-title">Panel dueño</div>
-    <div id="ownerPwaLiveStatus" class="owner-pwa-live">
-      <span class="owner-pwa-status-dot ok"></span>
-      <span class="owner-pwa-status-text">Conectando…</span>
+<header class="owner-pwa-toolbar owner-guardian-toolbar" role="banner">
+  <div class="owner-pwa-toolbar-brand owner-guardian-toolbar-brand">
+    <div class="owner-guardian-emblem" aria-hidden="true">
+      <img src="{{ lhexia_icon_transparent_src | default(lhexia_icon_src) }}" alt="">
+      <span class="owner-guardian-emblem-ring"></span>
+    </div>
+    <div class="owner-guardian-toolbar-copy">
+      <div class="owner-pwa-toolbar-kicker owner-guardian-kicker">Lhexia Guardián · {{ fecha_hoy_str }}</div>
+      <div class="owner-pwa-toolbar-title owner-guardian-title">Agente Móvil de Control</div>
+      <p class="owner-guardian-greeting">{{ saludo_guardian }}</p>
+      <div id="ownerPwaLiveStatus" class="owner-pwa-live owner-guardian-live">
+        <span class="owner-pwa-status-dot ok"></span>
+        <span class="owner-pwa-status-text">Conectando…</span>
+      </div>
     </div>
   </div>
-  <div class="owner-pwa-toolbar-actions">
-    <button type="button" id="ownerBtnInstallToolbar" class="btn btn-sm btn-warning text-dark fw-bold d-none" title="Instalar app">
+  <div class="owner-pwa-toolbar-actions owner-guardian-toolbar-actions">
+    <button type="button" id="ownerBtnInstallToolbar" class="btn btn-sm fw-bold d-none owner-guardian-btn-install" title="Instalar app">
       <i class="fas fa-download"></i>
     </button>
-    <button type="button" id="ownerBtnRefreshTop" class="btn btn-sm btn-outline-light" aria-label="Actualizar">
+    <button type="button" id="ownerBtnRefreshTop" class="btn btn-sm owner-guardian-btn-ghost" aria-label="Actualizar">
       <i class="fas fa-rotate"></i>
     </button>
-    <a href="{{ url_for('erp_hub') }}" class="btn btn-sm btn-outline-light fw-bold">Módulos</a>
+    <a href="{{ url_for('erp_hub') }}" class="btn btn-sm owner-guardian-btn-ghost fw-bold">Módulos</a>
   </div>
 </header>
 
 <div
-  class="owner-pwa-wrap"
+  class="owner-pwa-wrap owner-guardian-wrap"
   id="ownerPwaApp"
   data-api-url="{{ url_for('api_owner_dashboard_v1') }}"
   data-poll-ms="45000"
   data-cc-url="{{ url_for('admin_control_center') }}"
 >
-  <section class="owner-pwa-hero" aria-label="Resumen">
-    <h2>Un vistazo, un toque</h2>
-    <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }} — caja e inventario en vivo</p>
+  <section class="owner-pwa-hero owner-guardian-hero" aria-label="Resumen">
+    <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> Copiloto operacional</div>
+    <h2>Control en vivo</h2>
+    <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }} — caja e inventario bajo vigilancia</p>
   </section>
 
-  <section aria-label="Alertas operativas">
+  <section class="owner-guardian-alerts" aria-label="Alertas operativas">
     <div class="owner-semaforo-card estado-verde" id="ownerCardCaja" role="button" tabindex="0"
          data-nav-url="{{ url_for('admin_control_center') }}">
       <span class="owner-semaforo-badge">…</span>
@@ -85,8 +95,8 @@
     </div>
   </section>
 
-  <details class="owner-kpis-collapse">
-    <summary><i class="fas fa-chart-line me-1"></i> Más indicadores del día</summary>
+  <details class="owner-kpis-collapse owner-guardian-kpis">
+    <summary><i class="fas fa-chart-line owner-guardian-kpi-icon" aria-hidden="true"></i> Más indicadores del día</summary>
     <div class="owner-kpi-grid pt-2 pb-1">
       <div class="owner-card">
         <div class="owner-label">Ventas hoy</div>
@@ -117,30 +127,30 @@
     </div>
     <div class="owner-card owner-card-quiebre mt-2">
       <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
-        <h6 class="mb-0 fw-bold text-danger" style="font-size:0.92rem">
-          <i class="fas fa-triangle-exclamation me-1"></i> Quiebre stock
+        <h6 class="mb-0 owner-guardian-quiebre-title">
+          <i class="fas fa-triangle-exclamation me-1" aria-hidden="true"></i> Quiebre stock
         </h6>
-        <a class="btn btn-sm btn-outline-primary fw-bold flex-shrink-0" href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">Detalle</a>
+        <a class="btn btn-sm owner-guardian-btn-link flex-shrink-0" href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">Detalle</a>
       </div>
       <div class="owner-quiebre-row">
-        <span><strong class="text-danger">{{ quiebre_7 }}</strong><br><small>≤7d</small></span>
-        <span><strong class="text-warning">{{ quiebre_14 }}</strong><br><small>8-14d</small></span>
+        <span><strong class="owner-guardian-stat-danger">{{ quiebre_7 }}</strong><br><small>≤7d</small></span>
+        <span><strong class="owner-guardian-stat-warn">{{ quiebre_14 }}</strong><br><small>8-14d</small></span>
         <span><strong>{{ riesgo_mixto }}</strong><br><small>mixto</small></span>
       </div>
     </div>
   </details>
 </div>
 
-<footer class="owner-pwa-actions" role="contentinfo">
-  <div class="owner-pwa-actions-inner owner-pwa-actions-island">
-    <div class="row g-2 mb-2">
+<footer class="owner-pwa-actions owner-guardian-actions" role="contentinfo">
+  <div class="owner-pwa-actions-inner owner-pwa-actions-island owner-guardian-island">
+    <div class="row g-2 mb-2 align-items-center">
       <div class="col">
         <a id="ownerBtnCall" href="#" class="btn btn-owner-call w-100 disabled" aria-disabled="true">
           <i class="fas fa-phone owner-action-icon" aria-hidden="true"></i> Llamar supervisor
         </a>
       </div>
       <div class="col-auto">
-        <button type="button" id="ownerBtnMic" class="btn btn-owner-mic" title="Voz (próximamente)" aria-label="Comando de voz">
+        <button type="button" id="ownerBtnMic" class="btn btn-owner-mic" title="Interrogar al Agente (voz)" aria-label="Comando de voz IA">
           <i class="fas fa-microphone"></i>
         </button>
       </div>
@@ -153,7 +163,7 @@
       </div>
       <div class="col-6">
         <button type="button" id="ownerBtnRefresh" class="btn btn-owner-secondary w-100">
-          <i class="fas fa-rotate me-1"></i> Actualizar
+          <i class="fas fa-rotate owner-action-icon" aria-hidden="true"></i> Actualizar
         </button>
       </div>
     </div>
@@ -165,7 +175,7 @@
 <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3 owner-pwa-toasts">
   <div id="ownerMicToast" class="toast align-items-center text-bg-primary border-0" role="alert">
     <div class="d-flex">
-      <div class="toast-body">Control por voz: próximamente (SD-2).</div>
+      <div class="toast-body">Agente de voz: próximamente (SD-2).</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
@@ -174,5 +184,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=owner-pwa-premium-3"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-1"></script>
 {% endblock %}

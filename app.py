@@ -6740,6 +6740,23 @@ def inicio():
     )
 
 
+def _saludo_guardian_usuario(usuario):
+    """Saludo dinámico PWA Lhexia Guardián según rol y nombre."""
+    nombre = (getattr(usuario, 'nombre', None) or '').strip()
+    primer = (nombre.split()[0] if nombre else '') or ''
+    rol = (getattr(getattr(usuario, 'rol', None), 'nombre', None) or '').strip().lower()
+    if 'supervisor' in rol:
+        return 'Estimado Supervisor'
+    if any(k in rol for k in ('gerencia', 'dueño', 'dueno', 'admin', 'director', 'presidente')):
+        if primer:
+            honor = 'Doña' if primer.lower().endswith('a') and len(primer) > 3 else 'Don'
+            return f'¡Ojo, {honor} {primer}!'
+        return '¡Ojo al piso!'
+    if primer:
+        return f'¡Hola, {primer}!'
+    return 'Centro de mando activo'
+
+
 @app.route('/owner-mobile')
 @permisos_required('panel_gerencia', 'ver_gerencia', 'gestionar_usuarios')
 def owner_mobile():
@@ -6834,6 +6851,7 @@ def owner_mobile():
     return render_template(
         'owner_mobile.html',
         fecha_hoy_str=hoy.strftime("%Y-%m-%d"),
+        saludo_guardian=_saludo_guardian_usuario(current_user),
         ventas_hoy=ventas_hoy,
         var_ventas_hoy=var_ventas_hoy,
         transacciones_hoy=transacciones_hoy,

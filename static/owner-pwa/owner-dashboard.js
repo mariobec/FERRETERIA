@@ -27,8 +27,17 @@
   }
 
   function badgeLabel(estado) {
-    var map = { verde: 'OK', amarillo: 'Atención', rojo: 'Alerta' };
+    var map = { verde: 'OK', amarillo: 'Atención', rojo: 'Alerta Crítica' };
     return map[(estado || '').toLowerCase()] || 'Estado';
+  }
+
+  function formatCardTitle(card, est) {
+    var t = (card.titulo || '').trim();
+    if (est !== 'rojo') return t;
+    if (/alerta\s*crítica/i.test(t)) return t;
+    if (/^caja/i.test(t)) return 'Alerta Crítica: Caja';
+    if (/^inventario/i.test(t)) return 'Alerta Crítica: Inventario';
+    return t.indexOf('Alerta') >= 0 ? t : 'Alerta Crítica: ' + t;
   }
 
   function renderCard(slot, card) {
@@ -37,7 +46,7 @@
     slot.className = 'owner-semaforo-card ' + estadoClass(est);
     slot.innerHTML =
       '<span class="owner-semaforo-badge">' + badgeLabel(est) + '</span>' +
-      '<div class="owner-semaforo-title">' + escapeHtml(card.titulo || '') + '</div>' +
+      '<div class="owner-semaforo-title">' + escapeHtml(formatCardTitle(card, est)) + '</div>' +
       '<p class="owner-semaforo-msg">' + escapeHtml(card.mensaje || '') + '</p>' +
       '<div class="owner-semaforo-ts">' +
       '<span class="owner-live-dot" aria-hidden="true"></span>' +
@@ -111,7 +120,7 @@
         updateCallButton(lastMeta);
         var ab = lastMeta.alertas_abiertas;
         setLiveStatus(true, typeof ab === 'number' ? ab + ' alerta(s) operador' : 'En línea');
-        document.title = 'Dueño · ' + (j.data.tarjeta_caja && j.data.tarjeta_caja.estado === 'rojo' ? 'Alerta' : 'LhexIA');
+        document.title = 'Guardián · ' + (j.data.tarjeta_caja && j.data.tarjeta_caja.estado === 'rojo' ? 'Alerta' : 'LhexIA');
       })
       .catch(function () {
         setLiveStatus(false, 'Error al cargar');
