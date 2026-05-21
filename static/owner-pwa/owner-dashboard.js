@@ -1,5 +1,5 @@
 /**
- * PWA Dueño — polling GET /api/v1/owner/dashboard
+ * Lhexia Guardián — polling GET /api/v1/owner/dashboard (v2 multiperfil)
  */
 (function () {
   'use strict';
@@ -9,10 +9,15 @@
 
   var apiUrl = root.getAttribute('data-api-url') || '/api/v1/owner/dashboard';
   var pollMs = parseInt(root.getAttribute('data-poll-ms') || '45000', 10);
-  var ccUrl = root.getAttribute('data-cc-url') || '/admin/control-center';
   var slotCaja = document.getElementById('ownerCardCaja');
   var slotInv = document.getElementById('ownerCardInventario');
   var statusEl = document.getElementById('ownerPwaLiveStatus');
+  var greetingEl = document.getElementById('ownerGuardianGreeting');
+  var iaBox = document.getElementById('ownerGuardianIa');
+  var iaText = document.getElementById('ownerGuardianIaText');
+  var consBox = document.getElementById('ownerGuardianConsolidado');
+  var consMonto = document.getElementById('ownerGuardianConsolidadoMonto');
+  var consDetalle = document.getElementById('ownerGuardianConsolidadoDetalle');
   var btnRefresh = document.getElementById('ownerBtnRefresh');
   var btnRefreshTop = document.getElementById('ownerBtnRefreshTop');
   var btnCall = document.getElementById('ownerBtnCall');
@@ -24,6 +29,11 @@
     var e = (estado || 'verde').toLowerCase();
     if (e === 'rojo' || e === 'amarillo' || e === 'verde') return 'estado-' + e;
     return 'estado-verde';
+  }
+
+  function statusToEstado(status) {
+    var m = { red: 'rojo', green: 'verde', amber: 'amarillo' };
+    return m[(status || '').toLowerCase()] || 'verde';
   }
 
   function badgeLabel(estado) {
@@ -74,12 +84,12 @@
     if (span) span.textContent = text || (ok ? 'En línea' : 'Sin conexión');
   }
 
-  function updateCallButton(meta) {
+  function updateCallButton(tel) {
     if (!btnCall) return;
-    var tel = (meta && meta.supervisor_telefono) ? String(meta.supervisor_telefono).trim() : '';
-    lastMeta.supervisor_telefono = tel;
-    if (tel) {
-      btnCall.href = 'tel:' + tel.replace(/\s/g, '');
+    var phone = (tel != null ? String(tel) : '').trim();
+    lastMeta.supervisor_telefono = phone;
+    if (phone) {
+      btnCall.href = 'tel:' + phone.replace(/\s/g, '');
       btnCall.classList.remove('disabled');
       btnCall.setAttribute('aria-disabled', 'false');
     } else {
@@ -87,6 +97,56 @@
       btnCall.classList.add('disabled');
       btnCall.setAttribute('aria-disabled', 'true');
     }
+  }
+
+  function applyGuardianPayload(data) {
+    if (!data) return;
+
+    if (greetingEl && data.saludo) {
+      greetingEl.textContent = data.saludo;
+    }
+
+    if (iaBox && iaText) {
+      var msg = (data.mensaje_ia || '').trim();
+      if (msg) {
+        iaText.textContent = msg;
+        iaBox.classList.remove('d-none');
+        iaBox.classList.toggle('owner-guardian-ia--alert', data.status_caja === 'red');
+      } else {
+        iaBox.classList.add('d-none');
+      }
+    }
+
+    if (consBox && consMonto && consDetalle) {
+      var c = data.consolidado || {};
+      if (c.visible && c.descuadre_acumulado_fmt) {
+        consMonto.textContent = c.descuadre_acumulado_fmt;
+        var det = (c.cajas_con_descuadre || 0) + ' cierre(s) · ' +
+          (c.sucursales_monitoreadas || 1) + ' sucursal(es)';
+        consDetalle.textContent = det;
+        consBox.classList.remove('d-none');
+        consBox.classList.toggle(
+          'owner-guardian-consolidado--danger',
+          data.status_caja === 'red'
+        );
+      } else {
+        consBox.classList.add('d-none');
+      }
+    }
+
+    var tel = data.supervisor_telefono || (data.meta && data.meta.supervisor_telefono) || '';
+    updateCallButton(tel);
+
+    var critico = data.status_caja === 'red' || data.status_inventario === 'red';
+    var ab = data.meta && data.meta.alertas_abiertas;
+    var liveTxt = typeof ab === 'number'
+      ? ab + ' alerta(s) operador'
+      : (critico ? 'Atención requerida' : 'En línea');
+    setLiveStatus(!critico || data.status_caja !== 'red', liveTxt);
+
+    var perfil = data.perfil || 'guardian';
+    document.title = 'Guardián · ' +
+      (data.status_caja === 'red' ? 'Alerta' : (perfil === 'supervisor' ? 'Turno' : 'LhexIA'));
   }
 
   function showSkeleton() {
@@ -112,15 +172,13 @@
       })
       .then(function (j) {
         if (!j || j.status !== 'success' || !j.data) throw new Error('invalid_payload');
+        var data = j.data;
         var cajaSlot = document.getElementById('ownerCardCaja');
         var invSlot = document.getElementById('ownerCardInventario');
-        renderCard(cajaSlot, j.data.tarjeta_caja);
-        renderCard(invSlot, j.data.tarjeta_inventario);
-        lastMeta = j.data.meta || {};
-        updateCallButton(lastMeta);
-        var ab = lastMeta.alertas_abiertas;
-        setLiveStatus(true, typeof ab === 'number' ? ab + ' alerta(s) operador' : 'En línea');
-        document.title = 'Guardián · ' + (j.data.tarjeta_caja && j.data.tarjeta_caja.estado === 'rojo' ? 'Alerta' : 'LhexIA');
+        renderCard(cajaSlot, data.tarjeta_caja);
+        renderCard(invSlot, data.tarjeta_inventario);
+        lastMeta = data.meta || {};
+        applyGuardianPayload(data);
       })
       .catch(function () {
         setLiveStatus(false, 'Error al cargar');
@@ -166,7 +224,7 @@
         var t = new bootstrap.Toast(document.getElementById('ownerMicToast'));
         t.show();
       } else {
-        alert('Control por voz: próximamente en SD-2.');
+        alert('Agente de voz: próximamente en SD-2.');
       }
     });
   }

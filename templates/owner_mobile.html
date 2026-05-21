@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-1">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-2">
 {% endblock %}
 
 {% block content %}
@@ -39,7 +39,7 @@
     <div class="owner-guardian-toolbar-copy">
       <div class="owner-pwa-toolbar-kicker owner-guardian-kicker">Lhexia Guardián · {{ fecha_hoy_str }}</div>
       <div class="owner-pwa-toolbar-title owner-guardian-title">Agente Móvil de Control</div>
-      <p class="owner-guardian-greeting">{{ saludo_guardian }}</p>
+      <p id="ownerGuardianGreeting" class="owner-guardian-greeting">{{ saludo_guardian }}</p>
       <div id="ownerPwaLiveStatus" class="owner-pwa-live owner-guardian-live">
         <span class="owner-pwa-status-dot ok"></span>
         <span class="owner-pwa-status-text">Conectando…</span>
@@ -68,6 +68,15 @@
     <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> Copiloto operacional</div>
     <h2>Control en vivo</h2>
     <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }} — caja e inventario bajo vigilancia</p>
+    <div id="ownerGuardianConsolidado" class="owner-guardian-consolidado d-none" aria-live="polite">
+      <span class="owner-guardian-consolidado-kicker">Consolidado financiero · red</span>
+      <div id="ownerGuardianConsolidadoMonto" class="owner-guardian-consolidado-monto">—</div>
+      <div id="ownerGuardianConsolidadoDetalle" class="owner-guardian-consolidado-detalle"></div>
+    </div>
+    <div id="ownerGuardianIa" class="owner-guardian-ia d-none" role="status" aria-live="polite">
+      <i class="fas fa-robot owner-guardian-ia-icon" aria-hidden="true"></i>
+      <p id="ownerGuardianIaText" class="owner-guardian-ia-text"></p>
+    </div>
   </section>
 
   <section class="owner-guardian-alerts" aria-label="Alertas operativas">
@@ -184,5 +193,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-1"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-2"></script>
 {% endblock %}

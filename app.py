@@ -6741,20 +6741,10 @@ def inicio():
 
 
 def _saludo_guardian_usuario(usuario):
-    """Saludo dinámico PWA Lhexia Guardián según rol y nombre."""
-    nombre = (getattr(usuario, 'nombre', None) or '').strip()
-    primer = (nombre.split()[0] if nombre else '') or ''
-    rol = (getattr(getattr(usuario, 'rol', None), 'nombre', None) or '').strip().lower()
-    if 'supervisor' in rol:
-        return 'Estimado Supervisor'
-    if any(k in rol for k in ('gerencia', 'dueño', 'dueno', 'admin', 'director', 'presidente')):
-        if primer:
-            honor = 'Doña' if primer.lower().endswith('a') and len(primer) > 3 else 'Don'
-            return f'¡Ojo, {honor} {primer}!'
-        return '¡Ojo al piso!'
-    if primer:
-        return f'¡Hola, {primer}!'
-    return 'Centro de mando activo'
+    """Saludo dinámico PWA — delegado a owner_dashboard_service (v2)."""
+    from services.owner_dashboard_service import saludo_guardian_usuario
+
+    return saludo_guardian_usuario(usuario)
 
 
 @app.route('/owner-mobile')

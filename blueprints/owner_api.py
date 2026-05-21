@@ -64,18 +64,27 @@ def register_owner_api_routes(app):
     @app.route('/api/v1/owner/dashboard', methods=['GET'])
     @m.permisos_required('panel_gerencia', 'ver_gerencia', 'gestionar_usuarios')
     def api_owner_dashboard_v1():
-        if not session.get('_user_id') or not current_user.is_authenticated:
-            return jsonify(status='error', error='login_required'), 401
-
+        """Lhexia Guardián v2 — JSON multiperfil (Dueño global / Supervisor sucursal)."""
         from services.owner_dashboard_service import construir_owner_dashboard
 
+        usuario = current_user if current_user.is_authenticated else None
+        dev_mock = os.getenv('OWNER_GUARDIAN_DEV_MOCK', '').strip() == '1'
+
+        if not session.get('_user_id') or not usuario:
+            if dev_mock:
+                usuario = None
+            else:
+                return jsonify(status='error', error='login_required'), 401
+
         try:
-            data = construir_owner_dashboard(calcular_ctx_caja=m._calcular_contexto_turno_caja)
+            data = construir_owner_dashboard(
+                calcular_ctx_caja=m._calcular_contexto_turno_caja,
+                usuario=usuario,
+            )
         except Exception as ex:
             m.app.logger.exception('api_owner_dashboard_v1: %s', ex)
             return jsonify(status='error', error='dashboard_error'), 500
 
         resp = jsonify(status='success', data=data)
-        if request.args.get('nocache') == '1':
-            resp.headers['Cache-Control'] = 'no-store'
+        resp.headers['Cache-Control'] = 'no-store'
         return resp

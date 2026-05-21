@@ -32,18 +32,27 @@ class TestOwnerDashboardApi:
         j = r.get_json()
         assert j.get('status') == 'success'
         data = j.get('data') or {}
-        for key in ('tarjeta_caja', 'tarjeta_inventario', 'meta'):
-            assert key in data
+        for key in (
+            'tarjeta_caja', 'tarjeta_inventario', 'meta',
+            'perfil', 'nombre_usuario', 'saludo', 'status_caja', 'status_inventario',
+            'mensaje_ia', 'supervisor_telefono', 'alcance', 'consolidado',
+        ):
+            assert key in data, f'falta clave v2: {key}'
         caja = data['tarjeta_caja']
         inv = data['tarjeta_inventario']
         assert caja.get('estado') in _SEMÁFOROS
         assert inv.get('estado') in _SEMÁFOROS
+        assert data['status_caja'] in ('red', 'green', 'amber')
+        assert data['status_inventario'] in ('red', 'green', 'amber')
+        assert data['perfil'] in ('alta_gerencia', 'supervisor', 'administrador', 'mock_dueno')
         assert caja.get('titulo')
         assert inv.get('titulo')
         assert 'mensaje' in caja
         assert 'timestamp' in caja
         assert 'accion_requerida' in caja
+        assert 'mensaje_ia' in data and len(data['mensaje_ia']) > 0
         assert 'meta' in data and 'alertas_abiertas' in data['meta']
+        assert data['meta'].get('version') == 'guardian_v2'
 
     def test_dashboard_nocache_header(self, app_client):
         r = app_client.get('/api/v1/owner/dashboard?nocache=1')
@@ -94,14 +103,14 @@ class TestOwnerDashboardApi:
         assert r.status_code == 200
         assert b'ownerPwaApp' in r.data
         assert b'owner-dashboard.js' in r.data
-        assert b'owner-pwa-3' in r.data or b'owner-pwa-4' in r.data
+        assert b'guardian' in r.data or b'owner-pwa' in r.data
         assert b'owner-pwa-toolbar' in r.data
         assert b'ownerBtnInstall' in r.data
         assert b'owner-semaforo-card' in r.data
         rm = app_client.get('/owner-pwa/manifest.webmanifest')
         assert rm.status_code == 200
         mj = rm.get_json()
-        assert mj.get('name') == 'LhexIA Dueño'
+        assert mj.get('name') == 'Lhexia Guardián'
         icons = mj.get('icons') or []
         assert any(i.get('sizes') == '512x512' for i in icons)
 

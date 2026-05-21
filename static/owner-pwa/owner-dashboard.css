@@ -841,6 +841,89 @@ body.owner-guardian-shell .toast.text-bg-primary {
   border: 1px solid var(--guardian-glass-border);
 }
 
+/* Consolidado red (solo alta gerencia) */
+.owner-guardian-consolidado {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+}
+
+.owner-guardian-consolidado--danger {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow: 0 0 24px rgba(244, 63, 94, 0.15);
+}
+
+.owner-guardian-consolidado-kicker {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #a5b4fc;
+  margin-bottom: 4px;
+}
+
+.owner-guardian-consolidado--danger .owner-guardian-consolidado-kicker {
+  color: #fda4af;
+}
+
+.owner-guardian-consolidado-monto {
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 5vw, 1.5rem);
+  font-weight: 900;
+  color: #f8fafc;
+  line-height: 1.15;
+}
+
+.owner-guardian-consolidado--danger .owner-guardian-consolidado-monto {
+  color: #fecdd3;
+}
+
+.owner-guardian-consolidado-detalle {
+  font-size: 0.78rem;
+  color: var(--guardian-muted);
+  margin-top: 4px;
+}
+
+/* Mensaje Agente IA */
+.owner-guardian-ia {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--guardian-glass-border);
+}
+
+.owner-guardian-ia--alert {
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.08);
+}
+
+.owner-guardian-ia-icon {
+  color: #818cf8;
+  font-size: 1.1rem;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.owner-guardian-ia--alert .owner-guardian-ia-icon {
+  color: #fb7185;
+}
+
+.owner-guardian-ia-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
 @media (min-width: 768px) {
   .owner-guardian-wrap {
     padding-bottom: 188px;
