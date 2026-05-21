@@ -1,0 +1,147 @@
+/* PWA Dueño — semáforo + acciones táctiles */
+body.owner-pwa-shell .app-sidebar {
+  display: none !important;
+}
+body.owner-pwa-shell main.app-main {
+  flex: 0 0 100%;
+  max-width: 100%;
+  width: 100%;
+}
+body.owner-pwa-shell .app-topbar {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.owner-pwa-wrap {
+  max-width: 520px;
+  margin: 0 auto;
+  padding-bottom: 5.5rem;
+}
+
+.owner-pwa-hero {
+  border-radius: 16px;
+  padding: 16px 18px;
+  color: #fff;
+  background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 55%, #334155 100%);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+}
+
+.owner-pwa-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  animation: owner-pwa-pulse 2s ease-in-out infinite;
+}
+.owner-pwa-status-dot.ok { background: #22c55e; }
+.owner-pwa-status-dot.err { background: #ef4444; animation: none; }
+
+@keyframes owner-pwa-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.owner-semaforo-card {
+  border-radius: 16px;
+  padding: 18px 16px;
+  min-height: 132px;
+  color: #0f172a;
+  border: 2px solid transparent;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.owner-semaforo-card:active {
+  transform: scale(0.98);
+}
+.owner-semaforo-card.estado-verde {
+  background: linear-gradient(160deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #6ee7b7;
+}
+.owner-semaforo-card.estado-amarillo {
+  background: linear-gradient(160deg, #fffbeb 0%, #fde68a 100%);
+  border-color: #fbbf24;
+}
+.owner-semaforo-card.estado-rojo {
+  background: linear-gradient(160deg, #fef2f2 0%, #fecaca 100%);
+  border-color: #f87171;
+}
+
+.owner-semaforo-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.estado-verde .owner-semaforo-badge { background: #059669; color: #fff; }
+.estado-amarillo .owner-semaforo-badge { background: #d97706; color: #fff; }
+.estado-rojo .owner-semaforo-badge { background: #dc2626; color: #fff; }
+
+.owner-semaforo-title {
+  font-size: 1.15rem;
+  font-weight: 900;
+  margin: 10px 0 6px;
+  line-height: 1.2;
+}
+.owner-semaforo-msg {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: #334155;
+  margin: 0;
+}
+.owner-semaforo-ts {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 10px;
+}
+
+.owner-pwa-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1040;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, #f8fafc 24%, #f8fafc 100%);
+  max-width: 520px;
+  margin: 0 auto;
+}
+.owner-pwa-actions .btn {
+  min-height: 52px;
+  font-weight: 800;
+  border-radius: 14px;
+  font-size: 0.95rem;
+}
+.owner-pwa-actions .btn-owner-call {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+.owner-pwa-actions .btn-owner-mic {
+  min-width: 52px;
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.owner-kpis-collapse summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #475569;
+  padding: 8px 0;
+}
+
+.owner-pwa-skeleton {
+  border-radius: 16px;
+  min-height: 132px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: owner-pwa-shimmer 1.2s infinite;
+}
+@keyframes owner-pwa-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

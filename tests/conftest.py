@@ -247,14 +247,20 @@ def _normalizar_admin_qa_para_http():
 
 
 def _asegurar_caja_abierta_qa():
+    """Caja Abierta con fecha de hoy (evita redirect a cerrar_caja en @caja_requerida)."""
+    ahora = datetime.now()
     caja = m.Caja.query.filter_by(estado='Abierta').order_by(m.Caja.id.desc()).first()
     if caja:
+        fa = caja.fecha_apertura.date() if caja.fecha_apertura else None
+        if fa and fa < ahora.date():
+            caja.fecha_apertura = ahora
+            db.session.commit()
         return caja
     caja = m.Caja(
         monto_inicial=50000,
         usuario_apertura=QA_USER,
         estado='Abierta',
-        fecha_apertura=datetime.now(),
+        fecha_apertura=ahora,
     )
     db.session.add(caja)
     db.session.commit()
@@ -379,13 +385,7 @@ def proveedor_test(app_ctx, limpieza_qa):
 
 @pytest.fixture(scope='session')
 def caja_abierta(app_ctx, limpieza_qa):
-    caja = m.Caja.query.filter_by(estado='Abierta').order_by(m.Caja.id.desc()).first()
-    if not caja:
-        caja = m.Caja(monto_inicial=50000, usuario_apertura=QA_USER,
-                      estado='Abierta', fecha_apertura=datetime.now())
-        db.session.add(caja)
-        db.session.commit()
-    return caja
+    return _asegurar_caja_abierta_qa()
 
 
 @pytest.fixture()

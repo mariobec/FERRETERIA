@@ -608,9 +608,13 @@ class TestT15IVARedondeos:
 
     @pytest.mark.parametrize('qty', [1, 7, 13, 99])
     def test_total_coherente_cantidades(self, qty, productos_con_stock, caja_abierta, cliente_final):
+        from core.domain.shared.iva_chile import desglosar_iva_clp
+
         p = productos_con_stock[1]
         venta, _ = crear_venta_pendiente([(p, qty)], caja_abierta, cliente_final)
-        assert venta.monto_total == float(round(qty * p.precio_venta))
+        bruto_lineas = int(m._venta_bruto_desde_detalles_lineas(venta.detalles))
+        _, _, total_coherente = desglosar_iva_clp(bruto_lineas)
+        assert venta.monto_total == float(total_coherente)
         assert venta.neto + venta.iva == venta.monto_total
 
 

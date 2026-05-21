@@ -6732,9 +6732,9 @@ def inicio():
 
 
 @app.route('/owner-mobile')
-@login_required
+@permisos_required('panel_gerencia', 'ver_gerencia', 'gestionar_usuarios')
 def owner_mobile():
-    """Vista mobile-first para propietario (resumen ejecutivo de 1 minuto)."""
+    """PWA dueño: semáforo API + KPIs colapsables (mobile-first)."""
     hoy = datetime.now().date()
     ayer = hoy - timedelta(days=1)
 
@@ -23311,12 +23311,14 @@ def api_admin_facturacion_reintentar(venta_id):
 from blueprints.bodega import register_bodega_routes
 from blueprints.c360 import register_c360_routes
 from blueprints.caja import register_caja_routes
+from blueprints.owner_api import register_owner_api_routes
 from blueprints.pos import register_pos_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
 register_pos_routes(app)
 register_c360_routes(app)
+register_owner_api_routes(app)
 
 
 # --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---

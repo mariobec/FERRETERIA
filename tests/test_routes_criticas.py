@@ -51,14 +51,10 @@ def _get_admin_user():
 
 
 def _ensure_caja_abierta():
-    """Garantiza que haya caja abierta para rutas @caja_requerida."""
-    caja = m.Caja.query.filter_by(estado='Abierta').order_by(m.Caja.id.desc()).first()
-    if not caja:
-        caja = m.Caja(monto_inicial=50000, usuario_apertura=QA_USER,
-                      estado='Abierta', fecha_apertura=datetime.now())
-        db.session.add(caja)
-        db.session.commit()
-    return caja
+    """Garantiza caja Abierta con fecha de hoy (POS no redirige a cerrar_caja)."""
+    from tests.conftest import _asegurar_caja_abierta_qa
+
+    return _asegurar_caja_abierta_qa()
 
 
 # =====================================================================

@@ -98,10 +98,14 @@ class TestCasuisticasPOS:
                 'pos_exigir_rut': '1',
                 'punto_retiro': 'Tienda',
             },
-            follow_redirects=True,
+            follow_redirects=False,
         )
-        assert rv.status_code == 200
-        assert b'RUT' in rv.data or b'cliente final' in rv.data.lower()
+        assert rv.status_code in (302, 303)
+        loc = (rv.location or '').lower()
+        assert 'punto_venta' in loc
+        with app_client.session_transaction() as sess:
+            flashes = [str(msg).lower() for _cat, msg in (sess.get('_flashes') or [])]
+        assert any('rut' in f for f in flashes)
 
     def test_pos_003_escanear_tras_vale_pendiente(self, app_client, productos_con_stock, caja_abierta, cliente_final):
         """POS-003 — alias documentado (implementación en test_pos_live_wall)."""

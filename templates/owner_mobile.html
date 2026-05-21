@@ -1,15 +1,16 @@
 {% extends 'base.html' %}
 
+{% block body_class %}owner-pwa-shell{% endblock %}
+
 {% block extra_css %}
+<link rel="manifest" href="{{ url_for('owner_pwa_manifest') }}">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LhexIA Dueño">
+<link rel="apple-touch-icon" href="{{ lhexia_icon_src }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=owner-pwa-1">
 <style>
   .owner-wrap { max-width: 760px; margin: 0 auto; }
-  .owner-hero {
-    border-radius: 14px;
-    padding: 14px 16px;
-    color: #fff;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-    box-shadow: 0 10px 24px rgba(15, 23, 42, .2);
-  }
   .owner-card {
     border: 1px solid #e7ebf0;
     border-radius: 12px;
@@ -18,116 +19,143 @@
     box-shadow: 0 4px 12px rgba(15, 23, 42, .06);
   }
   .owner-label { font-size: .73rem; color: #6b7280; text-transform: uppercase; font-weight: 700; }
-  .owner-value { font-size: 1.5rem; font-weight: 900; color: #111827; line-height: 1.1; margin-top: 4px; }
+  .owner-value { font-size: 1.35rem; font-weight: 900; color: #111827; line-height: 1.1; margin-top: 4px; }
   .owner-sub { font-size: .82rem; color: #64748b; margin-top: 2px; }
   .owner-risk { border-left: 4px solid #dc3545; }
   .owner-medium { border-left: 4px solid #fd7e14; }
-  .owner-actions .btn { min-height: 48px; font-weight: 800; border-radius: 12px; }
-  .sticky-owner-actions {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-    background: linear-gradient(180deg, rgba(255,255,255,0), #f8fafc 28%);
-    padding-top: 10px;
-  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="owner-wrap">
-  <div class="owner-hero mb-3">
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+<div
+  class="owner-pwa-wrap"
+  id="ownerPwaApp"
+  data-api-url="{{ url_for('api_owner_dashboard_v1') }}"
+  data-poll-ms="45000"
+  data-cc-url="{{ url_for('admin_control_center') }}"
+>
+  <div class="owner-pwa-hero mb-3">
+    <div class="d-flex justify-content-between align-items-start gap-2">
       <div>
-        <div class="small opacity-75">Vista propietario · {{ fecha_hoy_str }}</div>
-        <h4 class="mb-0">Resumen ejecutivo en 1 minuto</h4>
-      </div>
-      <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-light fw-bold">
-        Ir a panel operativo
-      </a>
-    </div>
-  </div>
-
-  <div class="row g-2 mb-3">
-    <div class="col-6">
-      <div class="owner-card">
-        <div class="owner-label">Ventas hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de ventas del día calendario actual (excluye estado Abierta).">?</span></div>
-        <div class="owner-value">${{ "{:,.0f}".format(ventas_hoy).replace(",", ".") }}</div>
-        <div class="owner-sub">
-          {% if var_ventas_hoy is not none %}
-            {{ '+' if var_ventas_hoy > 0 else '' }}{{ "{:.1f}".format(var_ventas_hoy) }}% vs ayer
-          {% else %}
-            Sin base de ayer
-          {% endif %}
+        <div class="small opacity-75">LhexIA Dueño · {{ fecha_hoy_str }}</div>
+        <h4 class="mb-1 fw-bold">Un vistazo, un toque</h4>
+        <div id="ownerPwaLiveStatus" class="small opacity-90">
+          <span class="owner-pwa-status-dot ok"></span>
+          <span class="owner-pwa-status-text">Conectando…</span>
         </div>
       </div>
-    </div>
-    <div class="col-6">
-      <div class="owner-card">
-        <div class="owner-label">Caja comercial <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de transacciones registradas hoy (mismo criterio que el panel operativo).">?</span></div>
-        <div class="owner-value">{{ transacciones_hoy }}</div>
-        <div class="owner-sub">Transacciones hoy</div>
-      </div>
-    </div>
-    <div class="col-6">
-      <div class="owner-card">
-        <div class="owner-label">Cartera por cobrar <span class="kpi-help" data-bs-toggle="tooltip" title="Suma de saldo deudor vigente en clientes con crédito.">?</span></div>
-        <div class="owner-value">${{ "{:,.0f}".format(dinero_credito).replace(",", ".") }}</div>
-        <div class="owner-sub">Clientes con saldo vigente</div>
-      </div>
-    </div>
-    <div class="col-6">
-      <div class="owner-card">
-        <div class="owner-label">Órdenes pendientes <span class="kpi-help" data-bs-toggle="tooltip" title="Órdenes de compra en estados Borrador, Enviada o Parcial.">?</span></div>
-        <div class="owner-value">{{ oc_pendientes }}</div>
-        <div class="owner-sub">OC por gestionar</div>
-      </div>
+      <a href="{{ url_for('erp_hub') }}" class="btn btn-sm btn-outline-light fw-bold">Módulos</a>
     </div>
   </div>
 
-  <div class="owner-card mb-3">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h6 class="mb-0 fw-bold"><i class="fas fa-triangle-exclamation text-danger me-1"></i> Riesgo de abastecimiento <span class="kpi-help" data-bs-toggle="tooltip" title="Resumen del mismo motor de quiebre que el inicio: cobertura en días y sugerencia de compra.">?</span></h6>
-      <a class="btn btn-sm btn-outline-primary fw-bold" href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">Ver detalle</a>
+  <div class="mb-2">
+    <div class="owner-semaforo-card estado-verde mb-3" id="ownerCardCaja" role="button" tabindex="0"
+         onclick="window.location.href='{{ url_for('admin_control_center') }}'">
+      <span class="owner-semaforo-badge">…</span>
+      <div class="owner-semaforo-title">Caja</div>
+      <p class="owner-semaforo-msg">Cargando estado de caja…</p>
+      <div class="owner-semaforo-ts"><i class="fas fa-clock me-1"></i>—</div>
     </div>
-    <div class="row g-2 mb-2">
-      <div class="col-4"><div class="owner-card owner-risk"><div class="owner-label">Quiebre <= 7d</div><div class="owner-value text-danger">{{ quiebre_7 }}</div></div></div>
-      <div class="col-4"><div class="owner-card owner-medium"><div class="owner-label">Quiebre 8-14d</div><div class="owner-value text-warning">{{ quiebre_14 }}</div></div></div>
-      <div class="col-4"><div class="owner-card"><div class="owner-label">Compra sugerida</div><div class="owner-value text-success">{{ "{:,.0f}".format(compra_sugerida_total).replace(",", ".") }}</div></div></div>
+    <div class="owner-semaforo-card estado-verde mb-3" id="ownerCardInventario" role="button" tabindex="0"
+         onclick="window.location.href='{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}'">
+      <span class="owner-semaforo-badge">…</span>
+      <div class="owner-semaforo-title">Inventario</div>
+      <p class="owner-semaforo-msg">Cargando inventario…</p>
+      <div class="owner-semaforo-ts"><i class="fas fa-clock me-1"></i>—</div>
     </div>
-    <div class="small text-muted mb-2">Riesgo mixto (stock crítico + rotación reciente): <strong>{{ riesgo_mixto }}</strong></div>
-    <div class="small text-muted mb-1">Top riesgo inmediato</div>
-    <div class="d-grid gap-2">
-      {% for r in top_quiebre %}
-      <div class="owner-card {% if r.nivel == 'CRITICO' %}owner-risk{% else %}owner-medium{% endif %}">
-        <div class="d-flex justify-content-between align-items-center gap-2">
-          <div class="fw-semibold">{{ r.producto }}</div>
-          <div class="text-end small text-muted">
-            Cobertura: {{ r.cobertura }}d · Sugerido: {{ r.sugerido }} · {{ r.motivo }}
+  </div>
+
+  <details class="owner-kpis-collapse mb-3">
+    <summary><i class="fas fa-chart-line me-1"></i> Más indicadores del día</summary>
+    <div class="owner-wrap pt-2">
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <div class="owner-card">
+            <div class="owner-label">Ventas hoy</div>
+            <div class="owner-value">${{ "{:,.0f}".format(ventas_hoy).replace(",", ".") }}</div>
+            <div class="owner-sub">
+              {% if var_ventas_hoy is not none %}
+                {{ '+' if var_ventas_hoy > 0 else '' }}{{ "{:.1f}".format(var_ventas_hoy) }}% vs ayer
+              {% else %}
+                Sin base de ayer
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="owner-card">
+            <div class="owner-label">Transacciones</div>
+            <div class="owner-value">{{ transacciones_hoy }}</div>
+            <div class="owner-sub">Hoy</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="owner-card">
+            <div class="owner-label">Cartera</div>
+            <div class="owner-value">${{ "{:,.0f}".format(dinero_credito).replace(",", ".") }}</div>
+            <div class="owner-sub">Por cobrar</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="owner-card">
+            <div class="owner-label">OC pendientes</div>
+            <div class="owner-value">{{ oc_pendientes }}</div>
+            <div class="owner-sub">Compras</div>
           </div>
         </div>
       </div>
-      {% else %}
-      <div class="small text-muted">Sin quiebre relevante en el horizonte actual.</div>
-      {% endfor %}
+      <div class="owner-card mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0 fw-bold text-danger"><i class="fas fa-triangle-exclamation me-1"></i> Quiebre stock</h6>
+          <a class="btn btn-sm btn-outline-primary fw-bold" href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">Detalle</a>
+        </div>
+        <div class="row g-2 small">
+          <div class="col-4"><strong class="text-danger">{{ quiebre_7 }}</strong> ≤7d</div>
+          <div class="col-4"><strong class="text-warning">{{ quiebre_14 }}</strong> 8-14d</div>
+          <div class="col-4"><strong>{{ riesgo_mixto }}</strong> mixto</div>
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div class="owner-pwa-actions">
+  <div class="row g-2 mb-2">
+    <div class="col">
+      <a id="ownerBtnCall" href="#" class="btn btn-owner-call w-100 disabled" aria-disabled="true">
+        <i class="fas fa-phone me-1"></i> Supervisor
+      </a>
+    </div>
+    <div class="col-auto">
+      <button type="button" id="ownerBtnMic" class="btn btn-owner-mic" title="Voz (próximamente)" aria-label="Comando de voz">
+        <i class="fas fa-microphone"></i>
+      </button>
     </div>
   </div>
-
-  <div class="sticky-owner-actions owner-actions">
-    {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
-    <div class="row g-2 pb-1">
-      <div class="col-6"><a href="{{ url_for('panel_dueno') }}" class="btn btn-dark w-100 fw-bold"><i class="fas fa-chart-pie me-1"></i>Panel ejecutivo</a></div>
-      <div class="col-6"><a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="btn btn-primary w-100 fw-bold"><i class="fas fa-robot me-1"></i>ROI IA</a></div>
+  <div class="row g-2">
+    <div class="col-6">
+      <a href="{{ url_for('admin_control_center') }}" class="btn btn-outline-dark w-100">
+        <i class="fas fa-tower-broadcast me-1"></i> Control
+      </a>
     </div>
-    {% endif %}
-    <div class="row g-2 pb-2">
-      <div class="col-4"><a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning w-100">Cobrar vales</a></div>
-      <div class="col-4"><a href="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}" class="btn btn-outline-primary w-100">IA compras</a></div>
-      {% if modulo_activo('bi') %}
-      <div class="col-4"><a href="{{ url_for('business_intelligence', from='inicio') }}" class="btn btn-outline-dark w-100">BI reportes</a></div>
-      {% else %}
-      <div class="col-4"><a href="{{ url_for('mostrar_ventas', from='inicio') }}" class="btn btn-outline-secondary w-100">Ventas</a></div>
-      {% endif %}
+    <div class="col-6">
+      <button type="button" id="ownerBtnRefresh" class="btn btn-outline-primary w-100">
+        <i class="fas fa-rotate me-1"></i> Actualizar
+      </button>
     </div>
   </div>
 </div>
+
+<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="margin-bottom: 7rem;">
+  <div id="ownerMicToast" class="toast align-items-center text-bg-primary border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body">Control por voz: próximamente (SD-2).</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=owner-pwa-1"></script>
 {% endblock %}

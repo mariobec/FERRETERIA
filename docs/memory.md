@@ -940,4 +940,33 @@ pytest tests/test_agente_operador.py tests/test_agente_operador_v02.py tests/tes
 
 ---
 
-*Última actualización: 2026-05-21 (noche) — Agentes v0.1+v0.2 en prod; cierre ciego/visible opcional; Ollama pendiente hardware SD. Prioridad: SD-1 piso. FE en pausa.*
+## PWA Dueño v0.1–v0.2 (2026-05-21)
+
+**Objetivo:** control “un vistazo y un toque” en móvil para el dueño (SD-1), sin FastAPI ni segundo backend.
+
+| Pieza | Ubicación |
+|-------|-----------|
+| API semáforo | `GET /api/v1/owner/dashboard` — `blueprints/owner_api.py`, `services/owner_dashboard_service.py` |
+| Vista PWA | `GET /owner-mobile` — `templates/owner_mobile.html` (sidebar oculto, tarjetas grandes) |
+| Front poll | `static/owner-pwa/owner-dashboard.js` — cada 45 s `?nocache=1` |
+| Manifest / SW | `GET /owner-pwa/manifest.webmanifest`, `GET /owner-pwa/sw.js` |
+| Fuente alertas | `agente_ejecuciones` (Operador) + descuadres caja (`control_center_service`) + SKU &lt; 5 |
+
+**Permisos:** `panel_gerencia`, `ver_gerencia`, `gestionar_usuarios` (admin bypass).
+
+**Env:**
+
+```env
+OWNER_SUPERVISOR_TELEFONO=+569XXXXXXXX   # botón Llamar supervisor (tel:)
+OWNER_PWA_SUCURSAL_LABEL=Santo Domingo   # texto tarjeta inventario
+```
+
+**Tests smoke:** `pytest tests/test_owner_dashboard_api.py -m smoke -q`
+
+**Instalar en teléfono:** Chrome → `/owner-mobile` → “Añadir a pantalla de inicio” (usa manifest).
+
+**Pendiente SD-2:** micrófono / voz; token API sin cookie si se requiere app nativa.
+
+---
+
+*Última actualización: 2026-05-21 — PWA Dueño API + UI Fase 2; smoke 105+; agentes y cierre caja en prod. Prioridad: SD-1 piso. FE en pausa.*

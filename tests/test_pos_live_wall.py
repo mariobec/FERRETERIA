@@ -225,14 +225,10 @@ class TestPosLiveWall:
         _ensure_caja_abierta()
         caja = m.obtener_caja_activa()
         app_client.get('/punto_venta')
-        with m.app.test_request_context():
-            from flask_login import login_user
-            admin = m.Usuario.query.join(m.Rol).filter(
-                m.Rol.nombre.in_(['Admin', 'admin', 'Administrador', 'administrador', 'SuperAdmin'])
-            ).first()
-            if admin:
-                login_user(admin)
-            u = m._nombre_usuario_pos_actual()
+        with app_client.session_transaction() as sess:
+            uid = int(sess.get('_user_id') or 0)
+        vendedor = m.Usuario.query.get(uid) if uid else None
+        u = ((vendedor.nombre if vendedor else None) or '').strip() or 'POS'
         tok = m.pos_live_wall_token_create_station(caja.id, u)
         p = productos_con_stock[0]
         app_client.post(
