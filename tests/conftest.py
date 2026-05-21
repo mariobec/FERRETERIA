@@ -110,6 +110,11 @@ def _borrar_cliente_test(sa_text):
                 except Exception:
                     db.session.rollback()
             try:
+                db.session.execute(sa_text(
+                    "DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': vt})
+            except Exception:
+                db.session.rollback()
+            try:
                 db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
             except Exception:
                 db.session.rollback()
@@ -147,6 +152,11 @@ def _limpiar_datos_qa():
             except Exception:
                 db.session.rollback()
             db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': vt})
+            try:
+                db.session.execute(sa_text(
+                    "DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': vt})
+            except Exception:
+                db.session.rollback()
             db.session.execute(sa_text("DELETE FROM movimiento_caja WHERE concepto LIKE :p"), {'p': '%QA test%'})
             db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
 
@@ -164,6 +174,11 @@ def _limpiar_datos_qa():
                 except Exception:
                     db.session.rollback()
                 db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': dvt})
+                try:
+                    db.session.execute(sa_text(
+                        "DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': dvt})
+                except Exception:
+                    db.session.rollback()
                 db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': dvt})
             db.session.execute(sa_text("DELETE FROM movimientos_inventario WHERE id_producto IN :p"), {'p': pt})
             db.session.execute(sa_text("DELETE FROM stock_por_almacen WHERE id_producto IN :p"), {'p': pt})

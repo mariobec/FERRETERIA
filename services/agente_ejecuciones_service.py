@@ -44,6 +44,78 @@ def asegurar_tabla() -> bool:
     return _asegurar_tabla_agente_ejecuciones()
 
 
+def parse_payload_json(raw: str | None) -> dict[str, Any]:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def listar_alertas_sin_enriquecer(*, limite: int = 5) -> list:
+    """Alertas operador abiertas pendientes de enriquecimiento semántico (v0.2)."""
+    AgenteEjecucion = _model()
+    if not asegurar_tabla():
+        return []
+    limite = max(1, min(int(limite or 5), 10))
+    candidatas = (
+        AgenteEjecucion.query.filter_by(
+            agente_nombre='operador',
+            tipo=TIPO_ALERTA,
+            estado=EST_ALERTA_ABIERTA,
+        )
+        .order_by(AgenteEjecucion.created_at.asc())
+        .limit(limite * 4)
+        .all()
+    )
+    out = []
+    for row in candidatas:
+        p = parse_payload_json(row.payload_json)
+        if p.get('enriquecido_semantico'):
+            continue
+        out.append(row)
+        if len(out) >= limite:
+            break
+    return out
+
+
+def aplicar_enriquecimiento_semantico(
+    registro_id: int,
+    *,
+    cuerpo_enriquecido: str,
+    tokens_total: int = 0,
+    titulo_opcional: str | None = None,
+    modelo: str | None = None,
+) -> bool:
+    """Actualiza cuerpo/tokens y marca payload enriquecido (worker local)."""
+    row = obtener_por_id(registro_id)
+    if not row or row.tipo != TIPO_ALERTA:
+        return False
+    ahora = datetime.now()
+    payload_prev = parse_payload_json(row.payload_json)
+    if not payload_prev.get('cuerpo_base_v01'):
+        payload_prev['cuerpo_base_v01'] = row.cuerpo
+    payload_prev['enriquecido_semantico'] = True
+    payload_prev['enriquecido_at'] = ahora.isoformat()
+    if modelo:
+        payload_prev['ollama_model'] = modelo[:64]
+    row.cuerpo = (cuerpo_enriquecido or row.cuerpo or '')[:10000]
+    if titulo_opcional:
+        row.titulo = (titulo_opcional or row.titulo)[:255]
+    row.tokens_total = int(tokens_total or 0)
+    row.costo_api_usd = 0
+    row.payload_json = json.dumps(payload_prev, ensure_ascii=False)
+    row.updated_at = ahora
+    try:
+        _db().session.commit()
+        return True
+    except Exception:
+        _db().session.rollback()
+        return False
+
+
 def crear_registro(
     *,
     agente_nombre: str,
