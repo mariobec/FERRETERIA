@@ -855,4 +855,89 @@ python scripts/apply_sql_neon.py sql/2026_05_21_rendimiento_sd1_postgresql.sql
 
 ---
 
-*Última actualización: 2026-05-21 — Repo: casuísticas `79220c9`, IVA/FE `d9a9594`, offline F0 `dbe03ed`. Prioridad única: SD-1 piso. FE y offline F1+ en pausa.*
+---
+
+## Checkpoint sesión 2026-05-21 — Agentes IA + caja opcional (retomar mañana)
+
+**Transcripción Cursor (chat completo):** `agent-transcripts/ea00bfe0-08c5-40c5-a002-e6b877474d7a/ea00bfe0-08c5-40c5-a002-e6b877474d7a.jsonl`  
+**Resumen ejecutivo:** `docs/planes/06-agentes-ia/CHECKPOINT_RETOMAR_2026_05_21.md`
+
+### Commits en `main` (pushed a `origin`)
+
+| SHA | Mensaje |
+|-----|---------|
+| `f10f646` | `feat(agentes): tabla agente_ejecuciones y Operador v0.1 en Control Center` |
+| `6443b4e` | `feat(agentes): v0.2 Ollama worker local, contexto y pgvector` |
+| `de947c0` | `feat(caja): cierre opcional ciego/visible en config empresa` |
+
+**Prod:** Render auto-deploy desde `main` → [www.lhexia.cl](https://www.lhexia.cl)
+
+### LhexIA Operador — estado
+
+| Versión | Qué hace | ¿Requiere Ollama? |
+|---------|----------|-------------------|
+| **v0.1** | Reglas SQL: vales `Pendiente` > N h, cajas cerradas con descuadre | No |
+| **v0.2** | Worker PC sucursal enriquece `cuerpo` vía Ollama (batch 5–10) | **Opcional** — `AGENTE_OLLAMA_ENABLED=0` en Render |
+
+**Rutas:** `GET /admin/control-center`, `POST /admin/agente-operador/escanear`  
+**Scripts:** `scripts/agente_operador_scan.py`, `scripts/agente_operador_enrich.py` (solo PC i5 16GB)  
+**Tabla:** `agente_ejecuciones` — migración `sql/2026_05_21_agente_ejecuciones.sql`  
+**Docs:** `docs/planes/06-agentes-ia/AGENTE_EJECUCIONES_ESTADOS.md`, `docs/manuales/INSTALACION_OLLAMA_LOCAL.md`  
+**Vectorial (fase siguiente):** `sql/2026_05_21_lhexia_vector.sql` → `lhexia_vector_chunks` (pgvector; indexar productos después)
+
+**Orden agentes acordado (4 IAs asesoría):** 1 Operador → 2 Comercial → 3 Guía → 4 Pulso Marca (congelado post-SD-1).  
+**Consolidación:** `docs/planes/06-agentes-ia/CONSOLIDACION_4_AGENTES_ASESORIA.md`
+
+**Env agentes (Render = Ollama OFF):**
+
+```env
+AGENTE_OLLAMA_ENABLED=0
+AGENTE_VALE_HORAS_UMBRAL=3
+AGENTE_CIERRE_DIF_UMBRAL_CLP=5000
+# PC sucursal cuando exista hardware:
+# AGENTE_OLLAMA_ENABLED=1
+# OLLAMA_BASE_URL=http://127.0.0.1:11434
+# OLLAMA_MODEL=qwen2.5:7b-instruct-q4_K_M
+```
+
+**Cuidado prod:** primer «Escanear ahora» masivo puede crear muchas alertas si hay vales `Pendiente` históricos — escanear en horario bajo o cerrar lote viejo.
+
+### Cierre de caja — modo opcional (nuevo)
+
+| Modo | Config | Pantalla `/cerrar_caja` |
+|------|--------|-------------------------|
+| **ciego** (default) | `cierre_caja_modo: ciego` en empresa | Sin teórico (PLAT-1.1) |
+| **visible** | Admin → Datos de empresa → Modo visible | Resumen + efectivo esperado en gaveta |
+
+**Servicio:** `services/cierre_caja_config_service.py`  
+**Override env:** `CIERRE_CAJA_MODO=ciego|visible`  
+**Persistencia cierre:** `caja.modo_cierre_arqueo` → `payload_json.modo_cierre` en alertas Operador  
+**Tests:** `tests/test_cierre_caja_modo.py`, `tests/test_agente_operador*.py` (13 tests agentes+caja modo)
+
+### Pendiente / no bloquea SD-1
+
+- [ ] Instalar Ollama en PC sucursal (i5 16GB) + cron `agente_operador_enrich.py` — **después** de estabilizar piso
+- [ ] Ejecutar en Neon: `sql/2026_05_21_lhexia_vector.sql` (pgvector)
+- [ ] Switch UI futuro en admin si se quiere más visible que radios en `/admin/empresa`
+- [ ] Agente Comercial (HITL) y Guía (RAG) — post SD-1
+- [ ] FE Maullín — **congelado** hasta folio SII 77326378627 (ver § FE abajo)
+- [ ] Cambios locales **sin commit:** `data/empresa_config.json`, `docs/ERP_MAESTRO.md`, FE certificación, etc.
+
+### Retomar mañana (comandos)
+
+```bash
+# Tests smoke agentes + caja
+pytest tests/test_agente_operador.py tests/test_agente_operador_v02.py tests/test_cierre_caja_modo.py -q
+
+# Validar Control Center local
+# http://127.0.0.1:5000/admin/control-center
+
+# Cambiar modo cierre (admin)
+# http://127.0.0.1:5000/admin/empresa
+```
+
+**En Cursor:** `@docs/memory.md` + `@docs/planes/06-agentes-ia/CHECKPOINT_RETOMAR_2026_05_21.md` + *«sigue desde el checkpoint 2026-05-21»*.
+
+---
+
+*Última actualización: 2026-05-21 (noche) — Agentes v0.1+v0.2 en prod; cierre ciego/visible opcional; Ollama pendiente hardware SD. Prioridad: SD-1 piso. FE en pausa.*

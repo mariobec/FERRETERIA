@@ -163,8 +163,9 @@ Evitar «Fase 3» suelta. Usar **prefijo + número**:
 | 2026-05-17 | POS-3 prod `5094d5d`; POS-4 local; SD-1 en curso |
 | 2026-05-16 | CORE 1.2–1.4 + TEC v2 cerrado |
 | 2026-05-20 | TV cliente: recomendaciones por perfil fijación/obra + UI tarjetas; deploy `4ae0292`; SQL Neon rendimiento + descuentos |
+| 2026-05-21 | **LhexIA Operador** v0.1 prod (`f10f646`) + v0.2 código (`6443b4e`, Ollama opcional PC); cierre caja ciego/visible (`de947c0`); push `main` |
 
-*Detalle técnico diario → `docs/memory.md` § sesiones.*
+*Detalle técnico diario → `docs/memory.md` § *Checkpoint sesión 2026-05-21* · `docs/planes/06-agentes-ia/CHECKPOINT_RETOMAR_2026_05_21.md`.*
 
 ---
 
@@ -182,4 +183,4 @@ Responde en español. Si propones código, indica que Cursor debe verificar en r
 
 ---
 
-*Última revisión: 2026-05-20 · Mario / Cursor — TV cliente en prod; SD-1 sigue en curso.*
+*Última revisión: 2026-05-21 · Mario / Cursor — Operador v0.1 prod; v0.2 listo sin Ollama; cierre caja configurable; SD-1 sigue en curso.*

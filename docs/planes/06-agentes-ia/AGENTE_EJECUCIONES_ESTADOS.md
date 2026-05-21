@@ -135,9 +135,16 @@ Vectorial: `sql/2026_05_21_lhexia_vector.sql` → tabla `lhexia_vector_chunks`
 
 ---
 
-## 7. Relación con otros docs
+## 7. Cierre de caja y Operador
+
+Las alertas `caja_descuadre` incluyen `modo_cierre` (`ciego` | `visible`) en `payload_json`, copiado desde `caja.modo_cierre_arqueo` al cerrar turno. Config empresa: `cierre_caja_modo` (default `ciego`). Ver `services/cierre_caja_config_service.py`.
+
+---
+
+## 8. Relación con otros docs
 
 - Consolidación agentes: `CONSOLIDACION_4_AGENTES_ASESORIA.md`
 - Roadmap PLAT-2.1: `../05-roadmap_plataforma_madre.md`
 - Plan IA histórico: `PLAN_AGENTES_IA_v1.md` (Risk → subsumido en Operador)
 - Instalación Ollama PC: `../../manuales/INSTALACION_OLLAMA_LOCAL.md`
+- Retomar desarrollo: `CHECKPOINT_RETOMAR_2026_05_21.md`
