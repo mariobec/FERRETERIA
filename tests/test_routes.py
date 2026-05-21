@@ -64,6 +64,11 @@ class TestRutasDashboard:
         r = app_client.get('/consulta-stock')
         assert r.status_code in (200, 302)
 
+    def test_admin_control_center(self, app_client):
+        r = app_client.get('/admin/control-center')
+        assert r.status_code == 200
+        assert b'Control Center' in r.data
+
 
 @pytest.mark.smoke
 class TestRutasProductos:

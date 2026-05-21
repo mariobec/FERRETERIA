@@ -1,0 +1,180 @@
+/* LhexIA Control Center — Plataforma Madre (maquetación densa) */
+.lcc {
+  --lcc-accent: var(--ds-primary, #f37021);
+  --lcc-accent-soft: rgba(243, 112, 33, 0.14);
+  --lcc-ink: #0f172a;
+  --lcc-muted: #64748b;
+  --lcc-panel: #ffffff;
+  --lcc-border: var(--ds-border, #e5e7eb);
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.lcc-hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #334155 100%);
+  color: #f8fafc;
+  border-radius: var(--ds-radius-lg, 16px);
+  padding: 1.35rem 1.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: var(--ds-shadow-md);
+  margin-bottom: 1.25rem;
+}
+
+.lcc-hero__brand img {
+  width: 44px;
+  height: 44px;
+}
+
+.lcc-hero__title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lcc-hero__title span {
+  color: var(--lcc-accent);
+}
+
+.lcc-hero__rep {
+  font-size: 0.82rem;
+  color: rgba(226, 232, 240, 0.9);
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+}
+
+.lcc-section {
+  margin-bottom: 1.35rem;
+}
+
+.lcc-section__label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lcc-muted);
+  margin-bottom: 0.65rem;
+}
+
+.lcc-card {
+  background: var(--lcc-panel);
+  border: 1px solid var(--lcc-border);
+  border-radius: var(--ds-radius-md, 12px);
+  box-shadow: var(--ds-shadow-sm);
+  padding: 1rem 1.1rem;
+  height: 100%;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lcc-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ds-shadow-md);
+}
+
+.lcc-card--alert-danger {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: linear-gradient(180deg, rgba(254, 226, 226, 0.35), #fff);
+}
+
+.lcc-card--alert-warning {
+  border-color: rgba(217, 119, 6, 0.45);
+  background: linear-gradient(180deg, rgba(254, 243, 199, 0.35), #fff);
+}
+
+.lcc-card--alert-success {
+  border-color: rgba(22, 163, 74, 0.35);
+}
+
+.lcc-card--global {
+  background: linear-gradient(180deg, var(--lcc-accent-soft), #fff);
+  border-color: rgba(243, 112, 33, 0.35);
+}
+
+.lcc-card__title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+}
+
+.lcc-card__estado {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lcc-card__metric {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.35rem;
+}
+
+.lcc-card__metric--bad {
+  color: var(--ds-danger, #dc2626);
+}
+
+.lcc-card__metric--warn {
+  color: var(--ds-warning, #d97706);
+}
+
+.lcc-panel {
+  background: var(--lcc-panel);
+  border: 1px solid var(--lcc-border);
+  border-radius: var(--ds-radius-md);
+  padding: 1.1rem 1.25rem;
+  height: 100%;
+}
+
+.lcc-panel--accent {
+  border-left: 4px solid var(--lcc-accent);
+}
+
+.lcc-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+}
+
+.lcc-progress .progress-bar {
+  background: linear-gradient(90deg, var(--lcc-accent), #fb923c);
+}
+
+.lcc-progress .progress-bar--sii {
+  background: linear-gradient(90deg, #0369a1, #38bdf8);
+}
+
+.lcc-form3230 {
+  border-radius: var(--ds-radius-md);
+  background: linear-gradient(180deg, #eff6ff, #fff);
+  border: 1px solid #bfdbfe;
+  padding: 1rem;
+}
+
+.lcc-form3230__estado {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0369a1;
+}
+
+.lcc-ia-queue {
+  border-radius: var(--ds-radius-md);
+  border: 1px dashed rgba(243, 112, 33, 0.55);
+  background: linear-gradient(180deg, var(--lcc-accent-soft), #fff);
+  padding: 1rem 1.15rem;
+}
+
+.lcc-ia-metric {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.lcc-badge-demo {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

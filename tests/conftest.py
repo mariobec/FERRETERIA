@@ -206,6 +206,8 @@ def app_ctx():
         db.session.rollback()
         if hasattr(m, '_asegurar_columnas_caja_cuadratura'):
             m._asegurar_columnas_caja_cuadratura()
+        if hasattr(m, '_asegurar_tabla_agente_ejecuciones'):
+            m._asegurar_tabla_agente_ejecuciones()
         db.session.rollback()
         yield m.app
 

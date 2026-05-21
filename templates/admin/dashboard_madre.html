@@ -1,0 +1,262 @@
+{#
+  LhexIA Control Center — Plataforma Madre (Etapa 2 maquetación)
+  Ruta: GET /admin/control-center
+
+  Variables:
+    - cc: dict (sucursales, tributaria, ia, actualizado)
+    - representante: str
+#}
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/control-center.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set suc = cc.sucursales %}
+{% set op = cc.operador %}
+{% set tri = cc.tributaria %}
+{% set ia = cc.ia %}
+
+<div class="lcc container-fluid py-4">
+
+  <header class="lcc-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <div class="lcc-hero__brand">
+        <img src="{{ lhexia_icon_src }}" alt="LhexIA">
+      </div>
+      <div>
+        <div class="lcc-hero__title mb-0">
+          <span>LhexIA</span> Control Center
+        </div>
+        <div class="small opacity-75">{{ empresa_cfg.nombre_comercial or 'Plataforma Madre' }}</div>
+      </div>
+    </div>
+    <div class="lcc-hero__rep">
+      <i class="fas fa-user-tie me-1"></i>
+      Representante: <strong>{{ representante }}</strong>
+    </div>
+  </header>
+
+  {# ── Widget 1: Sucursales / cajas ── #}
+  <section class="lcc-section">
+    <div class="lcc-section__label">
+      <i class="fas fa-store me-1"></i> Estado operativo de sucursales
+    </div>
+    <div class="row g-3">
+      {% for t in suc.tarjetas %}
+      <div class="col-md-6 col-lg-4">
+        <div class="lcc-card {% if t.alerta == 'danger' %}lcc-card--alert-danger{% elif t.alerta == 'warning' %}lcc-card--alert-warning{% elif t.alerta == 'success' %}lcc-card--alert-success{% endif %}">
+          <div class="lcc-card__title">{{ t.titulo }}</div>
+          <div class="lcc-card__estado text-muted">{{ t.operador }}</div>
+          <div class="mt-2">
+            <span class="badge {% if t.estado == 'Abierta' %}bg-success{% else %}bg-secondary{% endif %}">
+              Estado: {{ t.estado_label }}
+            </span>
+          </div>
+          {% if t.estado == 'Abierta' and t.teorico_fmt %}
+          <div class="lcc-card__metric">Teórico: {{ t.teorico_fmt }} CLP</div>
+          {% elif t.diferencia_fmt %}
+          <div class="lcc-card__metric {% if t.diferencia_clp < 0 %}lcc-card__metric--bad{% else %}lcc-card__metric--warn{% endif %}">
+            Descuadre: {{ t.diferencia_fmt }} CLP
+            {% if t.diferencia_clp < 0 %}<i class="fas fa-circle text-danger ms-1" title="Faltante"></i>{% endif %}
+          </div>
+          {% else %}
+          <div class="lcc-card__metric text-success">Cuadrado</div>
+          {% endif %}
+          {% if t.estado == 'Cerrada' %}
+          <a href="{{ url_for('admin_detalle_arqueo_caja', id=t.id) }}" class="btn btn-sm btn-outline-dark mt-2">Ver arqueo</a>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12">
+        <div class="lcc-card text-muted">Sin turnos de caja registrados.</div>
+      </div>
+      {% endfor %}
+
+      <div class="col-md-6 col-lg-4">
+        <div class="lcc-card lcc-card--global">
+          <div class="lcc-card__title"><i class="fas fa-bell me-1"></i> Alerta global</div>
+          <div class="small text-muted mb-1">Descuadres acumulados (cierres)</div>
+          <div class="lcc-card__metric {% if suc.alerta_global_clp < 0 %}lcc-card__metric--bad{% elif suc.alerta_global_clp != 0 %}lcc-card__metric--warn{% endif %}">
+            {{ suc.alerta_global_fmt }} CLP
+            {% if suc.cajas_con_descuadre %}<span class="badge bg-warning text-dark ms-1">{{ suc.cajas_con_descuadre }} turno(s)</span>{% endif %}
+          </div>
+          <a href="{{ url_for('caja_historial_cierres') }}" class="btn btn-sm btn-outline-primary mt-2">Historial cierres</a>
+          {% if suc.alertas_operador_abiertas %}
+          <div class="small mt-2 text-danger fw-bold">
+            <i class="fas fa-robot me-1"></i>{{ suc.alertas_operador_abiertas }} alerta(s) Operador
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ── Widget 1b: LhexIA Operador v0.1 ── #}
+  <section class="lcc-section">
+    <div class="lcc-section__label d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-user-shield me-1"></i> LhexIA Operador — supervisor digital (v0.1, sin GPU)</span>
+      <form method="post" action="{{ url_for('admin_agente_operador_escanear') }}" class="m-0">
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="fas fa-radar me-1"></i> Escanear ahora
+        </button>
+      </form>
+    </div>
+    {% if not op.tabla_ok %}
+    <div class="alert alert-warning">Tabla <code>agente_ejecuciones</code> no disponible. Ejecute migración o reinicie la app.</div>
+    {% elif not op.alertas %}
+    <div class="lcc-panel text-muted">Sin alertas abiertas. Pulse <strong>Escanear ahora</strong> para evaluar vales pendientes y descuadres de caja.</div>
+    {% else %}
+    <div class="row g-2">
+      {% for a in op.alertas %}
+      <div class="col-12">
+        <div class="lcc-card {% if a.badge == 'danger' %}lcc-card--alert-danger{% elif a.badge == 'warning' %}lcc-card--alert-warning{% endif %}">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            <div>
+              <span class="badge bg-{{ a.badge }} {% if a.badge == 'danger' %}text-white{% else %}text-dark{% endif %}">{{ a.codigo }}</span>
+              <span class="badge bg-secondary ms-1">{{ a.estado }}</span>
+              <div class="lcc-card__title mt-1">{{ a.titulo }}</div>
+              <p class="small text-muted mb-0">{{ a.cuerpo }}</p>
+              <div class="small text-muted mt-1">{{ a.created_at.strftime('%d-%m-%Y %H:%M') if a.created_at else '' }}</div>
+            </div>
+            {% if a.estado == 'abierta' %}
+            <div class="d-flex gap-1">
+              <form method="post" action="{{ url_for('admin_control_center_alerta_reconocer', id=a.id) }}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Reconocer</button>
+              </form>
+              <form method="post" action="{{ url_for('admin_control_center_alerta_cerrar', id=a.id) }}">
+                <button type="submit" class="btn btn-sm btn-outline-dark">Cerrar</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
+  {# ── Widget 2: SII / DTE ── #}
+  <section class="lcc-section">
+    <div class="lcc-section__label">
+      <i class="fas fa-landmark me-1"></i> Conciliación tributaria y trámites SII
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="lcc-panel">
+          <h2 class="h6 fw-bold mb-3">Sincronización de documentos ({{ tri.municipio }})</h2>
+
+          <div class="lcc-progress-label">
+            <span>Boletas emitidas</span>
+            <strong>{{ tri.boletas_emitidas }} DTEs</strong>
+          </div>
+          <div class="progress lcc-progress mb-3" style="height: 12px;">
+            <div class="progress-bar" role="progressbar" style="width: {{ tri.pct_emitidas_bar }}%;"
+                 aria-valuenow="{{ tri.boletas_emitidas }}" aria-valuemin="0" aria-valuemax="{{ tri.boletas_emitidas or 1 }}"></div>
+          </div>
+
+          <div class="lcc-progress-label">
+            <span>Boletas en SII</span>
+            <strong>{{ tri.boletas_sii }} DTEs</strong>
+          </div>
+          <div class="progress lcc-progress mb-3" style="height: 12px;">
+            <div class="progress-bar progress-bar--sii" role="progressbar" style="width: {{ tri.pct_sii_bar }}%;"
+                 aria-valuenow="{{ tri.boletas_sii }}" aria-valuemin="0" aria-valuemax="{{ tri.boletas_emitidas or 1 }}"></div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <span class="text-muted small">
+              Pendientes de envío:
+              <strong class="text-dark">{{ tri.pendientes_envio }}</strong> boleta(s)
+            </span>
+            <a href="{{ url_for('admin_facturacion_cola') }}" class="btn btn-sm btn-primary">
+              <i class="fas fa-sync me-1"></i> Sincronizar
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="lcc-form3230 h-100">
+          <div class="small text-uppercase fw-bold text-muted mb-2">Estado petición</div>
+          <div class="fw-bold mb-1">Formulario 3230</div>
+          <div class="lcc-form3230__estado">
+            <i class="fas fa-circle text-primary me-1" style="font-size: 0.5rem; vertical-align: middle;"></i>
+            {{ tri.form_3230_estado }}
+          </div>
+          <p class="small text-muted mb-0 mt-2">
+            Gate Maullín FE — sin reintentos automáticos hasta cambio de estado SII.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {# ── Widget 3: IA / HITL ── #}
+  <section class="lcc-section">
+    <div class="lcc-section__label d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-robot me-1"></i> Telemetría de agentes IA y marketing</span>
+      {% if ia.modo_demo %}
+      <span class="badge bg-secondary lcc-badge-demo">Migración pendiente</span>
+      {% elif ia.pendientes_aprobacion %}
+      <span class="badge bg-warning text-dark">{{ ia.pendientes_aprobacion }} HITL pendiente(s)</span>
+      {% endif %}
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="lcc-ia-queue">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+            <div>
+              <span class="badge bg-warning text-dark">{{ ia.agente_nombre }}</span>
+              <span class="ms-2 fw-bold">
+                PENDIENTE DE APROBACIÓN ({{ ia.pendientes_aprobacion }})
+              </span>
+            </div>
+          </div>
+          <p class="mb-3 small">
+            <strong>Contenido:</strong> {{ ia.contenido_titulo }}
+          </p>
+          <div class="row g-2 mb-3">
+            <div class="col-sm-6">
+              <div class="small text-muted">Gasto mensual API</div>
+              <div class="lcc-ia-metric">${{ '%.2f'|format(ia.costo_usd) }} USD</div>
+            </div>
+            <div class="col-sm-6">
+              <div class="small text-muted">Tokens consumidos</div>
+              <div class="lcc-ia-metric">{{ '{:,}'.format(ia.tokens).replace(',', '.') }}</div>
+            </div>
+          </div>
+          <a href="{{ url_for('gerencia_c360_ia_dashboard') }}" class="btn btn-lg w-100 text-white fw-bold"
+             style="background: var(--ds-primary);">
+            <i class="fas fa-clipboard-check me-2"></i> Bandeja C360 / HITL
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="lcc-panel h-100">
+          <h3 class="h6 fw-bold mb-3">Consumo por agente (30 días)</h3>
+          {% for m in ia.metricas_agentes %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>{{ m.agente }}</span>
+              <span class="text-muted">${{ '%.2f'|format(m.costo_usd|default(0)) }} · {{ '{:,}'.format(m.tokens|default(0)|int).replace(',', '.') }} tok</span>
+            </div>
+            <div class="progress" style="height: 8px;">
+              {% set pct = (100 * (m.tokens|default(0)|int) / (ia.tokens or 1))|round(0)|int %}
+              <div class="progress-bar bg-secondary" style="width: {{ [pct, 100]|min }}%;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="text-center small text-muted pt-2">
+    Actualizado {{ cc.actualizado.strftime('%d-%m-%Y %H:%M') if cc.actualizado else '—' }}
+    · LhexIA ERP
+  </footer>
+</div>
+{% endblock %}

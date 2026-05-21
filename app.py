@@ -1667,6 +1667,9 @@ _NAV_MAP = [
             {'label': 'ROI IA · Customer 360', 'icon': 'fa-robot', 'endpoint': 'gerencia_c360_ia_dashboard',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['gerencia_c360_ia_dashboard']},
+            {'label': 'LhexIA Control Center', 'icon': 'fa-tower-broadcast', 'endpoint': 'admin_control_center',
+             'permisos': ['gestionar_usuarios', 'ver_gerencia', 'panel_gerencia'],
+             'endpoints_activos': ['admin_control_center']},
             {'label': 'Simulador de margen', 'icon': 'fa-flask', 'endpoint': 'simulador_margen',
              'permisos': ['panel_gerencia'],
              'endpoints_activos': ['simulador_margen']},
@@ -1920,6 +1923,7 @@ _MODULOS_HUB = [
         'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
         'accent': '#be185d',
         'atajos': [
+            {'label': 'Control Center', 'endpoint': 'admin_control_center', 'icon': 'fa-tower-broadcast'},
             {'label': 'Móvil dueño', 'endpoint': 'owner_mobile', 'icon': 'fa-mobile-screen'},
             {'label': 'C360 IA', 'endpoint': 'gerencia_c360_ia_dashboard', 'icon': 'fa-robot'},
             {'label': 'Analítica web', 'endpoint': 'gerencia_analitica_web', 'icon': 'fa-chart-area'},
@@ -2525,6 +2529,7 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_tabla_c360_llamadas_snapshot()
                     _asegurar_tabla_cobranza_whatsapp_log()
                     _asegurar_tabla_erp_audit_log()
+                    _asegurar_tabla_agente_ejecuciones()
                     _asegurar_tabla_cafs_y_columnas_ventas_fe()
                     db.session.rollback()
                     _asegurar_columnas_ventas_bodega_despacho()
@@ -3421,6 +3426,32 @@ class ErpAuditLog(db.Model):
     datos_despues = db.Column(db.Text, nullable=True)
 
 
+class AgenteEjecucion(db.Model):
+    """Agentes IA: alertas operativas (Operador), borradores HITL y logs (PLAT-2.1)."""
+
+    __tablename__ = 'agente_ejecuciones'
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+    agente_nombre = db.Column(db.String(40), nullable=False, index=True)
+    tipo = db.Column(db.String(32), nullable=False, index=True)
+    estado = db.Column(db.String(32), nullable=False, index=True)
+    severidad = db.Column(db.String(16), nullable=True)
+    codigo = db.Column(db.String(64), nullable=True)
+    dedupe_key = db.Column(db.String(128), nullable=True, index=True)
+    titulo = db.Column(db.String(255), nullable=False)
+    cuerpo = db.Column(db.Text, nullable=True)
+    payload_json = db.Column(db.Text, nullable=True)
+    tokens_total = db.Column(db.Integer, nullable=False, default=0)
+    costo_api_usd = db.Column(db.Numeric(12, 4), nullable=False, default=0)
+    venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=True, index=True)
+    caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True, index=True)
+    aprobado_por = db.Column(db.String(120), nullable=True)
+    fecha_aprobacion = db.Column(db.DateTime, nullable=True)
+    reconocido_por = db.Column(db.String(120), nullable=True)
+    fecha_reconocido = db.Column(db.DateTime, nullable=True)
+
+
 class WebAnalyticsVisitor(db.Model):
     __tablename__ = 'web_analytics_visitors'
 
@@ -3667,6 +3698,28 @@ def _asegurar_tabla_erp_audit_log():
     except Exception as ex:
         db.session.rollback()
         app.logger.warning('No se pudo crear tabla erp_audit_log: %s', ex)
+        return False
+
+
+def _asegurar_tabla_agente_ejecuciones():
+    """Crea `agente_ejecuciones` si no existe (PLAT-2.1 / Operador v0.1)."""
+    if app.config.get('_AGENTE_EJECUCIONES_TABLE_OK'):
+        return True
+    try:
+        AgenteEjecucion.__table__.create(bind=db.engine, checkfirst=True)
+        if db.engine.dialect.name == 'postgresql':
+            db.session.execute(db.text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_agente_ejec_dedupe_abierta "
+                "ON agente_ejecuciones (dedupe_key) "
+                "WHERE dedupe_key IS NOT NULL "
+                "AND estado IN ('abierta', 'pendiente_aprobacion')"
+            ))
+            db.session.commit()
+        app.config['_AGENTE_EJECUCIONES_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla agente_ejecuciones: %s', ex)
         return False
 
 
@@ -16382,6 +16435,75 @@ def admin_detalle_arqueo_caja(id):
         boletas_pendientes_sii=boletas_pendientes_sii,
         url_reintentar_sii=url_reintentar,
     )
+
+
+@app.route('/admin/control-center', methods=['GET'])
+@login_required
+@permisos_required('gestionar_usuarios', 'ver_gerencia', 'panel_gerencia')
+def admin_control_center():
+    """Torre de control — Plataforma Madre (KPIs caja, SII, Operador, HITL)."""
+    from services.control_center_service import construir_contexto_control_center
+
+    if (os.getenv('AGENTE_OPERADOR_SCAN_ON_LOAD') or '').strip() in ('1', 'true', 'yes'):
+        try:
+            from services.agente_operador_service import escanear_y_registrar_alertas
+
+            escanear_y_registrar_alertas()
+        except Exception:
+            app.logger.exception('agente_operador_scan_on_load')
+
+    cc = construir_contexto_control_center(calcular_ctx=_calcular_contexto_turno_caja)
+    representante = (getattr(current_user, 'nombre', None) or getattr(current_user, 'correo', None) or 'Administrador')
+    return render_template(
+        'admin/dashboard_madre.html',
+        cc=cc,
+        representante=representante,
+    )
+
+
+@app.route('/admin/control-center/alertas/<int:id>/reconocer', methods=['POST'])
+@login_required
+@permisos_required('gestionar_usuarios', 'ver_gerencia', 'panel_gerencia')
+def admin_control_center_alerta_reconocer(id):
+    from services.agente_ejecuciones_service import EST_ALERTA_RECONOCIDA, transicion_alerta
+
+    usuario = (getattr(current_user, 'nombre', None) or getattr(current_user, 'correo', None) or 'admin')
+    if transicion_alerta(id, EST_ALERTA_RECONOCIDA, usuario):
+        flash('Alerta reconocida.', 'success')
+    else:
+        flash('No se pudo reconocer la alerta.', 'warning')
+    return redirect(url_for('admin_control_center'))
+
+
+@app.route('/admin/control-center/alertas/<int:id>/cerrar', methods=['POST'])
+@login_required
+@permisos_required('gestionar_usuarios', 'ver_gerencia', 'panel_gerencia')
+def admin_control_center_alerta_cerrar(id):
+    from services.agente_ejecuciones_service import EST_ALERTA_CERRADA, transicion_alerta
+
+    usuario = (getattr(current_user, 'nombre', None) or getattr(current_user, 'correo', None) or 'admin')
+    if transicion_alerta(id, EST_ALERTA_CERRADA, usuario):
+        flash('Alerta cerrada.', 'success')
+    else:
+        flash('No se pudo cerrar la alerta.', 'warning')
+    return redirect(url_for('admin_control_center'))
+
+
+@app.route('/admin/agente-operador/escanear', methods=['POST'])
+@login_required
+@permisos_required('gestionar_usuarios', 'ver_gerencia', 'panel_gerencia')
+def admin_agente_operador_escanear():
+    from services.agente_operador_service import escanear_y_registrar_alertas
+
+    res = escanear_y_registrar_alertas()
+    if res.get('ok'):
+        flash(
+            f"Operador v0.1: {res.get('creadas', 0)} alerta(s) nuevas, {res.get('omitidas', 0)} omitidas.",
+            'success',
+        )
+    else:
+        flash(res.get('motivo', 'Error al escanear'), 'warning')
+    return redirect(url_for('admin_control_center'))
 
 
 # editar usuario....................................................................................
