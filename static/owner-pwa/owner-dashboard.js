@@ -14,6 +14,7 @@
   var slotInv = document.getElementById('ownerCardInventario');
   var statusEl = document.getElementById('ownerPwaLiveStatus');
   var btnRefresh = document.getElementById('ownerBtnRefresh');
+  var btnRefreshTop = document.getElementById('ownerBtnRefreshTop');
   var btnCall = document.getElementById('ownerBtnCall');
   var btnMic = document.getElementById('ownerBtnMic');
   var pollTimer = null;
@@ -118,12 +119,33 @@
     pollTimer = setInterval(fetchDashboard, Math.max(15000, pollMs));
   }
 
-  if (btnRefresh) {
-    btnRefresh.addEventListener('click', function (e) {
-      e.preventDefault();
-      fetchDashboard();
+  function bindCardNavigation() {
+    [slotCaja, slotInv].forEach(function (slot) {
+      if (!slot || slot._ownerNavBound) return;
+      var url = slot.getAttribute('data-nav-url');
+      if (!url) return;
+      slot.addEventListener('click', function () {
+        window.location.href = url;
+      });
+      slot.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          window.location.href = url;
+        }
+      });
+      slot._ownerNavBound = true;
     });
   }
+
+  function onRefreshClick(e) {
+    if (e) e.preventDefault();
+    fetchDashboard();
+  }
+
+  if (btnRefresh) btnRefresh.addEventListener('click', onRefreshClick);
+  if (btnRefreshTop) btnRefreshTop.addEventListener('click', onRefreshClick);
+
+  bindCardNavigation();
 
   if (btnMic) {
     btnMic.addEventListener('click', function () {

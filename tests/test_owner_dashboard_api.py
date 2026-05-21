@@ -94,6 +94,8 @@ class TestOwnerDashboardApi:
         assert r.status_code == 200
         assert b'ownerPwaApp' in r.data
         assert b'owner-dashboard.js' in r.data
+        assert b'owner-pwa-2' in r.data
+        assert b'owner-pwa-toolbar' in r.data
         assert b'owner-semaforo-card' in r.data
         rm = app_client.get('/owner-pwa/manifest.webmanifest')
         assert rm.status_code == 200
