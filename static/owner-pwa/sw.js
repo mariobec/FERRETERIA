@@ -1,5 +1,5 @@
 /* Service worker mínimo — shell PWA Dueño (sin cachear API). */
-var CACHE = 'lhexia-owner-pwa-v3';
+var CACHE = 'lhexia-owner-pwa-v4';
 var SHELL = [
   '/owner-mobile',
   '/static/owner-pwa/owner-dashboard.css',

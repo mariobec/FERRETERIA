@@ -78,7 +78,9 @@
     return;
   }
 
-  if (localStorage.getItem(KEY_DISMISS) === '1') {
+  var onHub = banner && banner.classList.contains('hub-pwa-install');
+
+  if (localStorage.getItem(KEY_DISMISS) === '1' && !onHub) {
     showInstallButtons();
   } else {
     showBanner();

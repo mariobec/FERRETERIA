@@ -33,7 +33,7 @@ def register_owner_api_routes(app):
             'categories': ['business', 'finance'],
             'icons': [
                 {
-                    'src': f'{base}/static/img/lhexia-icon-approved.png',
+                    'src': f'{base}/static/img/lhexia-icon-transparent.png',
                     'sizes': '256x256',
                     'type': 'image/png',
                     'purpose': 'any',

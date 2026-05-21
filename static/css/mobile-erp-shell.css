@@ -1,0 +1,172 @@
+/* Móvil ERP — navegación y accesos rápidos (post-login) */
+
+@media (max-width: 991.98px) {
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-sidebar {
+    display: none !important;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-shell > .row > main.app-main {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+    padding: 0 0 72px;
+    min-height: 100dvh;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-content {
+    padding: 12px 14px 16px;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 0;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-title {
+    font-size: 0.78rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-product,
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-domain,
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-separator {
+    display: none;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-client {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 42vw;
+    font-size: 0.8rem;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-uptime {
+    display: none;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar-user {
+    display: none;
+  }
+
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .app-topbar .btn-outline-warning {
+    display: none;
+  }
+}
+
+/* Barra inferior accesos rápidos */
+.mobile-quick-dock {
+  display: none;
+}
+
+@media (max-width: 991.98px) {
+  body.app-shell-mobile:not(.owner-pwa-shell):not(.pos-pantalla-vendedora) .mobile-quick-dock {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1045;
+    justify-content: space-around;
+    align-items: stretch;
+    gap: 2px;
+    padding: 6px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.1);
+  }
+
+  .mobile-quick-dock__item {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #475569;
+    font-size: 0.62rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    border: none;
+    background: transparent;
+  }
+
+  .mobile-quick-dock__item i {
+    font-size: 1.15rem;
+  }
+
+  .mobile-quick-dock__item.active,
+  .mobile-quick-dock__item:active {
+    color: #1d4ed8;
+    background: #eff6ff;
+  }
+
+  .mobile-quick-dock__item--accent {
+    color: #b45309;
+  }
+
+  .mobile-quick-dock__item--accent.active {
+    color: #c2410c;
+    background: #fff7ed;
+  }
+}
+
+/* Offcanvas menú móvil */
+.mobile-offcanvas-nav .offcanvas-header {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.mobile-offcanvas-nav .app-nav-link {
+  display: block;
+  padding: 10px 16px;
+  color: #e2e8f0;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.mobile-offcanvas-nav .app-nav-link.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #fff;
+}
+
+.mobile-offcanvas-nav summary {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 10px 16px 4px;
+}
+
+/* Banner instalar PWA en hub */
+.hub-pwa-install {
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: linear-gradient(90deg, #1d4ed8, #2563eb);
+  color: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.hub-pwa-install strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.hub-pwa-install .btn-warning {
+  font-weight: 800;
+}

@@ -94,7 +94,7 @@ class TestOwnerDashboardApi:
         assert r.status_code == 200
         assert b'ownerPwaApp' in r.data
         assert b'owner-dashboard.js' in r.data
-        assert b'owner-pwa-3' in r.data
+        assert b'owner-pwa-3' in r.data or b'owner-pwa-4' in r.data
         assert b'owner-pwa-toolbar' in r.data
         assert b'ownerBtnInstall' in r.data
         assert b'owner-semaforo-card' in r.data

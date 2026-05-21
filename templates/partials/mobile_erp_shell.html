@@ -1,0 +1,57 @@
+{% if current_user.is_authenticated and request.endpoint not in ('owner_mobile', 'punto_venta', 'login') %}
+<button class="btn btn-sm btn-outline-light d-lg-none flex-shrink-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavOffcanvas" aria-label="Abrir menú">
+  <i class="fas fa-bars"></i>
+</button>
+
+<div class="offcanvas offcanvas-start mobile-offcanvas-nav" tabindex="-1" id="mobileNavOffcanvas" aria-labelledby="mobileNavOffcanvasLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title fw-bold" id="mobileNavOffcanvasLabel">Menú LhexIA</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body p-0 bg-dark">
+    <a href="{{ url_for('erp_hub') }}" class="app-nav-link {% if request.endpoint == 'erp_hub' %}active{% endif %}"><i class="fas fa-th-large me-2"></i>Módulos</a>
+    <a href="{{ url_for('inicio') }}" class="app-nav-link {% if request.endpoint == 'inicio' %}active{% endif %}"><i class="fas fa-gauge-high me-2"></i>Panel del día</a>
+    {% for grupo in nav_menu %}
+    {% set ns = namespace(open=false) %}
+    {% for it in grupo['items'] %}{% if request.endpoint in it.endpoints_activos %}{% set ns.open = true %}{% endif %}{% endfor %}
+    <details class="border-0" {% if ns.open %}open{% endif %}>
+      <summary><i class="fas {{ grupo.icon }} me-1"></i> {{ grupo.label }}</summary>
+      {% for it in grupo['items'] %}
+      <a href="{{ url_for(it.endpoint) }}" class="app-nav-link ps-4 {% if request.endpoint in it.endpoints_activos %}active{% endif %}">
+        <i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }} me-2"></i>{{ it.label }}
+      </a>
+      {% endfor %}
+    </details>
+    {% endfor %}
+    <a href="{{ url_for('centro_ayuda') }}" class="app-nav-link"><i class="fas fa-circle-question me-2"></i>Ayuda</a>
+    <a href="{{ url_for('logout') }}" class="app-nav-link text-danger"><i class="fas fa-power-off me-2"></i>Cerrar sesión</a>
+  </div>
+</div>
+
+<nav class="mobile-quick-dock" aria-label="Accesos rápidos">
+  <a href="{{ url_for('erp_hub') }}" class="mobile-quick-dock__item {% if request.endpoint == 'erp_hub' %}active{% endif %}">
+    <i class="fas fa-th-large"></i><span>Módulos</span>
+  </a>
+  <a href="{{ url_for('inicio') }}" class="mobile-quick-dock__item {% if request.endpoint == 'inicio' %}active{% endif %}">
+    <i class="fas fa-gauge-high"></i><span>Panel</span>
+  </a>
+  {% if pos_url_destino and usuario_tiene_permiso('pos_emitir_vale') %}
+  <a href="{{ pos_url_destino }}" class="mobile-quick-dock__item">
+    <i class="fas fa-cash-register"></i><span>POS</span>
+  </a>
+  {% endif %}
+  {% if usuario_tiene_permiso('caja_cobrar_vale') or usuario_tiene_permiso('caja_abrir') or usuario_tiene_permiso('caja_cerrar') %}
+  <a href="{{ url_for('caja_pendientes') }}" class="mobile-quick-dock__item">
+    <i class="fas fa-wallet"></i><span>Caja</span>
+  </a>
+  {% endif %}
+  {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+  <a href="{{ url_for('owner_mobile') }}" class="mobile-quick-dock__item mobile-quick-dock__item--accent">
+    <i class="fas fa-mobile-screen"></i><span>Dueño</span>
+  </a>
+  {% endif %}
+  <button type="button" class="mobile-quick-dock__item" data-bs-toggle="offcanvas" data-bs-target="#mobileNavOffcanvas">
+    <i class="fas fa-bars"></i><span>Menú</span>
+  </button>
+</nav>
+{% endif %}

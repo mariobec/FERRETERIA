@@ -18,18 +18,23 @@
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-erp-shell.css') }}?v=mobile-shell-1">
     <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
+    {% if current_user.is_authenticated and (usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios')) %}
+    <link rel="manifest" href="{{ url_for('owner_pwa_manifest') }}">
+    <meta name="theme-color" content="#0f172a">
+    {% endif %}
 
     {% block extra_css %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}"{% if current_user.is_authenticated and usuario_tiene_permiso('bodega_operador') %} data-bodega-poll="1" data-bodega-plataforma-url="{{ url_for('bodega_plataforma') }}" data-bodega-mando-url="{{ url_for('bodega_cuadro_mando') }}" data-bodega-snapshot-url="{{ url_for('api_bodega_retiros_cola_snapshot') }}"{% endif %}>
+<body class="{% block body_class %}{% endblock %}{% if current_user.is_authenticated %} app-shell-mobile{% endif %}"{% if current_user.is_authenticated and usuario_tiene_permiso('bodega_operador') %} data-bodega-poll="1" data-bodega-plataforma-url="{{ url_for('bodega_plataforma') }}" data-bodega-mando-url="{{ url_for('bodega_cuadro_mando') }}" data-bodega-snapshot-url="{{ url_for('api_bodega_retiros_cola_snapshot') }}"{% endif %}>
     <div class="container-fluid app-shell">
         <div class="row">
             <!-- Menú Lateral -->
             <nav class="col-md-2 app-sidebar d-none d-md-block">
                 <div class="app-sidebar-header app-sidebar-header--compact">
                     <a href="{{ url_for('erp_hub') }}" class="app-brand-compact app-brand-compact--icon" title="LhexIA ERP · www.lhexia.cl">
-                        <img src="{{ lhexia_icon_src }}" alt="LhexIA ERP · www.lhexia.cl" class="lhexia-sidebar-isotype">
+                        <img src="{{ lhexia_icon_transparent_src | default(lhexia_icon_src) }}" alt="LhexIA ERP · www.lhexia.cl" class="lhexia-sidebar-isotype">
                     </a>
                 </div>
                 
@@ -64,6 +69,7 @@
             <!-- Contenido Dinámico -->
             <main class="col-md-10 app-main">
                 <div class="app-topbar d-flex justify-content-between align-items-center">
+                    {% include 'partials/mobile_erp_shell.html' %}
                     <div class="app-topbar-title">
                         <span class="app-topbar-product">LhexIA ERP</span>
                         <a class="app-topbar-domain" href="{{ public_site_url }}" target="_blank" rel="noopener noreferrer">www.lhexia.cl</a>
@@ -231,6 +237,14 @@
     </script>
     {% endif %}
 
+    {% if current_user.is_authenticated and (usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios')) and request.endpoint not in ('owner_mobile', 'login') %}
+    <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-4"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/owner-pwa/sw.js', { scope: '/' }).catch(function () {});
+    }
+    </script>
+    {% endif %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

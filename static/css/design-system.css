@@ -128,7 +128,7 @@ body:not(.index-body):not(.erp-landing):not(.pos-pantalla-vendedora) {
     max-height: 72px;
     object-fit: contain;
     object-position: center;
-    background: #000000;
+    background: transparent;
 }
 
 @keyframes lhexiaSidebarIsotypePulse {

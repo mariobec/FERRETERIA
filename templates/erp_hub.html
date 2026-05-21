@@ -257,9 +257,33 @@
   }
 
   @media (max-width: 767px) {
+    .hub-shell {
+      padding: 0 0 1rem;
+    }
+    .hub-hero {
+      padding: 1.1rem 1rem;
+      border-radius: 1rem;
+    }
+    .hub-hero-inner {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .hub-hero-actions {
+      width: 100%;
+    }
+    .hub-hero-actions .btn {
+      flex: 1;
+    }
     .hub-card {
       flex: 1 1 100%;
       max-width: 100%;
+    }
+    .hub-atajos {
+      flex-direction: column;
+    }
+    .hub-atajo {
+      width: 100%;
+      text-align: center;
     }
   }
 </style>
@@ -267,6 +291,7 @@
 
 {% block content %}
 <div class="hub-shell">
+  {% include 'partials/hub_pwa_install.html' %}
   <header class="hub-hero">
     <div class="hub-hero-inner">
       <div class="hub-hero-copy">
@@ -276,6 +301,11 @@
         <p class="mb-0 mt-2 small opacity-75">Elija el módulo con el que desea trabajar.</p>
       </div>
       <div class="hub-hero-actions">
+        {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+        <a href="{{ url_for('owner_mobile') }}" class="btn btn-sm btn-warning fw-bold text-dark px-3">
+          <i class="fas fa-mobile-screen me-1"></i>App Dueño
+        </a>
+        {% endif %}
         <a href="{{ url_for('inicio') }}" class="btn btn-sm btn-outline-light fw-bold px-3">
           <i class="fas fa-gauge-high me-1"></i>Panel del día
         </a>
@@ -333,4 +363,16 @@
   </div>
   {% endif %}
 </div>
+
+{% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+{% include 'partials/owner_install_modal.html' %}
+{% if pwa_install_hint %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var b = document.getElementById('ownerInstallBanner');
+  if (b) b.classList.remove('d-none');
+});
+</script>
+{% endif %}
+{% endif %}
 {% endblock %}

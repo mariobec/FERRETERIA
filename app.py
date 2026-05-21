@@ -2084,6 +2084,7 @@ def inject_company_context():
     brand_ctx = {
         'lhexia_asset_v': LHEXIA_ASSET_VERSION,
         'lhexia_icon_src': _lhexia_static_img_url('lhexia-icon-approved.png'),
+        'lhexia_icon_transparent_src': _lhexia_static_img_url('lhexia-icon-transparent.png'),
         # Wordmark fondo negro recortado (lhexIA + ERP inteligente) — scripts/procesar_logo_nav_definitivo.py
         'lhexia_brand_src': _lhexia_static_img_url('lhexia-brand-navbar.png'),
         'lhexia_brand_compact_src': _lhexia_static_img_url('lhexia-brand-compact-nav.png'),
@@ -2109,6 +2110,7 @@ def inject_company_context():
             'usuario_tiene_permiso': lambda _nombre: False,
             'modulo_activo': lambda _nombre: True,
             'nav_menu': [],
+            'lhexia_icon_transparent_src': brand_ctx.get('lhexia_icon_transparent_src', brand_ctx.get('lhexia_icon_src')),
             **brand_ctx,
         }
 
@@ -6426,6 +6428,7 @@ def erp_hub():
             return max(n, 1)
         return 4
 
+    pwa_install_hint = session.pop('pwa_install_hint', None) == '1'
     return render_template(
         'erp_hub.html',
         modulos=modulos,
@@ -6434,6 +6437,7 @@ def erp_hub():
         grid_cols_ops=_grid_cols(len(modulos_ops)),
         grid_cols_soporte=_grid_cols(len(modulos_soporte)),
         fecha_hoy=datetime.now().strftime('%d/%m/%Y'),
+        pwa_install_hint=pwa_install_hint,
     )
 
 
@@ -16781,6 +16785,10 @@ def login():
                     flash("Por seguridad, cambia tu contraseña temporal.", "warning")
                     return redirect(url_for('cambiar_password'))
                 flash(f"Bienvenido al sistema, {usuario.nombre}", "success")
+                if _hub_usuario_tiene_permiso(
+                    usuario, 'ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'
+                ):
+                    session['pwa_install_hint'] = '1'
                 next_url = _login_next_url_seguro()
                 if next_url:
                     return redirect(next_url)

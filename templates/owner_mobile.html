@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="LhexIA Dueño">
-<link rel="apple-touch-icon" href="{{ lhexia_icon_src }}">
+<link rel="apple-touch-icon" href="{{ lhexia_icon_transparent_src | default(lhexia_icon_src) }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=owner-pwa-3">
 {% endblock %}
 
@@ -149,38 +149,7 @@
   </div>
 </footer>
 
-<div class="modal fade" id="ownerInstallModal" tabindex="-1" aria-labelledby="ownerInstallModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold" id="ownerInstallModalLabel">Instalar LhexIA Dueño</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <div id="ownerInstallStepsIos">
-          <p class="small text-muted mb-2">En <strong>iPhone / iPad</strong> no aparece «Instalar» en el menú ⋮. Use Safari:</p>
-          <ol class="mb-0 ps-3">
-            <li class="mb-2">Abra esta página en <strong>Safari</strong> (no Chrome).</li>
-            <li class="mb-2">Toque <strong>Compartir</strong> <i class="fas fa-share-square"></i> (cuadrado con flecha).</li>
-            <li class="mb-2">Elija <strong>«Añadir a inicio»</strong>.</li>
-            <li>Confirme — el icono <strong>Dueño</strong> quedará en su pantalla.</li>
-          </ol>
-        </div>
-        <div id="ownerInstallStepsAndroid" class="d-none">
-          <p class="small text-muted mb-2">En <strong>Android</strong> con Chrome:</p>
-          <ol class="mb-2 ps-3">
-            <li class="mb-2">Toque el botón amarillo <strong>Instalar</strong> arriba, si aparece.</li>
-            <li class="mb-2">Si no: menú <strong>⋮</strong> → <strong>«Instalar aplicación»</strong> o <strong>«Añadir a pantalla de inicio»</strong>.</li>
-            <li>Abra la app desde el icono <strong>Dueño</strong>.</li>
-          </ol>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary fw-bold" data-bs-dismiss="modal">Entendido</button>
-      </div>
-    </div>
-  </div>
-</div>
+{% include 'partials/owner_install_modal.html' %}
 
 <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3 owner-pwa-toasts">
   <div id="ownerMicToast" class="toast align-items-center text-bg-primary border-0" role="alert">
