@@ -1,8 +1,4 @@
 {% if current_user.is_authenticated and request.endpoint not in ('owner_mobile', 'punto_venta', 'login') %}
-<button class="btn btn-sm btn-outline-light d-lg-none flex-shrink-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavOffcanvas" aria-label="Abrir menú">
-  <i class="fas fa-bars"></i>
-</button>
-
 <div class="offcanvas offcanvas-start mobile-offcanvas-nav" tabindex="-1" id="mobileNavOffcanvas" aria-labelledby="mobileNavOffcanvasLabel">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title fw-bold" id="mobileNavOffcanvasLabel">Menú LhexIA</h5>

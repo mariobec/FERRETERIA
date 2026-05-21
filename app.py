@@ -5458,6 +5458,11 @@ def aplicar_ajuste_automatico(auditoria_id):
 @app.route('/')
 @app.route('/index')
 def index():
+    try:
+        if current_user.is_authenticated:
+            return redirect(url_for('erp_hub'))
+    except Exception:
+        pass
     return render_template(
         'index.html',
         page_variant='home',

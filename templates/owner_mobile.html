@@ -4,13 +4,16 @@
 
 {% block extra_css %}
 <link rel="manifest" href="{{ url_for('owner_pwa_manifest') }}">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#1e1b4b">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="LhexIA Dueño">
 <link rel="apple-touch-icon" href="{{ lhexia_icon_transparent_src | default(lhexia_icon_src) }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=owner-pwa-3">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=owner-pwa-premium-2">
 {% endblock %}
 
 {% block content %}
@@ -63,14 +66,22 @@
       <span class="owner-semaforo-badge">…</span>
       <div class="owner-semaforo-title">Caja</div>
       <p class="owner-semaforo-msg">Cargando estado de caja…</p>
-      <div class="owner-semaforo-ts"><i class="fas fa-clock me-1"></i>—</div>
+      <div class="owner-semaforo-ts">
+        <span class="owner-live-dot" aria-hidden="true"></span>
+        <i class="fas fa-clock owner-semaforo-ts-icon" aria-hidden="true"></i>
+        <span class="owner-semaforo-ts-text">—</span>
+      </div>
     </div>
     <div class="owner-semaforo-card estado-verde" id="ownerCardInventario" role="button" tabindex="0"
          data-nav-url="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">
       <span class="owner-semaforo-badge">…</span>
       <div class="owner-semaforo-title">Inventario</div>
       <p class="owner-semaforo-msg">Cargando inventario…</p>
-      <div class="owner-semaforo-ts"><i class="fas fa-clock me-1"></i>—</div>
+      <div class="owner-semaforo-ts">
+        <span class="owner-live-dot" aria-hidden="true"></span>
+        <i class="fas fa-clock owner-semaforo-ts-icon" aria-hidden="true"></i>
+        <span class="owner-semaforo-ts-text">—</span>
+      </div>
     </div>
   </section>
 
@@ -121,11 +132,11 @@
 </div>
 
 <footer class="owner-pwa-actions" role="contentinfo">
-  <div class="owner-pwa-actions-inner">
+  <div class="owner-pwa-actions-inner owner-pwa-actions-island">
     <div class="row g-2 mb-2">
       <div class="col">
         <a id="ownerBtnCall" href="#" class="btn btn-owner-call w-100 disabled" aria-disabled="true">
-          <i class="fas fa-phone me-1"></i> Llamar supervisor
+          <i class="fas fa-phone owner-action-icon" aria-hidden="true"></i> Llamar supervisor
         </a>
       </div>
       <div class="col-auto">
@@ -136,12 +147,12 @@
     </div>
     <div class="row g-2">
       <div class="col-6">
-        <a href="{{ url_for('admin_control_center') }}" class="btn btn-outline-dark w-100">
-          <i class="fas fa-tower-broadcast me-1"></i> Control
+        <a href="{{ url_for('admin_control_center') }}" class="btn btn-owner-secondary w-100">
+          <i class="fas fa-tower-broadcast owner-action-icon" aria-hidden="true"></i> Control
         </a>
       </div>
       <div class="col-6">
-        <button type="button" id="ownerBtnRefresh" class="btn btn-outline-primary w-100">
+        <button type="button" id="ownerBtnRefresh" class="btn btn-owner-secondary w-100">
           <i class="fas fa-rotate me-1"></i> Actualizar
         </button>
       </div>
@@ -162,6 +173,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-3"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=owner-pwa-3"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=owner-pwa-premium-2"></script>
 {% endblock %}

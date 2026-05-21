@@ -1,0 +1,5 @@
+{% if current_user.is_authenticated and request.endpoint not in ('owner_mobile', 'punto_venta', 'login') %}
+<button class="btn btn-sm btn-outline-light d-md-none flex-shrink-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNavOffcanvas" aria-label="Abrir menú">
+  <i class="fas fa-bars"></i>
+</button>
+{% endif %}

@@ -1,49 +1,55 @@
-/* Service worker mínimo — shell PWA Dueño (sin cachear API). */
-var CACHE = 'lhexia-owner-pwa-v4';
-var SHELL = [
-  '/owner-mobile',
-  '/static/owner-pwa/owner-dashboard.css',
-  '/static/owner-pwa/owner-dashboard.js',
-  '/static/css/bootstrap.css',
-  '/static/vendor/fontawesome/css/all.min.css',
-];
+/* Service worker PWA Dueño — HTML red; CSS/JS red primero (evita UI vieja tras deploy). */
+var CACHE = 'lhexia-owner-pwa-v6';
 
 self.addEventListener('install', function (event) {
-  event.waitUntil(
-    caches.open(CACHE).then(function (cache) {
-      return cache.addAll(SHELL).catch(function () {});
-    }).then(function () {
-      return self.skipWaiting();
-    })
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then(function (keys) {
+      return Promise.all(
+        keys.filter(function (k) { return k.indexOf('lhexia-owner-pwa-') === 0 && k !== CACHE; })
+          .map(function (k) { return caches.delete(k); })
+      );
+    }).then(function () { return self.clients.claim(); })
+  );
 });
 
 self.addEventListener('fetch', function (event) {
   var url = new URL(event.request.url);
-  if (url.pathname.indexOf('/api/') === 0) {
+  if (url.origin !== self.location.origin) return;
+  if (event.request.method !== 'GET') return;
+  if (url.pathname.indexOf('/api/') === 0) return;
+
+  var isDoc = event.request.mode === 'navigate'
+    || (event.request.headers.get('accept') || '').indexOf('text/html') >= 0
+    || url.pathname === '/owner-mobile';
+
+  if (isDoc) {
+    event.respondWith(
+      fetch(event.request).catch(function () {
+        return caches.match('/owner-mobile');
+      })
+    );
     return;
   }
-  if (event.request.method !== 'GET') {
-    return;
+
+  if (url.pathname.indexOf('/static/owner-pwa/') === 0
+      || url.pathname === '/owner-pwa/manifest.webmanifest') {
+    event.respondWith(
+      fetch(event.request).then(function (res) {
+        if (res && res.status === 200) {
+          caches.open(CACHE).then(function (cache) {
+            cache.put(event.request, res.clone());
+          });
+        }
+        return res;
+      }).catch(function () {
+        return caches.open(CACHE).then(function (cache) {
+          return cache.match(event.request);
+        });
+      })
+    );
   }
-  event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      return (
-        cached ||
-        fetch(event.request).then(function (res) {
-          if (res && res.status === 200 && url.origin === self.location.origin) {
-            var copy = res.clone();
-            caches.open(CACHE).then(function (c) {
-              c.put(event.request, copy);
-            });
-          }
-          return res;
-        })
-      );
-    })
-  );
 });

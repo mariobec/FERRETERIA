@@ -18,7 +18,7 @@
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-erp-shell.css') }}?v=mobile-shell-1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-erp-shell.css') }}?v=mobile-shell-2">
     <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     {% if current_user.is_authenticated and (usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios')) %}
     <link rel="manifest" href="{{ url_for('owner_pwa_manifest') }}">
@@ -67,9 +67,9 @@
             </nav>
             
             <!-- Contenido Dinámico -->
-            <main class="col-md-10 app-main">
+            <main class="col-12 col-md-10 app-main">
                 <div class="app-topbar d-flex justify-content-between align-items-center">
-                    {% include 'partials/mobile_erp_shell.html' %}
+                    {% include 'partials/mobile_erp_shell_topbar.html' %}
                     <div class="app-topbar-title">
                         <span class="app-topbar-product">LhexIA ERP</span>
                         <a class="app-topbar-domain" href="{{ public_site_url }}" target="_blank" rel="noopener noreferrer">www.lhexia.cl</a>
@@ -113,6 +113,8 @@
             </main>
         </div>
     </div>
+
+    {% include 'partials/mobile_erp_shell_body.html' %}
 
     <!-- Scripts (local, sin CDN) -->
     <script src="{{ url_for('static', filename='vendor/jquery/jquery.min.js') }}"></script>
@@ -238,11 +240,22 @@
     {% endif %}
 
     {% if current_user.is_authenticated and (usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios')) and request.endpoint not in ('owner_mobile', 'login') %}
-    <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-4"></script>
+    <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
     <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/owner-pwa/sw.js', { scope: '/' }).catch(function () {});
-    }
+    /* El SW con scope / cacheaba el ERP en Chrome móvil; solo vive en /owner-mobile (PWA). */
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      if (window.matchMedia('(display-mode: standalone)').matches) return;
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (reg) { reg.unregister(); });
+      });
+      if (window.caches) {
+        caches.keys().then(function (keys) {
+          keys.filter(function (k) { return k.indexOf('lhexia-owner-pwa-') === 0; })
+            .forEach(function (k) { caches.delete(k); });
+        });
+      }
+    })();
     </script>
     {% endif %}
     {% block extra_js %}{% endblock %}

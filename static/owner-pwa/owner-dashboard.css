@@ -1,12 +1,26 @@
-/* PWA Dueño — mobile-first (sin chrome ERP) */
+/* PWA Dueño — App premium consultoría (glass + semáforo sofisticado) */
 
 body.owner-pwa-shell {
-  --owner-bg: #f1f5f9;
-  --owner-ink: #0f172a;
-  --owner-muted: #64748b;
-  --owner-pad-x: max(14px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-  --owner-pad-bottom: calc(148px + env(safe-area-inset-bottom, 0px));
-  background: var(--owner-bg);
+  --owner-bg-deep: #0f172a;
+  --owner-bg-indigo: #1e1b4b;
+  --owner-ink: #f8fafc;
+  --owner-muted: #94a3b8;
+  --owner-glass: rgba(255, 255, 255, 0.08);
+  --owner-glass-border: rgba(255, 255, 255, 0.12);
+  --owner-rose: #f43f5e;
+  --owner-rose-soft: rgba(244, 63, 94, 0.35);
+  --owner-emerald: #34d399;
+  --owner-emerald-soft: rgba(52, 211, 153, 0.35);
+  --owner-amber: #fbbf24;
+  --owner-amber-soft: rgba(251, 191, 36, 0.35);
+  --owner-pad-x: max(16px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  --owner-pad-bottom: calc(168px + env(safe-area-inset-bottom, 0px));
+  --font-display: 'Montserrat', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-body);
+  color: var(--owner-ink);
+  background: linear-gradient(165deg, var(--owner-bg-deep) 0%, #1e293b 42%, var(--owner-bg-indigo) 100%);
+  background-attachment: fixed;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -31,13 +45,14 @@ body.owner-pwa-shell .app-shell > .row > main.app-main {
   width: 100%;
   min-height: 100dvh;
   padding: 0;
-  background: var(--owner-bg);
+  background: transparent;
 }
 
 body.owner-pwa-shell .app-main > .alert {
   margin: 8px var(--owner-pad-x) 0;
   font-size: 0.88rem;
-  border-radius: 12px;
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
 }
 
 body.owner-pwa-shell .app-content {
@@ -45,11 +60,13 @@ body.owner-pwa-shell .app-content {
   flex: 1;
 }
 
-/* Banner instalar PWA */
+/* Banner instalar */
 .owner-install-banner {
-  background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%);
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.5), rgba(59, 130, 246, 0.45));
+  backdrop-filter: blur(12px);
   color: #fff;
   padding: 10px var(--owner-pad-x);
+  border-bottom: 1px solid var(--owner-glass-border);
 }
 
 .owner-install-banner-inner {
@@ -65,13 +82,10 @@ body.owner-pwa-shell .app-content {
   min-width: 0;
   font-size: 0.88rem;
   line-height: 1.35;
+  font-family: var(--font-body);
 }
 
-.owner-install-banner .btn-warning {
-  flex-shrink: 0;
-}
-
-/* Barra superior compacta (sustituye topbar ERP) */
+/* Toolbar */
 .owner-pwa-toolbar {
   position: sticky;
   top: 0;
@@ -80,10 +94,13 @@ body.owner-pwa-shell .app-content {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: max(10px, env(safe-area-inset-top, 0px)) var(--owner-pad-x) 10px;
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  padding: max(12px, env(safe-area-inset-top, 0px)) var(--owner-pad-x) 12px;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   color: #f8fafc;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
+  border-bottom: 1px solid var(--owner-glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
 }
 
 .owner-pwa-toolbar-brand {
@@ -92,16 +109,18 @@ body.owner-pwa-shell .app-content {
 }
 
 .owner-pwa-toolbar-brand .owner-pwa-toolbar-kicker {
-  font-size: 0.68rem;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  opacity: 0.75;
+  opacity: 0.7;
   line-height: 1.2;
 }
 
 .owner-pwa-toolbar-brand .owner-pwa-toolbar-title {
-  font-size: 1.05rem;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
   font-weight: 800;
   line-height: 1.2;
   margin: 2px 0 0;
@@ -120,9 +139,16 @@ body.owner-pwa-shell .app-content {
 .owner-pwa-toolbar-actions .btn {
   min-height: 40px;
   padding: 0 12px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  border-radius: 10px;
+  font-family: var(--font-body);
+  border-radius: 999px;
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #e2e8f0;
+}
+
+.owner-pwa-toolbar-actions .btn-warning {
+  border-radius: 999px;
 }
 
 .owner-pwa-live {
@@ -130,42 +156,51 @@ body.owner-pwa-shell .app-content {
   align-items: center;
   gap: 6px;
   font-size: 0.72rem;
-  opacity: 0.9;
+  font-weight: 500;
+  color: var(--owner-muted);
   margin-top: 4px;
 }
 
 .owner-pwa-wrap {
   max-width: 480px;
   margin: 0 auto;
-  padding: 14px var(--owner-pad-x) var(--owner-pad-bottom);
+  padding: 16px var(--owner-pad-x) var(--owner-pad-bottom);
   box-sizing: border-box;
 }
 
+/* Hero glass */
 .owner-pwa-hero {
-  border-radius: 14px;
-  padding: 14px 16px;
+  border-radius: 20px;
+  padding: 18px 20px;
   color: #fff;
-  background: linear-gradient(145deg, #0f172a 0%, #1e3a5f 55%, #334155 100%);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
-  margin-bottom: 14px;
+  background: var(--owner-glass);
+  border: 1px solid var(--owner-glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  margin-bottom: 16px;
 }
 
 .owner-pwa-hero h2 {
-  font-size: 1.2rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
   font-weight: 800;
-  margin: 0 0 6px;
-  line-height: 1.25;
+  letter-spacing: 0.02em;
+  margin: 0 0 8px;
+  line-height: 1.2;
 }
 
 .owner-pwa-hero .owner-pwa-hero-sub {
-  font-size: 0.82rem;
-  opacity: 0.85;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #cbd5e1;
   margin: 0;
+  line-height: 1.45;
 }
 
 .owner-pwa-status-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
   flex-shrink: 0;
@@ -173,11 +208,13 @@ body.owner-pwa-shell .app-content {
 }
 
 .owner-pwa-status-dot.ok {
-  background: #22c55e;
+  background: var(--owner-emerald);
+  box-shadow: 0 0 10px var(--owner-emerald-soft);
 }
 
 .owner-pwa-status-dot.err {
-  background: #ef4444;
+  background: var(--owner-rose);
+  box-shadow: 0 0 10px var(--owner-rose-soft);
   animation: none;
 }
 
@@ -185,24 +222,41 @@ body.owner-pwa-shell .app-content {
   0%,
   100% {
     opacity: 1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.45;
+    opacity: 0.5;
+    transform: scale(0.92);
   }
 }
 
-/* Tarjetas semáforo — táctiles, texto legible */
+/* Tarjetas semáforo — glass + barra lateral */
 .owner-semaforo-card {
-  border-radius: 16px;
-  padding: 16px;
+  position: relative;
+  border-radius: 18px;
+  padding: 16px 16px 16px 20px;
   min-height: 0;
-  color: var(--owner-ink);
-  border: 2px solid transparent;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
-  margin-bottom: 12px;
+  color: #e2e8f0;
+  border: 1px solid var(--owner-glass-border);
+  border-left-width: 8px;
+  border-left-style: solid;
+  background: var(--owner-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
+  margin-bottom: 14px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.12s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+
+.owner-semaforo-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255, 255, 255, 0.06), transparent 55%);
+  pointer-events: none;
 }
 
 .owner-semaforo-card:active {
@@ -210,84 +264,174 @@ body.owner-pwa-shell .app-content {
 }
 
 .owner-semaforo-card.estado-verde {
-  background: linear-gradient(160deg, #ecfdf5 0%, #d1fae5 100%);
-  border-color: #6ee7b7;
+  border-left-color: var(--owner-emerald);
 }
 
 .owner-semaforo-card.estado-amarillo {
-  background: linear-gradient(160deg, #fffbeb 0%, #fde68a 100%);
-  border-color: #fbbf24;
+  border-left-color: var(--owner-amber);
 }
 
 .owner-semaforo-card.estado-rojo {
-  background: linear-gradient(160deg, #fef2f2 0%, #fecaca 100%);
-  border-color: #f87171;
+  border-left-color: var(--owner-rose);
 }
 
 .owner-semaforo-badge {
-  font-size: 0.68rem;
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding: 5px 11px;
+  padding: 5px 12px;
   border-radius: 999px;
   display: inline-block;
 }
 
 .estado-verde .owner-semaforo-badge {
-  background: #059669;
-  color: #fff;
+  background: rgba(52, 211, 153, 0.2);
+  color: var(--owner-emerald);
+  border: 1px solid rgba(52, 211, 153, 0.45);
 }
 
 .estado-amarillo .owner-semaforo-badge {
-  background: #d97706;
-  color: #fff;
+  background: rgba(251, 191, 36, 0.18);
+  color: var(--owner-amber);
+  border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
 .estado-rojo .owner-semaforo-badge {
-  background: #dc2626;
-  color: #fff;
+  background: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.45);
 }
 
 .owner-semaforo-title {
-  font-size: clamp(1.05rem, 4.5vw, 1.2rem);
-  font-weight: 900;
-  margin: 10px 0 8px;
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 4.5vw, 1.22rem);
+  font-weight: 800;
+  margin: 12px 0 8px;
   line-height: 1.25;
   word-break: break-word;
+  color: #f1f5f9;
 }
 
 .owner-semaforo-msg {
-  font-size: clamp(0.95rem, 3.8vw, 1.02rem);
+  position: relative;
+  z-index: 1;
+  font-size: clamp(0.92rem, 3.6vw, 1rem);
+  font-weight: 500;
   line-height: 1.5;
-  color: #334155;
+  color: #cbd5e1;
   margin: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
 .owner-semaforo-ts {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.78rem;
+  font-weight: 500;
   color: var(--owner-muted);
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
-/* KPIs colapsables — una columna en móvil */
+.owner-semaforo-ts-icon {
+  font-size: 0.85rem;
+  width: 1em;
+  text-align: center;
+  color: #64748b;
+  opacity: 0.9;
+}
+
+.owner-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--owner-emerald);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  animation: owner-live-blink 2.2s ease-in-out infinite;
+}
+
+.estado-rojo .owner-live-dot {
+  background: var(--owner-rose);
+  box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.45);
+  animation-name: owner-live-blink-rose;
+}
+
+.estado-amarillo .owner-live-dot {
+  background: var(--owner-amber);
+  animation-name: owner-live-blink-amber;
+}
+
+@keyframes owner-live-blink {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.45);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 6px rgba(52, 211, 153, 0);
+  }
+}
+
+@keyframes owner-live-blink-rose {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 6px rgba(244, 63, 94, 0);
+  }
+}
+
+@keyframes owner-live-blink-amber {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 6px rgba(251, 191, 36, 0);
+  }
+}
+
+/* KPIs colapsables */
 .owner-kpis-collapse {
-  background: #fff;
-  border-radius: 14px;
+  background: var(--owner-glass);
+  border: 1px solid var(--owner-glass-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 18px;
   padding: 4px 14px 12px;
-  border: 1px solid #e2e8f0;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
 }
 
 .owner-kpis-collapse summary {
   cursor: pointer;
-  font-weight: 800;
-  font-size: 0.92rem;
-  color: #475569;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #cbd5e1;
   padding: 12px 0;
   list-style: none;
+}
+
+.owner-kpis-collapse summary .fa-chart-line {
+  color: #818cf8;
+  font-size: 0.95rem;
 }
 
 .owner-kpis-collapse summary::-webkit-details-marker {
@@ -307,34 +451,39 @@ body.owner-pwa-shell .app-content {
 }
 
 .owner-card {
-  border: 1px solid #e7ebf0;
-  border-radius: 12px;
-  background: #fff;
+  border: 1px solid var(--owner-glass-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
   padding: 12px 14px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .owner-label {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--owner-muted);
   text-transform: uppercase;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .owner-value {
+  font-family: var(--font-display);
   font-size: clamp(1.1rem, 5vw, 1.35rem);
-  font-weight: 900;
-  color: var(--owner-ink);
+  font-weight: 800;
+  color: #f1f5f9;
   line-height: 1.15;
   margin-top: 4px;
   word-break: break-word;
 }
 
 .owner-sub {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--owner-muted);
   margin-top: 4px;
+}
+
+.owner-card-quiebre h6 {
+  color: #fda4af !important;
 }
 
 .owner-card-quiebre .owner-quiebre-row {
@@ -349,60 +498,165 @@ body.owner-pwa-shell .app-content {
   flex: 1;
   text-align: center;
   padding: 8px 4px;
-  background: #f8fafc;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  border: 1px solid var(--owner-glass-border);
 }
 
-/* Barra de acciones fija */
+.owner-card-quiebre .fa-triangle-exclamation {
+  color: var(--owner-rose);
+}
+
+.owner-card-quiebre .btn-outline-primary {
+  border-radius: 999px;
+  border-color: rgba(129, 140, 248, 0.5);
+  color: #a5b4fc;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.owner-card-quiebre .btn-outline-primary:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #c7d2fe;
+}
+
+/* Isla flotante — acciones */
 .owner-pwa-actions {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 1040;
-  padding: 10px var(--owner-pad-x) calc(12px + env(safe-area-inset-bottom, 0px));
-  background: #fff;
-  border-top: 1px solid #e2e8f0;
-  box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.1);
+  padding: 0 var(--owner-pad-x) calc(14px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
-.owner-pwa-actions-inner {
+.owner-pwa-actions-island {
+  pointer-events: auto;
   max-width: 480px;
   margin: 0 auto;
+  padding: 14px 16px 16px;
+  border-radius: 28px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid var(--owner-glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
 }
 
 .owner-pwa-actions .btn {
   min-height: 48px;
-  font-weight: 800;
-  border-radius: 12px;
-  font-size: 0.9rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  border-radius: 999px;
+  font-size: 0.88rem;
 }
 
 .owner-pwa-actions .btn-owner-call {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
 }
 
 .owner-pwa-actions .btn-owner-call:not(.disabled):active {
-  background: #1e293b;
+  background: rgba(255, 255, 255, 0.18);
 }
 
+.owner-pwa-actions .btn-owner-call.disabled {
+  opacity: 0.45;
+}
+
+.owner-action-icon {
+  font-size: 1rem;
+  margin-right: 4px;
+  vertical-align: -0.1em;
+}
+
+/* Micrófono — CTA IA con pulso */
 .owner-pwa-actions .btn-owner-mic {
-  min-width: 48px;
-  width: 48px;
+  min-width: 52px;
+  width: 52px;
+  height: 52px;
   padding: 0;
-  background: #1d4ed8;
-  border-color: #1d4ed8;
+  border: none;
+  border-radius: 50%;
   color: #fff;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 45%, #a855f7 100%);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.55);
+  position: relative;
+  animation: owner-mic-glow 2.5s ease-in-out infinite;
+}
+
+.owner-pwa-actions .btn-owner-mic::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(139, 92, 246, 0.45);
+  animation: owner-mic-ring 2.5s ease-out infinite;
+  pointer-events: none;
+}
+
+.owner-pwa-actions .btn-owner-mic .fa-microphone {
+  font-size: 1.15rem;
+  position: relative;
+  z-index: 1;
+}
+
+.owner-pwa-actions .btn-owner-mic:active {
+  transform: scale(0.96);
+}
+
+@keyframes owner-mic-glow {
+  0%,
+  100% {
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
+  }
+  50% {
+    box-shadow: 0 10px 32px rgba(168, 85, 247, 0.65);
+  }
+}
+
+@keyframes owner-mic-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+
+.owner-pwa-actions .btn-owner-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #e2e8f0;
+}
+
+.owner-pwa-actions .btn-owner-secondary:active {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .owner-pwa-skeleton {
-  border-radius: 16px;
+  border-radius: 18px;
   min-height: 120px;
-  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
   background-size: 200% 100%;
   animation: owner-pwa-shimmer 1.2s infinite;
+  border: 1px solid var(--owner-glass-border);
 }
 
 @keyframes owner-pwa-shimmer {
@@ -414,10 +668,15 @@ body.owner-pwa-shell .app-content {
   }
 }
 
-/* Toast sobre la barra de acciones */
 body.owner-pwa-shell .toast-container.owner-pwa-toasts {
-  margin-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
+  margin-bottom: calc(150px + env(safe-area-inset-bottom, 0px));
   z-index: 1050;
+}
+
+body.owner-pwa-shell .toast.text-bg-primary {
+  background: rgba(30, 27, 75, 0.92) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--owner-glass-border);
 }
 
 @media (min-width: 768px) {
@@ -426,6 +685,6 @@ body.owner-pwa-shell .toast-container.owner-pwa-toasts {
   }
 
   .owner-pwa-wrap {
-    padding-bottom: 160px;
+    padding-bottom: 180px;
   }
 }

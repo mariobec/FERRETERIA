@@ -39,7 +39,11 @@
       '<span class="owner-semaforo-badge">' + badgeLabel(est) + '</span>' +
       '<div class="owner-semaforo-title">' + escapeHtml(card.titulo || '') + '</div>' +
       '<p class="owner-semaforo-msg">' + escapeHtml(card.mensaje || '') + '</p>' +
-      '<div class="owner-semaforo-ts"><i class="fas fa-clock me-1"></i>' + escapeHtml(card.timestamp || '') + '</div>';
+      '<div class="owner-semaforo-ts">' +
+      '<span class="owner-live-dot" aria-hidden="true"></span>' +
+      '<i class="fas fa-clock owner-semaforo-ts-icon" aria-hidden="true"></i>' +
+      '<span class="owner-semaforo-ts-text">' + escapeHtml(card.timestamp || '') + '</span>' +
+      '</div>';
     slot.dataset.accion = card.accion_requerida ? '1' : '0';
     slot.dataset.tipoAccion = card.tipo_accion || '';
   }
@@ -169,6 +173,15 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
+      var standalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.matchMedia('(display-mode: fullscreen)').matches
+        || window.navigator.standalone === true;
+      if (!standalone) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
+        });
+        return;
+      }
       navigator.serviceWorker.register('/owner-pwa/sw.js', { scope: '/' }).catch(function () {});
     });
   }

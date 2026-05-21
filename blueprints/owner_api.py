@@ -56,7 +56,10 @@ def register_owner_api_routes(app):
 
     @app.route('/owner-pwa/sw.js')
     def owner_pwa_service_worker():
-        return send_from_directory(static_dir, 'sw.js', mimetype='application/javascript')
+        resp = send_from_directory(static_dir, 'sw.js', mimetype='application/javascript')
+        resp.headers['Cache-Control'] = 'no-store, max-age=0'
+        resp.headers['Service-Worker-Allowed'] = '/'
+        return resp
 
     @app.route('/api/v1/owner/dashboard', methods=['GET'])
     @m.permisos_required('panel_gerencia', 'ver_gerencia', 'gestionar_usuarios')
