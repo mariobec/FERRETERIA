@@ -140,6 +140,7 @@ def _historial_caja(caja_id: int | None) -> dict[str, Any]:
             'monto_contado': int(round(float(c.monto_contado_cierre or 0))) if c.monto_contado_cierre else None,
             'monto_teorico': int(round(float(c.monto_teorico_cierre or 0))) if c.monto_teorico_cierre else None,
             'fecha_cierre': c.fecha_cierre.isoformat() if c.fecha_cierre else None,
+            'modo_cierre_arqueo': (getattr(c, 'modo_cierre_arqueo', None) or '')[:16] or None,
         },
         'movimientos_recientes': resumen_movs,
         'cierres_previos_mismo_usuario': cierres_previos,

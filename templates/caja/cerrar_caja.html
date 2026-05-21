@@ -30,7 +30,9 @@
 
   <header class="caja-cierre-ciego__hero">
     <img src="{{ lhexia_icon_src }}" alt="LhexIA" width="48" height="48">
-    <h1 class="caja-cierre-ciego__title mb-1">Cierre de turno a ciegas</h1>
+    <h1 class="caja-cierre-ciego__title mb-1">
+      {% if cierre_a_ciegas %}Cierre de turno a ciegas{% else %}Cierre de turno (modo visible){% endif %}
+    </h1>
     <p class="caja-cierre-ciego__meta mb-0">
       Punto de venta:
       <strong>{{ punto_venta_label or ('Caja #' ~ caja.id) }}</strong>
@@ -44,6 +46,10 @@
     hay {{ (vales_pendientes_cierre|length) + (tickets_abiertos_cierre|length) }} documento(s) pendientes.
     <a href="{{ url_for('caja_pendientes') }}" class="alert-link fw-bold">Resolver en caja</a>
   </div>
+  {% endif %}
+
+  {% if not cierre_a_ciegas %}
+  {% include 'caja/_resumen_cierre_visible.html' %}
   {% endif %}
 
   <form method="post"
@@ -107,12 +113,19 @@
              id="monto_declarado_cajero"
              name="monto_declarado_cajero"
              class="form-control caja-cierre-ciego__input-hero caja-cierre-ciego__input-hero--pulse"
-             placeholder="Ingrese lo contado en gaveta"
+             placeholder="{% if cierre_a_ciegas %}Ingrese lo contado en gaveta{% else %}Ej: {{ monto_contado_sugerido or '0' }}{% endif %}"
              inputmode="numeric"
              required
              maxlength="16"
+             {% if not cierre_a_ciegas and monto_contado_sugerido %}value="{{ monto_contado_sugerido }}"{% endif %}
              aria-describedby="helpEfectivo">
-      <div id="helpEfectivo" class="form-text">Solo el monto que contó físicamente. El sistema no muestra saldos esperados.</div>
+      <div id="helpEfectivo" class="form-text">
+        {% if cierre_a_ciegas %}
+        Solo el monto que contó físicamente. El sistema no muestra saldos esperados.
+        {% else %}
+        Ingrese el efectivo contado. Arriba ve el teórico del turno para cuadrar.
+        {% endif %}
+      </div>
     </section>
 
     {# --- Tarjetas / vouchers --- #}

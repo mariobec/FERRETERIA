@@ -1,0 +1,56 @@
+{# Resumen operativo — solo modo visible (no usar en cierre a ciegas) #}
+<section class="caja-cierre-ciego__card caja-cierre-visible__resumen" aria-labelledby="secResumenVisible">
+  <h2 id="secResumenVisible" class="h6 fw-bold text-uppercase text-muted mb-2">
+    <i class="fas fa-chart-pie me-2"></i>Resumen del turno (modo visible)
+  </h2>
+  <p class="small text-muted mb-3">
+    El sistema muestra el efectivo esperado en gaveta. Declare lo que contó físicamente para cuadrar.
+  </p>
+
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-wallet me-2 text-secondary"></i>Monto inicial</span>
+    <span class="fw-bold">$ {{ "{:,.0f}".format(caja.monto_inicial or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-money-bill-wave me-2 text-success"></i>Ventas efectivo</span>
+    <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(total_efectivo or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-hand-holding-usd me-2 text-success"></i>Abonos crédito (efectivo)</span>
+    <span class="fw-bold text-success">+ $ {{ "{:,.0f}".format(total_abonos_efectivo or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-credit-card me-2 text-primary"></i>Débito / prepago</span>
+    <span class="fw-bold text-primary">+ $ {{ "{:,.0f}".format(total_debito or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-credit-card me-2" style="color:#6f42c1;"></i>Tarjeta crédito</span>
+    <span class="fw-bold" style="color:#6f42c1;">+ $ {{ "{:,.0f}".format(total_tarjeta_credito or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-university me-2 text-info"></i>Transferencia</span>
+    <span class="fw-bold text-info">+ $ {{ "{:,.0f}".format(total_transferencia or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-file-invoice-dollar me-2 text-warning"></i>Crédito / cartera</span>
+    <span class="fw-bold text-warning">$ {{ "{:,.0f}".format(total_fiado or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-plus-circle me-2 text-primary"></i>Otros ingresos</span>
+    <span class="fw-bold text-primary">+ $ {{ "{:,.0f}".format(ingresos_manuales or 0).replace(",", ".") }}</span>
+  </div>
+  <div class="summary-item d-flex justify-content-between py-2 border-bottom border-light">
+    <span><i class="fas fa-minus-circle me-2 text-danger"></i>Egresos</span>
+    <span class="fw-bold text-danger">- $ {{ "{:,.0f}".format(egresos or 0).replace(",", ".") }}</span>
+  </div>
+
+  <div class="caja-cierre-visible__total-box text-center mt-3 p-3 rounded">
+    <p class="small text-uppercase fw-bold text-secondary mb-1">Efectivo esperado en gaveta</p>
+    <p class="display-6 fw-bold text-dark m-0">$ {{ "{:,.0f}".format(monto_teorico or 0).replace(",", ".") }}</p>
+    {% if monto_esperado_tarjeta is defined %}
+    <p class="small text-muted mt-2 mb-0">
+      Tarjetas (referencia turno): <strong>$ {{ "{:,.0f}".format(monto_esperado_tarjeta or 0).replace(",", ".") }}</strong>
+    </p>
+    {% endif %}
+  </div>
+</section>

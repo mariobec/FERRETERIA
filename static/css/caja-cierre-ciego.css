@@ -1,4 +1,9 @@
 /* Cierre a ciegas — cajero (PLAT-1.1 UI) */
+
+.caja-cierre-visible__total-box {
+  background: #fff8f4;
+  border: 2px solid var(--ds-primary, #e85d04);
+}
 .caja-cierre-ciego {
   --cierre-accent: var(--ds-primary);
   --cierre-accent-soft: rgba(243, 112, 33, 0.12);

@@ -489,6 +489,8 @@ def _config_empresa_default():
         "pos_descuento_autorizacion_por_cliente": "0",
         # FE SII: RUT emisor (override con EMPRESA_RUT en .env)
         "rut_emisor": (os.getenv("EMPRESA_RUT") or "").strip(),
+        # Caja: ciego = sin teórico en pantalla (default SD); visible = resumen + teórico
+        "cierre_caja_modo": "ciego",
     }
 
 
@@ -4781,6 +4783,7 @@ class Caja(db.Model):
     monto_total_sii = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     observacion_cierre = db.Column(db.String(255), nullable=True)
     supervisor_cierre = db.Column(db.String(80), nullable=True)
+    modo_cierre_arqueo = db.Column(db.String(16), nullable=True)
     estado = db.Column(db.String(20), default="Abierta")
     usuario_apertura = db.Column(db.String(50))
     usuario_cierre = db.Column(db.String(50))
@@ -11375,6 +11378,9 @@ def _asegurar_columnas_caja_cuadratura():
         if 'monto_total_sii' not in cols:
             db.session.execute(text("ALTER TABLE caja ADD COLUMN monto_total_sii INTEGER NOT NULL DEFAULT 0"))
             cambios = True
+        if 'modo_cierre_arqueo' not in cols:
+            db.session.execute(text("ALTER TABLE caja ADD COLUMN modo_cierre_arqueo VARCHAR(16) NULL"))
+            cambios = True
 
         if cambios:
             db.session.commit()
@@ -16062,15 +16068,28 @@ def cerrar_caja():
 
     vales_pendientes_cierre, tickets_abiertos_cierre = _documentos_bloquean_cierre_caja(caja)
 
+    from services.cierre_caja_config_service import es_cierre_a_ciegas, obtener_modo_cierre_caja
+
+    modo_cierre = obtener_modo_cierre_caja()
+    cierre_a_ciegas = es_cierre_a_ciegas()
+
     if request.method == 'GET':
-        return render_template(
-            'caja/cerrar_caja.html',
+        tpl_ctx = dict(
             caja=caja,
             vales_pendientes_cierre=vales_pendientes_cierre,
             tickets_abiertos_cierre=tickets_abiertos_cierre,
             punto_venta_label=f'Caja #{caja.id}',
             umbral_diferencia=int(round(float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000'))),
+            modo_cierre=modo_cierre,
+            cierre_a_ciegas=cierre_a_ciegas,
         )
+        if not cierre_a_ciegas:
+            turno = _calcular_contexto_turno_caja(caja)
+            tpl_ctx.update(turno)
+            tpl_ctx['monto_contado_sugerido'] = (
+                '{:,.0f}'.format(turno.get('monto_teorico') or 0).replace(',', '.')
+            )
+        return render_template('caja/cerrar_caja.html', **tpl_ctx)
 
     ctx = _calcular_contexto_turno_caja(caja)
     ventas_cuadre = ctx['ventas_cuadre']
@@ -16194,6 +16213,7 @@ def cerrar_caja():
     aplicar_indicadores_sii_caja(caja, ventas_cuadre)
     caja.observacion_cierre = observacion_cierre[:255] if observacion_cierre else None
     caja.supervisor_cierre = supervisor_nombre
+    caja.modo_cierre_arqueo = modo_cierre[:16]
     caja.estado = "Cerrada"
     caja.usuario_cierre = current_user.nombre
 
@@ -16893,6 +16913,11 @@ def admin_empresa():
             if request.form.get('pos_autoprint_ticket_emitido') == '1'
             else "0",
             "pos_descuento_umbral_pin_pct": (request.form.get('pos_descuento_umbral_pin_pct') or '20').strip(),
+            "cierre_caja_modo": (
+                "ciego"
+                if (request.form.get('cierre_caja_modo') or 'ciego').strip().lower() == 'ciego'
+                else "visible"
+            ),
         }
         try:
             umbral = float(str(data['pos_descuento_umbral_pin_pct']).replace(',', '.'))

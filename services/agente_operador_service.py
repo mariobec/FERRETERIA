@@ -147,11 +147,21 @@ def escanear_y_registrar_alertas() -> dict:
         if existe_dedupe_abierta(dedupe):
             omitidas += 1
             continue
-        sev = 'critical' if diff < 0 else 'warning'
+        modo_cierre = (getattr(c, 'modo_cierre_arqueo', None) or '').strip().lower()
+        if modo_cierre not in ('ciego', 'visible'):
+            from services.cierre_caja_config_service import obtener_modo_cierre_caja
+
+            modo_cierre = obtener_modo_cierre_caja()
+        if modo_cierre == 'visible':
+            sev = 'critical'
+        else:
+            sev = 'critical' if diff < 0 else 'warning'
         titulo = f'Caja #{c.id} descuadre {_fmt_clp(diff)} CLP'
+        etiqueta_modo = 'ciego' if modo_cierre == 'ciego' else 'visible'
         cuerpo = (
             f'Cierre {c.fecha_cierre.strftime("%d-%m-%Y %H:%M") if c.fecha_cierre else "—"}. '
-            f'Apertura: {c.usuario_apertura or "—"}. Diferencia arqueo ciego.'
+            f'Apertura: {c.usuario_apertura or "—"}. '
+            f'Modo arqueo: {etiqueta_modo}. Diferencia arqueo.'
         )
         rid = crear_registro(
             agente_nombre='operador',
@@ -165,6 +175,7 @@ def escanear_y_registrar_alertas() -> dict:
             payload=_payload_operador({
                 'caja_id': c.id,
                 'diferencia_clp': diff,
+                'modo_cierre': modo_cierre,
                 'cuerpo_base_v01': cuerpo,
             }),
             caja_id=c.id,
