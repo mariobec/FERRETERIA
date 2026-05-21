@@ -1,12 +1,13 @@
 /* PWA Dueño — App premium consultoría (glass + semáforo sofisticado) */
 
+html:has(body.owner-pwa-shell),
 body.owner-pwa-shell {
   --owner-bg-deep: #0f172a;
   --owner-bg-indigo: #1e1b4b;
   --owner-ink: #f8fafc;
   --owner-muted: #94a3b8;
-  --owner-glass: rgba(255, 255, 255, 0.08);
-  --owner-glass-border: rgba(255, 255, 255, 0.12);
+  --owner-glass: rgba(255, 255, 255, 0.1);
+  --owner-glass-border: rgba(255, 255, 255, 0.14);
   --owner-rose: #f43f5e;
   --owner-rose-soft: rgba(244, 63, 94, 0.35);
   --owner-emerald: #34d399;
@@ -19,9 +20,16 @@ body.owner-pwa-shell {
   --font-body: 'Inter', system-ui, sans-serif;
   font-family: var(--font-body);
   color: var(--owner-ink);
-  background: linear-gradient(165deg, var(--owner-bg-deep) 0%, #1e293b 42%, var(--owner-bg-indigo) 100%);
+  background: linear-gradient(165deg, var(--owner-bg-deep) 0%, #1e293b 42%, var(--owner-bg-indigo) 100%) !important;
   background-attachment: fixed;
   -webkit-text-size-adjust: 100%;
+}
+
+/* design-system.css pone panel blanco en .app-content — anular en Dueño */
+body.owner-pwa-shell .app-shell,
+body.owner-pwa-shell .app-shell > .row {
+  background: transparent !important;
+  min-height: 100dvh;
 }
 
 body.owner-pwa-shell .app-sidebar,
@@ -44,8 +52,8 @@ body.owner-pwa-shell .app-shell > .row > main.app-main {
   max-width: 100%;
   width: 100%;
   min-height: 100dvh;
-  padding: 0;
-  background: transparent;
+  padding: 0 !important;
+  background: transparent !important;
 }
 
 body.owner-pwa-shell .app-main > .alert {
@@ -56,8 +64,13 @@ body.owner-pwa-shell .app-main > .alert {
 }
 
 body.owner-pwa-shell .app-content {
-  padding: 0;
+  padding: 0 !important;
   flex: 1;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--owner-ink);
 }
 
 /* Banner instalar */
@@ -315,7 +328,7 @@ body.owner-pwa-shell .app-content {
   margin: 12px 0 8px;
   line-height: 1.25;
   word-break: break-word;
-  color: #f1f5f9;
+  color: #f8fafc !important;
 }
 
 .owner-semaforo-msg {
@@ -324,7 +337,7 @@ body.owner-pwa-shell .app-content {
   font-size: clamp(0.92rem, 3.6vw, 1rem);
   font-weight: 500;
   line-height: 1.5;
-  color: #cbd5e1;
+  color: #e2e8f0 !important;
   margin: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -680,11 +693,12 @@ body.owner-pwa-shell .toast.text-bg-primary {
 }
 
 @media (min-width: 768px) {
-  body.owner-pwa-shell .app-main {
-    padding: 16px;
+  body.owner-pwa-shell .app-shell > .row > main.app-main {
+    padding: 0 !important;
   }
 
   .owner-pwa-wrap {
+    max-width: 520px;
     padding-bottom: 180px;
   }
 }
