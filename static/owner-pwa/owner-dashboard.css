@@ -924,6 +924,192 @@ body.owner-guardian-shell .toast.text-bg-primary {
   font-weight: 500;
 }
 
+/* Ventas hoy KPI */
+.owner-guardian-ventas {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.owner-guardian-ventas-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+}
+
+.owner-guardian-ventas-monto {
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 5vw, 1.45rem);
+  font-weight: 900;
+  color: #ecfdf5;
+  line-height: 1.15;
+  margin-top: 4px;
+}
+
+.owner-guardian-ventas-var {
+  font-size: 0.8rem;
+  color: var(--guardian-muted);
+  margin-top: 4px;
+}
+
+.owner-guardian-ventas-var--up {
+  color: #6ee7b7;
+}
+
+.owner-guardian-ventas-var--down {
+  color: #fda4af;
+}
+
+/* Acciones en tarjeta */
+.owner-semaforo-card {
+  padding-right: 36px;
+}
+
+.owner-card-chevron {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(148, 163, 184, 0.65);
+  font-size: 0.9rem;
+}
+
+.owner-card-actions {
+  margin-top: 12px;
+}
+
+.owner-card-actions-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.owner-card-action {
+  font-weight: 700;
+  font-size: 0.72rem;
+  border-radius: 999px !important;
+  padding: 6px 12px !important;
+  border: 1px solid var(--guardian-glass-border) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e2e8f0 !important;
+  text-decoration: none;
+}
+
+.owner-card-action--tel {
+  background: rgba(244, 63, 94, 0.2) !important;
+  border-color: rgba(244, 63, 94, 0.45) !important;
+  color: #fecdd3 !important;
+}
+
+/* Feed timeline */
+.owner-guardian-feed-wrap {
+  margin-top: 18px;
+  margin-bottom: 8px;
+}
+
+.owner-guardian-feed-head {
+  margin-bottom: 10px;
+}
+
+.owner-guardian-feed-title {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #e2e8f0;
+  margin: 0 0 2px;
+}
+
+.owner-guardian-feed-sub {
+  font-size: 0.72rem;
+  color: var(--guardian-muted);
+}
+
+.owner-guardian-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.owner-guardian-feed-item {
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--guardian-glass);
+  border: 1px solid var(--guardian-glass-border);
+  backdrop-filter: blur(10px);
+}
+
+.owner-guardian-feed-item--critical {
+  border-color: rgba(244, 63, 94, 0.4);
+  box-shadow: -3px 0 0 var(--guardian-rose);
+}
+
+.owner-guardian-feed-item--warning {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.owner-guardian-feed-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.owner-guardian-feed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--guardian-emerald);
+  flex-shrink: 0;
+  animation: guardian-live 2.2s ease-in-out infinite;
+}
+
+.owner-guardian-feed-item--critical .owner-guardian-feed-dot {
+  background: var(--guardian-rose);
+}
+
+.owner-guardian-feed-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.owner-guardian-feed-item-title {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  line-height: 1.3;
+}
+
+.owner-guardian-feed-meta {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--guardian-muted);
+  margin-top: 2px;
+}
+
+.owner-guardian-feed-chevron {
+  color: #64748b;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.owner-guardian-feed-empty {
+  font-size: 0.82rem;
+  color: var(--guardian-muted);
+  text-align: center;
+  padding: 12px;
+  margin: 0;
+}
+
 @media (min-width: 768px) {
   .owner-guardian-wrap {
     padding-bottom: 188px;

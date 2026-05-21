@@ -64,7 +64,7 @@ def register_owner_api_routes(app):
     @app.route('/api/v1/owner/dashboard', methods=['GET'])
     @m.permisos_required('panel_gerencia', 'ver_gerencia', 'gestionar_usuarios')
     def api_owner_dashboard_v1():
-        """Lhexia Guardián v2 — JSON multiperfil (Dueño global / Supervisor sucursal)."""
+        """Lhexia Guardián v3 — JSON multiperfil, KPIs, acciones y feed Operador."""
         from services.owner_dashboard_service import construir_owner_dashboard
 
         usuario = current_user if current_user.is_authenticated else None

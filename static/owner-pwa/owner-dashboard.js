@@ -1,5 +1,5 @@
 /**
- * Lhexia Guardián — polling GET /api/v1/owner/dashboard (v2 multiperfil)
+ * Lhexia Guardián v3 — dashboard, acciones, feed y KPIs
  */
 (function () {
   'use strict';
@@ -9,31 +9,48 @@
 
   var apiUrl = root.getAttribute('data-api-url') || '/api/v1/owner/dashboard';
   var pollMs = parseInt(root.getAttribute('data-poll-ms') || '45000', 10);
-  var slotCaja = document.getElementById('ownerCardCaja');
-  var slotInv = document.getElementById('ownerCardInventario');
+  var cardsMount = document.getElementById('ownerGuardianCards');
+  var ccUrl = (cardsMount && cardsMount.getAttribute('data-cc-url')) || '/admin/control-center';
+  var invUrl = (cardsMount && cardsMount.getAttribute('data-inv-url')) || '/ia/abastecimiento?dias=30&solo_alerta=1&from=owner';
+
+  var DOMINIO_SLOT = {
+    caja: 'ownerCardCaja',
+    inventario: 'ownerCardInventario',
+    credito: 'ownerCardCredito',
+    compras: 'ownerCardCompras',
+  };
+
+  var NAV_DEFAULT = {
+    caja: ccUrl,
+    inventario: invUrl,
+    credito: '/creditos',
+    compras: '/compras/ordenes',
+  };
+
   var statusEl = document.getElementById('ownerPwaLiveStatus');
   var greetingEl = document.getElementById('ownerGuardianGreeting');
   var iaBox = document.getElementById('ownerGuardianIa');
   var iaText = document.getElementById('ownerGuardianIaText');
+  var ventasBox = document.getElementById('ownerGuardianVentas');
+  var ventasMonto = document.getElementById('ownerGuardianVentasMonto');
+  var ventasVar = document.getElementById('ownerGuardianVentasVar');
   var consBox = document.getElementById('ownerGuardianConsolidado');
   var consMonto = document.getElementById('ownerGuardianConsolidadoMonto');
   var consDetalle = document.getElementById('ownerGuardianConsolidadoDetalle');
+  var feedList = document.getElementById('ownerGuardianFeed');
+  var feedEmpty = document.getElementById('ownerGuardianFeedEmpty');
   var btnRefresh = document.getElementById('ownerBtnRefresh');
   var btnRefreshTop = document.getElementById('ownerBtnRefreshTop');
   var btnCall = document.getElementById('ownerBtnCall');
   var btnMic = document.getElementById('ownerBtnMic');
   var pollTimer = null;
   var lastMeta = {};
+  var boundSlots = {};
 
   function estadoClass(estado) {
     var e = (estado || 'verde').toLowerCase();
     if (e === 'rojo' || e === 'amarillo' || e === 'verde') return 'estado-' + e;
     return 'estado-verde';
-  }
-
-  function statusToEstado(status) {
-    var m = { red: 'rojo', green: 'verde', amber: 'amarillo' };
-    return m[(status || '').toLowerCase()] || 'verde';
   }
 
   function badgeLabel(estado) {
@@ -47,13 +64,46 @@
     if (/alerta\s*crítica/i.test(t)) return t;
     if (/^caja/i.test(t)) return 'Alerta Crítica: Caja';
     if (/^inventario/i.test(t)) return 'Alerta Crítica: Inventario';
+    if (/^cr[eé]dito/i.test(t)) return 'Alerta Crítica: Crédito';
+    if (/^compras/i.test(t)) return 'Alerta Crítica: Compras';
     return t.indexOf('Alerta') >= 0 ? t : 'Alerta Crítica: ' + t;
   }
 
-  function renderCard(slot, card) {
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+
+  function actionsHtml(acciones) {
+    if (!acciones || !acciones.length) return '';
+    var html = '<div class="owner-card-actions-inner">';
+    acciones.forEach(function (a) {
+      var cls = 'btn btn-sm owner-card-action';
+      if (a.tipo === 'tel') cls += ' owner-card-action--tel';
+      var tag = a.tipo === 'nav' ? 'a' : 'a';
+      var href = escapeHtml(a.href || '#');
+      var label = escapeHtml(a.label || 'Acción');
+      html += '<' + tag + ' class="' + cls + '" href="' + href + '" data-action-tipo="' +
+        escapeHtml(a.tipo || 'nav') + '">' + label + '</' + tag + '>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderCardBody(slot, card) {
     if (!slot || !card) return;
     var est = (card.estado || 'verde').toLowerCase();
+    var dominio = card.dominio || slot.getAttribute('data-dominio') || '';
     slot.className = 'owner-semaforo-card ' + estadoClass(est);
+    if (dominio) slot.setAttribute('data-dominio', dominio);
+    slot.classList.remove('d-none');
+
+    var nav = NAV_DEFAULT[dominio] || slot.getAttribute('data-nav-url') || ccUrl;
+    var firstNav = (card.acciones || []).find(function (a) { return a.tipo === 'nav'; });
+    if (firstNav && firstNav.href) nav = firstNav.href;
+    slot.setAttribute('data-nav-url', nav);
+
     slot.innerHTML =
       '<span class="owner-semaforo-badge">' + badgeLabel(est) + '</span>' +
       '<div class="owner-semaforo-title">' + escapeHtml(formatCardTitle(card, est)) + '</div>' +
@@ -62,15 +112,85 @@
       '<span class="owner-live-dot" aria-hidden="true"></span>' +
       '<i class="fas fa-clock owner-semaforo-ts-icon" aria-hidden="true"></i>' +
       '<span class="owner-semaforo-ts-text">' + escapeHtml(card.timestamp || '') + '</span>' +
-      '</div>';
+      '</div>' +
+      '<div class="owner-card-actions" data-actions-mount>' + actionsHtml(card.acciones) + '</div>' +
+      '<span class="owner-card-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>';
+
     slot.dataset.accion = card.accion_requerida ? '1' : '0';
     slot.dataset.tipoAccion = card.tipo_accion || '';
+    bindSlot(slot);
   }
 
-  function escapeHtml(s) {
-    var d = document.createElement('div');
-    d.textContent = String(s);
-    return d.innerHTML;
+  function bindSlot(slot) {
+    if (!slot || boundSlots[slot.id]) return;
+    slot.setAttribute('role', 'button');
+    slot.setAttribute('tabindex', '0');
+    slot.addEventListener('click', function (ev) {
+      if (ev.target.closest('.owner-card-action')) return;
+      var url = slot.getAttribute('data-nav-url');
+      if (url) window.location.href = url;
+    });
+    slot.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        var url = slot.getAttribute('data-nav-url');
+        if (url) window.location.href = url;
+      }
+    });
+    var actions = slot.querySelectorAll('.owner-card-action');
+    actions.forEach(function (btn) {
+      btn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        if (btn.getAttribute('data-action-tipo') === 'tel' && !btn.getAttribute('href').replace('tel:', '').trim()) {
+          ev.preventDefault();
+        }
+      });
+    });
+    boundSlots[slot.id] = true;
+  }
+
+  function renderTarjetas(data) {
+    var list = data.tarjetas;
+    if (!list || !list.length) {
+      renderCardBody(document.getElementById('ownerCardCaja'), data.tarjeta_caja);
+      renderCardBody(document.getElementById('ownerCardInventario'), data.tarjeta_inventario);
+      if (data.tarjeta_credito) renderCardBody(document.getElementById('ownerCardCredito'), data.tarjeta_credito);
+      if (data.tarjeta_compras) renderCardBody(document.getElementById('ownerCardCompras'), data.tarjeta_compras);
+      return;
+    }
+    list.forEach(function (card) {
+      var dom = card.dominio || '';
+      var id = DOMINIO_SLOT[dom];
+      var slot = id ? document.getElementById(id) : null;
+      if (slot) renderCardBody(slot, card);
+    });
+  }
+
+  function renderFeed(items) {
+    if (!feedList) return;
+    feedList.innerHTML = '';
+    if (!items || !items.length) {
+      if (feedEmpty) feedEmpty.classList.remove('d-none');
+      return;
+    }
+    if (feedEmpty) feedEmpty.classList.add('d-none');
+    items.forEach(function (it) {
+      var li = document.createElement('li');
+      var sev = (it.severidad || 'info').toLowerCase();
+      li.className = 'owner-guardian-feed-item owner-guardian-feed-item--' + sev;
+      var href = it.nav_href || ccUrl;
+      li.innerHTML =
+        '<a href="' + escapeHtml(href) + '" class="owner-guardian-feed-link">' +
+        '<span class="owner-guardian-feed-dot" aria-hidden="true"></span>' +
+        '<span class="owner-guardian-feed-body">' +
+        '<span class="owner-guardian-feed-item-title">' + escapeHtml(it.titulo || '') + '</span>' +
+        '<span class="owner-guardian-feed-meta">' + escapeHtml(it.hace || '') +
+        (it.codigo ? ' · ' + escapeHtml(it.codigo) : '') + '</span>' +
+        '</span>' +
+        '<i class="fas fa-chevron-right owner-guardian-feed-chevron" aria-hidden="true"></i>' +
+        '</a>';
+      feedList.appendChild(li);
+    });
   }
 
   function setLiveStatus(ok, text) {
@@ -102,60 +222,67 @@
   function applyGuardianPayload(data) {
     if (!data) return;
 
-    if (greetingEl && data.saludo) {
-      greetingEl.textContent = data.saludo;
-    }
+    if (greetingEl && data.saludo) greetingEl.textContent = data.saludo;
 
     if (iaBox && iaText) {
       var msg = (data.mensaje_ia || '').trim();
       if (msg) {
         iaText.textContent = msg;
         iaBox.classList.remove('d-none');
-        iaBox.classList.toggle('owner-guardian-ia--alert', data.status_caja === 'red');
+        iaBox.classList.toggle('owner-guardian-ia--alert', data.status_global === 'red');
       } else {
         iaBox.classList.add('d-none');
       }
     }
 
+    var c = data.consolidado || {};
+    if (ventasBox && ventasMonto && ventasVar) {
+      if (c.ventas_hoy_fmt) {
+        ventasMonto.textContent = c.ventas_hoy_fmt;
+        var v = c.var_vs_ayer_pct;
+        if (v != null && v !== '') {
+          var sign = v > 0 ? '+' : '';
+          ventasVar.textContent = sign + v + '% vs ayer · ' + (c.transacciones_hoy || 0) + ' ventas';
+          ventasVar.classList.toggle('owner-guardian-ventas-var--up', v > 0);
+          ventasVar.classList.toggle('owner-guardian-ventas-var--down', v < 0);
+        } else {
+          ventasVar.textContent = (c.transacciones_hoy || 0) + ' transacciones hoy';
+        }
+        ventasBox.classList.remove('d-none');
+      } else {
+        ventasBox.classList.add('d-none');
+      }
+    }
+
     if (consBox && consMonto && consDetalle) {
-      var c = data.consolidado || {};
       if (c.visible && c.descuadre_acumulado_fmt) {
         consMonto.textContent = c.descuadre_acumulado_fmt;
-        var det = (c.cajas_con_descuadre || 0) + ' cierre(s) · ' +
-          (c.sucursales_monitoreadas || 1) + ' sucursal(es)';
-        consDetalle.textContent = det;
+        consDetalle.textContent =
+          (c.cajas_con_descuadre || 0) + ' cierre(s) · ' + (c.sucursales_monitoreadas || 1) + ' sucursal(es)';
         consBox.classList.remove('d-none');
-        consBox.classList.toggle(
-          'owner-guardian-consolidado--danger',
-          data.status_caja === 'red'
-        );
+        consBox.classList.toggle('owner-guardian-consolidado--danger', data.status_caja === 'red');
       } else {
         consBox.classList.add('d-none');
       }
     }
 
+    renderFeed(data.feed_preview || []);
+
     var tel = data.supervisor_telefono || (data.meta && data.meta.supervisor_telefono) || '';
     updateCallButton(tel);
 
-    var critico = data.status_caja === 'red' || data.status_inventario === 'red';
+    var critico = data.status_global === 'red' || data.status_caja === 'red';
     var ab = data.meta && data.meta.alertas_abiertas;
     var liveTxt = typeof ab === 'number'
       ? ab + ' alerta(s) operador'
       : (critico ? 'Atención requerida' : 'En línea');
-    setLiveStatus(!critico || data.status_caja !== 'red', liveTxt);
+    setLiveStatus(data.status_global !== 'red', liveTxt);
 
-    var perfil = data.perfil || 'guardian';
-    document.title = 'Guardián · ' +
-      (data.status_caja === 'red' ? 'Alerta' : (perfil === 'supervisor' ? 'Turno' : 'LhexIA'));
-  }
-
-  function showSkeleton() {
-    if (slotCaja) slotCaja.outerHTML = '<div class="owner-pwa-skeleton mb-3" id="ownerCardCaja"></div>';
-    if (slotInv) slotInv.outerHTML = '<div class="owner-pwa-skeleton mb-3" id="ownerCardInventario"></div>';
+    document.title = 'Guardián · ' + (data.status_global === 'red' ? 'Alerta' : 'LhexIA');
   }
 
   function fetchDashboard() {
-    var url = apiUrl + (apiUrl.indexOf('?') >= 0 ? '&' : '?') + 'nocache=1';
+    var url = apiUrl + (apiUrl.indexOf('?') >= 0 ? '&' : '?') + 'nocache=1&v=3';
     setLiveStatus(true, 'Actualizando…');
     return fetch(url, {
       method: 'GET',
@@ -173,39 +300,13 @@
       .then(function (j) {
         if (!j || j.status !== 'success' || !j.data) throw new Error('invalid_payload');
         var data = j.data;
-        var cajaSlot = document.getElementById('ownerCardCaja');
-        var invSlot = document.getElementById('ownerCardInventario');
-        renderCard(cajaSlot, data.tarjeta_caja);
-        renderCard(invSlot, data.tarjeta_inventario);
+        renderTarjetas(data);
         lastMeta = data.meta || {};
         applyGuardianPayload(data);
       })
       .catch(function () {
         setLiveStatus(false, 'Error al cargar');
       });
-  }
-
-  function schedulePoll() {
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(fetchDashboard, Math.max(15000, pollMs));
-  }
-
-  function bindCardNavigation() {
-    [slotCaja, slotInv].forEach(function (slot) {
-      if (!slot || slot._ownerNavBound) return;
-      var url = slot.getAttribute('data-nav-url');
-      if (!url) return;
-      slot.addEventListener('click', function () {
-        window.location.href = url;
-      });
-      slot.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault();
-          window.location.href = url;
-        }
-      });
-      slot._ownerNavBound = true;
-    });
   }
 
   function onRefreshClick(e) {
@@ -216,13 +317,15 @@
   if (btnRefresh) btnRefresh.addEventListener('click', onRefreshClick);
   if (btnRefreshTop) btnRefreshTop.addEventListener('click', onRefreshClick);
 
-  bindCardNavigation();
+  ['ownerCardCaja', 'ownerCardInventario'].forEach(function (id) {
+    var s = document.getElementById(id);
+    if (s) bindSlot(s);
+  });
 
   if (btnMic) {
     btnMic.addEventListener('click', function () {
       if (window.bootstrap && document.getElementById('ownerMicToast')) {
-        var t = new bootstrap.Toast(document.getElementById('ownerMicToast'));
-        t.show();
+        new bootstrap.Toast(document.getElementById('ownerMicToast')).show();
       } else {
         alert('Agente de voz: próximamente en SD-2.');
       }
@@ -253,5 +356,8 @@
     });
   }
 
-  fetchDashboard().then(schedulePoll);
+  fetchDashboard().then(function () {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(fetchDashboard, Math.max(15000, pollMs));
+  });
 })();

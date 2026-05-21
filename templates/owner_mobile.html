@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-2">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-3">
 {% endblock %}
 
 {% block content %}
@@ -68,8 +68,13 @@
     <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> Copiloto operacional</div>
     <h2>Control en vivo</h2>
     <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }} — caja e inventario bajo vigilancia</p>
+    <div id="ownerGuardianVentas" class="owner-guardian-ventas d-none" aria-live="polite">
+      <span class="owner-guardian-ventas-label">Ventas hoy</span>
+      <div id="ownerGuardianVentasMonto" class="owner-guardian-ventas-monto">—</div>
+      <div id="ownerGuardianVentasVar" class="owner-guardian-ventas-var"></div>
+    </div>
     <div id="ownerGuardianConsolidado" class="owner-guardian-consolidado d-none" aria-live="polite">
-      <span class="owner-guardian-consolidado-kicker">Consolidado financiero · red</span>
+      <span class="owner-guardian-consolidado-kicker">Desfalco acumulado · red</span>
       <div id="ownerGuardianConsolidadoMonto" class="owner-guardian-consolidado-monto">—</div>
       <div id="ownerGuardianConsolidadoDetalle" class="owner-guardian-consolidado-detalle"></div>
     </div>
@@ -79,29 +84,46 @@
     </div>
   </section>
 
-  <section class="owner-guardian-alerts" aria-label="Alertas operativas">
-    <div class="owner-semaforo-card estado-verde" id="ownerCardCaja" role="button" tabindex="0"
+  <section id="ownerGuardianCards" class="owner-guardian-alerts" aria-label="Alertas operativas"
+           data-cc-url="{{ url_for('admin_control_center') }}"
+           data-inv-url="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='owner') }}">
+    <div class="owner-semaforo-card estado-verde" id="ownerCardCaja" data-dominio="caja"
          data-nav-url="{{ url_for('admin_control_center') }}">
       <span class="owner-semaforo-badge">…</span>
       <div class="owner-semaforo-title">Caja</div>
-      <p class="owner-semaforo-msg">Cargando estado de caja…</p>
+      <p class="owner-semaforo-msg">Cargando…</p>
       <div class="owner-semaforo-ts">
         <span class="owner-live-dot" aria-hidden="true"></span>
         <i class="fas fa-clock owner-semaforo-ts-icon" aria-hidden="true"></i>
         <span class="owner-semaforo-ts-text">—</span>
       </div>
+      <div class="owner-card-actions" data-actions-mount></div>
     </div>
-    <div class="owner-semaforo-card estado-verde" id="ownerCardInventario" role="button" tabindex="0"
-         data-nav-url="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='inicio') }}">
+    <div class="owner-semaforo-card estado-verde" id="ownerCardInventario" data-dominio="inventario"
+         data-nav-url="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='owner') }}">
       <span class="owner-semaforo-badge">…</span>
       <div class="owner-semaforo-title">Inventario</div>
-      <p class="owner-semaforo-msg">Cargando inventario…</p>
+      <p class="owner-semaforo-msg">Cargando…</p>
       <div class="owner-semaforo-ts">
         <span class="owner-live-dot" aria-hidden="true"></span>
         <i class="fas fa-clock owner-semaforo-ts-icon" aria-hidden="true"></i>
         <span class="owner-semaforo-ts-text">—</span>
       </div>
+      <div class="owner-card-actions" data-actions-mount></div>
     </div>
+    <div class="owner-semaforo-card estado-verde d-none" id="ownerCardCredito" data-dominio="credito"
+         data-nav-url="{{ url_for('modulo_creditos') }}"></div>
+    <div class="owner-semaforo-card estado-verde d-none" id="ownerCardCompras" data-dominio="compras"
+         data-nav-url="{{ url_for('lista_ordenes_compra') }}"></div>
+  </section>
+
+  <section class="owner-guardian-feed-wrap" aria-label="Timeline operador">
+    <div class="owner-guardian-feed-head">
+      <h3 class="owner-guardian-feed-title">Centro de mando · vivo</h3>
+      <span class="owner-guardian-feed-sub">Últimos eventos del Agente Operador</span>
+    </div>
+    <ul id="ownerGuardianFeed" class="owner-guardian-feed-list"></ul>
+    <p id="ownerGuardianFeedEmpty" class="owner-guardian-feed-empty d-none">Sin alertas recientes del operador.</p>
   </section>
 
   <details class="owner-kpis-collapse owner-guardian-kpis">
@@ -193,5 +215,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-2"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-3"></script>
 {% endblock %}

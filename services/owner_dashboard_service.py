@@ -1,4 +1,4 @@
-"""Lhexia Guardián v2 — dashboard multiperfil (Dueño / Supervisor / mock dev)."""
+"""Lhexia Guardián v3 — dashboard multiperfil + KPIs + feed + acciones."""
 from __future__ import annotations
 
 import os
@@ -13,9 +13,16 @@ from services.agente_ejecuciones_service import (
     contar_alertas_abiertas,
     parse_payload_json,
 )
+from services.agente_ejecuciones_service import listar_alertas_operativas
 from services.control_center_service import obtener_tarjetas_sucursales
 
 _CODIGOS_CAJA = ('caja_descuadre', 'caja_dia_anterior')
+
+# Rutas PWA (paths absolutos; el front resuelve mismo origen)
+_URL_CONTROL_CENTER = '/admin/control-center'
+_URL_ABASTECIMIENTO = '/ia/abastecimiento?dias=30&solo_alerta=1&from=owner'
+_URL_CREDITOS = '/creditos'
+_URL_ORDENES_COMPRA = '/compras/ordenes'
 
 _ROLES_ALTA_GERENCIA = frozenset({
     'dueño', 'dueno', 'dono', 'gerencia', 'alta gerencia', 'alta_gerencia',
@@ -395,13 +402,242 @@ def _tarjeta_inventario(*, perfil: PerfilGuardian) -> dict[str, Any]:
     }
 
 
-def _consolidado_financiero(*, calcular_ctx_caja: Callable, perfil: PerfilGuardian) -> dict[str, Any]:
+def _kpis_ventas_hoy() -> dict[str, Any]:
+    from datetime import date, timedelta
+
+    from app import Venta, db
+    from sqlalchemy import or_
+
+    hoy = date.today()
+    ayer = hoy - timedelta(days=1)
+    filtro_estado = or_(Venta.estado.is_(None), Venta.estado != 'Abierta')
+    ventas_hoy = (
+        db.session.query(db.func.sum(Venta.monto_total))
+        .filter(db.func.date(Venta.fecha) == hoy, filtro_estado)
+        .scalar()
+        or 0
+    )
+    ventas_ayer = (
+        db.session.query(db.func.sum(Venta.monto_total))
+        .filter(db.func.date(Venta.fecha) == ayer, filtro_estado)
+        .scalar()
+        or 0
+    )
+    var_pct = None
+    if ventas_ayer:
+        var_pct = round(
+            ((float(ventas_hoy) - float(ventas_ayer)) / float(ventas_ayer)) * 100.0,
+            1,
+        )
+    transacciones = Venta.query.filter(
+        db.func.date(Venta.fecha) == hoy,
+        filtro_estado,
+    ).count()
+    return {
+        'ventas_hoy_clp': int(round(float(ventas_hoy))),
+        'ventas_hoy_fmt': _fmt_clp(ventas_hoy),
+        'var_vs_ayer_pct': var_pct,
+        'transacciones_hoy': int(transacciones),
+    }
+
+
+def _tablas_orden_compra_existen() -> bool:
+    from sqlalchemy import inspect
+
+    from app import db
+
+    try:
+        names = inspect(db.engine).get_table_names()
+        return 'ordenes_compra' in names and 'detalle_orden_compra' in names
+    except Exception:
+        return False
+
+
+def _tarjeta_credito(*, perfil: PerfilGuardian) -> dict[str, Any]:
+    from app import Cliente, db
+
+    total = float(db.session.query(db.func.sum(Cliente.saldo_deudor)).scalar() or 0)
+    morosos = Cliente.query.filter(Cliente.saldo_deudor > 0).count()
+    umbral_rojo = float(os.getenv('OWNER_GUARDIAN_CARTERA_ROJO_CLP', '5000000'))
+    umbral_amarillo = float(os.getenv('OWNER_GUARDIAN_CARTERA_AMARILLO_CLP', '1500000'))
+    if total >= umbral_rojo:
+        estado, titulo = 'rojo', 'Crédito: cartera crítica'
+    elif total >= umbral_amarillo:
+        estado, titulo = 'amarillo', 'Crédito: revisar cobranza'
+    else:
+        estado, titulo = 'verde', 'Crédito: OK'
+    alcance = perfil.sucursal_label or 'red'
     if perfil.alcance != 'global':
-        return {'visible': False}
+        alcance = perfil.sucursal_label or 'su sucursal'
+    return {
+        'estado': estado,
+        'titulo': titulo,
+        'mensaje': (
+            f'Cartera ${int(total):,}'.replace(',', '.')
+            + f' por cobrar · {morosos} cliente(s) con saldo. Ámbito: {alcance}.'
+        ),
+        'timestamp': 'Ahora',
+        'accion_requerida': estado != 'verde',
+        'tipo_accion': 'llamada_supervisor' if estado == 'rojo' else None,
+        'cartera_clp': int(round(total)),
+        'clientes_con_saldo': int(morosos),
+    }
+
+
+def _tarjeta_compras(*, perfil: PerfilGuardian) -> dict[str, Any]:
+    oc_pendientes = 0
+    if _tablas_orden_compra_existen():
+        from app import OrdenCompra
+
+        oc_estados = ('Borrador', 'Enviada', 'Parcial')
+        oc_pendientes = OrdenCompra.query.filter(OrdenCompra.estado.in_(oc_estados)).count()
+    if oc_pendientes >= 8:
+        estado, titulo = 'rojo', 'Compras: OC urgentes'
+    elif oc_pendientes >= 3:
+        estado, titulo = 'amarillo', 'Compras: OC pendientes'
+    else:
+        estado, titulo = 'verde', 'Compras: OK'
+    return {
+        'estado': estado,
+        'titulo': titulo,
+        'mensaje': f'{oc_pendientes} orden(es) de compra pendientes de cierre.',
+        'timestamp': 'Ahora',
+        'accion_requerida': estado != 'verde',
+        'tipo_accion': None,
+        'oc_pendientes': int(oc_pendientes),
+    }
+
+
+def _acciones_para_tarjeta(
+    dominio: str,
+    tarjeta: dict[str, Any],
+    *,
+    telefono: str,
+) -> list[dict[str, Any]]:
+    acciones: list[dict[str, Any]] = []
+    tel = (telefono or '').strip()
+    est = (tarjeta.get('estado') or 'verde').lower()
+
+    if dominio == 'caja':
+        if tel and est in ('rojo', 'amarillo'):
+            acciones.append({
+                'id': 'call',
+                'label': 'Llamar supervisor',
+                'tipo': 'tel',
+                'href': 'tel:' + tel.replace(' ', ''),
+            })
+        acciones.append({
+            'id': 'cc',
+            'label': 'Control Center',
+            'tipo': 'nav',
+            'href': _URL_CONTROL_CENTER,
+        })
+    elif dominio == 'inventario':
+        acciones.append({
+            'id': 'quiebre',
+            'label': 'Ver quiebre stock',
+            'tipo': 'nav',
+            'href': _URL_ABASTECIMIENTO,
+        })
+        if est == 'rojo' and tel:
+            acciones.append({
+                'id': 'call',
+                'label': 'Llamar supervisor',
+                'tipo': 'tel',
+                'href': 'tel:' + tel.replace(' ', ''),
+            })
+    elif dominio == 'credito':
+        acciones.append({
+            'id': 'creditos',
+            'label': 'Cartera y cobranza',
+            'tipo': 'nav',
+            'href': _URL_CREDITOS,
+        })
+    elif dominio == 'compras':
+        acciones.append({
+            'id': 'oc',
+            'label': 'Órdenes de compra',
+            'tipo': 'nav',
+            'href': _URL_ORDENES_COMPRA,
+        })
+    return acciones
+
+
+def _tarjeta_v3(
+    tarjeta: dict[str, Any],
+    *,
+    dominio: str,
+    prioridad: int,
+    telefono: str,
+) -> dict[str, Any]:
+    est = (tarjeta.get('estado') or 'verde').lower()
+    out = dict(tarjeta)
+    out['dominio'] = dominio
+    out['status'] = _estado_a_status(est)
+    out['prioridad'] = prioridad
+    out['acciones'] = _acciones_para_tarjeta(dominio, tarjeta, telefono=telefono)
+    return out
+
+
+def _feed_preview(*, perfil: PerfilGuardian, limite: int = 5) -> list[dict[str, Any]]:
+    rows = listar_alertas_operativas(limite=limite, solo_abiertas=True)
+    feed = []
+    for row in rows:
+        payload = parse_payload_json(row.payload_json)
+        venta_id = row.venta_id or payload.get('venta_id')
+        nav = _URL_CONTROL_CENTER
+        if venta_id:
+            nav = f'/editar_venta/{venta_id}'
+        elif (row.codigo or '') in _CODIGOS_CAJA:
+            nav = _URL_CONTROL_CENTER
+        feed.append({
+            'id': row.id,
+            'tipo': 'alerta',
+            'agente': row.agente_nombre or 'operador',
+            'severidad': (row.severidad or 'info').lower(),
+            'codigo': row.codigo or '',
+            'titulo': (row.titulo or 'Alerta operador')[:120],
+            'hace': _fmt_hace(row.updated_at or row.created_at),
+            'estado': row.estado,
+            'nav_href': nav,
+        })
+    if perfil.alcance == 'sucursal' and perfil.sucursal_label:
+        suc_u = perfil.sucursal_label.upper()
+        feed = [
+            f for f in feed
+            if suc_u in (f.get('titulo') or '').upper() or 'CAJA' in (f.get('codigo') or '').upper()
+        ] or feed[:limite]
+    return feed[:limite]
+
+
+def _status_global(*statuses: str) -> str:
+    if 'red' in statuses:
+        return 'red'
+    if 'amber' in statuses:
+        return 'amber'
+    return 'green'
+
+
+def _consolidado_financiero(
+    *,
+    calcular_ctx_caja: Callable,
+    perfil: PerfilGuardian,
+    kpis_ventas: dict[str, Any],
+) -> dict[str, Any]:
+    base = {
+        'visible': False,
+        'ventas_hoy_clp': kpis_ventas.get('ventas_hoy_clp', 0),
+        'ventas_hoy_fmt': kpis_ventas.get('ventas_hoy_fmt', '$0'),
+        'var_vs_ayer_pct': kpis_ventas.get('var_vs_ayer_pct'),
+        'transacciones_hoy': kpis_ventas.get('transacciones_hoy', 0),
+    }
+    if perfil.alcance != 'global':
+        return base
 
     bloque = obtener_tarjetas_sucursales(calcular_ctx=calcular_ctx_caja)
     total = int(bloque.get('alerta_global_clp') or 0)
     return {
+        **base,
         'visible': True,
         'descuadre_acumulado_clp': total,
         'descuadre_acumulado_fmt': bloque.get('alerta_global_fmt') or _fmt_clp(total),
@@ -459,35 +695,75 @@ def construir_owner_dashboard(
     calcular_ctx_caja: Callable,
     usuario=None,
 ) -> dict[str, Any]:
-    """Payload `data` para GET /api/v1/owner/dashboard (v2 multiperfil)."""
+    """Payload `data` para GET /api/v1/owner/dashboard (v3, compatible v2)."""
     perfil = detectar_perfil_guardian(usuario)
+    telefono = _supervisor_telefono()
+    kpis = _kpis_ventas_hoy()
+
     tarjeta_caja = _tarjeta_caja(calcular_ctx_caja=calcular_ctx_caja, perfil=perfil)
     tarjeta_inventario = _tarjeta_inventario(perfil=perfil)
-    consolidado = _consolidado_financiero(calcular_ctx_caja=calcular_ctx_caja, perfil=perfil)
-    telefono = _supervisor_telefono()
+    tarjeta_credito = _tarjeta_credito(perfil=perfil)
+    tarjeta_compras = _tarjeta_compras(perfil=perfil)
+
+    consolidado = _consolidado_financiero(
+        calcular_ctx_caja=calcular_ctx_caja,
+        perfil=perfil,
+        kpis_ventas=kpis,
+    )
+
+    t_caja = _tarjeta_v3(tarjeta_caja, dominio='caja', prioridad=1, telefono=telefono)
+    t_inv = _tarjeta_v3(tarjeta_inventario, dominio='inventario', prioridad=2, telefono=telefono)
+    t_cred = _tarjeta_v3(tarjeta_credito, dominio='credito', prioridad=3, telefono=telefono)
+    t_comp = _tarjeta_v3(tarjeta_compras, dominio='compras', prioridad=4, telefono=telefono)
+
+    tarjetas = sorted(
+        [t_caja, t_inv, t_cred, t_comp],
+        key=lambda t: (t.get('prioridad') or 99, {'rojo': 0, 'amarillo': 1, 'verde': 2}.get(t.get('estado'), 3)),
+    )
+
+    st_caja = t_caja['status']
+    st_inv = t_inv['status']
+    st_cred = t_cred['status']
+    st_comp = t_comp['status']
+    st_global = _status_global(st_caja, st_inv, st_cred, st_comp)
+
+    feed = _feed_preview(perfil=perfil, limite=5)
+
+    mensaje_ia = _mensaje_ia(
+        perfil=perfil,
+        tarjeta_caja=tarjeta_caja,
+        tarjeta_inventario=tarjeta_inventario,
+        consolidado=consolidado,
+    )
+    if t_cred['estado'] in ('rojo', 'amarillo'):
+        mensaje_ia = (mensaje_ia + ' ' + (t_cred.get('mensaje') or '')).strip()[:600]
 
     return {
+        'version': 'guardian_v3',
         'perfil': perfil.codigo,
         'alcance': perfil.alcance,
         'nombre_usuario': perfil.nombre_usuario,
         'saludo': perfil.saludo,
         'sucursal_label': perfil.sucursal_label,
-        'status_caja': _estado_a_status(tarjeta_caja.get('estado')),
-        'status_inventario': _estado_a_status(tarjeta_inventario.get('estado')),
-        'mensaje_ia': _mensaje_ia(
-            perfil=perfil,
-            tarjeta_caja=tarjeta_caja,
-            tarjeta_inventario=tarjeta_inventario,
-            consolidado=consolidado,
-        ),
+        'status_caja': st_caja,
+        'status_inventario': st_inv,
+        'status_credito': st_cred,
+        'status_compras': st_comp,
+        'status_global': st_global,
+        'mensaje_ia': mensaje_ia,
         'supervisor_telefono': telefono,
         'tarjeta_caja': tarjeta_caja,
         'tarjeta_inventario': tarjeta_inventario,
+        'tarjeta_credito': tarjeta_credito,
+        'tarjeta_compras': tarjeta_compras,
+        'tarjetas': tarjetas,
         'consolidado': consolidado,
+        'feed_preview': feed,
         'meta': {
             'alertas_abiertas': contar_alertas_abiertas(),
             'supervisor_telefono': telefono,
             'generado_en': datetime.now().isoformat(timespec='seconds'),
-            'version': 'guardian_v2',
+            'version': 'guardian_v3',
+            'poll_recomendado_ms': 30000,
         },
     }
