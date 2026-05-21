@@ -1,26 +1,35 @@
 {
+  "id": "/owner-mobile",
   "name": "LhexIA Dueño",
   "short_name": "Dueño",
-  "description": "Control en un vistazo — caja e inventario Santo Domingo",
+  "description": "Control en un vistazo — caja e inventario",
   "start_url": "/owner-mobile",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "lang": "es-CL",
+  "categories": ["business", "finance"],
   "icons": [
     {
       "src": "/static/img/lhexia-icon-approved.png",
-      "sizes": "192x192",
+      "sizes": "256x256",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/static/img/lhexia-icon-approved.png",
+      "src": "/static/owner-pwa/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/static/owner-pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

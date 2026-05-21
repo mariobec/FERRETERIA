@@ -15,11 +15,44 @@ def register_owner_api_routes(app):
 
     @app.route('/owner-pwa/manifest.webmanifest')
     def owner_pwa_manifest():
-        return send_from_directory(
-            static_dir,
-            'manifest.webmanifest',
-            mimetype='application/manifest+json',
-        )
+        """Manifest con URLs absolutas (Chrome exige icono 512 real + start_url HTTPS)."""
+        base = request.url_root.rstrip('/')
+        payload = {
+            'id': f'{base}/owner-mobile',
+            'name': 'LhexIA Dueño',
+            'short_name': 'Dueño',
+            'description': 'Control en un vistazo — caja e inventario',
+            'start_url': f'{base}/owner-mobile',
+            'scope': f'{base}/',
+            'display': 'standalone',
+            'display_override': ['standalone', 'fullscreen'],
+            'orientation': 'portrait',
+            'background_color': '#0f172a',
+            'theme_color': '#0f172a',
+            'lang': 'es-CL',
+            'categories': ['business', 'finance'],
+            'icons': [
+                {
+                    'src': f'{base}/static/img/lhexia-icon-approved.png',
+                    'sizes': '256x256',
+                    'type': 'image/png',
+                    'purpose': 'any',
+                },
+                {
+                    'src': f'{base}/static/owner-pwa/icon-512.png',
+                    'sizes': '512x512',
+                    'type': 'image/png',
+                    'purpose': 'any',
+                },
+                {
+                    'src': f'{base}/static/owner-pwa/icon-512.png',
+                    'sizes': '512x512',
+                    'type': 'image/png',
+                    'purpose': 'maskable',
+                },
+            ],
+        }
+        return jsonify(payload), 200, {'Content-Type': 'application/manifest+json'}
 
     @app.route('/owner-pwa/sw.js')
     def owner_pwa_service_worker():

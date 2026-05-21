@@ -94,12 +94,16 @@ class TestOwnerDashboardApi:
         assert r.status_code == 200
         assert b'ownerPwaApp' in r.data
         assert b'owner-dashboard.js' in r.data
-        assert b'owner-pwa-2' in r.data
+        assert b'owner-pwa-3' in r.data
         assert b'owner-pwa-toolbar' in r.data
+        assert b'ownerBtnInstall' in r.data
         assert b'owner-semaforo-card' in r.data
         rm = app_client.get('/owner-pwa/manifest.webmanifest')
         assert rm.status_code == 200
-        assert b'LhexIA' in rm.data or b'Due' in rm.data
+        mj = rm.get_json()
+        assert mj.get('name') == 'LhexIA Dueño'
+        icons = mj.get('icons') or []
+        assert any(i.get('sizes') == '512x512' for i in icons)
 
     def test_dashboard_sin_sesion_401(self, app_ctx):
         """Sin _user_id en sesión → 401 (mismo criterio que /api/pos/live-wall)."""
