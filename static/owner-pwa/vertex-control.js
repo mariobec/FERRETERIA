@@ -141,21 +141,7 @@
   }
 
   var SVG_NS = 'http://www.w3.org/2000/svg';
-  var circuitAnims = [];
   var circuitLoops = [];
-
-  function cancelCircuitMotion() {
-    circuitAnims.forEach(function (a) {
-      try {
-        a.cancel();
-      } catch (e) {}
-    });
-    circuitAnims = [];
-    circuitLoops.forEach(function (l) {
-      if (l && l.cancel) l.cancel();
-    });
-    circuitLoops = [];
-  }
 
   function circuitKind(el) {
     if (el.classList.contains('vertex-circuit-energy--critical')) return 'critical';
@@ -163,31 +149,11 @@
     return 'ok';
   }
 
-  function animateStrokeLoop(pathEl, from, to, seconds) {
-    pathEl.removeAttribute('stroke-dashoffset');
-    if (typeof pathEl.animate === 'function') {
-      var wa = pathEl.animate(
-        [{ strokeDashoffset: from }, { strokeDashoffset: to }],
-        { duration: seconds * 1000, iterations: Infinity, easing: 'linear' }
-      );
-      circuitAnims.push(wa);
-      return;
-    }
-    var t0 = performance.now();
-    var stopped = false;
-    function tick(now) {
-      if (stopped) return;
-      var p = ((now - t0) / (seconds * 1000)) % 1;
-      var v = from + (to - from) * p;
-      pathEl.style.strokeDashoffset = String(v);
-      requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-    circuitLoops.push({
-      cancel: function () {
-        stopped = true;
-      },
+  function cancelCircuitMotion() {
+    circuitLoops.forEach(function (l) {
+      if (l && l.cancel) l.cancel();
     });
+    circuitLoops = [];
   }
 
   function attachTravelDot(pathEl, circuit, seconds) {
@@ -216,53 +182,29 @@
     });
   }
 
-  function attachStrokePulse(pathEl, circuit, isSecondary) {
-    var len = Math.max(80, Math.ceil(pathEl.getTotalLength()) || 400);
-    var dur = energyDuration(circuit);
-    var dash = circuit === 'critical' ? 44 : 32;
-    var seconds = isSecondary ? dur.sec : dur.main;
-    var from = len + dash;
-    var to = -len;
-    var dashStr = dash + ' ' + len;
-
-    pathEl.setAttribute('stroke-dasharray', dashStr);
-    pathEl.style.strokeDasharray = dashStr;
-    pathEl.style.strokeDashoffset = '';
-    pathEl.classList.add('vertex-circuit-energy--live');
-    animateStrokeLoop(pathEl, from, to, seconds);
-
-    if (!isSecondary && pathEl.getAttribute('d')) {
-      attachTravelDot(pathEl, circuit, seconds);
-    }
-  }
-
   function wireEnergyPaths() {
     if (!elNeuralSvg) return;
+    elNeuralSvg.classList.add('vertex-neural-live');
     elNeuralSvg.querySelectorAll('.vertex-circuit-energy').forEach(function (p) {
-      attachStrokePulse(p, circuitKind(p), p.classList.contains('vertex-circuit-energy--secondary'));
+      p.classList.add('vertex-dash-anim');
+      if (!p.classList.contains('vertex-circuit-energy--secondary')) {
+        attachTravelDot(p, circuitKind(p), energyDuration(circuitKind(p)).main);
+      }
     });
     elNeuralSvg.querySelectorAll('.vertex-circuit-track').forEach(function (p) {
-      var len = Math.max(80, Math.ceil(p.getTotalLength()) || 400);
-      var circuit = 'ok';
-      if (p.classList.contains('vertex-circuit-track--critical')) circuit = 'critical';
-      else if (p.classList.contains('vertex-circuit-track--warn')) circuit = 'warn';
-      var seconds = energyDuration(circuit).main * 1.8;
-      p.classList.add('vertex-circuit-flow-anim', 'vertex-circuit-flow-anim--' + circuit);
-      var dashStr = '6 22';
-      p.setAttribute('stroke-dasharray', dashStr);
-      p.style.strokeDasharray = dashStr;
-      p.style.strokeDashoffset = '';
-      animateStrokeLoop(p, 0, -len, seconds);
+      p.classList.add('vertex-circuit-flow-anim', 'vertex-dash-anim-track');
+      if (p.classList.contains('vertex-circuit-track--critical')) {
+        p.classList.add('vertex-circuit-flow-anim--critical');
+      } else if (p.classList.contains('vertex-circuit-track--warn')) {
+        p.classList.add('vertex-circuit-flow-anim--warn');
+      } else {
+        p.classList.add('vertex-circuit-flow-anim--ok');
+      }
     });
   }
 
   function scheduleWireEnergy() {
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        wireEnergyPaths();
-        setTimeout(wireEnergyPaths, 120);
-      });
-    });
+    requestAnimationFrame(wireEnergyPaths);
   }
 
   function renderNeuralSvg(grafo, clientes) {

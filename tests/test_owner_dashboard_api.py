@@ -229,5 +229,5 @@ class TestOwnerDashboardApi:
         assert b'global_maestro' in r.data
         assert b'vertex-control.js' in r.data
         assert b'vertexNeuralStage' in r.data
-        assert b'vertex-neural-4' in r.data
+        assert b'vertex-neural-5' in r.data
         assert b'vertex-hub-vault' in r.data

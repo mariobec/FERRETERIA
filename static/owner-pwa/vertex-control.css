@@ -250,6 +250,11 @@ body.vertex-control-shell .app-content {
   color: var(--guardian-muted);
 }
 
+@keyframes vertex-stage-glow {
+  0%, 100% { box-shadow: 0 32px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 60px rgba(34, 211, 238, 0.06); }
+  50% { box-shadow: 0 32px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 100px rgba(34, 211, 238, 0.22); }
+}
+
 /* —— Red neuronal cognitiva (HUB + circuitos + glass) —— */
 .vertex-section--neural {
   margin-top: 20px;
@@ -260,6 +265,7 @@ body.vertex-control-shell .app-content {
   min-height: 520px;
   border-radius: 20px;
   border: 1px solid rgba(34, 211, 238, 0.18);
+  animation: vertex-stage-glow 4s ease-in-out infinite;
   background: radial-gradient(ellipse 90% 70% at 50% 45%, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
   overflow: hidden;
   box-shadow:
@@ -308,6 +314,18 @@ body.vertex-control-shell .app-content {
   flex-shrink: 0;
 }
 
+.vertex-hub-vault::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(34, 211, 238, 0.85) 40deg, transparent 80deg);
+  animation: vertex-spin-cw 6s linear infinite;
+  opacity: 0.55;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .vertex-hub-orbit-spin {
   position: absolute;
   inset: 0;
@@ -318,28 +336,28 @@ body.vertex-control-shell .app-content {
   pointer-events: none;
 }
 
-.vertex-hub-orbit-spin--outer {
+.vertex-hub-vault .vertex-hub-orbit-spin--outer {
   width: 100%;
   height: 100%;
-  animation: vertex-spin-cw 14s linear infinite;
+  animation: vertex-spin-cw 10s linear infinite;
 }
 
-.vertex-hub-orbit-spin--mid {
+.vertex-hub-vault .vertex-hub-orbit-spin--mid {
   width: 82%;
   height: 82%;
-  animation: vertex-spin-ccw 20s linear infinite;
+  animation: vertex-spin-ccw 14s linear infinite;
 }
 
-.vertex-hub-orbit-spin--inner {
+.vertex-hub-vault .vertex-hub-orbit-spin--inner {
   width: 62%;
   height: 62%;
-  animation: vertex-spin-cw 9s linear infinite;
+  animation: vertex-spin-cw 7s linear infinite;
 }
 
-.vertex-hub-orbit-spin--glow {
+.vertex-hub-vault .vertex-hub-orbit-spin--glow {
   width: 48%;
   height: 48%;
-  animation: vertex-hub-breathe 3s ease-in-out infinite;
+  animation: vertex-hub-breathe 2.4s ease-in-out infinite;
 }
 
 .vertex-hub-orbit {
@@ -351,8 +369,8 @@ body.vertex-control-shell .app-content {
 }
 
 .vertex-hub-orbit--outer {
-  border: 2px dashed rgba(34, 211, 238, 0.65);
-  box-shadow: 0 0 32px rgba(34, 211, 238, 0.35), inset 0 0 20px rgba(34, 211, 238, 0.08);
+  border: 3px dashed rgba(34, 211, 238, 0.95);
+  box-shadow: 0 0 32px rgba(34, 211, 238, 0.55), inset 0 0 20px rgba(34, 211, 238, 0.12);
 }
 
 .vertex-hub-orbit--mid {
@@ -485,8 +503,48 @@ body.vertex-control-shell .app-content {
 }
 .vertex-circuit-energy--secondary { stroke-width: 2; opacity: 0.65; }
 
-.vertex-circuit-energy--live {
-  opacity: 1;
+/* Pulsos eléctricos — CSS puro (no depende de WAAPI ni SMIL) */
+@keyframes vertex-dash-flow {
+  from { stroke-dashoffset: 520; }
+  to { stroke-dashoffset: -60; }
+}
+
+@keyframes vertex-dash-track-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -220; }
+}
+
+.vertex-neural-live .vertex-circuit-energy.vertex-dash-anim {
+  stroke-dasharray: 36 520;
+  animation: vertex-dash-flow 2.2s linear infinite;
+}
+
+.vertex-neural-live .vertex-circuit-energy--warn.vertex-dash-anim {
+  animation-duration: 1.55s;
+  stroke-dasharray: 36 520;
+}
+
+.vertex-neural-live .vertex-circuit-energy--critical.vertex-dash-anim {
+  animation-duration: 0.95s;
+  stroke-dasharray: 48 520;
+}
+
+.vertex-neural-live .vertex-circuit-energy--secondary.vertex-dash-anim {
+  stroke-dasharray: 22 520;
+  animation-duration: 2.8s;
+}
+
+.vertex-neural-live .vertex-circuit-track.vertex-dash-anim-track {
+  stroke-dasharray: 8 24;
+  animation: vertex-dash-track-flow 3.2s linear infinite;
+}
+
+.vertex-neural-live .vertex-circuit-track--critical.vertex-dash-anim-track {
+  animation-duration: 1.8s;
+}
+
+.vertex-neural-live .vertex-circuit-track--warn.vertex-dash-anim-track {
+  animation-duration: 2.4s;
 }
 
 .vertex-circuit-flow-anim {

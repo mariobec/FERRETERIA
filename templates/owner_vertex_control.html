@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-1">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-neural-4">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-neural-5">
 {% endblock %}
 
 {% block content %}
@@ -78,7 +78,7 @@
           <span class="vertex-hub-caption__sub">HUB CENTRAL · red activa</span>
         </p>
       </div>
-      <svg id="vertexNeuralSvg" class="vertex-neural-svg" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+      <svg id="vertexNeuralSvg" class="vertex-neural-svg vertex-neural-live" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
       <div id="vertexAgentMapLegend" class="vertex-map-legend vertex-map-legend--neural"></div>
     </div>
   </section>
@@ -99,5 +99,5 @@
   </section>
 </div>
 
-<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-neural-4" defer></script>
+<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-neural-5" defer></script>
 {% endblock %}
