@@ -262,6 +262,7 @@ body.vertex-control-shell .app-content {
   border: 1px solid rgba(34, 211, 238, 0.18);
   background: radial-gradient(ellipse 90% 70% at 50% 45%, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
   overflow: hidden;
+  contain: layout style;
   box-shadow:
     0 32px 64px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
@@ -286,128 +287,216 @@ body.vertex-control-shell .app-content {
   display: block;
 }
 
+/* HUB — solo círculos concéntricos + isotipo hexagonal suspendido */
 .vertex-hub-stack {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 4;
-  width: 160px;
-  height: 160px;
+  width: 188px;
   pointer-events: none;
-}
-
-.vertex-hub-rings {
-  position: absolute;
-  inset: 0;
-}
-
-.vertex-hub-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(34, 211, 238, 0.35);
-  box-shadow: 0 0 20px rgba(34, 211, 238, 0.15);
-}
-
-.vertex-hub-ring--a {
-  inset: 0;
-  border-style: dashed;
-  animation: vertex-ring-ccw 24s linear infinite;
-}
-
-.vertex-hub-ring--b {
-  inset: 12px;
-  border-color: rgba(129, 140, 248, 0.4);
-  animation: vertex-ring-cw 18s linear infinite;
-}
-
-.vertex-hub-ring--c {
-  inset: 24px;
-  border-color: rgba(234, 88, 12, 0.35);
-  animation: vertex-ring-ccw 12s linear infinite;
-}
-
-.vertex-hub-ring--d {
-  inset: 36px;
-  border-color: rgba(52, 211, 153, 0.3);
-  animation: vertex-ring-cw 8s linear infinite;
-}
-
-@keyframes vertex-ring-cw {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes vertex-ring-ccw {
-  to { transform: rotate(-360deg); }
-}
-
-.vertex-hub-core {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-  z-index: 2;
+  gap: 10px;
 }
 
-.vertex-hub-core-img {
-  width: 72px;
-  height: 72px;
+.vertex-hub-vault {
+  position: relative;
+  width: 176px;
+  height: 176px;
+  flex-shrink: 0;
+}
+
+.vertex-hub-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  will-change: transform;
+}
+
+.vertex-hub-orbit--outer {
+  width: 100%;
+  height: 100%;
+  border: 1px dashed rgba(34, 211, 238, 0.45);
+  box-shadow: 0 0 28px rgba(34, 211, 238, 0.2);
+  animation: vertex-spin-cw 20s linear infinite;
+}
+
+.vertex-hub-orbit--mid {
+  width: 82%;
+  height: 82%;
+  border: 2px solid rgba(129, 140, 248, 0.35);
+  border-top-color: rgba(103, 232, 249, 0.7);
+  border-bottom-color: rgba(103, 232, 249, 0.25);
+  animation: vertex-spin-ccw 28s linear infinite;
+}
+
+.vertex-hub-orbit--inner {
+  width: 62%;
+  height: 62%;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  animation: vertex-spin-cw 14s linear infinite;
+}
+
+.vertex-hub-orbit--core-glow {
+  width: 44%;
+  height: 44%;
+  border: none;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.35) 0%, transparent 70%);
+  animation: vertex-hub-breathe 3.5s ease-in-out infinite;
+}
+
+@keyframes vertex-spin-cw {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes vertex-spin-ccw {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+
+@keyframes vertex-hub-breathe {
+  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+.vertex-hub-isotope {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  z-index: 3;
+}
+
+.vertex-hub-hex {
+  width: 58px;
+  height: 58px;
   object-fit: contain;
-  filter: drop-shadow(0 0 24px rgba(34, 211, 238, 0.65));
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.75)) drop-shadow(0 0 32px rgba(234, 88, 12, 0.45));
+  animation: vertex-hex-float 5s ease-in-out infinite;
+  will-change: transform;
 }
 
-.vertex-hub-core-title {
+@keyframes vertex-hex-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.vertex-hub-caption {
+  margin: 0;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.vertex-hub-caption__brand {
+  display: block;
   font-family: var(--font-display, 'Montserrat', sans-serif);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 900;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   color: #67e8f9;
-  margin-top: 4px;
 }
 
-.vertex-hub-core-sub {
-  font-size: 0.58rem;
+.vertex-hub-caption__sub {
+  display: block;
+  font-size: 0.55rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
-  color: rgba(148, 163, 184, 0.9);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+  margin-top: 2px;
 }
 
-/* Circuitos SVG */
-.vertex-circuit--ok { color: #22d3ee; }
-.vertex-circuit--warn { color: #fbbf24; }
-.vertex-circuit--critical { color: #ff3366; }
-
-.vertex-circuit--ok .vertex-circuit-flow {
-  animation: vertex-flow 2.2s linear infinite;
+/* Circuitos SVG — pulsos por stroke-dashoffset (GPU-friendly) */
+.vertex-circuit-rail {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.22;
+  transition: stroke 0.55s ease, opacity 0.55s ease;
 }
 
-.vertex-circuit--warn .vertex-circuit-flow {
-  animation: vertex-flow 1.5s linear infinite;
+.vertex-circuit-rail--ok { stroke: #0e7490; }
+.vertex-circuit-rail--warn { stroke: #b45309; }
+.vertex-circuit-rail--critical { stroke: #9f1239; opacity: 0.35; }
+
+.vertex-circuit-track {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.45;
+  transition: stroke 0.55s ease, opacity 0.55s ease;
 }
 
-.vertex-circuit--critical .vertex-circuit-flow {
-  animation: vertex-flow-fast 0.65s linear infinite;
-}
+.vertex-circuit-track--ok { stroke: rgba(34, 211, 238, 0.35); }
+.vertex-circuit-track--warn { stroke: rgba(251, 191, 36, 0.4); }
+.vertex-circuit-track--critical { stroke: rgba(255, 51, 102, 0.5); }
 
-@keyframes vertex-flow {
-  to { stroke-dashoffset: -40; }
-}
-
-@keyframes vertex-flow-fast {
-  to { stroke-dashoffset: -40; }
-}
-
-.vertex-pulse-group--ok { color: #67e8f9; }
-.vertex-pulse-group--warn { color: #fde68a; }
-.vertex-pulse-group--critical { color: #ff6688; }
-
-.vertex-pulse {
+.vertex-circuit-energy {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  opacity: 0.95;
   filter: drop-shadow(0 0 6px currentColor);
+  will-change: stroke-dashoffset;
+  transition: stroke 0.55s ease, filter 0.55s ease;
+}
+
+.vertex-circuit-energy--ok {
+  stroke: #67e8f9;
+  color: #22d3ee;
+  animation: vertex-energy-travel var(--energy-dur, 2.2s) linear infinite;
+}
+
+.vertex-circuit-energy--warn {
+  stroke: #fde68a;
+  color: #fbbf24;
+  animation: vertex-energy-travel var(--energy-dur, 1.6s) linear infinite;
+}
+
+.vertex-circuit-energy--critical {
+  stroke: #ff6688;
+  color: #ff3366;
+  filter: drop-shadow(0 0 10px rgba(255, 51, 102, 0.9));
+  animation: vertex-energy-travel var(--energy-dur, 1.05s) linear infinite;
+}
+
+.vertex-circuit-energy--secondary {
+  stroke-width: 1.5;
+  opacity: 0.55;
+  animation: vertex-energy-travel var(--energy-dur-s, 2.6s) linear infinite;
+  animation-delay: 0.35s;
+}
+
+@keyframes vertex-energy-travel {
+  from { stroke-dashoffset: var(--path-len, 400); }
+  to { stroke-dashoffset: 0; }
+}
+
+.vertex-hub-port {
+  fill: rgba(34, 211, 238, 0.15);
+  stroke: rgba(103, 232, 249, 0.5);
+  stroke-width: 1;
+  animation: vertex-hub-port-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes vertex-hub-port-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 
 .vertex-link-agent {
@@ -974,14 +1063,14 @@ body.vertex-control-shell .app-content {
     max-width: none;
   }
 
-  .vertex-hub-stack {
-    width: 120px;
-    height: 120px;
+  .vertex-hub-vault {
+    width: 140px;
+    height: 140px;
   }
 
-  .vertex-hub-core-img {
-    width: 52px;
-    height: 52px;
+  .vertex-hub-hex {
+    width: 48px;
+    height: 48px;
   }
 
   .vertex-map-legend {
@@ -1016,12 +1105,15 @@ body.vertex-control-shell .app-content {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vertex-hub-ring,
-  .vertex-circuit-flow,
+  .vertex-hub-orbit,
+  .vertex-hub-isotope,
+  .vertex-hub-port,
+  .vertex-circuit-energy,
   .vertex-node--critical .vertex-node-halo {
     animation: none !important;
   }
-  .vertex-pulse-group {
-    display: none;
+  .vertex-circuit-energy {
+    stroke-dashoffset: 0 !important;
+    opacity: 0.7;
   }
 }

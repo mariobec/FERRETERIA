@@ -79,12 +79,21 @@
     return e === 'rojo' ? 'critical' : e === 'amarillo' ? 'warn' : 'ok';
   }
 
-  function pcbPath(x1, y1, x2, y2) {
+  function pcbPath(x1, y1, x2, y2, offset) {
+    var off = offset || 0;
     var mx = x1 + (x2 - x1) * 0.42;
-    var my = y1 + (y2 - y1) * 0.08;
     return (
-      'M' + x1 + ' ' + y1 + ' L' + mx + ' ' + y1 + ' L' + mx + ' ' + y2 + ' L' + x2 + ' ' + y2
+      'M' + (x1 + off) + ' ' + (y1 + off * 0.5) +
+      ' L' + (mx + off) + ' ' + (y1 + off * 0.5) +
+      ' L' + (mx + off) + ' ' + (y2 - off * 0.5) +
+      ' L' + (x2 + off) + ' ' + (y2 - off * 0.5)
     );
+  }
+
+  function energyDuration(circuit) {
+    if (circuit === 'critical') return { main: 1.05, sec: 1.35 };
+    if (circuit === 'warn') return { main: 1.6, sec: 2 };
+    return { main: 2.2, sec: 2.8 };
   }
 
   function layoutNeural(grafo, clientes) {
@@ -131,18 +140,19 @@
     return pos;
   }
 
-  function pulseGroup(pathD, circuitClass, dur, delay) {
-    var html = '';
-    var n = circuitClass === 'critical' ? 4 : 3;
-    var i;
-    for (i = 0; i < n; i++) {
-      html +=
-        '<circle r="4" class="vertex-pulse ' + circuitClass + '" fill="currentColor">' +
-        '<animateMotion dur="' + dur + 's" begin="' + (delay + i * 0.55) + 's" repeatCount="indefinite" ' +
-        'path="' + pathD + '"/>' +
-        '</circle>';
-    }
-    return html;
+  function wireEnergyPaths() {
+    if (!elNeuralSvg) return;
+    var paths = elNeuralSvg.querySelectorAll('.vertex-circuit-energy');
+    paths.forEach(function (p) {
+      var len = Math.ceil(p.getTotalLength()) || 400;
+      var circuit = 'ok';
+      if (p.classList.contains('vertex-circuit-energy--critical')) circuit = 'critical';
+      else if (p.classList.contains('vertex-circuit-energy--warn')) circuit = 'warn';
+      var dash = circuit === 'critical' ? 36 : 26;
+      p.style.setProperty('--path-len', String(len));
+      p.style.strokeDasharray = dash + ' ' + len;
+      p.style.strokeDashoffset = String(len);
+    });
   }
 
   function renderNeuralSvg(grafo, clientes) {
@@ -151,9 +161,14 @@
     var aristas = grafo.aristas || [];
     var nodos = grafo.nodos || [];
     var traces = '';
-    var pulses = '';
     var nodes = '';
     var agents = '';
+    var hub = pos.vertex_hub || HUB;
+
+    traces +=
+      '<g class="vertex-hub-svg">' +
+      '<circle class="vertex-hub-port" cx="' + hub.x + '" cy="' + hub.y + '" r="8"/>' +
+      '</g>';
 
     aristas.forEach(function (e) {
       if (e.tipo !== 'tenant') return;
@@ -161,18 +176,26 @@
       var p2 = pos[e.to];
       if (!p1 || !p2) return;
       var circuit = estadoCircuit(e.estado || p2.estado);
-      var pathD = pcbPath(p1.x, p1.y, p2.x, p2.y);
-      var dur = circuit === 'critical' ? 0.85 : circuit === 'warn' ? 1.35 : 2.1;
-      var cls = 'vertex-circuit vertex-circuit--' + circuit;
+      var dur = energyDuration(circuit);
       var filter = circuit === 'critical' ? 'vc-glow-red' : 'vc-glow-cyan';
       var grad = circuit === 'critical' ? 'vc-trace-red' : 'vc-trace-cyan';
+      var offsets = [-4, 0, 4];
 
-      traces +=
-        '<path class="' + cls + '-bg" d="' + pathD + '" fill="none" stroke="rgba(15,23,42,0.9)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '<path class="' + cls + '" d="' + pathD + '" fill="none" stroke="url(#' + grad + ')" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#' + filter + ')"/>' +
-        '<path class="' + cls + '-flow" d="' + pathD + '" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 14"/>';
-
-      pulses += '<g class="vertex-pulse-group vertex-pulse-group--' + circuit + '">' + pulseGroup(pathD, circuit, dur, 0) + '</g>';
+      offsets.forEach(function (off, idx) {
+        var pathD = pcbPath(p1.x, p1.y, p2.x, p2.y, off);
+        if (idx === 0) {
+          traces +=
+            '<path class="vertex-circuit-rail vertex-circuit-rail--' + circuit + '" d="' + pathD + '" stroke-width="8"/>';
+        }
+        if (idx === 1) {
+          traces +=
+            '<path class="vertex-circuit-track vertex-circuit-track--' + circuit + '" d="' + pathD + '" stroke-width="2" filter="url(#' + filter + ')"/>' +
+            '<path class="vertex-circuit-energy vertex-circuit-energy--' + circuit + '" d="' + pathD + '" style="--energy-dur:' + dur.main + 's"/>';
+        } else {
+          traces +=
+            '<path class="vertex-circuit-energy vertex-circuit-energy--' + circuit + ' vertex-circuit-energy--secondary" d="' + pathD + '" style="--energy-dur-s:' + dur.sec + 's"/>';
+        }
+      });
     });
 
     nodos.forEach(function (n) {
@@ -211,7 +234,8 @@
         '<line x1="' + p1.x + '" y1="' + p1.y + '" x2="' + p2.x + '" y2="' + p2.y + '" class="vertex-link-agent" stroke-width="1"/>';
     });
 
-    elNeuralSvg.innerHTML = SVG_DEFS + '<g class="vertex-circuits">' + traces + pulses + '</g>' + nodes + agents;
+    elNeuralSvg.innerHTML = SVG_DEFS + '<g class="vertex-circuits">' + traces + '</g>' + nodes + agents;
+    wireEnergyPaths();
 
     if (elMapLegend) {
       elMapLegend.innerHTML =
