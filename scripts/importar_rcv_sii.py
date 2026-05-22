@@ -80,6 +80,14 @@ def main() -> None:
             raise SystemExit(1)
         os.environ['DATABASE_URL'] = url
         os.environ['SQLALCHEMY_DATABASE_URI'] = url
+        # Neon no permite lc_messages en PGOPTIONS (scripts CLI desde Windows).
+        pgopt = os.environ.get('PGOPTIONS', '')
+        if 'neon.tech' in url.lower():
+            pgopt = ' '.join(p for p in pgopt.split() if 'lc_messages' not in p).strip()
+            if pgopt:
+                os.environ['PGOPTIONS'] = pgopt
+            else:
+                os.environ.pop('PGOPTIONS', None)
         dest = 'Neon/produccion (NEON_DATABASE_URL)'
     else:
         dest = 'DATABASE_URL de .env.local (suele ser Postgres local)'

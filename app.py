@@ -4,15 +4,19 @@ import os as _os_early
 # y psycopg2 falla con UnicodeDecodeError al conectar (byte 0xf3, etc.).
 # Forzamos UTF-8 y locale C en el servidor antes de cualquier intento de conexion.
 _os_early.environ.setdefault('PGCLIENTENCODING', 'UTF8')
-# Neon "pooler" rechaza lc_messages en PGOPTIONS (startup parameter unsupported).
+# Neon (pooler o host directo) rechaza lc_messages en PGOPTIONS.
 _url_early = (
     (_os_early.environ.get('DATABASE_URL') or _os_early.environ.get('SQLALCHEMY_DATABASE_URI') or '')
     .lower()
 )
-_neon_pooler = 'neon.tech' in _url_early and 'pooler' in _url_early
+_neon_pg = 'neon.tech' in _url_early
 _pgopt_actual = _os_early.environ.get('PGOPTIONS', '')
-if not _neon_pooler and 'lc_messages' not in _pgopt_actual:
+if not _neon_pg and 'lc_messages' not in _pgopt_actual:
     _os_early.environ['PGOPTIONS'] = (_pgopt_actual + ' -c lc_messages=C').strip()
+elif _neon_pg and 'lc_messages' in _pgopt_actual:
+    _os_early.environ['PGOPTIONS'] = ' '.join(
+        p for p in _pgopt_actual.split() if 'lc_messages' not in p
+    ).strip()
 
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session, abort, has_request_context
 from flask_sqlalchemy import SQLAlchemy
@@ -20772,6 +20776,15 @@ def detalle_recepcion(rid):
             if ids_nuevos:
                 return redirect(url_for('imprimir_etiquetas_recepcion', rid=rid, ids=",".join(ids_nuevos)))
             return redirect(url_for('lista_recepciones'))
+        if action == 'subir_documento':
+            f = request.files.get('documento_archivo')
+            if not f or not getattr(f, 'filename', None):
+                flash('Seleccione un archivo PDF o imagen.', 'warning')
+            elif _guardar_doc_recepcion(rec.id, f):
+                flash('Documento adjuntado. Ya puede usar Importar líneas (IA) si está configurada.', 'success')
+            else:
+                flash('No se pudo guardar el archivo.', 'danger')
+            return redirect(url_for('detalle_recepcion', rid=rid))
 
     tiene_documento = _ruta_doc_recepcion(rec.id) is not None
     ia_factura_habilitada = bool((os.getenv('OPENAI_API_KEY') or '').strip())
@@ -20793,6 +20806,77 @@ def detalle_recepcion(rid):
         ia_factura_habilitada=ia_factura_habilitada,
         ordenes_mismo_prov=ordenes_mismo_prov,
         oc_tablas_ok=_tablas_orden_compra_existen(),
+    )
+
+
+@app.route('/api/recepcion/asignar_codigo_barras', methods=['POST'])
+@login_required
+def api_recepcion_asignar_codigo_barras():
+    """Asigna código de barras a un producto ya recibido en una recepción (pistola en detalle)."""
+    data = request.get_json(silent=True) or {}
+    try:
+        recepcion_id = int(data.get('recepcion_id'))
+        producto_id = int(data.get('producto_id'))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Datos incompletos.'), 400
+
+    rec = RecepcionCompra.query.get(recepcion_id)
+    if not rec:
+        return jsonify(ok=False, mensaje='Recepción no encontrada.'), 404
+    if rec.estado not in ESTADOS_RECEPCION_EDITABLE:
+        return jsonify(ok=False, mensaje='La recepción no admite cambios.'), 400
+
+    det = DetalleRecepcion.query.filter_by(
+        recepcion_id=recepcion_id,
+        producto_id=producto_id,
+    ).first()
+    if not det or int(det.cantidad_recibida or 0) <= 0:
+        return jsonify(
+            ok=False,
+            error='sin_linea',
+            mensaje='Registre primero la cantidad recibida para este producto en la recepción.',
+        ), 400
+
+    p = Producto.query.get(producto_id)
+    if not p:
+        return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+
+    cb = _enrol_normalizar_codigo(data.get('codigo_barras'))
+    if not cb:
+        return jsonify(ok=False, mensaje='Código de barras vacío.'), 400
+
+    forzar = bool(data.get('forzar_reemplazo'))
+    actual = (p.codigo_barra or '').strip()
+    es_int_provisional = actual.upper().startswith('INT-')
+
+    if cb != actual and _enrol_codigo_barra_ocupado(cb, excluir_producto_id=p.id):
+        return jsonify(
+            ok=False,
+            error='duplicado',
+            mensaje='Ese código de barras ya está asignado a otro producto.',
+        ), 409
+
+    if actual and cb != actual and not forzar and not es_int_provisional:
+        return jsonify(
+            ok=False,
+            error='producto_otro_codigo',
+            mensaje='El producto ya tiene otro código. Marque forzar reemplazo si corresponde.',
+        ), 409
+
+    p.codigo_barra = cb[:50]
+    try:
+        db.session.commit()
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 400
+
+    return jsonify(
+        ok=True,
+        producto={
+            'id': p.id,
+            'codigo_barra': (p.codigo_barra or '').strip(),
+            'codigo_interno': (p.codigo_interno or '').strip(),
+        },
     )
 
 

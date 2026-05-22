@@ -37,7 +37,38 @@
     {% if recepcion.rut_proveedor_doc %} · RUT {{ recepcion.rut_proveedor_doc }}{% endif %}
     {% if recepcion.monto_neto %} · Neto ${{ '{:,.0f}'.format(recepcion.monto_neto).replace(',', '.') }}{% endif %}
     {% if recepcion.monto_total %} · Total ${{ '{:,.0f}'.format(recepcion.monto_total).replace(',', '.') }}{% endif %}
-    — Adjunte el PDF de la factura y use <strong>Importar líneas (IA)</strong> para completar ítems.
+    — Adjunte el PDF de la factura abajo y use <strong>Importar líneas (IA)</strong> para completar ítems.
+  </div>
+  {% endif %}
+
+  {% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') %}
+  <div class="card card-ds mb-3">
+    <div class="card-header bg-white fw-bold">
+      <i class="fas fa-paperclip me-1"></i> Documento de compra (PDF / foto)
+    </div>
+    <div class="card-body">
+      {% if tiene_documento %}
+      <p class="small text-success mb-2"><i class="fas fa-check me-1"></i> Ya hay un documento adjunto.
+        <a href="{{ url_for('ver_documento_recepcion', rid=recepcion.id) }}" target="_blank" class="ms-1">Ver</a>
+      </p>
+      {% else %}
+      <p class="small text-muted mb-2">
+        No suba carpetas al servidor: elija el archivo desde su PC (factura o guía del proveedor).
+        Se guarda en el ERP vinculado a esta recepción #{{ recepcion.id }}.
+      </p>
+      {% endif %}
+      <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <input type="hidden" name="action" value="subir_documento">
+        <div class="col-md-8">
+          <input type="file" name="documento_archivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp" {% if not tiene_documento %}required{% endif %}>
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-primary btn-sm w-100">
+            <i class="fas fa-upload me-1"></i> {% if tiene_documento %}Reemplazar{% else %}Adjuntar{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
   {% endif %}
 
