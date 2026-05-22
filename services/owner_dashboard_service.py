@@ -775,6 +775,7 @@ def construir_owner_dashboard(
 
     return {
         'version': 'guardian_v3',
+        'ecosystem': 'lhexia_vertex',
         'perfil': perfil.codigo,
         'alcance': perfil.alcance,
         'nombre_usuario': perfil.nombre_usuario,
@@ -799,6 +800,7 @@ def construir_owner_dashboard(
             'supervisor_telefono': telefono,
             'generado_en': datetime.now().isoformat(timespec='seconds'),
             'version': 'guardian_v3',
+            'ecosystem': 'lhexia_vertex',
             'poll_recomendado_ms': 30000,
         },
     }

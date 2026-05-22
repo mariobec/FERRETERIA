@@ -19,6 +19,9 @@
 | **Santo Domingo entrega (portal)** | [`01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
 | **POS offline-first (roadmap)** | [`04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md) |
 | **Casuísticas QA ventas** | [`../CASUISTICAS_VENTAS_QA.md`](../CASUISTICAS_VENTAS_QA.md) |
+| **PWA Dueño — validación prod** | [`01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md`](01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md) |
+| **Biblia Ecosistema LhexIA VERTEX (4 fases)** | [`../arquitectura/LHEXIA_VERTEX_VISION.md`](../arquitectura/LHEXIA_VERTEX_VISION.md) |
+| **Tracker sprint VERTEX** | [`../arquitectura/VERTEX_SPRINT_TRACKER.md`](../arquitectura/VERTEX_SPRINT_TRACKER.md) |
 
 **Bitácora técnica diaria:** [`../memory.md`](../memory.md) — § «Dónde quedamos» = foco SD-1 piso.
 
@@ -44,7 +47,7 @@
 
 | Archivo | Rol |
 |---------|-----|
-| `ERP_MAESTRO.md` | **Mapa técnico** del sistema (modelos, rutas, deploy, tests) — actualizado 2026-05-21 |
+| `ERP_MAESTRO.md` | **Mapa técnico + especificación funcional integral (§0) + planes (§19)** — actualizado 2026-05-21 |
 | `FLUJOS_CRITICOS.md` | Secuencias que no romper |
 | `MIGRACION_RENDER_NEON.md` | Deploy y Neon |
 | `CASUISTICAS_PRUEBAS.md` | QA |

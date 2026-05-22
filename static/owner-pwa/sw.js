@@ -1,5 +1,5 @@
 /* Service worker PWA Dueño — HTML red; CSS/JS red primero (evita UI vieja tras deploy). */
-var CACHE = 'lhexia-guardian-v10';
+var CACHE = 'lhexia-guardian-v11';
 
 self.addEventListener('install', function (event) {
   event.waitUntil(self.skipWaiting());

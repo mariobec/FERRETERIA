@@ -49,7 +49,9 @@ class TestOwnerDashboardApi:
             assert key in data, f'falta clave v3: {key}'
 
         assert data.get('version') == 'guardian_v3'
+        assert data.get('ecosystem') == 'lhexia_vertex'
         assert data['meta'].get('version') == 'guardian_v3'
+        assert data['meta'].get('ecosystem') == 'lhexia_vertex'
         assert isinstance(data['tarjetas'], list) and len(data['tarjetas']) >= 4
         assert isinstance(data['feed_preview'], list) and len(data['feed_preview']) <= 5
 
@@ -155,7 +157,8 @@ class TestOwnerDashboardApi:
         assert b'ownerPwaApp' in r.data
         assert b'ownerGuardianFeed' in r.data
         assert b'ownerCardCredito' in r.data
-        assert b'guardian-3' in r.data
+        assert b'guardian-vertex' in r.data
+        assert b'ownerGuardianSemMini' in r.data
         rm = app_client.get('/owner-pwa/manifest.webmanifest')
         assert rm.status_code == 200
         assert rm.get_json().get('name') == 'Lhexia Guardián'

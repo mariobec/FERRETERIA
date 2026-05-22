@@ -87,4 +87,5 @@ def register_owner_api_routes(app):
 
         resp = jsonify(status='success', data=data)
         resp.headers['Cache-Control'] = 'no-store'
+        resp.headers['X-Lhexia-Ecosystem'] = 'VERTEX'
         return resp

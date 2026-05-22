@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-3">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-vertex-1">
 {% endblock %}
 
 {% block content %}
@@ -64,25 +64,29 @@
   data-poll-ms="45000"
   data-cc-url="{{ url_for('admin_control_center') }}"
 >
-  <section class="owner-pwa-hero owner-guardian-hero" aria-label="Resumen">
-    <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> Copiloto operacional</div>
+  <section class="owner-pwa-hero owner-guardian-hero owner-guardian-hero--compact" aria-label="Resumen">
+    <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> LhexIA VERTEX · Guardián</div>
     <h2>Control en vivo</h2>
-    <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }} — caja e inventario bajo vigilancia</p>
-    <div id="ownerGuardianVentas" class="owner-guardian-ventas d-none" aria-live="polite">
-      <span class="owner-guardian-ventas-label">Ventas hoy</span>
-      <div id="ownerGuardianVentasMonto" class="owner-guardian-ventas-monto">—</div>
-      <div id="ownerGuardianVentasVar" class="owner-guardian-ventas-var"></div>
-    </div>
-    <div id="ownerGuardianConsolidado" class="owner-guardian-consolidado d-none" aria-live="polite">
-      <span class="owner-guardian-consolidado-kicker">Desfalco acumulado · red</span>
-      <div id="ownerGuardianConsolidadoMonto" class="owner-guardian-consolidado-monto">—</div>
-      <div id="ownerGuardianConsolidadoDetalle" class="owner-guardian-consolidado-detalle"></div>
+    <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }}</p>
+    <div class="owner-guardian-hero-kpis">
+      <div id="ownerGuardianVentas" class="owner-guardian-ventas d-none" aria-live="polite">
+        <span class="owner-guardian-ventas-label">Ventas hoy</span>
+        <div id="ownerGuardianVentasMonto" class="owner-guardian-ventas-monto">—</div>
+        <div id="ownerGuardianVentasVar" class="owner-guardian-ventas-var"></div>
+      </div>
+      <div id="ownerGuardianConsolidado" class="owner-guardian-consolidado d-none" aria-live="polite">
+        <span class="owner-guardian-consolidado-kicker">Desfalco · red</span>
+        <div id="ownerGuardianConsolidadoMonto" class="owner-guardian-consolidado-monto">—</div>
+        <div id="ownerGuardianConsolidadoDetalle" class="owner-guardian-consolidado-detalle"></div>
+      </div>
     </div>
     <div id="ownerGuardianIa" class="owner-guardian-ia d-none" role="status" aria-live="polite">
       <i class="fas fa-robot owner-guardian-ia-icon" aria-hidden="true"></i>
       <p id="ownerGuardianIaText" class="owner-guardian-ia-text"></p>
     </div>
   </section>
+
+  <nav id="ownerGuardianSemMini" class="owner-guardian-sem-mini" aria-label="Semáforos rápidos"></nav>
 
   <section id="ownerGuardianCards" class="owner-guardian-alerts" aria-label="Alertas operativas"
            data-cc-url="{{ url_for('admin_control_center') }}"
@@ -215,5 +219,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-3"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-vertex-1"></script>
 {% endblock %}

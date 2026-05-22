@@ -316,6 +316,105 @@ body.owner-guardian-shell .app-main > .alert {
   padding: 16px var(--guardian-pad-x) var(--guardian-pad-bottom);
 }
 
+.owner-guardian-hero--compact {
+  padding: 14px 16px 12px;
+  margin-bottom: 10px;
+}
+
+.owner-guardian-hero--compact h2 {
+  font-size: 1.12rem;
+  margin-bottom: 4px;
+}
+
+.owner-guardian-hero--compact .owner-pwa-hero-sub {
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+}
+
+.owner-guardian-hero-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.owner-guardian-hero-kpis .owner-guardian-ventas,
+.owner-guardian-hero-kpis .owner-guardian-consolidado {
+  margin-top: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.owner-guardian-hero--compact .owner-guardian-ia {
+  margin-top: 8px;
+  padding: 8px 10px;
+}
+
+.owner-guardian-hero--compact .owner-guardian-ia-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.owner-guardian-sem-mini {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.owner-guardian-sem-mini__chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  background: var(--guardian-glass);
+  border: 1px solid var(--guardian-glass-border);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.owner-guardian-sem-mini__chip:active {
+  transform: scale(0.96);
+}
+
+.owner-guardian-sem-mini__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.owner-guardian-sem-mini__chip--verde .owner-guardian-sem-mini__dot {
+  background: var(--guardian-emerald);
+  color: var(--guardian-emerald);
+}
+
+.owner-guardian-sem-mini__chip--amarillo .owner-guardian-sem-mini__dot {
+  background: var(--guardian-amber);
+  color: var(--guardian-amber);
+}
+
+.owner-guardian-sem-mini__chip--rojo .owner-guardian-sem-mini__dot {
+  background: var(--guardian-rose);
+  color: var(--guardian-rose);
+}
+
+.owner-guardian-sem-mini__chip--rojo {
+  border-color: rgba(244, 63, 94, 0.45);
+}
+
 .owner-guardian-hero {
   border-radius: 22px;
   padding: 20px 20px 18px;

@@ -1,0 +1,36 @@
+---
+description: Ecosistema LhexIA VERTEX — capas, fases y orden de desarrollo
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Ecosistema LhexIA VERTEX
+
+**Biblia:** `docs/arquitectura/LHEXIA_VERTEX_VISION.md`  
+**Tracker:** `docs/arquitectura/VERTEX_SPRINT_TRACKER.md`
+
+## Tres capas (no mezclar en un commit crítico de piso)
+
+1. **LhexIA VERTEX** — Core SaaS: auth, tenant, API gateway, catálogo soluciones.
+2. **Soluciones ERP** — Verticales: Ferretería (SD-1), Transporte, Retail.
+3. **LhexIA Agentes** — Guardián, Operador, Abastecedor (leen BD; no inventan cifras).
+
+## Orden de ejecución (acordado con Mario)
+
+1. **Fase 1 Bastión** — SD-1 + Guardián V3 (caso éxito #1).
+2. **Fase 2** — Hermanos ERP (clonar transacciones VERTEX).
+3. **Fase 3** — LhexIA Connect (agentes sobre ERP ajeno).
+4. **Fase 4** — Zero-UI / 2030 (no bloquea 1–3).
+
+## Reglas SD-1
+
+- ¿Bloquea POS o toma inventario mañana? → **No hacerlo ahora**.
+- Multi-tenant obligatorio en queries prod → **post SD-1**.
+- Checkpoint git en flujo POS/caja/PWA Guardián.
+
+## Nombres producto
+
+- Plataforma: **LhexIA VERTEX**
+- Cliente #1: **LhexIA Ferretería** (Santo Domingo)
+- Agente dueño móvil: **LhexIA Guardián** (`/owner-mobile`, API `guardian_v3`)

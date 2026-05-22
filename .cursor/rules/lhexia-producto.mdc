@@ -8,6 +8,7 @@ alwaysApply: true
 ## Contexto
 
 - **Producto:** LhexIA ERP (www.lhexia.cl) — ERP vertical ferretería + agentes IA.
+- **Ecosistema:** **LhexIA VERTEX** — biblia [`docs/arquitectura/LHEXIA_VERTEX_VISION.md`](docs/arquitectura/LHEXIA_VERTEX_VISION.md) · tracker [`VERTEX_SPRINT_TRACKER.md`](docs/arquitectura/VERTEX_SPRINT_TRACKER.md).
 - **Cliente #1:** Ferretería Santo Domingo (~20 personas, 3 sucursales). Fue proyecto SAP → Defontana → ERP propio.
 - **Carpeta planes (orden):** `docs/planes/README.md`
 - **Alineación Mario · Grok · Cursor:** `docs/planes/00-alineacion/MEMORY_GROK.md`

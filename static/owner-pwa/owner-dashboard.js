@@ -1,5 +1,5 @@
 /**
- * Lhexia Guardián v3 — dashboard, acciones, feed y KPIs
+ * Lhexia Guardián v3 — Ecosistema VERTEX · dashboard, acciones, feed y KPIs
  */
 (function () {
   'use strict';
@@ -39,6 +39,9 @@
   var consDetalle = document.getElementById('ownerGuardianConsolidadoDetalle');
   var feedList = document.getElementById('ownerGuardianFeed');
   var feedEmpty = document.getElementById('ownerGuardianFeedEmpty');
+  var semMini = document.getElementById('ownerGuardianSemMini');
+
+  var DOMINIO_LABEL = { caja: 'Caja', inventario: 'Inv', credito: 'Créd', compras: 'OC' };
   var btnRefresh = document.getElementById('ownerBtnRefresh');
   var btnRefreshTop = document.getElementById('ownerBtnRefreshTop');
   var btnCall = document.getElementById('ownerBtnCall');
@@ -147,6 +150,40 @@
       });
     });
     boundSlots[slot.id] = true;
+  }
+
+  function renderMiniSemaforos(data) {
+    if (!semMini) return;
+    var list = data.tarjetas;
+    if (!list || !list.length) {
+      list = [];
+      if (data.tarjeta_caja) list.push(Object.assign({ dominio: 'caja' }, data.tarjeta_caja));
+      if (data.tarjeta_inventario) list.push(Object.assign({ dominio: 'inventario' }, data.tarjeta_inventario));
+      if (data.tarjeta_credito) list.push(Object.assign({ dominio: 'credito' }, data.tarjeta_credito));
+      if (data.tarjeta_compras) list.push(Object.assign({ dominio: 'compras' }, data.tarjeta_compras));
+    }
+    semMini.innerHTML = '';
+    list.forEach(function (card) {
+      var dom = card.dominio || '';
+      var est = (card.estado || 'verde').toLowerCase();
+      var slotId = DOMINIO_SLOT[dom];
+      var slot = slotId ? document.getElementById(slotId) : null;
+      var href = (card.acciones || []).find(function (a) { return a.tipo === 'nav'; });
+      href = (href && href.href) || (slot && slot.getAttribute('data-nav-url')) || NAV_DEFAULT[dom] || ccUrl;
+      var a = document.createElement('a');
+      a.className = 'owner-guardian-sem-mini__chip owner-guardian-sem-mini__chip--' + est;
+      a.href = href;
+      a.setAttribute('aria-label', (DOMINIO_LABEL[dom] || dom) + ' ' + est);
+      a.innerHTML =
+        '<span class="owner-guardian-sem-mini__dot" aria-hidden="true"></span>' +
+        '<span>' + escapeHtml(DOMINIO_LABEL[dom] || dom) + '</span>';
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        if (slot) slot.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.location.href = href;
+      });
+      semMini.appendChild(a);
+    });
   }
 
   function renderTarjetas(data) {
@@ -301,6 +338,7 @@
         if (!j || j.status !== 'success' || !j.data) throw new Error('invalid_payload');
         var data = j.data;
         renderTarjetas(data);
+        renderMiniSemaforos(data);
         lastMeta = data.meta || {};
         applyGuardianPayload(data);
       })
