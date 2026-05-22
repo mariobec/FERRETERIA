@@ -127,9 +127,19 @@ python scripts/sd1_cierre_preflight.py
 2. Ordenar por **monto comprado** (Excel del contador o RCV SII si lo exportan).
 3. Trabajar solo el **top 300–500** ítems (no las 4.000 filas).
 
+### D2.0 Import masivo RCV SII (opcional, recomendado antes de PDFs)
+
+```bash
+python scripts/apply_sql_neon.py sql/2026_05_22_rcv_sii_recepciones.sql
+python scripts/importar_rcv_sii.py --input "compras_rcv_2026.csv" --dry-run
+python scripts/importar_rcv_sii.py --input "compras_rcv_2026.csv"
+```
+
+Crea recepciones **Pendiente de ítems** (folio + proveedor RUT). Ver `IMPORTAR_RCV_SII.md`.
+
 ### D2.2 Flujo en LhexIA (por factura)
 
-1. **Compras → Recepciones → Nueva** (proveedor, tipo Factura o Guía).
+1. Abrir recepción borrador RCV o **Compras → Recepciones → Nueva** (proveedor, tipo Factura o Guía).
 2. Adjuntar PDF o foto legible.
 3. Si hay `OPENAI_API_KEY` en servidor: **Importar líneas desde factura (IA)** → revisar cada match.
 4. Confirmar solo líneas con producto correcto en catálogo.

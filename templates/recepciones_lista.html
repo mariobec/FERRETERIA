@@ -5,9 +5,9 @@
   <div class="page-header">
     <div>
       <h3 class="page-title"><i class="fas fa-dolly text-success me-2"></i>Recepción de mercadería</h3>
-      <p class="page-subtitle">Documentos de compra ingresados a bodega y su estado.</p>
+      <p class="page-subtitle">RCV y documentos de compra — filtre por año, estado o monto (Pareto D2).</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
       <a href="{{ url_for('kardex') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-clipboard-list me-1"></i> Kardex</a>
       <a href="{{ url_for('reporte_costos_recepcion') }}" class="btn btn-outline-warning btn-sm"><i class="fas fa-chart-line me-1"></i> Bitácora Costos</a>
       <a href="/recepciones/tablet" class="btn btn-outline-dark btn-sm"><i class="fas fa-tablet-alt me-1"></i> Modo Tablet</a>
@@ -15,53 +15,191 @@
     </div>
   </div>
 
-  <div class="card card-ds">
-    <div class="card-header bg-white fw-bold">Últimas recepciones</div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0 table-ds align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>ID</th>
-              <th>Fecha</th>
-              <th>Proveedor</th>
-              <th>Documento</th>
-              <th>Estado</th>
-              <th>Bodega</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in recepciones %}
-            <tr>
-              <td>#{{ r.id }}</td>
-              <td class="small text-nowrap">{{ r.fecha_recepcion.strftime('%d-%m-%Y %H:%M') if r.fecha_recepcion else '—' }}</td>
-              <td>{{ r.proveedor.nombre if r.proveedor else '—' }}</td>
-              <td><span class="badge bg-secondary">{{ r.documento_tipo }}</span> {{ r.documento_numero }}</td>
-              <td>
-                {% if r.estado == 'Finalizada' %}
-                <span class="badge bg-success">Finalizada</span>
-                {% elif r.estado == 'Incompleta' %}
-                <span class="badge bg-warning text-dark">Incompleta</span>
-                {% else %}
-                <span class="badge bg-light text-dark border">{{ r.estado }}</span>
-                {% endif %}
-              </td>
-              <td class="small">{{ r.usuario_bodega or '—' }}</td>
-              <td class="text-end">
-                <a href="{{ url_for('imprimir_etiquetas_recepcion', rid=r.id) }}" class="btn btn-sm btn-outline-dark">Etiquetas</a>
-                <a href="{{ url_for('detalle_recepcion', rid=r.id) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="7" class="text-center text-muted py-4">No hay recepciones registradas. Cree la primera con «Nueva recepción».</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <div class="card card-ds mb-3">
+    <div class="card-body py-3">
+      <form method="get" action="{{ url_for('lista_recepciones') }}" class="row g-2 align-items-end" id="form-filtros-recepciones">
+        <div class="col-md-3">
+          <label class="form-label small fw-bold mb-1">Estado</label>
+          <select name="estado" class="form-select form-select-sm">
+            <option value="" {% if not filtros.estado %}selected{% endif %}>Activos (sin archivado)</option>
+            <option value="{{ estado_pendiente_items }}" {% if filtros.estado == estado_pendiente_items %}selected{% endif %}>Pendiente de ítems</option>
+            <option value="Pendiente" {% if filtros.estado == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+            <option value="Incompleta" {% if filtros.estado == 'Incompleta' %}selected{% endif %}>Incompleta</option>
+            <option value="Finalizada" {% if filtros.estado == 'Finalizada' %}selected{% endif %}>Finalizada</option>
+            <option value="Archivado RCV" {% if filtros.estado == 'Archivado RCV' %}selected{% endif %}>Archivado RCV</option>
+            <option value="__todos__" {% if filtros.estado == '__todos__' %}selected{% endif %}>Todos los estados</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-bold mb-1">Año documento</label>
+          <select name="anio" class="form-select form-select-sm">
+            <option value="" {% if not filtros.anio %}selected{% endif %}>Todos</option>
+            <option value="2026" {% if filtros.anio == 2026 %}selected{% endif %}>2026</option>
+            <option value="2025" {% if filtros.anio == 2025 %}selected{% endif %}>2025</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-bold mb-1">Orden</label>
+          <select name="orden" class="form-select form-select-sm">
+            <option value="fecha" {% if filtros.orden == 'fecha' %}selected{% endif %}>Fecha documento (reciente)</option>
+            <option value="monto" {% if filtros.orden == 'monto' %}selected{% endif %}>Monto total (mayor a menor)</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex gap-2 flex-wrap">
+          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-filter me-1"></i> Aplicar</button>
+          <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        </div>
+      </form>
+
+      <div class="d-flex flex-wrap gap-2 mt-3 pt-2 border-top">
+        <span class="small text-muted align-self-center me-1">Atajos:</span>
+        <a class="btn btn-sm btn-info text-dark"
+           href="{{ url_for('lista_recepciones', estado=estado_pendiente_items) }}">
+          Pendiente ítems
+          {% if resumen.pendiente_items %}<span class="badge bg-dark ms-1">{{ resumen.pendiente_items }}</span>{% endif %}
+        </a>
+        <a class="btn btn-sm btn-outline-info"
+           href="{{ url_for('lista_recepciones', estado=estado_pendiente_items, anio=2026) }}">
+          Pendiente · 2026
+          {% if resumen.pendiente_items_2026 %}<span class="badge bg-secondary ms-1">{{ resumen.pendiente_items_2026 }}</span>{% endif %}
+        </a>
+        <a class="btn btn-sm btn-warning text-dark"
+           href="{{ url_for('lista_recepciones', estado=estado_pendiente_items, anio=2026, orden='monto') }}">
+          <i class="fas fa-sort-amount-down me-1"></i> Pareto 2026 (monto)
+        </a>
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('lista_recepciones', anio=2025, estado=estado_pendiente_items) }}">
+          Pendiente · 2025
+        </a>
       </div>
     </div>
   </div>
+
+  <form method="post" action="{{ url_for('archivar_recepciones_rcv', estado=filtros.estado or none, anio=filtros.anio or none, orden=filtros.orden) }}"
+        id="form-archivar-recepciones" onsubmit="return confirmarArchivado(event);">
+    <div class="card card-ds">
+      <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <span class="fw-bold">Recepciones</span>
+          {% if pagination %}
+          <span class="text-muted small ms-2">
+            {{ pagination.total }} registro(s) · pág. {{ pagination.page }}/{{ pagination.pages or 1 }}
+          </span>
+          {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="submit" name="accion" value="seleccion" class="btn btn-sm btn-outline-secondary"
+                  title="Archiva las filas marcadas (solo Pendiente de ítems)">
+            <i class="fas fa-archive me-1"></i> Archivar seleccionadas
+          </button>
+          <button type="submit" name="accion" value="anio_2025" class="btn btn-sm btn-outline-dark"
+                  onclick="return confirm('¿Archivar TODAS las recepciones Pendiente de ítems del año 2025? Saldrán de la cola de bodega.');">
+            <i class="fas fa-box-archive me-1"></i> Archivar RCV 2025 (lote)
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 table-ds align-middle">
+            <thead class="table-light">
+              <tr>
+                <th style="width:2rem"><input type="checkbox" class="form-check-input" id="chk-todos-recepciones" title="Seleccionar página"></th>
+                <th>ID</th>
+                <th>Fecha doc.</th>
+                <th>Proveedor</th>
+                <th>Documento</th>
+                <th class="text-end">Monto total</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in recepciones %}
+              <tr>
+                <td>
+                  {% if r.estado == estado_pendiente_items %}
+                  <input type="checkbox" class="form-check-input chk-recepcion" name="recepcion_ids" value="{{ r.id }}">
+                  {% endif %}
+                </td>
+                <td>#{{ r.id }}</td>
+                <td class="small text-nowrap">
+                  {% if r.fecha_documento %}{{ r.fecha_documento.strftime('%d-%m-%Y') }}
+                  {% elif r.fecha_recepcion %}{{ r.fecha_recepcion.strftime('%d-%m-%Y') }}
+                  {% else %}—{% endif %}
+                </td>
+                <td class="small">{{ r.proveedor.nombre if r.proveedor else (r.razon_social_doc or '—') }}</td>
+                <td class="small">
+                  <span class="badge bg-secondary">{{ r.documento_tipo }}</span> {{ r.documento_numero }}
+                  {% if r.origen_importacion == 'rcv_sii' %}<span class="badge bg-light text-dark border ms-1">RCV</span>{% endif %}
+                </td>
+                <td class="text-end small fw-semibold text-nowrap">
+                  {% if r.monto_total is not none %}
+                  ${{ '{:,.0f}'.format(r.monto_total).replace(',', '.') }}
+                  {% else %}—{% endif %}
+                </td>
+                <td>
+                  {% if r.estado == 'Finalizada' %}
+                  <span class="badge bg-success">Finalizada</span>
+                  {% elif r.estado == 'Incompleta' %}
+                  <span class="badge bg-warning text-dark">Incompleta</span>
+                  {% elif r.estado == 'Pendiente de Items' %}
+                  <span class="badge bg-info text-dark">Pendiente de ítems</span>
+                  {% elif r.estado == 'Archivado RCV' %}
+                  <span class="badge bg-secondary">Archivado RCV</span>
+                  {% else %}
+                  <span class="badge bg-light text-dark border">{{ r.estado }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                  <a href="{{ url_for('detalle_recepcion', rid=r.id) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="8" class="text-center text-muted py-4">
+                  No hay recepciones con estos filtros.
+                  <a href="{{ url_for('lista_recepciones', estado=estado_pendiente_items, anio=2026, orden='monto') }}">Ver Pareto 2026</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% if pagination and pagination.pages > 1 %}
+      <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small class="text-muted">{{ per_page }} por página · {{ pagination.total }} total</small>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('lista_recepciones', page=pagination.prev_num, estado=filtros.estado or none, anio=filtros.anio or none, orden=filtros.orden) }}">Anterior</a>
+            </li>
+            <li class="page-item disabled"><span class="page-link">{{ pagination.page }} / {{ pagination.pages }}</span></li>
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('lista_recepciones', page=pagination.next_num, estado=filtros.estado or none, anio=filtros.anio or none, orden=filtros.orden) }}">Siguiente</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
+    </div>
+  </form>
 </div>
+<script>
+(function () {
+  var master = document.getElementById('chk-todos-recepciones');
+  if (master) {
+    master.addEventListener('change', function () {
+      document.querySelectorAll('.chk-recepcion').forEach(function (c) { c.checked = master.checked; });
+    });
+  }
+})();
+function confirmarArchivado(ev) {
+  var btn = ev.submitter;
+  if (!btn || btn.value !== 'seleccion') return true;
+  var n = document.querySelectorAll('.chk-recepcion:checked').length;
+  if (n === 0) { alert('Marque al menos una recepción Pendiente de ítems.'); return false; }
+  return confirm('¿Archivar ' + n + ' recepción(es) seleccionada(s)?');
+}
+</script>
 {% endblock %}

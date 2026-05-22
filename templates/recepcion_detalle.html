@@ -9,7 +9,7 @@
         {{ recepcion.proveedor.nombre if recepcion.proveedor else 'Proveedor' }} —
         <span class="badge bg-secondary">{{ recepcion.documento_tipo }}</span>
         {{ recepcion.documento_numero }}
-        <span class="ms-2 badge {% if recepcion.estado == 'Finalizada' %}bg-success{% elif recepcion.estado == 'Incompleta' %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}">{{ recepcion.estado }}</span>
+        <span class="ms-2 badge {% if recepcion.estado == 'Finalizada' %}bg-success{% elif recepcion.estado == 'Incompleta' %}bg-warning text-dark{% elif recepcion.estado == 'Pendiente de Items' %}bg-info text-dark{% elif recepcion.estado == 'Archivado RCV' %}bg-secondary{% else %}bg-light text-dark border{% endif %}">{{ recepcion.estado }}</span>
       </p>
     </div>
     <div class="d-flex gap-2">
@@ -30,7 +30,18 @@
     </div>
   </div>
 
-  {% if oc_tablas_ok and recepcion.estado in ('Pendiente', 'Incompleta') %}
+  {% if recepcion.origen_importacion == 'rcv_sii' %}
+  <div class="alert alert-info py-2 small mb-3">
+    <i class="fas fa-file-invoice me-1"></i>
+    <strong>Borrador RCV SII</strong>
+    {% if recepcion.rut_proveedor_doc %} · RUT {{ recepcion.rut_proveedor_doc }}{% endif %}
+    {% if recepcion.monto_neto %} · Neto ${{ '{:,.0f}'.format(recepcion.monto_neto).replace(',', '.') }}{% endif %}
+    {% if recepcion.monto_total %} · Total ${{ '{:,.0f}'.format(recepcion.monto_total).replace(',', '.') }}{% endif %}
+    — Adjunte el PDF de la factura y use <strong>Importar líneas (IA)</strong> para completar ítems.
+  </div>
+  {% endif %}
+
+  {% if oc_tablas_ok and recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') %}
   <div class="card card-ds mb-3">
     <div class="card-header fw-bold">Orden de compra</div>
     <div class="card-body">
@@ -60,7 +71,7 @@
   </div>
   {% endif %}
 
-  {% if recepcion.estado in ('Pendiente', 'Incompleta') %}
+  {% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') %}
   <div class="card card-ds mb-4">
     <div class="card-header bg-white fw-bold">Agregar producto recibido</div>
     <div class="card-body">
@@ -98,7 +109,7 @@
   </div>
   {% endif %}
 
-  {% if recepcion.estado in ('Pendiente', 'Incompleta') and tiene_documento %}
+  {% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') and tiene_documento %}
   <div class="card card-ds mb-4 border-info">
     <div class="card-header bg-white fw-bold text-info">
       <i class="fas fa-robot me-2"></i>Importar líneas desde factura o guía (IA)
@@ -152,7 +163,7 @@
   <div class="card card-ds mb-4">
     <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
       <span class="fw-bold">Líneas registradas</span>
-      {% if recepcion.estado in ('Pendiente', 'Incompleta') %}
+      {% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') %}
       <form method="post" action="{{ url_for('detalle_recepcion', rid=recepcion.id) }}" class="d-flex align-items-center" onsubmit="return confirm('¿Cerrar esta recepción? No podrá agregar más líneas.');">
         <input type="hidden" name="action" value="finalizar">
         <button type="submit" class="btn btn-sm btn-primary fw-semibold">
@@ -177,7 +188,7 @@
             {% for d in recepcion.detalles %}
             <tr data-pid="{{ d.producto_id }}">
               <td class="small">
-                {% if recepcion.estado in ('Pendiente', 'Incompleta') and d.producto %}
+                {% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') and d.producto %}
                 <button type="button" class="btn btn-sm btn-outline-primary mb-1 btn-barras-recep"
                         data-pid="{{ d.producto_id }}"
                         data-nombre="{{ d.producto.nombre|e }}">
@@ -209,7 +220,7 @@
   </div>
 </div>
 
-{% if recepcion.estado in ('Pendiente', 'Incompleta') %}
+{% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') %}
 <div class="modal fade" id="modalBarrasRecep" tabindex="-1" aria-labelledby="modalBarrasRecepLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">

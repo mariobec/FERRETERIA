@@ -188,6 +188,7 @@ _SCHEMA_ENSURE_LOCK = threading.Lock()
 
 from services import stock_service as _stock_service
 from services import kardex_service as _kardex_service
+from services.rcv_sii_import_service import ESTADOS_RECEPCION_EDITABLE, ESTADO_PENDIENTE_ITEMS
 from services import whatsapp_service as _whatsapp_service
 from services import unidades_service as _unidades_service
 from services.venta_service import transaccion_critica
@@ -216,6 +217,52 @@ _ENROL_TABLAS_OK = None
 
 def _tablas_inventario_almacen_existen():
     return _stock_service.tablas_inventario_almacen_existen()
+
+
+def _asegurar_columnas_recepcion_rcv():
+    """Columnas RCV SII + RUT proveedor (bases legacy / Neon)."""
+    if app.config.get('_RECEPCION_RCV_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'proveedores' in set(insp.get_table_names()):
+            cols_p = {c['name'] for c in insp.get_columns('proveedores')}
+            if 'rut' not in cols_p:
+                db.session.execute(text('ALTER TABLE proveedores ADD COLUMN rut VARCHAR(12) NULL'))
+        if 'recepciones_compra' in set(insp.get_table_names()):
+            cols_r = {c['name'] for c in insp.get_columns('recepciones_compra')}
+            adds = [
+                ('monto_neto', 'DOUBLE PRECISION'),
+                ('monto_total', 'DOUBLE PRECISION'),
+                ('rut_proveedor_doc', 'VARCHAR(12)'),
+                ('razon_social_doc', 'VARCHAR(200)'),
+                ('fecha_documento', 'DATE'),
+                ('origen_importacion', 'VARCHAR(30)'),
+            ]
+            for col, typ in adds:
+                if col not in cols_r:
+                    db.session.execute(
+                        text(f'ALTER TABLE recepciones_compra ADD COLUMN {col} {typ} NULL')
+                    )
+            if db.engine.dialect.name == 'postgresql':
+                for valor_enum in ('Pendiente de Items', 'Archivado RCV'):
+                    try:
+                        db.session.execute(
+                            text(
+                                f"ALTER TYPE recepciones_estado_enum "
+                                f"ADD VALUE IF NOT EXISTS '{valor_enum}'"
+                            )
+                        )
+                    except Exception:
+                        pass
+        db.session.commit()
+        app.config['_RECEPCION_RCV_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('RCV recepciones: migracion parcial (%s)', ex)
+        app.config['_RECEPCION_RCV_OK'] = True
+        return False
 
 
 def _tablas_enrolamiento_existen():
@@ -4819,6 +4866,7 @@ class Proveedor(db.Model):
     __tablename__ = 'proveedores'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
+    rut = db.Column(db.String(12), nullable=True)
     contacto = db.Column(db.String(100))
     telefono = db.Column(db.String(30))
     email = db.Column(db.String(100))
@@ -5051,9 +5099,22 @@ class RecepcionCompra(db.Model):
     fecha_recepcion = db.Column(db.DateTime, default=db.func.current_timestamp())
     usuario_bodega = db.Column(db.String(100))
     estado = db.Column(
-        db.Enum('Pendiente', 'Incompleta', 'Finalizada', name='recepciones_estado_enum'),
-        default='Pendiente'
+        db.Enum(
+            'Pendiente',
+            'Pendiente de Items',
+            'Incompleta',
+            'Finalizada',
+            'Archivado RCV',
+            name='recepciones_estado_enum',
+        ),
+        default='Pendiente',
     )
+    monto_neto = db.Column(db.Float, nullable=True)
+    monto_total = db.Column(db.Float, nullable=True)
+    rut_proveedor_doc = db.Column(db.String(12), nullable=True)
+    razon_social_doc = db.Column(db.String(200), nullable=True)
+    fecha_documento = db.Column(db.Date, nullable=True)
+    origen_importacion = db.Column(db.String(30), nullable=True)
 
     proveedor = db.relationship('Proveedor', backref='recepciones')
     orden_compra = db.relationship('OrdenCompra', backref='recepciones')
@@ -18694,7 +18755,7 @@ def _aplicar_linea_recepcion(
     autorizar_margen_bajo=False,
 ):
     """Suma stock y registra kardex; retorna (error|None, alerta_costo|None)."""
-    if recepcion.estado not in ('Pendiente', 'Incompleta'):
+    if recepcion.estado not in ESTADOS_RECEPCION_EDITABLE:
         return "Esta recepción ya no admite líneas.", None
     try:
         cant_fis = int(cantidad_fisica)
@@ -18763,7 +18824,7 @@ def _aplicar_linea_recepcion(
     else:
         producto.stock = (producto.stock or 0) + ingreso_stock
 
-    if recepcion.estado == 'Pendiente':
+    if recepcion.estado in ('Pendiente', ESTADO_PENDIENTE_ITEMS):
         recepcion.estado = 'Incompleta'
 
     if costo_nuevo is not None and costo_nuevo > 0:
@@ -20399,13 +20460,96 @@ def api_bodega_voice_command():
 @app.route('/recepciones')
 @permisos_required('gestionar_compras', 'ver_inventario', 'admin_inventario', 'gestionar_usuarios')
 def lista_recepciones():
-    recepciones = (
-        RecepcionCompra.query.options(joinedload(RecepcionCompra.proveedor))
-        .order_by(RecepcionCompra.id.desc())
-        .limit(120)
-        .all()
+    from services.recepciones_lista_service import (
+        ORDEN_FECHA,
+        ORDEN_MONTO,
+        PER_PAGE_RECEPCIONES,
+        query_lista_recepciones,
+        resumen_filtros_actuales,
     )
-    return render_template('recepciones_lista.html', recepciones=recepciones)
+    from services.rcv_sii_import_service import ESTADO_PENDIENTE_ITEMS
+
+    _asegurar_columnas_recepcion_rcv()
+    estado_f = (request.args.get('estado') or '').strip()
+    anio_f = request.args.get('anio', type=int)
+    orden_f = (request.args.get('orden') or ORDEN_FECHA).strip().lower()
+    if orden_f not in (ORDEN_FECHA, ORDEN_MONTO):
+        orden_f = ORDEN_FECHA
+    page = max(1, request.args.get('page', 1, type=int))
+
+    q = query_lista_recepciones(
+        estado=estado_f or None,
+        anio=anio_f if anio_f in (2025, 2026) else None,
+        orden=orden_f,
+        ocultar_archivado=(estado_f != '__todos__' and estado_f != 'Archivado RCV'),
+    )
+    pagination = (
+        q.options(joinedload(RecepcionCompra.proveedor))
+        .paginate(page=page, per_page=PER_PAGE_RECEPCIONES, error_out=False)
+    )
+    try:
+        resumen = resumen_filtros_actuales(estado_f, anio_f)
+    except Exception:
+        resumen = {'pendiente_items': 0, 'pendiente_items_2026': 0}
+
+    filtros = {
+        'estado': estado_f,
+        'anio': anio_f,
+        'orden': orden_f,
+        'page': page,
+    }
+    return render_template(
+        'recepciones_lista.html',
+        recepciones=pagination.items,
+        pagination=pagination,
+        filtros=filtros,
+        estado_pendiente_items=ESTADO_PENDIENTE_ITEMS,
+        resumen=resumen,
+        per_page=PER_PAGE_RECEPCIONES,
+    )
+
+
+@app.route('/recepciones/archivar-rcv', methods=['POST'])
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
+def archivar_recepciones_rcv():
+    from services.recepciones_lista_service import archivar_recepciones_lote
+
+    _asegurar_columnas_recepcion_rcv()
+    accion = (request.form.get('accion') or '').strip()
+    ids_raw = request.form.getlist('recepcion_ids')
+    ids = []
+    for x in ids_raw:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            pass
+
+    if accion == 'anio_2025':
+        res = archivar_recepciones_lote(anio=2025)
+    elif accion == 'seleccion' and ids:
+        res = archivar_recepciones_lote(ids=ids)
+    else:
+        flash('Acción de archivado no válida.', 'warning')
+        return redirect(url_for('lista_recepciones'))
+
+    if not res.get('ok'):
+        flash(res.get('error') or 'No se pudo archivar.', 'warning')
+    elif res.get('actualizadas', 0) == 0:
+        flash('No había recepciones pendientes de ítems para archivar.', 'info')
+    else:
+        flash(
+            f"Se archivaron {res['actualizadas']} recepción(es) como tributario RCV "
+            f"(fuera de cola de bodega).",
+            'success',
+        )
+    return redirect(
+        url_for(
+            'lista_recepciones',
+            estado=request.args.get('estado', ''),
+            anio=request.args.get('anio', ''),
+            orden=request.args.get('orden', 'fecha'),
+        )
+    )
 
 
 @app.route('/recepciones/tablet')
@@ -20413,7 +20557,7 @@ def lista_recepciones():
 def recepcion_tablet():
     proveedores = Proveedor.query.order_by(Proveedor.nombre.asc()).all()
     recepciones_activas = (
-        RecepcionCompra.query.filter(RecepcionCompra.estado.in_(["Pendiente", "Incompleta"]))
+        RecepcionCompra.query.filter(RecepcionCompra.estado.in_(list(ESTADOS_RECEPCION_EDITABLE)))
         .order_by(RecepcionCompra.id.desc())
         .limit(30)
         .all()
@@ -20570,7 +20714,7 @@ def detalle_recepcion(rid):
         joinedload(RecepcionCompra.detalles).joinedload(DetalleRecepcion.producto),
     ).get_or_404(rid)
 
-    if request.method == 'POST' and rec.estado in ('Pendiente', 'Incompleta'):
+    if request.method == 'POST' and rec.estado in ESTADOS_RECEPCION_EDITABLE:
         action = request.form.get('action')
         if action == 'asociar_oc' and _tablas_orden_compra_existen():
             oc_id = request.form.get('orden_compra_id', type=int)
@@ -20657,7 +20801,7 @@ def detalle_recepcion(rid):
 def api_ia_factura_analizar(rid):
     """Analiza PDF/imagen adjunta con visión OpenAI y sugiere líneas con emparejamiento al catálogo."""
     rec = RecepcionCompra.query.get_or_404(rid)
-    if rec.estado not in ('Pendiente', 'Incompleta'):
+    if rec.estado not in ESTADOS_RECEPCION_EDITABLE:
         return jsonify(ok=False, message='La recepción no admite líneas.'), 400
     api_key = (os.getenv('OPENAI_API_KEY') or '').strip()
     if not api_key:
@@ -20732,7 +20876,7 @@ def api_ia_factura_analizar(rid):
 def api_ia_factura_aplicar(rid):
     """Aplica líneas confirmadas (JSON) con la misma lógica que registrar línea manual."""
     rec = RecepcionCompra.query.get_or_404(rid)
-    if rec.estado not in ('Pendiente', 'Incompleta'):
+    if rec.estado not in ESTADOS_RECEPCION_EDITABLE:
         return jsonify(ok=False, message='La recepción no admite líneas.'), 400
     data = request.get_json(silent=True) or {}
     items = data.get('items')
