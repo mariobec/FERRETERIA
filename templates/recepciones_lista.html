@@ -17,8 +17,25 @@
 
   <div class="card card-ds mb-3">
     <div class="card-body py-3">
-      <form method="get" action="{{ url_for('lista_recepciones') }}" class="row g-2 align-items-end" id="form-filtros-recepciones">
-        <div class="col-md-3">
+      <form method="get" action="{{ url_for('lista_recepciones') }}" id="form-filtros-recepciones">
+        <div class="row g-2 align-items-end mb-2 pb-2 border-bottom border-light">
+          <div class="col-12 col-lg-8">
+            <label class="form-label fw-bold mb-1" for="filtro-folio-rcv">
+              <i class="fas fa-file-invoice me-1"></i> Nº factura / folio SII
+            </label>
+            <input type="search" id="filtro-folio-rcv" name="folio" class="form-control"
+                   value="{{ filtros.folio or '' }}" placeholder="Ej. 4949757 — escriba el folio y pulse Buscar"
+                   autocomplete="off" inputmode="numeric"{% if not filtros.folio %} autofocus{% endif %}>
+          </div>
+          <div class="col-12 col-lg-4 d-flex gap-2 align-items-end">
+            <button type="submit" class="btn btn-primary flex-grow-1">
+              <i class="fas fa-search me-1"></i> Buscar folio
+            </button>
+            <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary">Limpiar</a>
+          </div>
+        </div>
+        <div class="row g-2 align-items-end">
+        <div class="col-md-4 col-lg-3">
           <label class="form-label small fw-bold mb-1">Estado</label>
           <select name="estado" class="form-select form-select-sm">
             <option value="" {% if not filtros.estado %}selected{% endif %}>Activos (sin archivado)</option>
@@ -30,7 +47,7 @@
             <option value="__todos__" {% if filtros.estado == '__todos__' %}selected{% endif %}>Todos los estados</option>
           </select>
         </div>
-        <div class="col-md-2 col-lg-2">
+        <div class="col-md-3 col-lg-2">
           <label class="form-label small fw-bold mb-1">Año documento</label>
           <select name="anio" class="form-select form-select-sm">
             <option value="" {% if not filtros.anio %}selected{% endif %}>Todos</option>
@@ -38,16 +55,17 @@
             <option value="2025" {% if filtros.anio == 2025 %}selected{% endif %}>2025</option>
           </select>
         </div>
-        <div class="col-md-2 col-lg-2">
+        <div class="col-md-3 col-lg-3">
           <label class="form-label small fw-bold mb-1">Orden</label>
           <select name="orden" class="form-select form-select-sm">
             <option value="fecha" {% if filtros.orden == 'fecha' %}selected{% endif %}>Fecha documento (reciente)</option>
             <option value="monto" {% if filtros.orden == 'monto' %}selected{% endif %}>Monto total (mayor a menor)</option>
           </select>
         </div>
-        <div class="col-md-4 col-lg-4 d-flex gap-2 flex-wrap align-items-end">
-          <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search me-1"></i> Buscar</button>
-          <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+        <div class="col-md-2 col-lg-2 d-grid">
+          <label class="form-label small fw-bold mb-1 d-none d-md-block">&nbsp;</label>
+          <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fas fa-filter me-1"></i> Aplicar filtros</button>
+        </div>
         </div>
       </form>
       {% if filtros.folio %}
