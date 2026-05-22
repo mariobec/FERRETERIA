@@ -15,6 +15,7 @@ from services.agente_ejecuciones_service import (
 )
 from services.vertex_pildora_contract import (
     AGENTE_VERTEX_HUB,
+    TENANT_SANTO_DOMINGO,
     TENANT_SODIMAC,
     asegurar_pildoras_demo_red,
 )
@@ -197,11 +198,18 @@ class TestOwnerDashboardApi:
         sd = next(c for c in clientes if c['id'] == 'santo_domingo')
         assert sd.get('fuente_datos') == 'live'
         assert 'vertex_guardian' in (sd.get('modulos_contratados') or [])
+        assert 'vertex_mentor' in (sd.get('modulos_contratados') or [])
+        assert 'mentor' in (sd.get('agentes_activos') or [])
         feed = data.get('feed_preview_global') or []
         assert len(feed) <= 5
         grafo = data.get('grafo_agentes') or {}
         assert len(grafo.get('nodos') or []) >= 4
         assert len(grafo.get('aristas') or []) >= 3
+        agentes_nodo = [n for n in (grafo.get('nodos') or []) if n.get('tipo') == 'agente']
+        assert any(
+            n.get('agente') == 'mentor' or 'mentor' in (n.get('label') or '').lower()
+            for n in agentes_nodo
+        )
         assert data['meta'].get('vertex_pildora_version') == '1.0'
         if feed:
             assert 'pildora' in feed[0]
@@ -222,6 +230,18 @@ class TestOwnerDashboardApi:
         assert pill.get('modo') == 'mock'
         assert pill.get('vertex_pildora_version') == '1.0'
 
+    def test_pildora_mentor_demo_red(self, app_client, tabla_agente_owner):
+        asegurar_pildoras_demo_red()
+        row = m.AgenteEjecucion.query.filter_by(
+            agente_nombre=AGENTE_VERTEX_HUB,
+            dedupe_key=f'vertex:maestro:{TENANT_SANTO_DOMINGO}:mentor_nota_credito',
+        ).first()
+        assert row is not None
+        pill = parse_payload_json(row.payload_json)
+        assert pill.get('agente_producto') == 'vertex_mentor'
+        assert pill.get('codigo') == 'mentor_guia_nota_credito'
+        assert pill.get('nav_href') == '/caja/cambios'
+
     def test_owner_vertex_control_shell(self, app_client):
         r = app_client.get('/owner/vertex-control')
         assert r.status_code == 200
@@ -229,5 +249,5 @@ class TestOwnerDashboardApi:
         assert b'global_maestro' in r.data
         assert b'vertex-control.js' in r.data
         assert b'vertexNeuralStage' in r.data
-        assert b'vertex-neural-5' in r.data
+        assert b'vertex-neural-6' in r.data
         assert b'vertex-hub-vault' in r.data

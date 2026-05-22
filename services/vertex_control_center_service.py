@@ -60,6 +60,8 @@ _MODULO_LOGISTICA = 'vertex_logistica'
 
 _MODULO_INVENTARIO = 'vertex_inventario'
 
+_MODULO_MENTOR = 'vertex_mentor'
+
 
 
 _SEV_TO_SEM = {'critical': 'rojo', 'warning': 'amarillo', 'info': 'verde'}
@@ -316,9 +318,9 @@ def _clientes_mock(*, pildoras_por_tenant: dict[str, list[dict[str, Any]]]) -> l
 
             },
 
-            modulos=[_MODULO_GUARDIAN, _MODULO_OPERADOR, _MODULO_LOGISTICA],
+            modulos=[_MODULO_GUARDIAN, _MODULO_OPERADOR, _MODULO_LOGISTICA, _MODULO_MENTOR],
 
-            agentes=['guardian', 'operador', 'logistica'],
+            agentes=['guardian', 'operador', 'logistica', 'mentor'],
 
             kpis={
 
@@ -360,9 +362,9 @@ def _clientes_mock(*, pildoras_por_tenant: dict[str, list[dict[str, Any]]]) -> l
 
             },
 
-            modulos=[_MODULO_GUARDIAN, _MODULO_INVENTARIO],
+            modulos=[_MODULO_GUARDIAN, _MODULO_INVENTARIO, _MODULO_MENTOR],
 
-            agentes=['guardian', 'inventario'],
+            agentes=['guardian', 'inventario', 'mentor'],
 
             kpis={
 
@@ -428,11 +430,17 @@ def _cliente_santo_domingo_live(*, calcular_ctx_caja: Callable, usuario=None) ->
 
 
 
-    modulos = [_MODULO_GUARDIAN, _MODULO_OPERADOR]
+    modulos = [_MODULO_GUARDIAN, _MODULO_OPERADOR, _MODULO_MENTOR]
 
     if sem['inventario'] in ('amarillo', 'rojo'):
 
         modulos.append(_MODULO_INVENTARIO)
+
+    agentes = ['guardian', 'operador', 'mentor']
+
+    if _MODULO_INVENTARIO in modulos:
+
+        agentes.append('inventario')
 
 
 
@@ -458,7 +466,7 @@ def _cliente_santo_domingo_live(*, calcular_ctx_caja: Callable, usuario=None) ->
 
         'modulos_contratados': modulos,
 
-        'agentes_activos': ['guardian', 'operador'],
+        'agentes_activos': agentes,
 
         'kpis': {
 
@@ -637,6 +645,8 @@ def _grafo_agentes(clientes: list[dict[str, Any]]) -> dict[str, Any]:
         'logistica': 'Logística',
 
         'inventario': 'Inventario',
+
+        'mentor': 'Mentor',
 
     }
 

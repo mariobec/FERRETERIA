@@ -623,6 +623,12 @@ body.vertex-control-shell .app-content {
   stroke-width: 1;
 }
 
+.vertex-node--mentor .vertex-node-agent-core {
+  fill: rgba(139, 92, 246, 0.92);
+  stroke: rgba(233, 213, 255, 0.65);
+  filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.75));
+}
+
 .vertex-node-agent-label {
   fill: #94a3b8;
   font-size: 8px;
@@ -763,6 +769,16 @@ body.vertex-control-shell .app-content {
   border-color: rgba(129, 140, 248, 0.35);
 }
 
+.vertex-glass-card--mentor {
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.12);
+}
+
+.vertex-glass-card--mentor .vertex-glass-card__icon {
+  background: rgba(139, 92, 246, 0.28);
+  color: #e9d5ff;
+}
+
 .vertex-glass-card__head {
   display: flex;
   align-items: center;
@@ -875,6 +891,7 @@ body.vertex-control-shell .app-content {
 .vertex-map-legend .dot--red { background: #ff3366; box-shadow: 0 0 8px #ff3366; }
 .vertex-map-legend .dot--amber { background: #fbbf24; }
 .vertex-map-legend .dot--agent { background: #818cf8; }
+.vertex-map-legend .dot--mentor { background: #a78bfa; box-shadow: 0 0 8px rgba(167, 139, 250, 0.65); }
 
 .vertex-client-grid {
   display: grid;

@@ -26,6 +26,7 @@ _MODULO_GUARDIAN = 'vertex_guardian'
 _MODULO_OPERADOR = 'vertex_operador'
 _MODULO_LOGISTICA = 'vertex_logistica'
 _MODULO_INVENTARIO = 'vertex_inventario'
+_MODULO_MENTOR = 'vertex_mentor'
 
 _CODIGO_A_PRODUCTO = {
     'caja_descuadre': _MODULO_GUARDIAN,
@@ -34,6 +35,9 @@ _CODIGO_A_PRODUCTO = {
     'sku_quiebre': _MODULO_OPERADOR,
     'stock_bajo': _MODULO_INVENTARIO,
     'traslado_retrasado': _MODULO_LOGISTICA,
+    'mentor_guia_nota_credito': _MODULO_MENTOR,
+    'mentor_capacitacion': _MODULO_MENTOR,
+    'mentor_consulta_proceso': _MODULO_MENTOR,
 }
 
 
@@ -175,6 +179,51 @@ def _demo_specs() -> list[dict[str, Any]]:
             ),
         },
         {
+            'dedupe_key': f'vertex:maestro:{TENANT_SANTO_DOMINGO}:mentor_nota_credito',
+            'estado': EST_ALERTA_ABIERTA,
+            'minutes_ago': 18,
+            'pill': build_pildora(
+                tenant_id=TENANT_SANTO_DOMINGO,
+                tenant_slug='santo-domingo',
+                cliente_nombre='Ferretería Santo Domingo',
+                agente_producto=_MODULO_MENTOR,
+                agente_nombre='mentor',
+                codigo='mentor_guia_nota_credito',
+                severidad='info',
+                titulo='Mentor: guía nota de crédito — 3 vendedoras consultaron hoy',
+                mensaje_corto=(
+                    'Paso a paso: localizar venta pagada → Caja → Cambios/devoluciones → '
+                    'emitir NC según política de la tienda.'
+                ),
+                modo='mock',
+                origen='push_agente',
+                occurred_at=ahora - timedelta(minutes=18),
+                semaforo_dominio='caja',
+                nav_href='/caja/cambios',
+            ),
+        },
+        {
+            'dedupe_key': f'vertex:maestro:{TENANT_SODIMAC}:mentor_capacitacion',
+            'estado': EST_ALERTA_ABIERTA,
+            'minutes_ago': 33,
+            'pill': build_pildora(
+                tenant_id=TENANT_SODIMAC,
+                tenant_slug='sodimac-piloto',
+                cliente_nombre='Sodimac Piloto',
+                agente_producto=_MODULO_MENTOR,
+                agente_nombre='mentor',
+                codigo='mentor_capacitacion',
+                severidad='info',
+                titulo='Mentor piloto: onboarding cajera — vale pendiente y cobro',
+                mensaje_corto='Checklist interactivo para vendedora sin experiencia en POS.',
+                modo='mock',
+                origen='push_agente',
+                occurred_at=ahora - timedelta(minutes=33),
+                semaforo_dominio='caja',
+                nav_href='/punto_venta',
+            ),
+        },
+        {
             'dedupe_key': f'vertex:maestro:{TENANT_EASY}:caja_ok',
             'estado': EST_ALERTA_CERRADA,
             'minutes_ago': 28,
@@ -237,7 +286,7 @@ def listar_filas_feed_maestro(*, limite: int = 20) -> list:
         if payload.get('vertex_pildora_version') == PILDORA_VERSION:
             out.append(row)
             continue
-        if row.agente_nombre in ('operador', 'guardian', AGENTE_VERTEX_HUB):
+        if row.agente_nombre in ('operador', 'guardian', 'mentor', AGENTE_VERTEX_HUB):
             if payload.get('tenant_id') in (TENANT_SODIMAC, TENANT_EASY):
                 out.append(row)
                 continue

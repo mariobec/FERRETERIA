@@ -36,6 +36,7 @@
     vertex_operador: 'Operador',
     vertex_logistica: 'Logística',
     vertex_inventario: 'Inventario',
+    vertex_mentor: 'Mentor',
   };
 
   var SVG_DEFS =
@@ -270,8 +271,12 @@
       if (n.tipo !== 'agente') return;
       var p = pos[n.id];
       if (!p) return;
+      var mentorNode =
+        n.agente === 'mentor' || String(n.label || '').toLowerCase() === 'mentor';
       agents +=
-        '<g class="vertex-node vertex-node--agent">' +
+        '<g class="vertex-node vertex-node--agent' +
+        (mentorNode ? ' vertex-node--mentor' : '') +
+        '">' +
         '<circle cx="' + p.x + '" cy="' + p.y + '" r="11" class="vertex-node-agent-core"/>' +
         '<text x="' + p.x + '" y="' + (p.y + 22) + '" text-anchor="middle" class="vertex-node-agent-label">' + esc((n.label || '').slice(0, 11)) + '</text>' +
         '</g>';
@@ -295,7 +300,8 @@
         '<span><span class="dot dot--cyan"></span> Circuito activo</span>' +
         '<span><span class="dot dot--red"></span> Crítico · pulsos rápidos</span>' +
         '<span><span class="dot dot--amber"></span> Atención</span>' +
-        '<span><span class="dot dot--agent"></span> Agente</span>';
+        '<span><span class="dot dot--agent"></span> Agente</span>' +
+        '<span><span class="dot dot--mentor"></span> Mentor</span>';
     }
   }
 
@@ -323,9 +329,13 @@
 
   function previewCard(item, side) {
     var sev = (item.severidad || 'info').toLowerCase();
-    var border = sev === 'critical' ? 'critical' : sev === 'warning' ? 'warn' : 'info';
-    var icon =
-      sev === 'critical'
+    var agKey = String(item.agente_producto || item.agente || '').toLowerCase();
+    var isMentor = agKey.indexOf('mentor') >= 0;
+    var border =
+      sev === 'critical' ? 'critical' : sev === 'warning' ? 'warn' : isMentor ? 'mentor' : 'info';
+    var icon = isMentor
+      ? 'fa-graduation-cap'
+      : sev === 'critical'
         ? 'fa-triangle-exclamation'
         : sev === 'warning'
           ? 'fa-circle-exclamation'
@@ -351,7 +361,11 @@
     var right = [];
     (feed || []).forEach(function (it) {
       var ag = String(it.agente_producto || it.agente || '').toLowerCase();
-      if (ag.indexOf('guardian') >= 0 || ag.indexOf('guardi') >= 0) {
+      if (
+        ag.indexOf('guardian') >= 0 ||
+        ag.indexOf('guardi') >= 0 ||
+        ag.indexOf('mentor') >= 0
+      ) {
         left.push(it);
       } else {
         right.push(it);
@@ -363,7 +377,7 @@
     }
     left.sort(sortFeed);
     right.sort(sortFeed);
-    return { left: left.slice(0, 2), right: right.slice(0, 2) };
+    return { left: left.slice(0, 3), right: right.slice(0, 2) };
   }
 
   function renderAgentRails(feed) {
@@ -371,7 +385,7 @@
     if (elRailLeft) {
       elRailLeft.innerHTML = rails.left.length
         ? rails.left.map(function (it) { return previewCard(it, 'left'); }).join('')
-        : '<p class="vertex-rail-empty">Sin alertas Guardián</p>';
+        : '<p class="vertex-rail-empty">Sin eventos Guardián / Mentor</p>';
     }
     if (elRailRight) {
       elRailRight.innerHTML = rails.right.length
