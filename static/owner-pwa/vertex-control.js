@@ -1,5 +1,5 @@
 /**
- * Centro de Mandos Global — LhexIA VERTEX (scope=global_maestro)
+ * Centro de Mandos Global — LhexIA VERTEX (red neuronal cognitiva)
  */
 (function () {
   'use strict';
@@ -16,9 +16,19 @@
   var elResumen = document.getElementById('vertexResumenRed');
   var elGrid = document.getElementById('vertexClientGrid');
   var elFeed = document.getElementById('vertexFeedGlobal');
-  var elMapSvg = document.getElementById('vertexAgentMapSvg');
+  var elNeuralSvg = document.getElementById('vertexNeuralSvg');
   var elMapLegend = document.getElementById('vertexAgentMapLegend');
+  var elHud = document.getElementById('vertexNeuralHud');
+  var elRailLeft = document.getElementById('vertexAgentRailLeft');
+  var elRailRight = document.getElementById('vertexAgentRailRight');
   var btnRefresh = document.getElementById('vertexBtnRefresh');
+
+  var HUB = { x: 400, y: 262 };
+  var CLIENT_SLOTS = [
+    { x: 128, y: 118 },
+    { x: 672, y: 118 },
+    { x: 672, y: 402 },
+  ];
 
   var SEM_LABELS = { caja: 'Caja', inventario: 'Inv', credito: 'Créd', compras: 'OC' };
   var MODULO_LABELS = {
@@ -27,6 +37,28 @@
     vertex_logistica: 'Logística',
     vertex_inventario: 'Inventario',
   };
+
+  var SVG_DEFS =
+    '<defs>' +
+    '<filter id="vc-glow-cyan" x="-50%" y="-50%" width="200%" height="200%">' +
+    '<feGaussianBlur stdDeviation="3" result="b"/>' +
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+    '</filter>' +
+    '<filter id="vc-glow-red" x="-50%" y="-50%" width="200%" height="200%">' +
+    '<feGaussianBlur stdDeviation="4" result="b"/>' +
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+    '</filter>' +
+    '<linearGradient id="vc-trace-cyan" x1="0%" y1="0%" x2="100%" y2="0%">' +
+    '<stop offset="0%" stop-color="#22d3ee" stop-opacity="0.2"/>' +
+    '<stop offset="50%" stop-color="#67e8f9" stop-opacity="1"/>' +
+    '<stop offset="100%" stop-color="#22d3ee" stop-opacity="0.2"/>' +
+    '</linearGradient>' +
+    '<linearGradient id="vc-trace-red" x1="0%" y1="0%" x2="100%" y2="0%">' +
+    '<stop offset="0%" stop-color="#fb7185" stop-opacity="0.3"/>' +
+    '<stop offset="50%" stop-color="#ff3366" stop-opacity="1"/>' +
+    '<stop offset="100%" stop-color="#fb7185" stop-opacity="0.3"/>' +
+    '</linearGradient>' +
+    '</defs>';
 
   function setLive(ok, text) {
     if (!elLive) return;
@@ -40,6 +72,235 @@
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
     return d.innerHTML;
+  }
+
+  function estadoCircuit(estado) {
+    var e = (estado || 'verde').toLowerCase();
+    return e === 'rojo' ? 'critical' : e === 'amarillo' ? 'warn' : 'ok';
+  }
+
+  function pcbPath(x1, y1, x2, y2) {
+    var mx = x1 + (x2 - x1) * 0.42;
+    var my = y1 + (y2 - y1) * 0.08;
+    return (
+      'M' + x1 + ' ' + y1 + ' L' + mx + ' ' + y1 + ' L' + mx + ' ' + y2 + ' L' + x2 + ' ' + y2
+    );
+  }
+
+  function layoutNeural(grafo, clientes) {
+    var pos = { vertex_hub: HUB };
+    var list = clientes && clientes.length ? clientes : [];
+    list.forEach(function (c, i) {
+      var slot = CLIENT_SLOTS[i] || CLIENT_SLOTS[CLIENT_SLOTS.length - 1];
+      var cid = c.id;
+      pos['cliente_' + cid] = {
+        x: slot.x,
+        y: slot.y,
+        estado: c.estado_global || 'verde',
+        label: c.nombre || cid,
+      };
+      var agents = c.agentes_activos || [];
+      agents.forEach(function (ag, j) {
+        var nid = cid + '_' + ag;
+        pos[nid] = {
+          x: slot.x + (j - (agents.length - 1) / 2) * 48,
+          y: slot.y + 52,
+          label: ag,
+          tipo: 'agente',
+        };
+      });
+    });
+    (grafo.nodos || []).forEach(function (n) {
+      if (pos[n.id]) return;
+      if (n.tipo === 'agente' && n.cliente_id) {
+        var parent = pos['cliente_' + n.cliente_id];
+        if (parent) {
+          var siblings = (grafo.nodos || []).filter(function (x) {
+            return x.tipo === 'agente' && x.cliente_id === n.cliente_id;
+          });
+          var idx = siblings.findIndex(function (x) { return x.id === n.id; });
+          pos[n.id] = {
+            x: parent.x + (idx - (siblings.length - 1) / 2) * 48,
+            y: parent.y + 52,
+            label: n.label || n.id,
+            tipo: 'agente',
+          };
+        }
+      }
+    });
+    return pos;
+  }
+
+  function pulseGroup(pathD, circuitClass, dur, delay) {
+    var html = '';
+    var n = circuitClass === 'critical' ? 4 : 3;
+    var i;
+    for (i = 0; i < n; i++) {
+      html +=
+        '<circle r="4" class="vertex-pulse ' + circuitClass + '" fill="currentColor">' +
+        '<animateMotion dur="' + dur + 's" begin="' + (delay + i * 0.55) + 's" repeatCount="indefinite" ' +
+        'path="' + pathD + '"/>' +
+        '</circle>';
+    }
+    return html;
+  }
+
+  function renderNeuralSvg(grafo, clientes) {
+    if (!elNeuralSvg || !grafo) return;
+    var pos = layoutNeural(grafo, clientes);
+    var aristas = grafo.aristas || [];
+    var nodos = grafo.nodos || [];
+    var traces = '';
+    var pulses = '';
+    var nodes = '';
+    var agents = '';
+
+    aristas.forEach(function (e) {
+      if (e.tipo !== 'tenant') return;
+      var p1 = pos[e.from];
+      var p2 = pos[e.to];
+      if (!p1 || !p2) return;
+      var circuit = estadoCircuit(e.estado || p2.estado);
+      var pathD = pcbPath(p1.x, p1.y, p2.x, p2.y);
+      var dur = circuit === 'critical' ? 0.85 : circuit === 'warn' ? 1.35 : 2.1;
+      var cls = 'vertex-circuit vertex-circuit--' + circuit;
+      var filter = circuit === 'critical' ? 'vc-glow-red' : 'vc-glow-cyan';
+      var grad = circuit === 'critical' ? 'vc-trace-red' : 'vc-trace-cyan';
+
+      traces +=
+        '<path class="' + cls + '-bg" d="' + pathD + '" fill="none" stroke="rgba(15,23,42,0.9)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path class="' + cls + '" d="' + pathD + '" fill="none" stroke="url(#' + grad + ')" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#' + filter + ')"/>' +
+        '<path class="' + cls + '-flow" d="' + pathD + '" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 14"/>';
+
+      pulses += '<g class="vertex-pulse-group vertex-pulse-group--' + circuit + '">' + pulseGroup(pathD, circuit, dur, 0) + '</g>';
+    });
+
+    nodos.forEach(function (n) {
+      if (n.tipo === 'hub') return;
+      var p = pos[n.id];
+      if (!p) return;
+      if (n.tipo === 'cliente') {
+        var st = estadoCircuit(n.estado_global);
+        var r = 20;
+        nodes +=
+          '<g class="vertex-node vertex-node--client vertex-node--' + st + '" data-id="' + esc(n.id) + '">' +
+          '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (r + 8) + '" class="vertex-node-halo"/>' +
+          '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + r + '" class="vertex-node-core"/>' +
+          '<text x="' + p.x + '" y="' + (p.y + r + 16) + '" text-anchor="middle" class="vertex-node-label">' + esc((n.label || '').slice(0, 16)) + '</text>' +
+          '</g>';
+      }
+    });
+
+    nodos.forEach(function (n) {
+      if (n.tipo !== 'agente') return;
+      var p = pos[n.id];
+      if (!p) return;
+      agents +=
+        '<g class="vertex-node vertex-node--agent">' +
+        '<circle cx="' + p.x + '" cy="' + p.y + '" r="11" class="vertex-node-agent-core"/>' +
+        '<text x="' + p.x + '" y="' + (p.y + 22) + '" text-anchor="middle" class="vertex-node-agent-label">' + esc((n.label || '').slice(0, 11)) + '</text>' +
+        '</g>';
+    });
+
+    aristas.forEach(function (e) {
+      if (e.tipo !== 'contrato') return;
+      var p1 = pos[e.from];
+      var p2 = pos[e.to];
+      if (!p1 || !p2) return;
+      traces +=
+        '<line x1="' + p1.x + '" y1="' + p1.y + '" x2="' + p2.x + '" y2="' + p2.y + '" class="vertex-link-agent" stroke-width="1"/>';
+    });
+
+    elNeuralSvg.innerHTML = SVG_DEFS + '<g class="vertex-circuits">' + traces + pulses + '</g>' + nodes + agents;
+
+    if (elMapLegend) {
+      elMapLegend.innerHTML =
+        '<span><span class="dot dot--cyan"></span> Circuito activo</span>' +
+        '<span><span class="dot dot--red"></span> Crítico · pulsos rápidos</span>' +
+        '<span><span class="dot dot--amber"></span> Atención</span>' +
+        '<span><span class="dot dot--agent"></span> Agente</span>';
+    }
+  }
+
+  function autonomyPct(resumen) {
+    if (!resumen) return 85;
+    var drop = (resumen.alertas_rojo || 0) * 14 + (resumen.alertas_amarillo || 0) * 5;
+    return Math.max(42, Math.min(98, 92 - drop));
+  }
+
+  function renderHud(resumen) {
+    if (!elHud) return;
+    var pct = autonomyPct(resumen);
+    var crit = (resumen && resumen.alertas_rojo) || 0;
+    elHud.innerHTML =
+      '<div class="vertex-hud-card vertex-hud-card--glass">' +
+      '<div class="vertex-hud-ring" style="--pct:' + pct + '">' +
+      '<svg viewBox="0 0 36 36" aria-hidden="true"><circle class="vertex-hud-ring-bg" cx="18" cy="18" r="15.5"/>' +
+      '<circle class="vertex-hud-ring-fg" cx="18" cy="18" r="15.5" stroke-dasharray="' + pct + ', 100"/></svg>' +
+      '<span class="vertex-hud-ring-val">' + pct + '%</span></div>' +
+      '<div><div class="vertex-hud-label">Autonomía agentes</div>' +
+      '<div class="vertex-hud-sub">' + crit + ' crítico · red maestra</div></div></div>' +
+      '<div class="vertex-hud-card vertex-hud-card--glass vertex-hud-card--status">' +
+      '<i class="fas fa-plug-circle-check"></i> LhexIA Connect <strong>Fase 3</strong></div>';
+  }
+
+  function previewCard(item, side) {
+    var sev = (item.severidad || 'info').toLowerCase();
+    var border = sev === 'critical' ? 'critical' : sev === 'warning' ? 'warn' : 'info';
+    var icon =
+      sev === 'critical'
+        ? 'fa-triangle-exclamation'
+        : sev === 'warning'
+          ? 'fa-circle-exclamation'
+          : 'fa-robot';
+    var agentLabel = MODULO_LABELS[item.agente_producto] || item.agente || 'Agente';
+    var href = item.nav_href || '#';
+    return (
+      '<article class="vertex-glass-card vertex-glass-card--' + border + '">' +
+      '<header class="vertex-glass-card__head">' +
+      '<span class="vertex-glass-card__icon"><i class="fas ' + icon + '"></i></span>' +
+      '<span class="vertex-glass-card__agent">Agente Preview — ' + esc(agentLabel) + '</span>' +
+      '</header>' +
+      '<p class="vertex-glass-card__body">' + esc(item.titulo || '') + '</p>' +
+      '<footer class="vertex-glass-card__foot">' +
+      '<span class="vertex-glass-card__meta">' + esc(item.cliente_nombre || '') + ' · ' + esc(item.hace || '') + '</span>' +
+      '<a href="' + esc(href) + '" class="vertex-glass-card__cta">Revisar detalle</a>' +
+      '</footer></article>'
+    );
+  }
+
+  function pickPreviews(feed) {
+    var left = [];
+    var right = [];
+    (feed || []).forEach(function (it) {
+      var ag = String(it.agente_producto || it.agente || '').toLowerCase();
+      if (ag.indexOf('guardian') >= 0 || ag.indexOf('guardi') >= 0) {
+        left.push(it);
+      } else {
+        right.push(it);
+      }
+    });
+    var rank = { critical: 0, warning: 1, info: 2 };
+    function sortFeed(a, b) {
+      return (rank[a.severidad] || 9) - (rank[b.severidad] || 9);
+    }
+    left.sort(sortFeed);
+    right.sort(sortFeed);
+    return { left: left.slice(0, 2), right: right.slice(0, 2) };
+  }
+
+  function renderAgentRails(feed) {
+    var rails = pickPreviews(feed);
+    if (elRailLeft) {
+      elRailLeft.innerHTML = rails.left.length
+        ? rails.left.map(function (it) { return previewCard(it, 'left'); }).join('')
+        : '<p class="vertex-rail-empty">Sin alertas Guardián</p>';
+    }
+    if (elRailRight) {
+      elRailRight.innerHTML = rails.right.length
+        ? rails.right.map(function (it) { return previewCard(it, 'right'); }).join('')
+        : '<p class="vertex-rail-empty">Sin eventos logística</p>';
+    }
   }
 
   function renderResumen(resumen) {
@@ -65,7 +326,7 @@
       chips.push('<span class="vertex-chip">Live: ' + esc(resumen.ventas_hoy_red_live_fmt) + '</span>');
     }
     elResumen.innerHTML = chips
-      .map(function (c, i) {
+      .map(function (c) {
         if (c.indexOf('<span') === 0) return c;
         return '<span class="vertex-chip">' + esc(c) + '</span>';
       })
@@ -93,41 +354,22 @@
       });
       var modHtml = (c.modulos_contratados || [])
         .map(function (m) {
-          return (
-            '<span class="vertex-modulo-pill">' +
-            esc(MODULO_LABELS[m] || m) +
-            '</span>'
-          );
+          return '<span class="vertex-modulo-pill">' + esc(MODULO_LABELS[m] || m) + '</span>';
         })
         .join('');
       var kpis = c.kpis || {};
       card.innerHTML =
         '<div class="vertex-client-head">' +
-        '<h3 class="vertex-client-name">' +
-        esc(c.nombre) +
-        '</h3>' +
-        '<span class="vertex-client-badge vertex-client-badge--' +
-        (live ? 'live' : 'mock') +
-        '">' +
-        (live ? 'LIVE' : 'DEMO') +
-        '</span></div>' +
-        '<div class="vertex-semaforos">' +
-        semHtml +
-        '</div>' +
-        '<div class="vertex-modulos">' +
-        modHtml +
-        '</div>' +
-        '<div class="vertex-client-kpi">Ventas hoy: <strong>' +
-        esc(kpis.ventas_hoy_fmt || '$0') +
-        '</strong></div>' +
+        '<h3 class="vertex-client-name">' + esc(c.nombre) + '</h3>' +
+        '<span class="vertex-client-badge vertex-client-badge--' + (live ? 'live' : 'mock') + '">' +
+        (live ? 'LIVE' : 'DEMO') + '</span></div>' +
+        '<div class="vertex-semaforos">' + semHtml + '</div>' +
+        '<div class="vertex-modulos">' + modHtml + '</div>' +
+        '<div class="vertex-client-kpi">Ventas hoy: <strong>' + esc(kpis.ventas_hoy_fmt || '$0') + '</strong></div>' +
         (c.pildoras_activas
-          ? '<p class="vertex-client-msg"><span class="vertex-neural-tag">● red</span> ' +
-            esc(String(c.pildoras_activas)) +
-            ' píldora(s) activa(s)</p>'
+          ? '<p class="vertex-client-msg"><span class="vertex-neural-tag">● red</span> ' + esc(String(c.pildoras_activas)) + ' píldora(s)</p>'
           : '') +
-        (c.mensaje_resumen
-          ? '<p class="vertex-client-msg">' + esc(c.mensaje_resumen) + '</p>'
-          : '');
+        (c.mensaje_resumen ? '<p class="vertex-client-msg">' + esc(c.mensaje_resumen) + '</p>' : '');
       elGrid.appendChild(card);
     });
   }
@@ -141,146 +383,25 @@
     }
     items.forEach(function (it) {
       var li = document.createElement('li');
-      li.className =
-        'vertex-feed-item' + (it.severidad === 'critical' ? ' vertex-feed-item--critical' : '');
+      li.className = 'vertex-feed-item' + (it.severidad === 'critical' ? ' vertex-feed-item--critical' : '');
       li.innerHTML =
-        '<span class="vertex-feed-client">' +
-        esc((it.cliente_nombre || '').split(' ')[0]) +
-        '</span>' +
+        '<span class="vertex-feed-client">' + esc((it.cliente_nombre || '').split(' ')[0]) + '</span>' +
         '<div class="vertex-feed-body">' +
-        '<p class="vertex-feed-title">' +
-        esc(it.titulo) +
-        '</p>' +
-        '<div class="vertex-feed-meta">' +
-        esc(it.agente_producto || it.agente) +
-        ' · v' +
-        esc((it.pildora && it.pildora.vertex_pildora_version) || '1.0') +
-        ' · ' +
-        esc(it.hace) +
-        (it.fuente_datos === 'mock' ? ' · demo' : ' · live') +
-        (it.pildora && it.pildora.origen ? ' · ' + esc(it.pildora.origen) : '') +
-        '</div></div>';
+        '<p class="vertex-feed-title">' + esc(it.titulo) + '</p>' +
+        '<div class="vertex-feed-meta">' + esc(it.agente_producto || it.agente) + ' · ' + esc(it.hace) +
+        (it.fuente_datos === 'mock' ? ' · demo' : ' · live') + '</div></div>';
       elFeed.appendChild(li);
     });
-  }
-
-  function layoutNodes(nodos) {
-    var byId = {};
-    nodos.forEach(function (n) {
-      byId[n.id] = n;
-    });
-    var hub = { x: 320, y: 40 };
-    var clientes = nodos.filter(function (n) {
-      return n.tipo === 'cliente';
-    });
-    var agents = nodos.filter(function (n) {
-      return n.tipo === 'agente';
-    });
-    var positions = { vertex_hub: hub };
-    var cw = 640;
-    var n = Math.max(clientes.length, 1);
-    clientes.forEach(function (c, i) {
-      positions[c.id] = {
-        x: (cw / (n + 1)) * (i + 1),
-        y: 120,
-      };
-    });
-    agents.forEach(function (a, i) {
-      var parent = positions['cliente_' + a.cliente_id];
-      if (!parent) parent = hub;
-      positions[a.id] = {
-        x: parent.x + ((i % 3) - 1) * 36,
-        y: parent.y + 72,
-      };
-    });
-    return positions;
-  }
-
-  function renderMap(grafo) {
-    if (!elMapSvg || !grafo) return;
-    var nodos = grafo.nodos || [];
-    var aristas = grafo.aristas || [];
-    var pos = layoutNodes(nodos);
-    var stroke = { verde: '#34d399', amarillo: '#fbbf24', rojo: '#f43f5e', activo: '#818cf8', sync: '#6366f1' };
-
-    var lines = aristas
-      .map(function (e) {
-        var p1 = pos[e.from];
-        var p2 = pos[e.to];
-        if (!p1 || !p2) return '';
-        var col = stroke[e.estado] || stroke.sync;
-        return (
-          '<line x1="' +
-          p1.x +
-          '" y1="' +
-          p1.y +
-          '" x2="' +
-          p2.x +
-          '" y2="' +
-          p2.y +
-          '" stroke="' +
-          col +
-          '" stroke-width="1.5" stroke-opacity="0.55"/>'
-        );
-      })
-      .join('');
-
-    var circles = nodos
-      .map(function (n) {
-        var p = pos[n.id];
-        if (!p) return '';
-        var r = n.tipo === 'hub' ? 22 : n.tipo === 'cliente' ? 14 : 9;
-        var fill =
-          n.tipo === 'hub'
-            ? '#6366f1'
-            : n.tipo === 'cliente'
-              ? n.estado_global === 'rojo'
-                ? '#f43f5e'
-                : n.estado_global === 'amarillo'
-                  ? '#fbbf24'
-                  : '#34d399'
-              : '#818cf8';
-        var label =
-          n.tipo === 'hub'
-            ? 'HUB'
-            : (n.label || '').slice(0, 12);
-        return (
-          '<g><circle cx="' +
-          p.x +
-          '" cy="' +
-          p.y +
-          '" r="' +
-          r +
-          '" fill="' +
-          fill +
-          '" fill-opacity="0.85"/>' +
-          '<text x="' +
-          p.x +
-          '" y="' +
-          (p.y + r + 14) +
-          '" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Inter,sans-serif">' +
-          esc(label) +
-          '</text></g>'
-        );
-      })
-      .join('');
-
-    elMapSvg.innerHTML = lines + circles;
-
-    if (elMapLegend) {
-      elMapLegend.innerHTML =
-        '<span><span class="dot" style="background:#6366f1"></span> VERTEX Hub</span>' +
-        '<span><span class="dot" style="background:#34d399"></span> Cliente OK</span>' +
-        '<span><span class="dot" style="background:#818cf8"></span> Agente</span>';
-    }
   }
 
   function applyData(data) {
     if (elGreeting && data.saludo) elGreeting.textContent = data.saludo;
     renderResumen(data.resumen_red);
+    renderHud(data.resumen_red);
     renderClientes(data.clientes);
     renderFeed(data.feed_preview_global);
-    renderMap(data.grafo_agentes);
+    renderNeuralSvg(data.grafo_agentes, data.clientes);
+    renderAgentRails(data.feed_preview_global);
     setLive(true, 'Actualizado · ' + new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
   }
 
@@ -305,16 +426,10 @@
       });
   }
 
-  function schedulePoll() {
+  if (btnRefresh) btnRefresh.addEventListener('click', fetchDashboard);
+
+  fetchDashboard().then(function () {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(fetchDashboard, pollMs);
-  }
-
-  if (btnRefresh) {
-    btnRefresh.addEventListener('click', function () {
-      fetchDashboard();
-    });
-  }
-
-  fetchDashboard().then(schedulePoll);
+  });
 })();

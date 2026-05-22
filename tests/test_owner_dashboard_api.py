@@ -228,3 +228,5 @@ class TestOwnerDashboardApi:
         assert b'vertexControlApp' in r.data
         assert b'global_maestro' in r.data
         assert b'vertex-control.js' in r.data
+        assert b'vertexNeuralStage' in r.data
+        assert b'vertex-neural-1' in r.data

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-1">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-mobile-1">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-neural-1">
 {% endblock %}
 
 {% block content %}
@@ -53,13 +53,31 @@
     </div>
   </section>
 
-  <section class="vertex-section" aria-labelledby="vertexMapTitle">
+  <section class="vertex-section vertex-section--neural" aria-labelledby="vertexMapTitle">
     <h2 id="vertexMapTitle" class="vertex-section-title">
-      <i class="fas fa-project-diagram"></i> Mapa de agentes
+      <i class="fas fa-brain"></i> Red neuronal VERTEX
+      <span class="vertex-section-sub">HUB central · circuitos en vivo</span>
     </h2>
-    <div id="vertexAgentMap" class="vertex-agent-map" role="img" aria-label="Interconexión VERTEX Hub y agentes por cliente">
-      <svg id="vertexAgentMapSvg" class="vertex-agent-map-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet"></svg>
-      <div id="vertexAgentMapLegend" class="vertex-map-legend"></div>
+    <div id="vertexNeuralStage" class="vertex-neural-stage" role="img" aria-label="Mapa cognitivo LhexIA HUB y clientes">
+      <div class="vertex-neural-hex" aria-hidden="true"></div>
+      <div id="vertexNeuralHud" class="vertex-neural-hud" aria-hidden="true"></div>
+      <aside id="vertexAgentRailLeft" class="vertex-neural-rail vertex-neural-rail--left" aria-label="Vista previa agentes izquierda"></aside>
+      <aside id="vertexAgentRailRight" class="vertex-neural-rail vertex-neural-rail--right" aria-label="Vista previa agentes derecha"></aside>
+      <div class="vertex-hub-stack" aria-hidden="true">
+        <div class="vertex-hub-rings">
+          <span class="vertex-hub-ring vertex-hub-ring--a"></span>
+          <span class="vertex-hub-ring vertex-hub-ring--b"></span>
+          <span class="vertex-hub-ring vertex-hub-ring--c"></span>
+          <span class="vertex-hub-ring vertex-hub-ring--d"></span>
+        </div>
+        <div class="vertex-hub-core">
+          <img src="{{ url_for('static', filename='img/lhexia-core-reveal-square.png') }}?v=lhexia20260522core1" alt="" class="vertex-hub-core-img" width="88" height="88">
+          <span class="vertex-hub-core-title">LhexIA</span>
+          <span class="vertex-hub-core-sub">HUB CENTRAL</span>
+        </div>
+      </div>
+      <svg id="vertexNeuralSvg" class="vertex-neural-svg" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+      <div id="vertexAgentMapLegend" class="vertex-map-legend vertex-map-legend--neural"></div>
     </div>
   </section>
 
@@ -79,5 +97,5 @@
   </section>
 </div>
 
-<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-mobile-1" defer></script>
+<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-neural-1" defer></script>
 {% endblock %}
