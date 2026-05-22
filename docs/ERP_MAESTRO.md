@@ -1,21 +1,373 @@
 # ERP LhexIA — Documento Maestro
 
-> Sistema ERP integral para ferretería. Gestión de ventas (POS + formulario), caja, inventario multi-almacén, bodega con despacho por voz (IA), compras, créditos, BI, y Customer 360.
+> **LhexIA ERP** ([www.lhexia.cl](https://www.lhexia.cl)) — Sistema integral para ferretería y retail en Chile: ventas POS, caja con arqueo ciego, inventario multi-almacén, bodega con IA por voz, compras, créditos, facturación electrónica SII, BI gerencial, Customer 360 y torre de control para administración.
 
-**Última actualización:** 2026-05-20  
-**Versión operativa:** v2.0 (cerrado) + **cierre módulos v3** + **SD-1** (go-live Santo Domingo)  
-**Líneas `app.py`:** ~20.570 (monolito; rutas también en `blueprints/*`)  
-**Paquete `core/`:** ~974 líneas (venta/cobro/stock post-cobro — Clean Architecture ligera)  
-**Suite de tests:** ~289 tests (`pytest tests/ --collect-only`)  
+**Última actualización:** 2026-05-21  
+**Versión operativa:** v2.0 (TEC cerrado) + **módulos v3** + **SD-1** (Santo Domingo) + **PLAT-1.1** (arqueo ciego) + **Control Center** (maquetación Etapa 2)  
+**Líneas `app.py`:** ~22.200 (monolito; rutas también en `blueprints/*`)  
+**Paquete `core/`:** dominio venta/cobro/stock (Clean Architecture ligera)  
+**Templates:** ~122 vistas Jinja2 · **Suite de tests:** ~344 tests (`pytest tests/ --collect-only`)  
 
-**Documentación complementaria (no duplicar aquí):**
+### Cómo leer este documento
+
+| Sección | Para quién | Contenido |
+|---------|------------|-----------|
+| **[§0 Especificación funcional](#0-especificación-funcional-integral)** | Dueño, gerente, onboarding técnico | **Qué hace cada módulo**, flujos, permisos, potencial del producto |
+| **[§19 Planes estratégicos](#19-planes-estratégicos-y-roadmap-lhexia)** | Producto, arquitectura, socios | Carpetas `docs/planes/`, prefijos SD/POS/TEC/PLAT/LX/IA/META |
+| **§1–18** | Desarrollo, QA, DevOps | Stack, modelos, rutas HTTP, RBAC, deploy, tests |
+
+**Documentación complementaria:**
 
 | Tipo | Dónde |
 |------|--------|
 | Planes producto, SD-1, comercial, agentes | [`docs/planes/README.md`](planes/README.md) |
-| Índice fases (SD-, POS-, TEC-, CORE-, LX-, IA-, META-) | [`docs/planes/00-alineacion/PLAN_INDICE_LHEXIA.md`](planes/00-alineacion/PLAN_INDICE_LHEXIA.md) |
+| Índice fases (SD-, POS-, TEC-, PLAT-, LX-, IA-, META-) | [`docs/planes/00-alineacion/PLAN_INDICE_LHEXIA.md`](planes/00-alineacion/PLAN_INDICE_LHEXIA.md) |
+| Roadmap Plataforma Madre (3 etapas) | [`docs/planes/05-roadmap_plataforma_madre.md`](planes/05-roadmap_plataforma_madre.md) |
+| Producto comercial LhexIA | [`docs/planes/02-producto-lhexia/LHEXIA_PRODUCTO.md`](planes/02-producto-lhexia/LHEXIA_PRODUCTO.md) |
+| Entrega Santo Domingo | [`docs/planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
 | Memoria viva sesiones | [`docs/memory.md`](memory.md) |
-| Rendimiento BD (~4k SKU, 6 estaciones) | [`docs/planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md) |
+| Casuísticas venta QA | [`docs/CASUISTICAS_VENTAS_QA.md`](CASUISTICAS_VENTAS_QA.md) |
+| Rendimiento BD (~4k SKU) | [`docs/planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md) |
+| **PDF de este documento** | [`docs/export/ERP_MAESTRO.pdf`](export/ERP_MAESTRO.pdf) — regenerar: `python scripts/export_erp_maestro_pdf.py` |
+
+---
+
+## 0. Especificación funcional integral
+
+Esta sección describe **toda la funcionalidad operativa y el potencial** del ERP para que cualquier lector — dueño de ferretería, gerente, implementador o desarrollador — entienda qué puede hacer el sistema hoy y hacia dónde evoluciona.
+
+### 0.1 Propuesta de valor
+
+| Dimensión | Qué resuelve LhexIA |
+|-----------|---------------------|
+| **Mostrador** | POS rápido, vale pendiente, cobro en caja, ticket y despacho sin perder trazabilidad |
+| **Inventario** | Stock **tienda + bodega**, kardex, toma física por escaneo, salud maestro vs almacenes |
+| **Finanzas tienda** | Caja con arqueo ciego, cuadratura CLP enteros, histórico de descuadres, medios de pago |
+| **Abastecimiento** | OC, recepción con impacto en costo y stock, proveedores |
+| **Crédito ferretero** | Fiado con cupo, cuotas 30/60/90, abonos, estado de cuenta PDF |
+| **Cumplimiento Chile** | Facturación electrónica (CAF, XML, firma, cola DTE) — envío SII en pausa certificación |
+| **Inteligencia** | Bodega por voz, cross-sell en TV cliente, Customer 360, dashboards gerencia, Control Center |
+| **Gobernanza** | RBAC granular, auditoría `erp_audit_log`, módulos activables por empresa |
+
+**Cliente laboratorio:** Ferretería Santo Domingo (~20 personas, 3 sucursales, ~4.000 SKU). El mismo código base es la semilla del **producto SaaS LhexIA** (multi-tenant planificado post SD-1).
+
+### 0.2 Actores y perfiles
+
+| Perfil | Rol típico | Pantalla principal al login | Permisos clave |
+|--------|------------|----------------------------|----------------|
+| **Vendedor/a** | Mostrador emisión vale | `/punto_venta` | `pos_emitir_vale` |
+| **Cajero/a** | Cobro y cierre | `/caja/vales_pendientes` | `caja_cobrar_vale`, `caja_abrir`, `caja_cerrar`, `caja_movimientos` |
+| **Supervisor** | Descuentos, anulaciones | POS + caja | + `anular_vale_caja`, `autorizar_descuento_pos` |
+| **Bodeguero/a** | Preparación y despacho | `/bodega/plataforma` | `bodega_operador`, `ver_inventario` |
+| **Gerente** | BI, precios, compras | `/owner-mobile`, `/bi` | `ver_gerencia`, `panel_gerencia`, `gestionar_compras` |
+| **Dueño / Admin** | Configuración total | Hub módulos, mantenedores | `gestionar_usuarios` (+ bypass admin) |
+
+Los permisos se combinan por **rol** en Mantenedores; el menú lateral se genera automáticamente desde `_NAV_MAP` según lo que el usuario puede ver.
+
+### 0.3 Mapa de módulos funcionales
+
+```mermaid
+flowchart TB
+  subgraph comercial [Comercial]
+    POS[POS y vales]
+    CAJA[Caja y cobro]
+    COT[Cotizaciones]
+    CRED[Créditos]
+  end
+  subgraph logistica [Logística]
+    INV[Inventario y kardex]
+    BOD[Bodega y despacho]
+    COMP[Compras y recepciones]
+  end
+  subgraph inteligencia [Inteligencia]
+    C360[Customer 360]
+    BI[BI y gerencia]
+    CC[Control Center]
+  end
+  subgraph cumplimiento [Cumplimiento]
+    FE[Facturación electrónica SII]
+  end
+  subgraph plataforma [Plataforma]
+    ADM[Admin y RBAC]
+    PUB[Público y leads]
+  end
+  POS --> CAJA
+  CAJA --> BOD
+  CAJA --> FE
+  INV --> BOD
+  COMP --> INV
+  CRED --> CAJA
+  COT --> POS
+  POS --> C360
+  CAJA --> BI
+  CAJA --> CC
+  FE --> CC
+```
+
+---
+
+#### 0.3.1 Módulo POS — Punto de venta
+
+**Propósito:** Emitir ventas en mostrador sin cobrar en el acto; el vale queda **Pendiente** hasta que caja lo cobra (ahí se descuenta stock).
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Búsqueda producto | Código de barras, nombre, filtros Operativo / Tienda / Catálogo; semáforo stock (verde/amarillo/azul) |
+| Carrito | Cantidades, precios, descuentos con autorización supervisor (tarjeta LHX-SUP + PIN) |
+| Cliente | RUT opcional u obligatorio según config; cliente final `66.666.666-6` |
+| Retiro | Por línea: Tienda / Bodega / Mixto; compromiso entrega (venta a pedido) |
+| Documento | Boleta, factura (según permisos y datos cliente) |
+| Finalizar | Estado **Pendiente** + número vale; **no** mueve stock aún |
+| Layout vendedor | Pantalla fullwidth (`pos_emitir_vale` sin visión admin total) |
+| Command Deck | Panel cajero alternativo (`/pos/command-deck`) |
+| TV cliente | Live Wall / Experience Wall: carrito + recomendaciones cross-sell coherentes |
+| APIs | `/api/pos/live-wall/snapshot`, escaneo, pedidos a pedido, vincular cliente vitrina |
+
+**Reglas críticas:** requiere caja abierta (`@caja_requerida`); venta **Abierta** es borrador editable; al emitir pasa a **Pendiente**.
+
+**Potencial:** modo offline (IndexedDB + sync batch), fidelización TV, más perfiles cross-sell por vertical.
+
+---
+
+#### 0.3.2 Módulo Caja — Cobro, movimientos y cierre
+
+**Propósito:** Convertir vales pendientes en ventas **Pagado**, registrar flujo de efectivo y cerrar turno con cuadratura.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Cola cobro | `/caja/vales_pendientes` — filtros, cobro multi-medio |
+| Medios | Efectivo, débito, tarjeta crédito, transferencia, crédito (fiado) |
+| Post-cobro | Descuento stock tienda, kardex SALIDA, movimiento caja, FE si aplica |
+| Apertura / movimientos | Fondo inicial, ingresos/egresos manuales |
+| Cambios y devoluciones | `/caja/cambios` — operaciones con reversión stock |
+| Saldos a favor | Aplicación al cobro, historial |
+| Anulación vale | Con motivo; revierte stock si ya se movió |
+| Cierre turno | **Arqueo ciego** (`PLAT-1.1`): cajero declara efectivo + tarjetas sin ver teórico en GET |
+| Cuadratura | `diferencia_cierre` = declarado efectivo − teórico gaveta (solo efectivo); umbral supervisor |
+| Indicadores SII turno | Boletas emitidas vs sincronizadas en cierre |
+| Historial | `/caja/historial_cierres`, ticket reimpresión, panel admin `/admin/caja/arqueo/<id>` |
+| Limpieza cola | Admin anula lote vales pendientes para desbloquear cierre |
+
+**Servicio:** `services/cuadratura_arqueo_service.py` — teórico gaveta, tarjeta esperada, indicadores SII.
+
+**Potencial:** multi-sucursal SD-2 (una caja por tienda), arqueo por denominaciones billetes (UI ya maquetada).
+
+---
+
+#### 0.3.3 Módulo Inventario y productos
+
+**Propósito:** Maestro SKU, stock por almacén, trazabilidad y conteo físico.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Productos | CRUD, código barra, precios, mínimos, ubicación, unidades |
+| Stock dual | `Producto.stock` (total) + `StockPorAlmacen` (tienda/bodega) |
+| Kardex | `/kardex` — entradas/salidas con referencia venta/OC/ajuste |
+| Ajustes | Unitario y masivo (CSV/Excel) con permiso `admin_inventario` |
+| Toma física | `/inventario/enrolamiento` — sesión, escaneo, líneas |
+| Salud inventario | `/inventario/salud` — desajustes maestro vs suma almacenes |
+| Categorías | Catálogo 2 niveles (categoría / subcategoría) |
+| Unidades | Factores conversión venta ↔ stock ↔ compra |
+| Stock crítico | Alertas bajo mínimo |
+| Invariante | Consumo bodega + tienda ≤ total por línea venta |
+
+**Potencial:** optimistic locking por SKU, integración balanza, RFID (backlog).
+
+---
+
+#### 0.3.4 Módulo Bodega — Preparación y despacho
+
+**Propósito:** Cumplir retiros **Bodega** o mixtos después del cobro; priorizar cola y medir SLA.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Plataforma retiro | Cola vales con estado despacho (pendiente, en preparación, listo…) |
+| Cuadro de mando | KPIs, ranking operador, semáforos SLA por estado |
+| Modo TV | Auto-refresh 30s para pantalla piso |
+| Despacho por voz | Whisper → GPT → JSON → movimiento stock bodega→tienda + kardex |
+| Preparación parcial | Cantidades parciales por línea |
+| Export día | CSV operaciones |
+| APIs | Snapshot cola retiros para polling sidebar |
+
+**SLA (minutos):** colores normal / atención / urgente según tiempo en cada estado (ver §7.5).
+
+**Potencial:** picking por oleadas, integración balanza despacho (doc `BODEGA_ULTRA_PREMIUM`).
+
+---
+
+#### 0.3.5 Módulo Compras y recepciones
+
+**Propósito:** Abastecer ferretería con trazabilidad de costo.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Proveedores | Maestro, contacto, condiciones |
+| Orden de compra | Borrador → enviada; líneas con cantidades y costos |
+| Recepción | Ingreso stock + actualización costo + kardex ENTRADA |
+| Tablet recepción | UI simplificada piso |
+| OCR factura | OpenAI Vision (opcional) para líneas recepción |
+
+**Estado:** 🟡 operativo; requiere migraciones SQL en BD legacy de algunos clientes.
+
+---
+
+#### 0.3.6 Módulo Créditos y cobranza
+
+**Propósito:** Fiado controlado con cupo y recuperación.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Cupo y deuda | Por cliente; validación al cobrar a crédito |
+| Plan único | Cuotas a 30, 60 y 90 días corridos |
+| Abonos | Registro en caja; ticket abono |
+| Estado cuenta | HTML + PDF |
+| Cobranza WA | Recordatorios WhatsApp Cloud API (cuotas) |
+| API sugerencias | Priorización cobranza |
+
+---
+
+#### 0.3.7 Módulo Cotizaciones
+
+**Propósito:** Oferta comercial previa convertible a venta POS.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| CRUD cotización | Cliente, líneas, vigencia |
+| PDF | Export para cliente |
+| Convertir | Genera vale pendiente en POS |
+
+---
+
+#### 0.3.8 Módulo Facturación electrónica (Chile / SII)
+
+**Propósito:** DTE boleta/factura tras cobro, sin bloquear venta si falla envío.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| CAF | Carga folios autorizados (tipos 33, 39…) |
+| Post-cobro | Asigna folio, genera XML, firma PKCS#12 |
+| Persistencia | `storage/dtes/emitidos/` |
+| Cola | Estados `PENDIENTE_ENVIO`, reintento manual |
+| Certificación | Set casos prueba SII en storage |
+| Gate Maullín | **Congelado** hasta Form. 3230 *Recepcionada* (folio 77326378627) |
+
+**Política:** el cobro **nunca** se revierte por error DTE.
+
+---
+
+#### 0.3.9 Módulo BI, gerencia y Control Center
+
+**Propósito:** Visión ejecutiva del negocio y salud operativa multi-módulo.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Panel del día | `/inicio` — KPIs operativos |
+| Owner mobile | Vista dueño mobile-first |
+| BI clásico | `/bi`, export CSV, demos premium |
+| Simulador margen | Escenarios precio/costo |
+| Informes dueño | Consolidados |
+| C360 IA dashboard | ROI IA, cola llamadas, ofertas |
+| SEO rankings | Monitor keywords (sync externo stub) |
+| Analítica web | Embudo, telemetría landing |
+| Revisión precios | Flujo aprobación masiva |
+| **LhexIA Control Center** | `/admin/control-center` — sucursales/caja, salud SII, telemetría IA (HITL) |
+
+---
+
+#### 0.3.10 Módulo Customer 360
+
+**Propósito:** Inteligencia comercial por cliente (obra, etapa, predicción recompra).
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Ficha cliente admin | Historial, scoring, etapa obra |
+| Predicción 21 días | Próxima compra estimada |
+| Ofertas proactivas IA | Cola aprobación / envío |
+| Llamadas del día | Snapshot operativo |
+| APIs | Resumen C360 para integraciones |
+
+**Estado:** 🟡 P0 en producción; roadmap P1+ en `roadmap_customer_360_ferreteria_2026.md`.
+
+---
+
+#### 0.3.11 Módulo Administración y plataforma
+
+**Propósito:** Configurar empresa, usuarios, permisos y datos maestros.
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Empresa | Datos fiscales, logo, **flags módulos** (`mod_ventas`, `mod_caja`, …) |
+| Usuarios y roles | RBAC 17 permisos, perfiles predefinidos |
+| Almacenes | Tienda, bodega, futuras sucursales |
+| Clientes / catálogo / unidades | Mantenedores CRUD |
+| POS autorización descuentos | Tarjetas supervisor |
+| Auditoría ERP | `admin_erp_audit_log` — eventos críticos |
+| Hub módulos | `/erp_hub` — tarjetas por perfil |
+
+---
+
+#### 0.3.12 Módulo Público y captación
+
+| Capacidad | Detalle |
+|-----------|---------|
+| Landing / SEO | Páginas comerciales, aliases 301 |
+| Catálogo público | Consulta sin login |
+| Consulta stock | Público |
+| Leads | `POST /api/landing/lead` → JSONL |
+
+---
+
+#### 0.3.13 Capa `core/` (dominio limpio)
+
+Casos de uso extraídos para **venta, cobro, stock al cobro y post-cobro** (crédito, saldo favor):
+
+- Entidades y value objects en `core/domain/venta/`
+- `EmitirVenta`, `CobrarVenta` en `core/application/`
+- Tests dedicados: `test_core_domain_venta.py`, `test_core_post_cobro.py`
+- Convive con monolito; migración progresiva (CORE-1.x)
+
+---
+
+### 0.4 Flujo de negocio de punta a punta (resumen)
+
+```
+Vendedor: POS → vale PENDIENTE (stock intacto)
+    ↓
+Cajero: cobro → PAGADO → stock tienda ↓ → kardex → caja → (DTE cola)
+    ↓
+Bodeguero (si retiro bodega): preparar → despachar → stock bodega ↓ tienda ↑
+    ↓
+Gerente: BI / Control Center / C360
+    ↓
+Cajero fin turno: cierre ciego → cuadratura → historial / admin arqueo
+```
+
+Casos extendidos documentados en [`CASUISTICAS_VENTAS_QA.md`](CASUISTICAS_VENTAS_QA.md) (tienda, bodega, mixto, crédito, saldo favor, anulación).
+
+### 0.5 Integraciones y canales
+
+| Canal | Uso en producción |
+|-------|-------------------|
+| OpenAI Whisper / GPT | Bodega voz, parsing, sugerencias |
+| OpenAI Vision | OCR recepciones |
+| WhatsApp Cloud | Cobranza, alertas |
+| Slack | Vales sin cobro > N horas |
+| Neon PostgreSQL | BD producción |
+| Render + Gunicorn | Hosting app |
+| SII (futuro) | SOAP envío DTE post-certificación |
+
+### 0.6 Potencial del producto (visión 12–24 meses)
+
+| Horizonte | Capacidad |
+|-----------|-----------|
+| **Corto (SD-1)** | POS + inventario estables en 3 sucursales; índices BD; casuísticas QA verdes |
+| **Medio (PLAT 1–2)** | Offline 8h, Control Center con datos reales multi-sucursal, logs IA HITL |
+| **Medio (SD-3)** | FE Maullín producción, OC/recepción masivo |
+| **Largo (LX-)** | Multi-tenant SaaS, onboarding tenant, licencias |
+| **Largo (IA-)** | Agentes CrewAI: compras, pricing, contenidos, cobranza autónoma supervisada |
+| **Largo (META-)** | Agentes que desarrollan el ERP (architect, QA, docs) |
+
+La priorización explícita está en [§19 Planes estratégicos](#19-planes-estratégicos-y-roadmap-lhexia).
 
 ---
 
@@ -76,7 +428,9 @@ sistema_ventas_limpio/
 │   ├── facturacion_electronica_service.py  # FE Chile: XML, firma PKCS#12, post-cobro, cola DTE
 │   ├── facturacion_caf_service.py          # Parseo e inserción CAF (folios SII)
 │   ├── facturacion_dte_storage.py          # Persistencia XML firmado en storage/dtes/emitidos/
-│   └── facturacion_sii_certificacion.py    # Set de prueba certificación SII (XML casos 33/39/61)
+│   ├── facturacion_sii_certificacion.py    # Set de prueba certificación SII (XML casos 33/39/61)
+│   ├── cuadratura_arqueo_service.py        # Teórico gaveta, SII turno, arqueo ciego
+│   └── control_center_service.py           # KPIs Control Center (sucursales, DTE, IA)
 │
 ├── core/                     # Dominio + casos de uso (CORE-1.x, post TEC-1)
 │   ├── domain/venta/         #   Entidades, value objects, excepciones
@@ -268,7 +622,8 @@ sistema_ventas_limpio/
 | POST | `/caja/vales/<id>/anular` | Anular vale | `anular_vale_caja` |
 | GET | `/abrir_caja` | Apertura de caja | `caja_abrir` |
 | GET/POST | `/movimiento_caja` | Ingresos/egresos | `caja_movimientos` |
-| GET/POST | `/cerrar_caja` | Cierre y cuadratura | `caja_cerrar` |
+| GET/POST | `/cerrar_caja` | Cierre **a ciegas** + cuadratura CLP enteros | `caja_cerrar` |
+| GET | `/admin/caja/arqueo/<id>` | Panel analítico arqueo (admin) | `gestionar_usuarios` |
 | GET | `/caja/historial_cierres` | Histórico cierres | `gestionar_usuarios` |
 | GET | `/caja/cambios` | Cambios/devoluciones | `caja_cobrar_vale` |
 | GET | `/caja/cambios/historial` | Historial cambios | `caja_cobrar_vale` |
@@ -342,6 +697,7 @@ sistema_ventas_limpio/
 | GET | `/gerencia/simulador-margen` | Simulador margen | `panel_gerencia` |
 | GET | `/bi/demo/alertas-precio-premium` | Alertas de precio | `panel_gerencia` |
 | GET | `/gerencia/c360/ia-dashboard` | Customer 360 IA | `panel_gerencia` |
+| GET | `/admin/control-center` | **LhexIA Control Center** (torre de control) | `gestionar_usuarios` / gerencia |
 | GET | `/precios/revision` | Revisión precios | `revision_precios` |
 | GET | `/bi/export.csv` | Export ventas CSV | — |
 | GET | `/ia_abastecimiento` | IA sugerencias compra | — |
@@ -415,7 +771,7 @@ sistema_ventas_limpio/
 
 **Admin descuentos (relacionado POS):** GET `/admin/pos-autorizacion-descuentos` — tarjeta supervisor LHX-SUP; servicio `services/pos_autorizacion_descuento_service.py`; DDL `sql/2026_05_18_pos_autorizacion_descuento.sql`.
 
-**Cierre caja (2026-05-20):** arqueo solo ventas `Pagado` (`_venta_cuenta_en_cuadre_caja`); `confirmar_cierre.html` anti-autofill email en monto contado.
+**Cierre caja (PLAT-1.1, 2026-05-21):** arqueo ciego en `templates/caja/cerrar_caja.html`; campos `monto_declarado_cajero`, `monto_declarado_tarjeta`, contadores SII en `Caja`; servicio `cuadratura_arqueo_service.py`; panel `admin/detalle_arqueo.html`; SQL `2026_05_23_*`, `2026_05_24_*`.
 
 ### 4.15 Caja — limpieza cola cierre
 
@@ -588,6 +944,8 @@ Tiempos en minutos para indicadores de color:
 | `facturacion_electronica_service.py` | FE Chile: XML, firma PKCS#12, post-cobro, cola DTE |
 | `facturacion_caf_service.py` | CAF SII: parseo e inserción de folios |
 | `facturacion_dte_storage.py` | Persistencia XML firmado bajo `storage/dtes/emitidos/` |
+| `cuadratura_arqueo_service.py` | Teórico gaveta, indicadores SII, tarjeta esperada turno |
+| `control_center_service.py` | Contexto dashboard Plataforma Madre |
 
 ---
 
@@ -741,6 +1099,128 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | 2026-05-20 | **TV recomendaciones coherentes** (`4ae0292`): perfiles fijación/obra, cross-sell JSON, tarjetas CFM rediseñadas, tests `test_recomendaciones_tv_solo_clavo_coherente` |
 | 2026-05-20 | **Cierre caja**: arqueo solo `Pagado`; anti-autofill monto contado; sidebar scroll `/modulos` |
 | 2026-05-20 | **SQL Neon prod**: `apply_sql_neon` — autorización descuentos + índices rendimiento SD-1 |
+| 2026-05-21 | **PLAT-1.1** Arqueo ciego fusionado en `Caja` + UI cierre + detalle admin |
+| 2026-05-21 | **Control Center** `GET /admin/control-center` + `dashboard_madre.html` (maquetación Etapa 2) |
+| 2026-05-21 | Seed demo arqueo `scripts/seed_arqueo_demo_vendedor.py` |
+
+---
+
+## 19. Planes estratégicos y roadmap LhexIA
+
+Toda la planificación vive en **`docs/planes/`** (carpetas 00–07). Este maestro resume el mapa; el detalle operativo está en cada documento enlazado.
+
+### 19.1 Estructura de carpetas
+
+| Carpeta | Prefijo | Contenido principal |
+|---------|---------|---------------------|
+| [`00-alineacion/`](planes/00-alineacion/) | — | Índice maestro, MEMORY_GROK, ritmo equipo, setup Grok |
+| [`01-entrega-santo-domingo/`](planes/01-entrega-santo-domingo/) | **SD-** | Go-live cliente #1, runbook piso, inventario, POS |
+| [`02-producto-lhexia/`](planes/02-producto-lhexia/) | **LX-** | Visión SaaS, arquitectura objetivo, fidelización TV |
+| [`03-pos-vendedor/`](planes/03-pos-vendedor/) | **POS-** | UI pantalla vendedor, alineación Grok/Cursor |
+| [`04-tecnico/`](planes/04-tecnico/) | **TEC-** / **CORE-** / **TEC-OFFLINE-** | Estabilidad, `core/`, offline, FE, rendimiento BD |
+| [`05-roadmap_plataforma_madre.md`](planes/05-roadmap_plataforma_madre.md) | **PLAT-** | **Canónico:** 3 etapas (resiliencia → plataforma → IA) |
+| [`05-modulos-backlog/`](planes/05-modulos-backlog/) | **MOD-** | C360, bodega premium, observabilidad |
+| [`06-agentes-ia/`](planes/06-agentes-ia/) | **IA-** | Agentes negocio 24/7 (CrewAI) |
+| [`07-agentes-meta-desarrollo/`](planes/07-agentes-meta-desarrollo/) | **META-** | Agentes para desarrollar LhexIA |
+
+Índice técnico completo: [`PLAN_INDICE_LHEXIA.md`](planes/00-alineacion/PLAN_INDICE_LHEXIA.md).
+
+### 19.2 Regla de dos carriles (no mezclar)
+
+| Carril | Objetivo | Plazo | Documento entrada |
+|--------|----------|-------|-------------------|
+| **A — Santo Domingo (SD-)** | POS + inventario en piso estables | ~2 semanas | [`SANTO_DOMINGO_ENTREGA.md`](planes/01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
+| **B — Producto LhexIA (LX-)** | SaaS, multi-tenant, comercial | Post SD-1 | [`LHEXIA_PRODUCTO.md`](planes/02-producto-lhexia/LHEXIA_PRODUCTO.md) |
+
+**No ejecutar** en producción hasta acuerdo explícito: multi-tenant en queries, big-bang refactor `app.py`, agentes CrewAI en piso.
+
+### 19.3 Eje SD — Entrega Santo Domingo (prioridad actual)
+
+```mermaid
+flowchart LR
+  SD1[SD-1 POS + Inventario]
+  SD2[SD-2 Caja 3 sucursales]
+  SD3[SD-3 Compras + FE prod]
+  SD1 --> SD2 --> SD3
+```
+
+| Fase | Objetivo | Estado |
+|------|----------|--------|
+| **SD-1** | Toma física + venta diaria sin bloqueos | 🟡 En curso |
+| SD-1.1 | Enrolamiento, salud, kardex | 🟡 Operación |
+| SD-1.2 | POS vale→caja→entrega; TV cliente | 🟡 Validar piso + [`CASUISTICAS_VENTAS_QA.md`](CASUISTICAS_VENTAS_QA.md) |
+| SD-1.3 | Infra Neon, índices, capacitación equipo | ⏳ [`PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md) |
+| **SD-2** | Cierre diario 3 tiendas | ⏳ Post SD-1 |
+| **SD-3** | OC/recepción + DTE producción | ⏳ Gate FE |
+
+### 19.4 Eje TEC — Estabilidad monolito v2.0
+
+| Fase | Estado |
+|------|--------|
+| TEC-1A Transacciones + audit + stock | ✅ |
+| TEC-1B Alertas vales sin cobro | ✅ |
+| TEC-2 Servicios extraídos | ✅ |
+| TEC-3 Blueprints pos/caja/bodega/c360 | ✅ |
+| TEC-4 Salud + cron | ✅ (alcance v2) |
+
+Documento cerrado: [`PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`](planes/04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md).
+
+### 19.5 Eje TEC-OFFLINE / PLAT — Resiliencia POS (Etapa 1 Plataforma Madre)
+
+Roadmap canónico: [`05-roadmap_plataforma_madre.md`](planes/05-roadmap_plataforma_madre.md).
+
+| Hito | Entregable | Estado |
+|------|------------|--------|
+| **PLAT-1.1** | Arqueo ciego en `Caja` + `/cerrar_caja` | ✅ |
+| **PLAT-1.2** | IndexedDB + `GET /api/offline/catalogo` | ⏳ Siguiente |
+| **PLAT-1.3** | Circuit breaker + cola `OFF-…` + batch sync | ⏳ |
+
+Detalle offline: [`ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](planes/04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md), [`ADR_OFFLINE_FIRST.md`](planes/04-tecnico/ADR_OFFLINE_FIRST.md).
+
+**Gate FE Maullín:** sin envíos SOAP hasta Formulario 3230 distinto de *Recepcionada* (folio SII 77326378627).
+
+### 19.6 Etapa 2 — Plataforma Madre (Dashboard & Control)
+
+| Hito | Entregable | Estado |
+|------|------------|--------|
+| **2.0** | Maquetación Control Center | ✅ UI + ruta + servicio |
+| **2.1** | Tabla `agente_ejecuciones` | ⏳ |
+| **2.2** | Bandeja HITL obligatoria | ⏳ |
+| **2.3** | `pgvector` + ingest marketing | ⏳ |
+
+### 19.7 Etapa 3 — Inteligencia digital
+
+| Hito | Contenido |
+|------|-----------|
+| 3.1 | RAG normativas / dolores retail Chile |
+| 3.2 | Agentes contenido por vertical |
+
+### 19.8 Ejes paralelos (referencia, no bloquean SD-1)
+
+| Eje | Documento | Cuándo |
+|-----|-----------|--------|
+| **POS-** UI vendedor | [`POS_ALINEACION_CURSOR_GROK.md`](planes/03-pos-vendedor/POS_ALINEACION_CURSOR_GROK.md) | POS-3/4 ✅ en main |
+| **CORE-** Dominio | [`ESTADO_OPTIMIZACION_APP.md`](planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md) | Paralelo |
+| **LX-** Producto SaaS | [`PLAN_MAESTRO_LHEXIA.md`](planes/02-producto-lhexia/PLAN_MAESTRO_LHEXIA.md) | Post SD-1 |
+| **IA-** Agentes negocio | [`PLAN_AGENTES_IA_v1.md`](planes/06-agentes-ia/PLAN_AGENTES_IA_v1.md) | Post SD-1 |
+| **META-** Agentes desarrollo | [`PLAN_AGENTES_META_v1.md`](planes/07-agentes-meta-desarrollo/PLAN_AGENTES_META_v1.md) | Paralelo META-1 |
+| **MOD-** C360 / bodega | [`roadmap_customer_360_ferreteria_2026.md`](planes/05-modulos-backlog/roadmap_customer_360_ferreteria_2026.md) | Backlog |
+
+### 19.9 Orden de ejecución recomendado (mayo 2026)
+
+```
+✅ TEC v2.0 cerrado
+✅ PLAT-1.1 arqueo ciego
+✅ Control Center maquetación
+→ SD-1 cierre piso (inventario + POS casuísticas)
+→ PLAT-1.2 offline cache
+→ PLAT-1.3 modo degradado
+⏸ Etapa 2 datos reales multi-sucursal
+⏸ FE Maullín (post 3230)
+⏸ LX-1 multi-tenant
+```
+
+Alineación equipo: [`MEMORY_GROK.md`](planes/00-alineacion/MEMORY_GROK.md) · Ritmo: [`EQUIPO_RITMO_ASYNC.md`](planes/00-alineacion/EQUIPO_RITMO_ASYNC.md).
 
 ---
 
@@ -770,6 +1250,7 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | [`planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md`](planes/04-tecnico/ESTADO_OPTIMIZACION_APP.md) | Refactor monolito / TEC / CORE |
 | [`planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md`](planes/04-tecnico/PLAN_RENDIMIENTO_BD_SD1.md) | Infra rendimiento ~4k SKU |
 | [`planes/04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md`](planes/04-tecnico/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md) | Plan TEC v2 cerrado |
+| [`planes/05-roadmap_plataforma_madre.md`](planes/05-roadmap_plataforma_madre.md) | Roadmap 3 etapas PLAT |
 | [`planes/05-modulos-backlog/BODEGA_ULTRA_PREMIUM.md`](planes/05-modulos-backlog/BODEGA_ULTRA_PREMIUM.md) | Especificación bodega |
 | [`planes/05-modulos-backlog/roadmap_customer_360_ferreteria_2026.md`](planes/05-modulos-backlog/roadmap_customer_360_ferreteria_2026.md) | Roadmap C360 |
 | [`planes/05-modulos-backlog/manual_operacion_customer_360.md`](planes/05-modulos-backlog/manual_operacion_customer_360.md) | Manual operativo C360 |
@@ -804,14 +1285,26 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | T18 Auditoría erp_audit_log | 4 | invariantes, audit |
 | **Total** | **43** | |
 
+### Suites adicionales
+
+| Archivo | Tests aprox. | Foco |
+|---------|--------------|------|
+| `test_routes.py` | ~55 | Rutas HTTP smoke |
+| `test_routes_criticas.py` | ~106 | POS, caja, bodega, permisos |
+| `test_pos_live_wall.py` | ~15 | TV cliente, recomendaciones |
+| `test_facturacion_*.py` | ~15 | FE, CAF, DTE, SII |
+| `test_ventas_casuisticas_flujo.py` | ~12 | CAS-V01…V08 flujos SD |
+| `test_arqueo_caja_model.py` | 3 | Cuadratura servicio |
+| **Total repo** | **~344** | `pytest tests/ --collect-only` |
+
 ### Suite de Rutas HTTP (`tests/test_routes.py`)
 
-Pruebas de integración HTTP con Flask test_client. Cubren ~50 endpoints GET/POST sin servidor real.
+Pruebas de integración HTTP con Flask test_client. Incluye `test_admin_control_center`.
 
 ### Smoke Tests (CI rápido)
 
 ```bash
-pytest tests/ -m smoke -q --tb=no    # ~77 tests con marker smoke (ver pytest --collect-only)
+pytest tests/ -m smoke -q --tb=no    # ~80+ tests smoke (ver pytest --collect-only)
 ```
 
 ### Coverage
@@ -892,14 +1385,14 @@ python scripts/seed_demo_data.py --clean   # limpia datos DEMO
 |---|---|---|---|
 | 1 | Auth / usuarios / RBAC | ✅ | Login, roles, `_NAV_MAP`, tests rutas |
 | 2 | POS + vale | ✅ | Abierta→Pendiente→cobro; live wall; tests E2E T1 |
-| 3 | Caja (cobro, cierre, cambios) | ✅ | Cola, anular, cierre cuadratura, limpiar cola admin |
+| 3 | Caja (cobro, cierre, cambios) | ✅ | Cola, anular, **arqueo ciego PLAT-1.1**, panel admin arqueo |
 | 4 | Stock / kardex / multi-almacén | ✅ | Invariante, `transaccion_critica`, tests T5/T17 |
 | 5 | Bodega + voz | ✅ | Despacho, SLA, TV, tests bodega |
 | 6 | Compras OC + recepciones | 🟡 | Requiere migraciones SQL en BD legacy |
 | 7 | Créditos + abonos | ✅ | Cupo, cuotas 30/60/90, abonos caja |
 | 8 | Cotizaciones | ✅ | Convertir a POS, PDF |
 | 9 | Productos / precios / inventario UI | ✅ | CRUD, revisión precios, enrolamiento |
-| 10 | BI / gerencia / observabilidad web | 🟡 | Dashboards OK; SEO sync externo stub |
+| 10 | BI / gerencia / Control Center | 🟡 | Dashboards OK; Control Center maquetado; SEO stub |
 | 11 | Customer 360 | 🟡 | P0 en código; P1+ roadmap |
 | 12 | Facturación electrónica SII | 🟡 | ERP listo hasta XML+firma+cola; **envío SII pendiente** |
 | 13 | Admin (empresa, almacenes, catálogo) | ✅ | Incluye enlaces FE (CAF, cola DTE) |
@@ -957,4 +1450,4 @@ Un módulo se considera **cerrado** cuando:
 
 ---
 
-*Última revisión maestra: 2026-05-21 — `app.py` ~20.6k líneas, `core/` ~974 líneas, ~289 tests; `docs/planes/` como índice de planificación; rendimiento SD-1 y deploy 6 threads documentados.*
+*Última revisión maestra: 2026-05-21 — §0 Especificación funcional integral + §19 Planes estratégicos; `app.py` ~22.2k líneas, ~344 tests, Control Center y arqueo ciego PLAT-1.1 documentados.*

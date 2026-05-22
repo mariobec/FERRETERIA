@@ -1,6 +1,6 @@
 {
   "nombre_comercial": "Ferretería Santo Domingo",
-  "razon_social": "Ferretería Santo Domingo",
+  "razon_social": "LUIS GASTON RIVERA PEREZ",
   "eslogan": "Chilemat®",
   "telefono": "56923739904",
   "correo": "",
@@ -12,6 +12,12 @@
   "mod_ia": "1",
   "pos_rut_obligatorio": "1",
   "pos_retiro_por_linea": "1",
+  "pos_permite_venta_verde": "1",
+  "pos_dias_entrega_a_pedido": "5",
   "pos_ticket_qr_despacho": "1",
-  "pos_autoprint_ticket_emitido": "1"
+  "pos_autoprint_ticket_emitido": "1",
+  "pos_descuento_umbral_pin_pct": "20",
+  "pos_descuento_autorizacion_por_cliente": "0",
+  "rut_emisor": "8054120-1",
+  "cierre_caja_modo": "ciego"
 }

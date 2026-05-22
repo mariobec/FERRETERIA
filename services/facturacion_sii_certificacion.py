@@ -155,7 +155,7 @@ def generar_xml_caso2_factura_33(
     _sub(em, 'RUTEmisor', rut_emisor)
     _sub(em, 'RznSoc', razon_emisor)
     _sub(em, 'GiroEmis', 'FERRETERIA')
-    _sub(em, 'Acteco', '523910')
+    _sub(em, 'Acteco', fe.ACTECO_FERRETERIA_RETAIL)
 
     rec = etree.SubElement(enc, _ns('Receptor'))
     _sub(rec, 'RUTRecep', RUT_RECEPTOR_PRUEBA_SII)
@@ -246,23 +246,24 @@ def generar_xml_caso3_nota_credito_61(
     return _to_xml_bytes(root)
 
 
-def mock_caf_xml(tipo_dte: int, desde: int, hasta: int, rut_emisor: str = '76192028-5') -> str:
-    """XML CAF mínimo de laboratorio (no válido para producción)."""
-    return (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        '<AUTORIZACION>\n'
-        '  <CAF version="1.0">\n'
-        '    <DA>\n'
-        f'      <RE>{rut_emisor}</RE>\n'
-        '      <RS>MOCK CERTIFICACION SII</RS>\n'
-        f'      <TD>{int(tipo_dte)}</TD>\n'
-        '      <RNG><D>%d</D><H>%d</H></RNG>\n' % (int(desde), int(hasta))
-        + '      <FA>%s</FA>\n' % date.today().isoformat()
-        + '    </DA>\n'
-        '    <!-- FRMA y datos firmados omitidos: reemplazar con CAF real del SII -->\n'
-        '  </CAF>\n'
-        '</AUTORIZACION>\n'
-    )
+def mock_caf_xml(tipo_dte: int, desde: int, hasta: int, rut_emisor: str = '8054120-1') -> str:
+    """XML AUTORIZACION con RSASK para Maullín / QA (ver facturacion_caf_certificacion)."""
+    from services import facturacion_caf_certificacion as caf_cert
+
+    return caf_cert.generar_autorizacion_caf_certificacion(
+        int(tipo_dte), int(desde), int(hasta), rut_emisor=rut_emisor
+    ).decode('utf-8', errors='replace')
+
+
+def _timbrar_xml_caso(
+    xml_bytes: bytes,
+    ctx_ted: Dict[str, Any],
+    caf_autorizacion: bytes,
+) -> Tuple[bytes, str]:
+    from services import facturacion_ted_service as ted_svc
+
+    out, estado = ted_svc.timbrar_dte_xml(xml_bytes, ctx_ted, caf_autorizacion)
+    return out, estado
 
 
 def ejecutar_set_certificacion_sii(
@@ -273,19 +274,51 @@ def ejecutar_set_certificacion_sii(
     folio_39: int = 1,
     folio_33: int = 1,
     folio_61: int = 1,
+    timbrar_con_caf_cert: bool = True,
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
-    Genera los 3 casos, firma (si hay .pfx) y guarda XML en storage/dtes/pruebas_sii/.
+    Genera los 3 casos, timbra TED (CAF cert), firma .pfx y guarda en storage/dtes/pruebas_sii/.
 
     Retorna (resumen_casos, rutas_archivos).
     """
+    from services import facturacion_caf_certificacion as caf_cert
+
     fecha = date.today().isoformat()
     casos: List[Dict[str, Any]] = []
     paths: List[str] = []
 
+    caf39_b = caf33_b = None
+    if timbrar_con_caf_cert:
+        caf_cert.guardar_cafs_certificacion(app_root, rut_emisor=rut_emisor, razon_social=razon_emisor)
+        caf39_b = caf_cert.generar_autorizacion_caf_certificacion(
+            DTE_39, caf_cert.RANGO_CERT_BOLETA_39[0], caf_cert.RANGO_CERT_BOLETA_39[1],
+            rut_emisor=rut_emisor, razon_social=razon_emisor,
+        )
+        caf33_b = caf_cert.generar_autorizacion_caf_certificacion(
+            DTE_33, caf_cert.RANGO_CERT_FACTURA_33[0], caf_cert.RANGO_CERT_FACTURA_33[1],
+            rut_emisor=rut_emisor, razon_social=razon_emisor,
+        )
+
     xml39 = generar_xml_caso1_boleta_39_exento_afecto(
         folio=folio_39, rut_emisor=rut_emisor, razon_emisor=razon_emisor, fecha=fecha
     )
+    st_ted39 = 'omitido'
+    if caf39_b:
+        mnt39 = 25000 + 70000 + int(round(70000 * 0.19))
+        ctx39 = {
+            'dte_tipo': DTE_39,
+            'folio': folio_39,
+            'rut_emisor': rut_emisor,
+            'razon_social_emisor': razon_emisor,
+            'rut_receptor': '66666666-6',
+            'razon_social_receptor': 'BOLETA ELECTRONICA CERT',
+            'fecha_emision': fecha,
+            'monto_neto': 70000,
+            'monto_iva': int(round(70000 * 0.19)),
+            'monto_total': mnt39,
+            'items': [{'nombre': 'Producto exento certificacion'}],
+        }
+        xml39, st_ted39 = _timbrar_xml_caso(xml39, ctx39, caf39_b)
     b39, st39 = fe.firmar_xml_dte(xml39)
     p39 = guardar_xml_dte_certificacion(app_root, DTE_39, folio_39, b39)
     paths.append(p39)
@@ -297,12 +330,31 @@ def ejecutar_set_certificacion_sii(
             'folio': folio_39,
             'archivo': os.path.basename(p39),
             'estado_firma': st39,
+            'estado_ted': st_ted39,
         }
     )
 
     xml33 = generar_xml_caso2_factura_33(
         folio=folio_33, rut_emisor=rut_emisor, razon_emisor=razon_emisor, fecha=fecha
     )
+    st_ted33 = 'omitido'
+    if caf33_b:
+        mnt_neto = 100000
+        iva = int(round(mnt_neto * 0.19))
+        ctx33 = {
+            'dte_tipo': DTE_33,
+            'folio': folio_33,
+            'rut_emisor': rut_emisor,
+            'razon_social_emisor': razon_emisor,
+            'rut_receptor': RUT_RECEPTOR_PRUEBA_SII,
+            'razon_social_receptor': 'SERVICIO DE IMPUESTOS INTERNOS PRUEBA',
+            'fecha_emision': fecha,
+            'monto_neto': mnt_neto,
+            'monto_iva': iva,
+            'monto_total': mnt_neto + iva,
+            'items': [{'nombre': 'Venta factura certificacion'}],
+        }
+        xml33, st_ted33 = _timbrar_xml_caso(xml33, ctx33, caf33_b)
     b33, st33 = fe.firmar_xml_dte(xml33)
     p33 = guardar_xml_dte_certificacion(app_root, DTE_33, folio_33, b33)
     paths.append(p33)
@@ -315,6 +367,7 @@ def ejecutar_set_certificacion_sii(
             'rut_receptor': RUT_RECEPTOR_PRUEBA_SII,
             'archivo': os.path.basename(p33),
             'estado_firma': st33,
+            'estado_ted': st_ted33,
         }
     )
 

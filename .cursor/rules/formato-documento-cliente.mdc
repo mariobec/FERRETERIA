@@ -1,0 +1,44 @@
+---
+description: Formato estándar para documentos al cliente (propuestas, cotizaciones, entregables)
+globs:
+  - docs/planes/**/*.md
+  - docs/**/*PROPUESTA*.md
+  - docs/**/*COTIZACION*.md
+alwaysApply: false
+---
+
+# Formato documento cliente LhexIA
+
+Cuando el usuario pida un **documento para el cliente**, **propuesta**, **cotización**, **informe de entrega** o similar (especialmente Ferretería Santo Domingo u otros clientes LhexIA):
+
+1. **Usar la plantilla:** `docs/planes/00-alineacion/PLANTILLA_DOCUMENTO_CLIENTE.md`
+2. **Referencia de ejemplo:** `docs/planes/01-entrega-santo-domingo/PROPUESTA_EQUIPO_INVENTARIO_SANTO_DOMINGO.md`
+3. **Ubicación:** crear en `docs/planes/01-entrega-santo-domingo/` si es SD-*; en `docs/planes/02-producto-lhexia/` si es comercial genérico; o subcarpeta acorde al prefijo (SD-, LX-, etc.)
+4. **Enlazar** desde `CLIENTE_SANTO_DOMINGO.md`, `SANTO_DOMINGO_ENTREGA.md` o `PLAN_INDICE_LHEXIA.md` cuando corresponda.
+
+## Estructura obligatoria (9 secciones)
+
+| § | Título |
+|---|--------|
+| Cabecera | Cliente, proveedor, fecha, alcance (fase SD-/POS-), vigencia precios |
+| 1 | Resumen ejecutivo + tabla monto total CLP |
+| 2 | Objetivo (tabla ítem → rol en LhexIA) |
+| 3 | Recomendaciones técnicas (subsecciones 3.1, 3.2…, prueba aceptación) |
+| 4 | Propuesta económica (4.1 base, 4.2 opciones, 4.3 infra/servicios si aplica) |
+| 5 | Lo que no se incluye |
+| 6 | Plan implementación D0 (tabla paso / responsable / actividad) |
+| 7 | Criterios de aceptación (checklist) |
+| 8 | Próximos pasos numerados |
+| 9 | Contacto y validez (marca, slogan, 30 días) |
+
+## Estilo
+
+- Español claro, tono profesional, orientado a decisión.
+- Montos en **CLP** con rango `$mín – $máx` y **propuesta media ~ $X**.
+- Tablas markdown; separadores `---` entre secciones grandes.
+- Marca: **LhexIA**, descriptor **ERP inteligente**, slogan **Haz rentable tu decisión.**
+- No inventar funcionalidades del ERP: verificar en repo o marcar «sujeto a validación técnica».
+
+## Nomenclatura archivo
+
+`PROPUESTA_[TEMA]_[CLIENTE_CORTO].md` o `ENTREGA_[TEMA]_[CLIENTE].md` — mayúsculas y guiones bajos.
