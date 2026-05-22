@@ -37,11 +37,23 @@
   var consBox = document.getElementById('ownerGuardianConsolidado');
   var consMonto = document.getElementById('ownerGuardianConsolidadoMonto');
   var consDetalle = document.getElementById('ownerGuardianConsolidadoDetalle');
+  var consKicker = document.getElementById('ownerGuardianConsolidadoKicker');
+  var statusRing = document.getElementById('ownerGuardianStatusRing');
+  var statusRingLabel = document.getElementById('ownerGuardianStatusRingLabel');
+  var establecimientoEl = document.getElementById('ownerGuardianEstablecimiento');
+  var actualizadoEl = document.getElementById('ownerGuardianActualizado');
   var feedList = document.getElementById('ownerGuardianFeed');
   var feedEmpty = document.getElementById('ownerGuardianFeedEmpty');
   var semMini = document.getElementById('ownerGuardianSemMini');
 
   var DOMINIO_LABEL = { caja: 'Caja', inventario: 'Inv', credito: 'Créd', compras: 'OC' };
+  var DOMINIO_ICON = {
+    caja: 'fa-cash-register',
+    inventario: 'fa-boxes-stacked',
+    credito: 'fa-file-invoice-dollar',
+    compras: 'fa-truck',
+  };
+  var FEED_AGENT_ICON = { critical: 'fa-triangle-exclamation', warning: 'fa-circle-exclamation', info: 'fa-circle-info' };
   var btnRefresh = document.getElementById('ownerBtnRefresh');
   var btnRefreshTop = document.getElementById('ownerBtnRefreshTop');
   var btnCall = document.getElementById('ownerBtnCall');
@@ -49,6 +61,25 @@
   var pollTimer = null;
   var lastMeta = {};
   var boundSlots = {};
+
+  function bootstrapHeroFromSsr() {
+    var fmt = (root.getAttribute('data-ventas-fmt') || '').trim();
+    if (!fmt || !ventasMonto) return;
+    ventasMonto.textContent = fmt;
+    if (ventasVar) {
+      var vRaw = root.getAttribute('data-var-pct');
+      var tx = parseInt(root.getAttribute('data-transacciones') || '0', 10);
+      if (vRaw !== '' && vRaw != null && !isNaN(parseFloat(vRaw))) {
+        var v = parseFloat(vRaw);
+        var sign = v > 0 ? '+' : '';
+        ventasVar.textContent = sign + v + '% vs ayer · ' + tx + ' ventas';
+        ventasVar.classList.toggle('owner-guardian-ventas-var--up', v > 0);
+        ventasVar.classList.toggle('owner-guardian-ventas-var--down', v < 0);
+      }
+    }
+    if (ventasBox) ventasBox.classList.remove('d-none');
+  }
+  bootstrapHeroFromSsr();
 
   function estadoClass(estado) {
     var e = (estado || 'verde').toLowerCase();
@@ -109,7 +140,9 @@
 
     slot.innerHTML =
       '<span class="owner-semaforo-badge">' + badgeLabel(est) + '</span>' +
-      '<div class="owner-semaforo-title">' + escapeHtml(formatCardTitle(card, est)) + '</div>' +
+      '<div class="owner-semaforo-title">' +
+      (DOMINIO_ICON[dominio] ? '<i class="fas ' + DOMINIO_ICON[dominio] + ' me-1" aria-hidden="true"></i>' : '') +
+      escapeHtml(formatCardTitle(card, est)) + '</div>' +
       '<p class="owner-semaforo-msg">' + escapeHtml(card.mensaje || '') + '</p>' +
       '<div class="owner-semaforo-ts">' +
       '<span class="owner-live-dot" aria-hidden="true"></span>' +
@@ -203,6 +236,26 @@
     });
   }
 
+  function formatActualizado(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      return 'Actualizado ' + d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function renderStatusRing(data) {
+    if (!statusRing || !statusRingLabel) return;
+    var st = (data.status_global || 'green').toLowerCase();
+    statusRing.className = 'owner-guardian-status-ring owner-guardian-status-ring--' +
+      (st === 'red' ? 'red' : st === 'amber' ? 'amber' : 'green');
+    var labels = { red: 'Alerta', amber: 'Atención', green: 'Estable' };
+    statusRingLabel.textContent = labels[st] || 'OK';
+  }
+
   function renderFeed(items) {
     if (!feedList) return;
     feedList.innerHTML = '';
@@ -214,15 +267,17 @@
     items.forEach(function (it) {
       var li = document.createElement('li');
       var sev = (it.severidad || 'info').toLowerCase();
+      if (sev !== 'critical' && sev !== 'warning') sev = 'info';
       li.className = 'owner-guardian-feed-item owner-guardian-feed-item--' + sev;
       var href = it.nav_href || ccUrl;
+      var icon = FEED_AGENT_ICON[sev] || 'fa-bolt';
       li.innerHTML =
         '<a href="' + escapeHtml(href) + '" class="owner-guardian-feed-link">' +
-        '<span class="owner-guardian-feed-dot" aria-hidden="true"></span>' +
+        '<span class="owner-guardian-feed-agent" aria-hidden="true"><i class="fas ' + icon + '"></i></span>' +
         '<span class="owner-guardian-feed-body">' +
         '<span class="owner-guardian-feed-item-title">' + escapeHtml(it.titulo || '') + '</span>' +
-        '<span class="owner-guardian-feed-meta">' + escapeHtml(it.hace || '') +
-        (it.codigo ? ' · ' + escapeHtml(it.codigo) : '') + '</span>' +
+        '<span class="owner-guardian-feed-meta">' + escapeHtml(it.hace || 'Ahora') + '</span>' +
+        (it.codigo ? '<span class="owner-guardian-feed-codigo">' + escapeHtml(it.codigo) + '</span>' : '') +
         '</span>' +
         '<i class="fas fa-chevron-right owner-guardian-feed-chevron" aria-hidden="true"></i>' +
         '</a>';
@@ -286,16 +341,20 @@
           ventasVar.textContent = (c.transacciones_hoy || 0) + ' transacciones hoy';
         }
         ventasBox.classList.remove('d-none');
-      } else {
+      } else if (!root.getAttribute('data-ventas-fmt')) {
         ventasBox.classList.add('d-none');
       }
     }
 
+    if (consKicker && c.desfalco_kicker) {
+      consKicker.textContent = c.desfalco_kicker;
+    }
     if (consBox && consMonto && consDetalle) {
       if (c.visible && c.descuadre_acumulado_fmt) {
         consMonto.textContent = c.descuadre_acumulado_fmt;
         consDetalle.textContent =
-          (c.cajas_con_descuadre || 0) + ' cierre(s) · ' + (c.sucursales_monitoreadas || 1) + ' sucursal(es)';
+          c.desfalco_detalle ||
+          ((c.cajas_con_descuadre || 0) + ' cierre(s) con diferencia');
         consBox.classList.remove('d-none');
         consBox.classList.toggle('owner-guardian-consolidado--danger', data.status_caja === 'red');
       } else {
@@ -303,6 +362,15 @@
       }
     }
 
+    if (establecimientoEl) {
+      var estLabel = (c.establecimiento_label || (data.meta && data.meta.establecimiento_label) || '').trim();
+      if (estLabel) establecimientoEl.textContent = estLabel;
+    }
+    if (actualizadoEl && data.meta && data.meta.generado_en) {
+      actualizadoEl.textContent = formatActualizado(data.meta.generado_en);
+    }
+
+    renderStatusRing(data);
     renderFeed(data.feed_preview || []);
 
     var tel = data.supervisor_telefono || (data.meta && data.meta.supervisor_telefono) || '';
@@ -355,7 +423,7 @@
   if (btnRefresh) btnRefresh.addEventListener('click', onRefreshClick);
   if (btnRefreshTop) btnRefreshTop.addEventListener('click', onRefreshClick);
 
-  ['ownerCardCaja', 'ownerCardInventario'].forEach(function (id) {
+  ['ownerCardCaja', 'ownerCardInventario', 'ownerCardCredito', 'ownerCardCompras'].forEach(function (id) {
     var s = document.getElementById(id);
     if (s) bindSlot(s);
   });
@@ -365,7 +433,7 @@
       if (window.bootstrap && document.getElementById('ownerMicToast')) {
         new bootstrap.Toast(document.getElementById('ownerMicToast')).show();
       } else {
-        alert('Agente de voz: próximamente en SD-2.');
+        alert('Voz Guardián: SD-2. No es despacho bodega.');
       }
     });
   }

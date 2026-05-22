@@ -134,16 +134,40 @@ def _borrar_cliente_test(sa_text):
 
 
 # ── Limpieza FK-safe ───────────────────────────────────────────────
+def _borrar_agente_ejecuciones_por_ventas_qa(sa_text, usuarios: tuple[str, ...]) -> None:
+    """FK agente_ejecuciones.venta_id — antes de DELETE ventas."""
+    try:
+        db.session.execute(
+            sa_text(
+                "DELETE FROM agente_ejecuciones WHERE venta_id IN ("
+                "SELECT id FROM ventas WHERE usuario IN :u)"
+            ),
+            {'u': usuarios},
+        )
+    except Exception:
+        db.session.rollback()
+
+
 def _limpiar_datos_qa():
     from sqlalchemy import text as sa_text
     from tests.qa_catalogo_casuisticas import QA_CAS_USER, limpiar_catalogo_casuisticas
 
     db.session.rollback()
     try:
+        try:
+            db.session.execute(
+                sa_text("DELETE FROM agente_ejecuciones WHERE dedupe_key LIKE :p"),
+                {'p': 'vertex:maestro:%'},
+            )
+        except Exception:
+            db.session.rollback()
+
         limpiar_catalogo_casuisticas(db, m, sa_text)
+        _usuarios_qa = (QA_USER, QA_CAS_USER)
+        _borrar_agente_ejecuciones_por_ventas_qa(sa_text, _usuarios_qa)
         vids = [r[0] for r in db.session.execute(
             sa_text("SELECT id FROM ventas WHERE usuario IN :u"),
-            {'u': (QA_USER, QA_CAS_USER)}).fetchall()]
+            {'u': _usuarios_qa}).fetchall()]
         if vids:
             vt = tuple(vids)
             db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': vt})
@@ -152,11 +176,6 @@ def _limpiar_datos_qa():
             except Exception:
                 db.session.rollback()
             db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': vt})
-            try:
-                db.session.execute(sa_text(
-                    "DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': vt})
-            except Exception:
-                db.session.rollback()
             db.session.execute(sa_text("DELETE FROM movimiento_caja WHERE concepto LIKE :p"), {'p': '%QA test%'})
             db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
 
@@ -174,11 +193,8 @@ def _limpiar_datos_qa():
                 except Exception:
                     db.session.rollback()
                 db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': dvt})
-                try:
-                    db.session.execute(sa_text(
-                        "DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': dvt})
-                except Exception:
-                    db.session.rollback()
+                db.session.execute(
+                    sa_text("DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': dvt})
                 db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': dvt})
             db.session.execute(sa_text("DELETE FROM movimientos_inventario WHERE id_producto IN :p"), {'p': pt})
             db.session.execute(sa_text("DELETE FROM stock_por_almacen WHERE id_producto IN :p"), {'p': pt})

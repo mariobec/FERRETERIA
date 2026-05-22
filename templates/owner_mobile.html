@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-vertex-1">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-1">
 {% endblock %}
 
 {% block content %}
@@ -53,6 +53,11 @@
     <button type="button" id="ownerBtnRefreshTop" class="btn btn-sm owner-guardian-btn-ghost" aria-label="Actualizar">
       <i class="fas fa-rotate"></i>
     </button>
+    {% if usuario_tiene_permiso('gestionar_usuarios') %}
+    <a href="{{ url_for('owner_vertex_control') }}" class="btn btn-sm owner-guardian-btn-ghost owner-guardian-btn-vertex fw-bold" title="Centro de Mandos VERTEX" aria-label="Centro VERTEX">
+      <i class="fas fa-satellite-dish" aria-hidden="true"></i><span class="owner-btn-vertex-label">VERTEX</span>
+    </a>
+    {% endif %}
     <a href="{{ url_for('erp_hub') }}" class="btn btn-sm owner-guardian-btn-ghost fw-bold">Módulos</a>
   </div>
 </header>
@@ -63,30 +68,57 @@
   data-api-url="{{ url_for('api_owner_dashboard_v1') }}"
   data-poll-ms="45000"
   data-cc-url="{{ url_for('admin_control_center') }}"
+  data-ventas-fmt="${{ '{:,.0f}'.format(ventas_hoy).replace(',', '.') }}"
+  data-var-pct="{{ var_ventas_hoy if var_ventas_hoy is not none else '' }}"
+  data-transacciones="{{ transacciones_hoy }}"
 >
-  <section class="owner-pwa-hero owner-guardian-hero owner-guardian-hero--compact" aria-label="Resumen">
-    <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> LhexIA VERTEX · Guardián</div>
-    <h2>Control en vivo</h2>
-    <p class="owner-pwa-hero-sub">{{ empresa_cfg.nombre_comercial }}</p>
-    <div class="owner-guardian-hero-kpis">
-      <div id="ownerGuardianVentas" class="owner-guardian-ventas d-none" aria-live="polite">
-        <span class="owner-guardian-ventas-label">Ventas hoy</span>
-        <div id="ownerGuardianVentasMonto" class="owner-guardian-ventas-monto">—</div>
-        <div id="ownerGuardianVentasVar" class="owner-guardian-ventas-var"></div>
+  <section class="owner-pwa-hero owner-guardian-hero owner-guardian-hero--present" aria-label="Resumen ejecutivo">
+    <div class="owner-guardian-hero-top">
+      <div class="owner-guardian-hero-copy">
+        <div class="owner-guardian-hero-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> LhexIA VERTEX</div>
+        <h2>Guardián</h2>
+        <p class="owner-guardian-hero-tagline">Control ejecutivo en tiempo real</p>
+        <p class="owner-pwa-hero-sub" id="ownerGuardianEstablecimiento">{{ empresa_cfg.nombre_comercial }}</p>
+        <p id="ownerGuardianActualizado" class="owner-guardian-actualizado">Sincronizando…</p>
+      </div>
+      <div id="ownerGuardianStatusRing" class="owner-guardian-status-ring owner-guardian-status-ring--green" aria-label="Estado global">
+        <span class="owner-guardian-status-ring__core"></span>
+        <span id="ownerGuardianStatusRingLabel" class="owner-guardian-status-ring__label">OK</span>
+      </div>
+    </div>
+    <div class="owner-guardian-hero-panel">
+      <div id="ownerGuardianVentas" class="owner-guardian-ventas owner-guardian-ventas--hero" aria-live="polite">
+        <span class="owner-guardian-ventas-label"><i class="fas fa-chart-line" aria-hidden="true"></i> Ventas hoy</span>
+        <div id="ownerGuardianVentasMonto" class="owner-guardian-ventas-monto">${{ "{:,.0f}".format(ventas_hoy).replace(",", ".") }}</div>
+        <div id="ownerGuardianVentasVar" class="owner-guardian-ventas-var">
+          {% if var_ventas_hoy is not none %}
+            {{ '+' if var_ventas_hoy > 0 else '' }}{{ "{:.1f}".format(var_ventas_hoy) }}% vs ayer · {{ transacciones_hoy }} ventas
+          {% else %}
+            {{ transacciones_hoy }} transacciones hoy
+          {% endif %}
+        </div>
       </div>
       <div id="ownerGuardianConsolidado" class="owner-guardian-consolidado d-none" aria-live="polite">
-        <span class="owner-guardian-consolidado-kicker">Desfalco · red</span>
+        <span id="ownerGuardianConsolidadoKicker" class="owner-guardian-consolidado-kicker">Arqueo</span>
         <div id="ownerGuardianConsolidadoMonto" class="owner-guardian-consolidado-monto">—</div>
         <div id="ownerGuardianConsolidadoDetalle" class="owner-guardian-consolidado-detalle"></div>
       </div>
     </div>
     <div id="ownerGuardianIa" class="owner-guardian-ia d-none" role="status" aria-live="polite">
-      <i class="fas fa-robot owner-guardian-ia-icon" aria-hidden="true"></i>
+      <div class="owner-guardian-ia-head">
+        <i class="fas fa-wand-magic-sparkles owner-guardian-ia-icon" aria-hidden="true"></i>
+        <span class="owner-guardian-ia-kicker">Copiloto VERTEX</span>
+      </div>
       <p id="ownerGuardianIaText" class="owner-guardian-ia-text"></p>
     </div>
   </section>
 
   <nav id="ownerGuardianSemMini" class="owner-guardian-sem-mini" aria-label="Semáforos rápidos"></nav>
+
+  <div class="owner-guardian-section-head">
+    <h3 class="owner-guardian-section-title">Dominios operativos</h3>
+    <p class="owner-guardian-section-sub">Caja · inventario · crédito · compras</p>
+  </div>
 
   <section id="ownerGuardianCards" class="owner-guardian-alerts" aria-label="Alertas operativas"
            data-cc-url="{{ url_for('admin_control_center') }}"
@@ -102,6 +134,7 @@
         <span class="owner-semaforo-ts-text">—</span>
       </div>
       <div class="owner-card-actions" data-actions-mount></div>
+      <span class="owner-card-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
     </div>
     <div class="owner-semaforo-card estado-verde" id="ownerCardInventario" data-dominio="inventario"
          data-nav-url="{{ url_for('ia_abastecimiento', dias=30, solo_alerta=1, from='owner') }}">
@@ -114,17 +147,32 @@
         <span class="owner-semaforo-ts-text">—</span>
       </div>
       <div class="owner-card-actions" data-actions-mount></div>
+      <span class="owner-card-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
     </div>
-    <div class="owner-semaforo-card estado-verde d-none" id="ownerCardCredito" data-dominio="credito"
-         data-nav-url="{{ url_for('modulo_creditos') }}"></div>
-    <div class="owner-semaforo-card estado-verde d-none" id="ownerCardCompras" data-dominio="compras"
-         data-nav-url="{{ url_for('lista_ordenes_compra') }}"></div>
+    <div class="owner-semaforo-card estado-verde" id="ownerCardCredito" data-dominio="credito"
+         data-nav-url="{{ url_for('modulo_creditos') }}">
+      <span class="owner-semaforo-badge">…</span>
+      <div class="owner-semaforo-title">Crédito</div>
+      <p class="owner-semaforo-msg">Cargando…</p>
+      <div class="owner-semaforo-ts"><span class="owner-live-dot" aria-hidden="true"></span><span class="owner-semaforo-ts-text">—</span></div>
+      <div class="owner-card-actions" data-actions-mount></div>
+      <span class="owner-card-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+    </div>
+    <div class="owner-semaforo-card estado-verde" id="ownerCardCompras" data-dominio="compras"
+         data-nav-url="{{ url_for('lista_ordenes_compra') }}">
+      <span class="owner-semaforo-badge">…</span>
+      <div class="owner-semaforo-title">Compras</div>
+      <p class="owner-semaforo-msg">Cargando…</p>
+      <div class="owner-semaforo-ts"><span class="owner-live-dot" aria-hidden="true"></span><span class="owner-semaforo-ts-text">—</span></div>
+      <div class="owner-card-actions" data-actions-mount></div>
+      <span class="owner-card-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+    </div>
   </section>
 
   <section class="owner-guardian-feed-wrap" aria-label="Timeline operador">
     <div class="owner-guardian-feed-head">
-      <h3 class="owner-guardian-feed-title">Centro de mando · vivo</h3>
-      <span class="owner-guardian-feed-sub">Últimos eventos del Agente Operador</span>
+      <h3 class="owner-guardian-feed-title"><i class="fas fa-bolt" aria-hidden="true"></i> Pulso operativo</h3>
+      <span class="owner-guardian-feed-sub">Agente Operador · alertas en vivo</span>
     </div>
     <ul id="ownerGuardianFeed" class="owner-guardian-feed-list"></ul>
     <p id="ownerGuardianFeedEmpty" class="owner-guardian-feed-empty d-none">Sin alertas recientes del operador.</p>
@@ -184,11 +232,6 @@
           <i class="fas fa-phone owner-action-icon" aria-hidden="true"></i> Llamar supervisor
         </a>
       </div>
-      <div class="col-auto">
-        <button type="button" id="ownerBtnMic" class="btn btn-owner-mic" title="Interrogar al Agente (voz)" aria-label="Comando de voz IA">
-          <i class="fas fa-microphone"></i>
-        </button>
-      </div>
     </div>
     <div class="row g-2">
       <div class="col-6">
@@ -210,7 +253,7 @@
 <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3 owner-pwa-toasts">
   <div id="ownerMicToast" class="toast align-items-center text-bg-primary border-0" role="alert">
     <div class="d-flex">
-      <div class="toast-body">Agente de voz: próximamente (SD-2).</div>
+      <div class="toast-body">Voz Guardián no incluida en SD-1. Disponible en SD-2. La voz de bodega es otro módulo.</div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
     </div>
   </div>
@@ -219,5 +262,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-vertex-1"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-mobile-1"></script>
 {% endblock %}

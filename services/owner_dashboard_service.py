@@ -653,32 +653,69 @@ def _status_global(*statuses: str) -> str:
     return 'green'
 
 
+def _guardian_un_local() -> bool:
+    """SD-1: un establecimiento — copy de presentación sin “red 3 sucursales”."""
+    return os.getenv('OWNER_GUARDIAN_UN_LOCAL', '1').strip().lower() not in (
+        '0',
+        'false',
+        'no',
+    )
+
+
+def _establecimiento_label() -> str:
+    return (
+        os.getenv('LHEXIA_CLIENTE_SD_NOMBRE')
+        or os.getenv('OWNER_GUARDIAN_ESTABLECIMIENTO')
+        or os.getenv('OWNER_GUARDIAN_SUCURSAL_LABEL')
+        or 'Ferretería en operación'
+    ).strip()
+
+
 def _consolidado_financiero(
     *,
     calcular_ctx_caja: Callable,
     perfil: PerfilGuardian,
     kpis_ventas: dict[str, Any],
 ) -> dict[str, Any]:
+    un_local = _guardian_un_local()
+    establecimiento = _establecimiento_label()
     base = {
         'visible': False,
         'ventas_hoy_clp': kpis_ventas.get('ventas_hoy_clp', 0),
         'ventas_hoy_fmt': kpis_ventas.get('ventas_hoy_fmt', '$0'),
         'var_vs_ayer_pct': kpis_ventas.get('var_vs_ayer_pct'),
         'transacciones_hoy': kpis_ventas.get('transacciones_hoy', 0),
+        'un_local': un_local,
+        'establecimiento_label': establecimiento,
     }
     if perfil.alcance != 'global':
         return base
 
     bloque = obtener_tarjetas_sucursales(calcular_ctx=calcular_ctx_caja)
     total = int(bloque.get('alerta_global_clp') or 0)
+    cajas_desc = int(bloque.get('cajas_con_descuadre', 0) or 0)
+    sucursales_n = 1 if un_local else int(os.getenv('OWNER_GUARDIAN_SUCURSALES_N', '3') or 3)
+    if un_local:
+        detalle = (
+            f'{establecimiento} · {cajas_desc} cierre(s) con diferencia'
+            if cajas_desc
+            else f'{establecimiento} · arqueos al día'
+        )
+        kicker = 'Arqueo · establecimiento'
+    else:
+        detalle = f'{cajas_desc} cierre(s) · vista red ({sucursales_n} locales demo)'
+        kicker = 'Desfalco · red VERTEX'
+
     return {
         **base,
         'visible': True,
         'descuadre_acumulado_clp': total,
         'descuadre_acumulado_fmt': bloque.get('alerta_global_fmt') or _fmt_clp(total),
-        'cajas_con_descuadre': bloque.get('cajas_con_descuadre', 0),
-        'sucursales_monitoreadas': int(os.getenv('OWNER_GUARDIAN_SUCURSALES_N', '3') or 3),
+        'cajas_con_descuadre': cajas_desc,
+        'sucursales_monitoreadas': sucursales_n,
         'alertas_operador_red': bloque.get('alertas_operador_abiertas', 0),
+        'desfalco_kicker': kicker,
+        'desfalco_detalle': detalle,
     }
 
 
@@ -696,10 +733,17 @@ def _mensaje_ia(
     est_caja = tarjeta_caja.get('estado', 'verde')
     if est_caja == 'rojo':
         if consolidado.get('visible') and consolidado.get('descuadre_acumulado_fmt'):
-            partes.append(
-                f"Prioridad: revisar desfalco consolidado de "
-                f"{consolidado['descuadre_acumulado_fmt']} en toda la red."
-            )
+            if consolidado.get('un_local'):
+                est = (consolidado.get('establecimiento_label') or 'el local').strip()
+                partes.append(
+                    f"Prioridad: revisar arqueo en {est} — "
+                    f"diferencia {consolidado['descuadre_acumulado_fmt']}."
+                )
+            else:
+                partes.append(
+                    f"Prioridad: revisar desfalco consolidado de "
+                    f"{consolidado['descuadre_acumulado_fmt']} en la red."
+                )
         partes.append(tarjeta_caja.get('mensaje') or 'Alerta crítica de caja.')
     elif est_caja == 'amarillo':
         partes.append(tarjeta_caja.get('mensaje') or 'Caja requiere supervisión.')
@@ -802,5 +846,8 @@ def construir_owner_dashboard(
             'version': 'guardian_v3',
             'ecosystem': 'lhexia_vertex',
             'poll_recomendado_ms': 30000,
+            'presentacion_ui': 'vertex_guardian_pro',
+            'establecimiento_label': _establecimiento_label(),
+            'un_local': _guardian_un_local(),
         },
     }

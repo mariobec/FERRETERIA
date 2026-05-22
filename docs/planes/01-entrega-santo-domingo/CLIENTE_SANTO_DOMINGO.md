@@ -1,7 +1,8 @@
 ﻿# Runbook — Ferretería Santo Domingo (cliente #1 LhexIA)
 
 > **Documento completo de entrega y desarrollo:** [`SANTO_DOMINGO_ENTREGA.md`](SANTO_DOMINGO_ENTREGA.md)  
-> Este archivo es el **runbook corto de piso** (checklist D0 y flujos).
+> Este archivo es el **runbook corto de piso** (checklist D0 y flujos).  
+> **Día 1 operativo:** [`SD1_DIA1_PISO.md`](SD1_DIA1_PISO.md) · estado: `python scripts/sd1_estado_piso.py`
 
 **Tipo:** Cliente diseño + primer go-live  
 **Alcance prototipo (~2 semanas):** POS + inventario (toma física)  

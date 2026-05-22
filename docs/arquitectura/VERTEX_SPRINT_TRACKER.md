@@ -34,14 +34,26 @@
 
 ---
 
-## Semana 2 — SOLO tras sign-off SD-1
+## V3.0 — Centro de Mandos Global (andamiaje, paralelo SD-1)
+
+| ID | Tarea | Estado |
+|----|-------|--------|
+| V3-CC-01 | API `?scope=global_maestro` + clientes live/mock | ✅ |
+| V3-CC-02 | UI `/owner/vertex-control` + grafo + feed global | ✅ |
+| V3-CC-02b | Doc `VERTEX_MASTER_CORE.md` + píldora v1.0 en BD | ✅ |
+| V3-CC-03 | Tenant real multi-BD / filtro por `tenant_id` | ⏳ post SD-1 |
+
+---
+
+## Semana 2 — SOLO tras sign-off SD-1 (multi-sucursal VERTEX)
 
 | ID | Tarea | Capa | Estado |
 |----|-------|------|--------|
-| V2-01 | `tenant_id` nullable (diseño) | VERTEX | ⏳ bloqueado por SD-C06 |
-| V2-02 | Operador → feed Guardián | Agente | ⏳ |
-| V2-03 | Demo Chilemat 1 sucursal | Comercial | ⏳ |
-| V2-04 | `OWNER_SUPERVISOR_TELEFONO` Render | Ops | ⏳ (también SD-C04) |
+| V2-01 | SQL `sucursales` + `id_sucursal` nullable + seed SD | VERTEX | ⏳ |
+| V2-02 | Admin **Nueva sucursal** + almacenes default | VERTEX | ⏳ |
+| V2-03 | Guardián V3.1 filtro por `sucursal_id` | Agente | ⏳ |
+| V2-04 | Demo Chilemat (N sucursales, 1 tenant) | Comercial | ⏳ |
+| V2-05 | `OWNER_SUPERVISOR_TELEFONO` Render | Ops | ⏳ |
 
 ---
 

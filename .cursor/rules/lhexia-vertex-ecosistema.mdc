@@ -35,6 +35,13 @@ Preflight: `python scripts/sd1_cierre_preflight.py`
 - Multi-tenant obligatorio en queries prod → **post SD-1**.
 - Checkpoint git en flujo POS/caja/PWA Guardián.
 
+## Multi-sucursal (norte ERP)
+
+El producto debe permitir **crear sucursales** y operar N locales por tenant (caja, stock, POS, Guardián por sucursal + consolidado dueño). Diseño: `docs/arquitectura/VERTEX_MULTI_SUCURSAL.md`.
+
+- **Santo Domingo hoy:** 1 establecimiento en piso → cierre SD-1 por **almacenes**, no por “3 sucursales”.
+- **Chilemat / red:** piloto multi-sucursal post SD-1 (SD-2 / LX-1).
+
 ## Nombres producto
 
 - Plataforma: **LhexIA VERTEX**

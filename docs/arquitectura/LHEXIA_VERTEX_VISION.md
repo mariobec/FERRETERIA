@@ -10,6 +10,8 @@
 
 **Nombre del ecosistema:** **LhexIA VERTEX** (plataforma núcleo + soluciones verticales + agentes).
 
+**Norte producto ERP:** **multi-sucursal** — el sistema debe poder **crear sucursales**, asignar almacenes/caja/POS por sucursal y consolidar gerencia. Diseño: [`VERTEX_MULTI_SUCURSAL.md`](VERTEX_MULTI_SUCURSAL.md).
+
 ---
 
 ## 1. Las tres capas del ecosistema (regla estructural)
@@ -63,7 +65,18 @@ Todo desarrollo futuro respeta esta separación. **No mezclar** responsabilidade
 | **Impacto comercial** | Escudo operativo → red **Chilemat**; narrativa: *menos mermas, control en ruta* |
 | **Estado (mayo 2026)** | ✅ Guardián V3 prod. 🟡 **Cierre SD-1** ([checklist](../planes/01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md)). ⏳ V3.1 post sign-off |
 
-**SD-1 = primer tenant lógico de VERTEX** (un establecimiento, sin sucursales; inventario por almacén tienda/bodega). Multi-sucursal = Chilemat / Fase 2.
+**SD-1 = primer tenant y primer local** (Santo Domingo opera **un** establecimiento hoy; inventario por almacén tienda/bodega). El **producto** ya apunta a multi-sucursal; la implementación completa viene en **SD-2 / LX-1** ([diseño multi-sucursal](VERTEX_MULTI_SUCURSAL.md)).
+
+---
+
+### Fase 1b — Multi-sucursal VERTEX (SD-2 + LX-1, post cierre SD-1)
+
+| Hito | Entregable |
+|------|------------|
+| LX-1A | Tabla `sucursales` + `id_sucursal` en almacén/caja/venta (nullable → seed 1 sucursal SD) |
+| LX-1B | Admin **Nueva sucursal** + almacenes por defecto |
+| LX-1C | Caja una por sucursal · POS con contexto sucursal · Guardián filtro real |
+| Comercial | Piloto **Chilemat** (N locales, mismo tenant) |
 
 ---
 
@@ -71,7 +84,7 @@ Todo desarrollo futuro respeta esta separación. **No mezclar** responsabilidade
 
 Clonar estructura transaccional VERTEX → **Transporte** (flotas, GPS, Guardián combustible) y **Retail** (caja rápida).
 
-Paquetes objetivo: `solutions/ferreteria`, `solutions/transporte`, `solutions/retail` bajo VERTEX.
+Paquetes objetivo: `solutions/ferreteria`, `solutions/transporte`, `solutions/retail` bajo VERTEX (cada uno **multi-sucursal** cuando aplique).
 
 ---
 
@@ -135,9 +148,9 @@ SDK común: `leer_eventos`, `emitir_alerta`, `severidad`, `dedupe_key`, `accione
 | **1** | SD-1: POS, inventario, caja | En curso |
 | **2** | Guardián uso diario + UX above-fold | En curso |
 | **3** | Docs VERTEX + API Guardián v1 | Este commit |
-| **4** | `tenant_id` nullable (diseño) | Semana 2 |
-| **5** | LhexIA Connect POC lectura | Post SD-1 |
-| **6** | Multi-tenant prod queries | ❌ Post SD-1 |
+| **4** | Diseño + migración **multi-sucursal** ([VERTEX_MULTI_SUCURSAL.md](VERTEX_MULTI_SUCURSAL.md)) | Post SD-1 |
+| **5** | Admin “Nueva sucursal” + Guardián por `sucursal_id` | SD-2 |
+| **6** | LhexIA Connect POC · multi-tenant obligatorio | Post SD-1 |
 
 Tracker vivo: [`VERTEX_SPRINT_TRACKER.md`](VERTEX_SPRINT_TRACKER.md)
 
@@ -170,6 +183,7 @@ Tracker vivo: [`VERTEX_SPRINT_TRACKER.md`](VERTEX_SPRINT_TRACKER.md)
 |---------|-------|--------|
 | 1.0 | 2026-05-21 | Plan Maestro 4 fases (nombre Matrix) |
 | 1.1 | 2026-05-21 | Renombre oficial → **Ecosistema LhexIA VERTEX** |
+| 1.2 | 2026-05-21 | Norte ERP multi-sucursal + doc VERTEX_MULTI_SUCURSAL |
 
 ---
 

@@ -23,6 +23,8 @@
 | **Biblia Ecosistema LhexIA VERTEX (4 fases)** | [`../arquitectura/LHEXIA_VERTEX_VISION.md`](../arquitectura/LHEXIA_VERTEX_VISION.md) |
 | **Tracker sprint VERTEX** | [`../arquitectura/VERTEX_SPRINT_TRACKER.md`](../arquitectura/VERTEX_SPRINT_TRACKER.md) |
 | **Cierre SD-1 Fase 1 (checklist)** | [`01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md`](01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md) |
+| **ERP multi-sucursal (diseño VERTEX)** | [`../arquitectura/VERTEX_MULTI_SUCURSAL.md`](../arquitectura/VERTEX_MULTI_SUCURSAL.md) |
+| **VERTEX Master Core (píldoras / push-pull)** | [`../arquitectura/VERTEX_MASTER_CORE.md`](../arquitectura/VERTEX_MASTER_CORE.md) |
 
 **Bitácora técnica diaria:** [`../memory.md`](../memory.md) — § «Dónde quedamos» = foco SD-1 piso.
 

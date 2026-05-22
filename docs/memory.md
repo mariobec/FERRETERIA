@@ -348,7 +348,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Prioridad código (2026-05-21):** **PLAT-1.1 ArqueoCaja** ✅ modelo + `cuadratura_arqueo_service` · siguiente **PLAT-1.2** offline cache. Paralelo: validación **SD-1 piso** (inventario, casuísticas). **FE Maullín congelado** (Form. 3230). Sin commits FE SOAP ni envíos Maullín.
+**Prioridad código (post validación piso 2026-05-21):** **SD-1 checklist piso firmado** ✅ · siguiente operativo: **3 sucursales** conteo + capacitación (SD-1.3). **PWA Dueño** en prod: `72f349a` pushed `main` 2026-05-21 → Render auto-deploy. **PLAT-1.2** offline solo si hay dolor de red. **FE Maullín congelado** (Form. 3230).
 
 ### Carril activo — SD-1 piso (operación + QA manual)
 
@@ -359,6 +359,18 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 | 3 | **TV + cierre** — prod ya desplegado | Ctrl+F5 TV cache `lhexia20260520reco2`; arqueo solo `Pagado` |
 
 **Cierre SD-1:** conteo por sucursal + ≥1 sucursal con vale → cobro sin bloqueos críticos (`SANTO_DOMINGO_ENTREGA.md`).
+
+### Checklist SD-1 piso — ejecución automática (2026-05-21 sesión Cursor)
+
+| # | Ítem | Automático | Resultado |
+|---|------|------------|-----------|
+| 1 | Enrolamiento | HTTP pytest | ✅ `test_inventario_enrolamiento` |
+| 2 | Salud inventario | HTTP pytest | ✅ `test_inventario_salud` |
+| 3 | Seed QA | script | ✅ `--clean --con-ventas-ejemplo` → vales **#2584** (Tienda), **#2585** (Bodega) |
+| 4 | CAS-V01…V05 | pytest | ✅ 6/6 + suite completa **11/11** casuísticas |
+| 5 | TV + cierre | pytest smoke | ✅ `test_pos_live_wall` 13 pass · `test_cierre_caja_modo` 3/3 |
+
+**Validación piso Mario (2026-05-21):** checklist SD-1 §8 **completo** — enrolamiento, salud, cobro vales **#2584** (Tienda/obra) y **#2585** (Bodega), TV + cierre caja sin bloqueos.
 
 ### En repo `main` local (commits recientes — 2026-05-20/21)
 
@@ -964,6 +976,8 @@ OWNER_PWA_SUCURSAL_LABEL=Santo Domingo   # texto tarjeta inventario
 **Tests smoke:** `pytest tests/test_owner_dashboard_api.py -m smoke -q`
 
 **Instalar en teléfono:** Chrome → `/owner-mobile` → “Añadir a pantalla de inicio” (usa manifest).
+
+**Validación prod completa:** `docs/planes/01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md` — manifest/SW/API 401 OK en www.lhexia.cl (2026-05-21).
 
 **Pendiente SD-2:** micrófono / voz; token API sin cookie si se requiere app nativa.
 

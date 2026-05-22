@@ -175,6 +175,16 @@ def existe_dedupe_abierta(dedupe_key: str) -> bool:
     return db.session.query(q.exists()).scalar()
 
 
+def existe_dedupe_registrada(dedupe_key: str) -> bool:
+    """True si ya hubo insert con esa clave (cualquier estado)."""
+    AgenteEjecucion = _model()
+    db = _db()
+    if not dedupe_key or not asegurar_tabla():
+        return False
+    q = AgenteEjecucion.query.filter(AgenteEjecucion.dedupe_key == dedupe_key)
+    return db.session.query(q.exists()).scalar()
+
+
 def listar_alertas_operativas(*, limite: int = 15, solo_abiertas: bool = False) -> list:
     AgenteEjecucion = _model()
     if not asegurar_tabla():

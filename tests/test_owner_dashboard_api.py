@@ -11,6 +11,12 @@ from services.agente_ejecuciones_service import (
     EST_ALERTA_ABIERTA,
     TIPO_ALERTA,
     crear_registro,
+    parse_payload_json,
+)
+from services.vertex_pildora_contract import (
+    AGENTE_VERTEX_HUB,
+    TENANT_SODIMAC,
+    asegurar_pildoras_demo_red,
 )
 from tests.conftest import login_as
 
@@ -157,7 +163,8 @@ class TestOwnerDashboardApi:
         assert b'ownerPwaApp' in r.data
         assert b'ownerGuardianFeed' in r.data
         assert b'ownerCardCredito' in r.data
-        assert b'guardian-vertex' in r.data
+        assert b'ownerGuardianStatusRing' in r.data
+        assert b'guardian-mobile' in r.data or b'owner-dashboard.css' in r.data
         assert b'ownerGuardianSemMini' in r.data
         rm = app_client.get('/owner-pwa/manifest.webmanifest')
         assert rm.status_code == 200
@@ -168,3 +175,51 @@ class TestOwnerDashboardApi:
         r = c.get('/api/v1/owner/dashboard')
         assert r.status_code == 401
         assert r.get_json().get('error') == 'login_required'
+
+    def test_dashboard_global_maestro_scope(self, app_client):
+        r = app_client.get('/api/v1/owner/dashboard?scope=global_maestro')
+        assert r.status_code == 200
+        assert r.headers.get('X-Lhexia-Scope') == 'global_maestro'
+        data = r.get_json().get('data') or {}
+        assert data.get('scope') == 'global_maestro'
+        assert data.get('panel') == 'vertex_control_center'
+        clientes = data.get('clientes') or []
+        assert len(clientes) >= 3
+        ids = {c.get('id') for c in clientes}
+        assert 'santo_domingo' in ids
+        assert 'sodimac_piloto' in ids
+        assert 'easy_demo' in ids
+        sd = next(c for c in clientes if c['id'] == 'santo_domingo')
+        assert sd.get('fuente_datos') == 'live'
+        assert 'vertex_guardian' in (sd.get('modulos_contratados') or [])
+        feed = data.get('feed_preview_global') or []
+        assert len(feed) <= 5
+        grafo = data.get('grafo_agentes') or {}
+        assert len(grafo.get('nodos') or []) >= 4
+        assert len(grafo.get('aristas') or []) >= 3
+        assert data['meta'].get('vertex_pildora_version') == '1.0'
+        if feed:
+            assert 'pildora' in feed[0]
+            assert feed[0]['pildora'].get('vertex_pildora_version') == '1.0'
+
+    def test_pildoras_demo_red_en_agente_ejecuciones(self, app_client, tabla_agente_owner):
+        n = asegurar_pildoras_demo_red()
+        assert n >= 0
+        n2 = asegurar_pildoras_demo_red()
+        assert n2 == 0
+        row = m.AgenteEjecucion.query.filter_by(
+            agente_nombre=AGENTE_VERTEX_HUB,
+            dedupe_key=f'vertex:maestro:{TENANT_SODIMAC}:traslado_retrasado',
+        ).first()
+        assert row is not None
+        pill = parse_payload_json(row.payload_json)
+        assert pill.get('tenant_id') == TENANT_SODIMAC
+        assert pill.get('modo') == 'mock'
+        assert pill.get('vertex_pildora_version') == '1.0'
+
+    def test_owner_vertex_control_shell(self, app_client):
+        r = app_client.get('/owner/vertex-control')
+        assert r.status_code == 200
+        assert b'vertexControlApp' in r.data
+        assert b'global_maestro' in r.data
+        assert b'vertex-control.js' in r.data

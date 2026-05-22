@@ -72,6 +72,22 @@ def main() -> int:
             mark = 'OK' if good else 'FAIL'
             lines.append(f'  [{mark}] {method} {path} -> {st}')
 
+        enrol = (
+            m._tablas_enrolamiento_existen()
+            if hasattr(m, '_tablas_enrolamiento_existen')
+            else False
+        )
+        lines.append(f'\nTablas enrolamiento: {"OK" if enrol else "FAIL - aplicar sql/2026_05_06_enrolamiento_inventario.sql"}')
+        if not enrol:
+            ok = False
+
+        agente = (
+            m._asegurar_tabla_agente_ejecuciones()
+            if hasattr(m, '_asegurar_tabla_agente_ejecuciones')
+            else False
+        )
+        lines.append(f'Tabla agente_ejecuciones: {"OK" if agente else "WARN"}')
+
         # Productos activos con código (muestra)
         n_prod = m.Producto.query.filter_by(activo=True).count()
         n_barra = (

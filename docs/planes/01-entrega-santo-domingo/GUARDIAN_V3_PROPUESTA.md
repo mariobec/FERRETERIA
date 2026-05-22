@@ -1,7 +1,7 @@
 # Lhexia Guardián v3 — Propuesta de máxima potencia
 
-**Estado:** Propuesta (pendiente OK Mario)  
-**Base actual:** v2 desplegada (`/api/v1/owner/dashboard`, PWA `/owner-mobile`)  
+**Estado:** V3.0 MVP **cerrado SD-1** (semáforos, feed, KPI, llamada `tel:` opcional). Voz/Push/multi-sucursal real = **SD-2+**. Ver [`GUARDIAN_SD1_ALCANCE_CERRADO.md`](GUARDIAN_SD1_ALCANCE_CERRADO.md).  
+**Base actual:** v3 (`/api/v1/owner/dashboard?v=3`, PWA `/owner-mobile`)  
 **Alineación:** SD-1 primero · IA-1 post SD-1 · SD-2 multi-sucursal caja  
 
 ---

@@ -83,6 +83,8 @@ Dashboard PWA dueño (Guardián V3).
 | Ruta | Rol |
 |------|-----|
 | `/owner-mobile` | Shell Guardián |
+| `/owner/vertex-control` | Centro de Mandos Global (maestro multi-cliente) |
+| `?scope=global_maestro` | API red VERTEX — clientes + feed global (píldora v1.0, ver [`VERTEX_MASTER_CORE.md`](VERTEX_MASTER_CORE.md)) |
 | `/owner-pwa/manifest.webmanifest` | Instalación |
 | `/owner-pwa/sw.js` | Service worker (scope PWA) |
 

@@ -5,9 +5,10 @@
 
 > Este documento es la **puerta de salida** de SD-1. Cuando todos los ítems obligatorios estén marcados, SD-1 queda **cerrado** y se abre SD-2 / demo red Chilemat.
 
-**Aclaración operativa (2026-05-21):** Ferretería Santo Domingo es **un solo establecimiento** (una dirección / operación en piso). **No tiene sucursales.** En el ERP, el inventario se trabaja por **almacenes** (ej. tienda y bodega en el mismo local). La “red” y varias sucursales en Guardián corresponden a **Chilemat / VERTEX futuro**, no al alcance SD-1.
+**Aclaración operativa (2026-05-21):** Santo Domingo hoy es **un solo establecimiento** en piso (sin locales adicionales). El inventario va por **almacenes** (tienda + bodega). **LhexIA VERTEX sí será multi-sucursal** (crear sucursales, caja/POS por local) — ver [`../../arquitectura/VERTEX_MULTI_SUCURSAL.md`](../../arquitectura/VERTEX_MULTI_SUCURSAL.md). Eso se implementa **después** de cerrar SD-1; en Guardián, textos tipo “3 sucursales” son **vista demo red** (Chilemat), no la operación actual de SD.
 
 **Runbook piso:** [`CLIENTE_SANTO_DOMINGO.md`](CLIENTE_SANTO_DOMINGO.md)  
+**Día 1 hoy:** [`SD1_DIA1_PISO.md`](SD1_DIA1_PISO.md) · `python scripts/sd1_estado_piso.py`  
 **Portal entrega:** [`SANTO_DOMINGO_ENTREGA.md`](SANTO_DOMINGO_ENTREGA.md)
 
 ---
@@ -37,10 +38,10 @@ python scripts/sd1_cierre_preflight.py
 
 | Check | Estado | Fecha |
 |-------|--------|-------|
-| A1 Smoke 113+ | [ ] | |
-| A2 Casuísticas 11/11 | [ ] | |
-| A3 Guardián API | [ ] | |
-| A4 Preflight OK | [ ] | |
+| A1 Smoke 116+ (1 skip) | [x] | 2026-05-21 |
+| A2 Casuísticas 11/11 | [x] | 2026-05-21 |
+| A3 Guardián API + global_maestro | [x] | 2026-05-21 |
+| A4 Preflight OK (2 almacenes) | [x] | 2026-05-21 |
 | A5 Deploy Render commit `________` | [ ] | |
 
 ---
@@ -51,9 +52,9 @@ Listar **solo almacenes reales** de Santo Domingo (Admin → Almacenes). Típico
 
 | Almacén | ID | Sesión enrolamiento cerrada | Fecha | Salud OK | Responsable |
 |---------|-----|----------------------------|-------|----------|-------------|
-| 1. _______________ | | [ ] | | [ ] | |
-| 2. _______________ | | [ ] | | [ ] | |
-| _(opcional)_ 3. _______ | | [ ] | | [ ] | |
+| 1. TIENDA — Tienda / Mostrador | 1 | [ ] | | [ ] | |
+| 2. BODEGA — Bodega | 2 | [ ] | | [ ] | |
+| _(preflight 2026-05-21; ajustar si Admin difiere)_ | | | | | |
 
 - [ ] D0: almacenes activos verificados (nombres anotados para capacitación)
 - [ ] Permisos `enrolamiento_inventario` a encargados
@@ -79,14 +80,16 @@ Listar **solo almacenes reales** de Santo Domingo (Admin → Almacenes). Típico
 
 ## D. LhexIA Guardián
 
+**Alcance cerrado SD-1:** [`GUARDIAN_SD1_ALCANCE_CERRADO.md`](GUARDIAN_SD1_ALCANCE_CERRADO.md)
+
 | Ítem | OK |
 |------|-----|
-| `/owner-mobile` en celular | [ ] |
-| Mini semáforos + tarjetas | [ ] |
-| Ventas hoy coherente con operación | [ ] |
-| `OWNER_SUPERVISOR_TELEFONO` en Render | [ ] |
+| `/owner-mobile` en celular (semáforos + ventas hoy) | [ ] |
+| Mini semáforos + tarjetas + feed operador | [ ] |
+| **Voz (mic)** en PWA | **N/A SD-1** — botón muestra “próximamente SD-2”; no probar |
+| **Llamar supervisor** (`+56923739904` en Render) | [ ] pegar env y probar `tel:` en celular |
 
-*Nota:* “3 sucursal(es)” en consolidado/desfalco red es **vista Chilemat/demo red**, no implica que SD tenga 3 locales.
+*Nota:* “3 sucursal(es)” en consolidado = demo red Chilemat. La voz de **bodega** es otro módulo (`/bodega/...`), no Guardián.
 
 ---
 
@@ -116,10 +119,10 @@ Listar **solo almacenes reales** de Santo Domingo (Admin → Almacenes). Típico
 
 | Día | Foco |
 |-----|------|
-| **D1** | Enrolamiento almacén Tienda + revisar salud |
+| **D1** | [`SD1_DIA1_PISO.md`](SD1_DIA1_PISO.md) — TIENDA + salud + `sd1_estado_piso.py` |
 | **D2** | Enrolamiento almacén Bodega + 1 vale/cobro retiro Bodega |
 | **D3** | Vale Mixto o repetición flujo + capacitación + Guardián + sign-off |
 
 ---
 
-*SD-1 cerrado = un ferreterón blindado. Chilemat / multi-sucursal = SD-2 y VERTEX Fase 2.*
+*SD-1 cerrado = un ferreterón blindado. Multi-sucursal (alta de sucursales, Chilemat) = SD-2 + LX-1 VERTEX.*

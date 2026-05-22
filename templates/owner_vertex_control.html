@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block body_class %}vertex-control-shell owner-pwa-shell{% endblock %}
+
+{% block extra_css %}
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#020617">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-1">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-mobile-1">
+{% endblock %}
+
+{% block content %}
+<div class="vertex-ambient" aria-hidden="true"></div>
+
+<header class="vertex-toolbar" role="banner">
+  <div class="vertex-toolbar-brand">
+    <div class="vertex-emblem" aria-hidden="true">
+      <img src="{{ lhexia_icon_transparent_src | default(lhexia_icon_src) }}" alt="">
+      <span class="vertex-emblem-ring"></span>
+    </div>
+    <div>
+      <div class="vertex-kicker">LhexIA VERTEX · {{ fecha_hoy_str }}</div>
+      <h1 class="vertex-title">Centro de Mandos Global</h1>
+      <p id="vertexMaestroGreeting" class="vertex-greeting">Multi-cliente · agentes en red</p>
+      <div id="vertexLiveStatus" class="vertex-live">
+        <span class="vertex-live-dot"></span>
+        <span class="vertex-live-text">Conectando…</span>
+      </div>
+    </div>
+  </div>
+  <div class="vertex-toolbar-actions">
+    <button type="button" id="vertexBtnRefresh" class="btn btn-sm vertex-btn-ghost" aria-label="Actualizar">
+      <i class="fas fa-rotate"></i>
+    </button>
+    <a href="{{ url_for('owner_mobile') }}" class="btn btn-sm vertex-btn-ghost fw-bold">Guardián</a>
+    <a href="{{ url_for('erp_hub') }}" class="btn btn-sm vertex-btn-accent fw-bold">Módulos</a>
+  </div>
+</header>
+
+<div
+  id="vertexControlApp"
+  class="vertex-wrap"
+  data-api-url="{{ api_maestro_url }}"
+  data-poll-ms="60000"
+>
+  <section class="vertex-hero" aria-label="Resumen red">
+    <div class="vertex-hero-badge"><i class="fas fa-satellite-dish"></i> Plataforma Maestra</div>
+    <div id="vertexResumenRed" class="vertex-resumen-chips">
+      <span class="vertex-chip">— clientes</span>
+    </div>
+  </section>
+
+  <section class="vertex-section" aria-labelledby="vertexMapTitle">
+    <h2 id="vertexMapTitle" class="vertex-section-title">
+      <i class="fas fa-project-diagram"></i> Mapa de agentes
+    </h2>
+    <div id="vertexAgentMap" class="vertex-agent-map" role="img" aria-label="Interconexión VERTEX Hub y agentes por cliente">
+      <svg id="vertexAgentMapSvg" class="vertex-agent-map-svg" viewBox="0 0 640 320" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="vertexAgentMapLegend" class="vertex-map-legend"></div>
+    </div>
+  </section>
+
+  <section class="vertex-section" aria-labelledby="vertexClientsTitle">
+    <h2 id="vertexClientsTitle" class="vertex-section-title">
+      <i class="fas fa-building"></i> Clientes en red
+    </h2>
+    <div id="vertexClientGrid" class="vertex-client-grid"></div>
+  </section>
+
+  <section class="vertex-section" aria-labelledby="vertexFeedTitle">
+    <h2 id="vertexFeedTitle" class="vertex-section-title">
+      <i class="fas fa-bolt"></i> Feed global
+      <span class="vertex-section-sub">Últimos 5 · agente_ejecuciones</span>
+    </h2>
+    <ul id="vertexFeedGlobal" class="vertex-feed-list" aria-live="polite"></ul>
+  </section>
+</div>
+
+<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-mobile-1" defer></script>
+{% endblock %}
