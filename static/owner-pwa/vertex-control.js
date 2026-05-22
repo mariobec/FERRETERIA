@@ -140,18 +140,128 @@
     return pos;
   }
 
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var circuitAnims = [];
+  var circuitLoops = [];
+
+  function cancelCircuitMotion() {
+    circuitAnims.forEach(function (a) {
+      try {
+        a.cancel();
+      } catch (e) {}
+    });
+    circuitAnims = [];
+    circuitLoops.forEach(function (l) {
+      if (l && l.cancel) l.cancel();
+    });
+    circuitLoops = [];
+  }
+
+  function circuitKind(el) {
+    if (el.classList.contains('vertex-circuit-energy--critical')) return 'critical';
+    if (el.classList.contains('vertex-circuit-energy--warn')) return 'warn';
+    return 'ok';
+  }
+
+  function animateStrokeLoop(pathEl, from, to, seconds) {
+    pathEl.removeAttribute('stroke-dashoffset');
+    if (typeof pathEl.animate === 'function') {
+      var wa = pathEl.animate(
+        [{ strokeDashoffset: from }, { strokeDashoffset: to }],
+        { duration: seconds * 1000, iterations: Infinity, easing: 'linear' }
+      );
+      circuitAnims.push(wa);
+      return;
+    }
+    var t0 = performance.now();
+    var stopped = false;
+    function tick(now) {
+      if (stopped) return;
+      var p = ((now - t0) / (seconds * 1000)) % 1;
+      var v = from + (to - from) * p;
+      pathEl.style.strokeDashoffset = String(v);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+    circuitLoops.push({
+      cancel: function () {
+        stopped = true;
+      },
+    });
+  }
+
+  function attachTravelDot(pathEl, circuit, seconds) {
+    var len = Math.max(40, pathEl.getTotalLength() || 0);
+    if (!len) return;
+    var dot = document.createElementNS(SVG_NS, 'circle');
+    dot.setAttribute('class', 'vertex-circuit-dot vertex-circuit-dot--' + circuit);
+    dot.setAttribute('r', circuit === 'critical' ? '5' : '4');
+    pathEl.parentNode.appendChild(dot);
+    var t0 = performance.now();
+    var stopped = false;
+    function tick(now) {
+      if (stopped) return;
+      var t = ((now - t0) / (seconds * 1000)) % 1;
+      var pt = pathEl.getPointAtLength(t * len);
+      dot.setAttribute('cx', String(pt.x));
+      dot.setAttribute('cy', String(pt.y));
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+    circuitLoops.push({
+      cancel: function () {
+        stopped = true;
+        if (dot.parentNode) dot.parentNode.removeChild(dot);
+      },
+    });
+  }
+
+  function attachStrokePulse(pathEl, circuit, isSecondary) {
+    var len = Math.max(80, Math.ceil(pathEl.getTotalLength()) || 400);
+    var dur = energyDuration(circuit);
+    var dash = circuit === 'critical' ? 44 : 32;
+    var seconds = isSecondary ? dur.sec : dur.main;
+    var from = len + dash;
+    var to = -len;
+    var dashStr = dash + ' ' + len;
+
+    pathEl.setAttribute('stroke-dasharray', dashStr);
+    pathEl.style.strokeDasharray = dashStr;
+    pathEl.style.strokeDashoffset = '';
+    pathEl.classList.add('vertex-circuit-energy--live');
+    animateStrokeLoop(pathEl, from, to, seconds);
+
+    if (!isSecondary && pathEl.getAttribute('d')) {
+      attachTravelDot(pathEl, circuit, seconds);
+    }
+  }
+
   function wireEnergyPaths() {
     if (!elNeuralSvg) return;
-    var paths = elNeuralSvg.querySelectorAll('.vertex-circuit-energy');
-    paths.forEach(function (p) {
-      var len = Math.ceil(p.getTotalLength()) || 400;
+    elNeuralSvg.querySelectorAll('.vertex-circuit-energy').forEach(function (p) {
+      attachStrokePulse(p, circuitKind(p), p.classList.contains('vertex-circuit-energy--secondary'));
+    });
+    elNeuralSvg.querySelectorAll('.vertex-circuit-track').forEach(function (p) {
+      var len = Math.max(80, Math.ceil(p.getTotalLength()) || 400);
       var circuit = 'ok';
-      if (p.classList.contains('vertex-circuit-energy--critical')) circuit = 'critical';
-      else if (p.classList.contains('vertex-circuit-energy--warn')) circuit = 'warn';
-      var dash = circuit === 'critical' ? 36 : 26;
-      p.style.setProperty('--path-len', String(len));
-      p.style.strokeDasharray = dash + ' ' + len;
-      p.style.strokeDashoffset = String(len);
+      if (p.classList.contains('vertex-circuit-track--critical')) circuit = 'critical';
+      else if (p.classList.contains('vertex-circuit-track--warn')) circuit = 'warn';
+      var seconds = energyDuration(circuit).main * 1.8;
+      p.classList.add('vertex-circuit-flow-anim', 'vertex-circuit-flow-anim--' + circuit);
+      var dashStr = '6 22';
+      p.setAttribute('stroke-dasharray', dashStr);
+      p.style.strokeDasharray = dashStr;
+      p.style.strokeDashoffset = '';
+      animateStrokeLoop(p, 0, -len, seconds);
+    });
+  }
+
+  function scheduleWireEnergy() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        wireEnergyPaths();
+        setTimeout(wireEnergyPaths, 120);
+      });
     });
   }
 
@@ -190,10 +300,10 @@
         if (idx === 1) {
           traces +=
             '<path class="vertex-circuit-track vertex-circuit-track--' + circuit + '" d="' + pathD + '" stroke-width="2" filter="url(#' + filter + ')"/>' +
-            '<path class="vertex-circuit-energy vertex-circuit-energy--' + circuit + '" d="' + pathD + '" style="--energy-dur:' + dur.main + 's"/>';
+            '<path class="vertex-circuit-energy vertex-circuit-energy--' + circuit + '" d="' + pathD + '"/>';
         } else {
           traces +=
-            '<path class="vertex-circuit-energy vertex-circuit-energy--' + circuit + ' vertex-circuit-energy--secondary" d="' + pathD + '" style="--energy-dur-s:' + dur.sec + 's"/>';
+            '<path class="vertex-circuit-energy vertex-circuit-energy--' + circuit + ' vertex-circuit-energy--secondary" d="' + pathD + '"/>';
         }
       });
     });
@@ -234,8 +344,9 @@
         '<line x1="' + p1.x + '" y1="' + p1.y + '" x2="' + p2.x + '" y2="' + p2.y + '" class="vertex-link-agent" stroke-width="1"/>';
     });
 
+    cancelCircuitMotion();
     elNeuralSvg.innerHTML = SVG_DEFS + '<g class="vertex-circuits">' + traces + '</g>' + nodes + agents;
-    wireEnergyPaths();
+    scheduleWireEnergy();
 
     if (elMapLegend) {
       elMapLegend.innerHTML =

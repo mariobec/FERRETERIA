@@ -262,7 +262,6 @@ body.vertex-control-shell .app-content {
   border: 1px solid rgba(34, 211, 238, 0.18);
   background: radial-gradient(ellipse 90% 70% at 50% 45%, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
   overflow: hidden;
-  contain: layout style;
   box-shadow:
     0 32px 64px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
@@ -309,61 +308,83 @@ body.vertex-control-shell .app-content {
   flex-shrink: 0;
 }
 
-.vertex-hub-orbit {
+.vertex-hub-orbit-spin {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-sizing: border-box;
+  inset: 0;
+  margin: auto;
+  display: grid;
+  place-items: center;
   will-change: transform;
+  pointer-events: none;
 }
 
-.vertex-hub-orbit--outer {
+.vertex-hub-orbit-spin--outer {
   width: 100%;
   height: 100%;
-  border: 1px dashed rgba(34, 211, 238, 0.45);
-  box-shadow: 0 0 28px rgba(34, 211, 238, 0.2);
-  animation: vertex-spin-cw 20s linear infinite;
-}
-
-.vertex-hub-orbit--mid {
-  width: 82%;
-  height: 82%;
-  border: 2px solid rgba(129, 140, 248, 0.35);
-  border-top-color: rgba(103, 232, 249, 0.7);
-  border-bottom-color: rgba(103, 232, 249, 0.25);
-  animation: vertex-spin-ccw 28s linear infinite;
-}
-
-.vertex-hub-orbit--inner {
-  width: 62%;
-  height: 62%;
-  border: 1px solid rgba(251, 191, 36, 0.4);
   animation: vertex-spin-cw 14s linear infinite;
 }
 
+.vertex-hub-orbit-spin--mid {
+  width: 82%;
+  height: 82%;
+  animation: vertex-spin-ccw 20s linear infinite;
+}
+
+.vertex-hub-orbit-spin--inner {
+  width: 62%;
+  height: 62%;
+  animation: vertex-spin-cw 9s linear infinite;
+}
+
+.vertex-hub-orbit-spin--glow {
+  width: 48%;
+  height: 48%;
+  animation: vertex-hub-breathe 3s ease-in-out infinite;
+}
+
+.vertex-hub-orbit {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.vertex-hub-orbit--outer {
+  border: 2px dashed rgba(34, 211, 238, 0.65);
+  box-shadow: 0 0 32px rgba(34, 211, 238, 0.35), inset 0 0 20px rgba(34, 211, 238, 0.08);
+}
+
+.vertex-hub-orbit--mid {
+  border: 2px solid rgba(129, 140, 248, 0.45);
+  border-top-color: rgba(103, 232, 249, 0.95);
+  border-bottom-color: rgba(103, 232, 249, 0.2);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.25);
+}
+
+.vertex-hub-orbit--inner {
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.2);
+}
+
 .vertex-hub-orbit--core-glow {
-  width: 44%;
-  height: 44%;
   border: none;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.35) 0%, transparent 70%);
-  animation: vertex-hub-breathe 3.5s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.45) 0%, transparent 72%);
 }
 
 @keyframes vertex-spin-cw {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes vertex-spin-ccw {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(-360deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
 }
 
 @keyframes vertex-hub-breathe {
-  0%, 100% { opacity: 0.55; transform: translate(-50%, -50%) scale(1); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.12); }
 }
 
 .vertex-hub-isotope {
@@ -451,41 +472,41 @@ body.vertex-control-shell .app-content {
   stroke-linejoin: round;
   stroke-width: 3;
   opacity: 0.95;
-  filter: drop-shadow(0 0 6px currentColor);
-  will-change: stroke-dashoffset;
+  filter: drop-shadow(0 0 8px currentColor);
   transition: stroke 0.55s ease, filter 0.55s ease;
 }
 
-.vertex-circuit-energy--ok {
-  stroke: #67e8f9;
-  color: #22d3ee;
-  animation: vertex-energy-travel var(--energy-dur, 2.2s) linear infinite;
-}
-
-.vertex-circuit-energy--warn {
-  stroke: #fde68a;
-  color: #fbbf24;
-  animation: vertex-energy-travel var(--energy-dur, 1.6s) linear infinite;
-}
-
+.vertex-circuit-energy--ok { stroke: #67e8f9; color: #22d3ee; }
+.vertex-circuit-energy--warn { stroke: #fde68a; color: #fbbf24; }
 .vertex-circuit-energy--critical {
   stroke: #ff6688;
   color: #ff3366;
-  filter: drop-shadow(0 0 10px rgba(255, 51, 102, 0.9));
-  animation: vertex-energy-travel var(--energy-dur, 1.05s) linear infinite;
+  filter: drop-shadow(0 0 12px rgba(255, 51, 102, 0.95));
+}
+.vertex-circuit-energy--secondary { stroke-width: 2; opacity: 0.65; }
+
+.vertex-circuit-energy--live {
+  opacity: 1;
 }
 
-.vertex-circuit-energy--secondary {
-  stroke-width: 1.5;
-  opacity: 0.55;
-  animation: vertex-energy-travel var(--energy-dur-s, 2.6s) linear infinite;
-  animation-delay: 0.35s;
+.vertex-circuit-flow-anim {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.35;
+}
+.vertex-circuit-flow-anim--ok { stroke: rgba(34, 211, 238, 0.5); }
+.vertex-circuit-flow-anim--warn { stroke: rgba(251, 191, 36, 0.55); }
+.vertex-circuit-flow-anim--critical { stroke: rgba(255, 51, 102, 0.55); }
+
+.vertex-circuit-dot {
+  pointer-events: none;
+  filter: drop-shadow(0 0 8px currentColor);
 }
 
-@keyframes vertex-energy-travel {
-  from { stroke-dashoffset: var(--path-len, 400); }
-  to { stroke-dashoffset: 0; }
-}
+.vertex-circuit-dot--ok { fill: #a5f3fc; }
+.vertex-circuit-dot--warn { fill: #fde68a; }
+.vertex-circuit-dot--critical { fill: #ff6688; }
 
 .vertex-hub-port {
   fill: rgba(34, 211, 238, 0.15);
@@ -668,6 +689,12 @@ body.vertex-control-shell .app-content {
 .vertex-glass-card--critical {
   border-color: rgba(255, 51, 102, 0.55);
   box-shadow: 0 0 24px rgba(255, 51, 102, 0.15);
+  animation: vertex-card-pulse-red 2.2s ease-in-out infinite;
+}
+
+@keyframes vertex-card-pulse-red {
+  0%, 100% { box-shadow: 0 0 16px rgba(255, 51, 102, 0.2); border-color: rgba(255, 51, 102, 0.45); }
+  50% { box-shadow: 0 0 28px rgba(255, 51, 102, 0.45); border-color: rgba(255, 100, 130, 0.85); }
 }
 
 .vertex-glass-card--warn {
@@ -1105,15 +1132,9 @@ body.vertex-control-shell .app-content {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .vertex-hub-orbit,
-  .vertex-hub-isotope,
-  .vertex-hub-port,
-  .vertex-circuit-energy,
-  .vertex-node--critical .vertex-node-halo {
-    animation: none !important;
-  }
-  .vertex-circuit-energy {
-    stroke-dashoffset: 0 !important;
-    opacity: 0.7;
-  }
+  .vertex-hub-orbit-spin--outer { animation-duration: 28s; }
+  .vertex-hub-orbit-spin--mid { animation-duration: 40s; }
+  .vertex-hub-orbit-spin--inner { animation-duration: 18s; }
+  .vertex-hub-hex { animation-duration: 8s; }
+  .vertex-glass-card--critical { animation-duration: 4s; }
 }

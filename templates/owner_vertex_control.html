@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-1">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-neural-2">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/vertex-control.css') }}?v=vertex-neural-4">
 {% endblock %}
 
 {% block content %}
@@ -65,10 +65,10 @@
       <aside id="vertexAgentRailRight" class="vertex-neural-rail vertex-neural-rail--right" aria-label="Vista previa agentes derecha"></aside>
       <div class="vertex-hub-stack" aria-hidden="true">
         <div class="vertex-hub-vault">
-          <span class="vertex-hub-orbit vertex-hub-orbit--outer"></span>
-          <span class="vertex-hub-orbit vertex-hub-orbit--mid"></span>
-          <span class="vertex-hub-orbit vertex-hub-orbit--inner"></span>
-          <span class="vertex-hub-orbit vertex-hub-orbit--core-glow"></span>
+          <div class="vertex-hub-orbit-spin vertex-hub-orbit-spin--outer"><span class="vertex-hub-orbit vertex-hub-orbit--outer"></span></div>
+          <div class="vertex-hub-orbit-spin vertex-hub-orbit-spin--mid"><span class="vertex-hub-orbit vertex-hub-orbit--mid"></span></div>
+          <div class="vertex-hub-orbit-spin vertex-hub-orbit-spin--inner"><span class="vertex-hub-orbit vertex-hub-orbit--inner"></span></div>
+          <div class="vertex-hub-orbit-spin vertex-hub-orbit-spin--glow"><span class="vertex-hub-orbit vertex-hub-orbit--core-glow"></span></div>
           <div class="vertex-hub-isotope">
             <img src="{{ url_for('static', filename='img/lhexia-icon-approved.png') }}?v=guardian-icon-1" alt="" class="vertex-hub-hex" width="64" height="64">
           </div>
@@ -99,5 +99,5 @@
   </section>
 </div>
 
-<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-neural-2" defer></script>
+<script src="{{ url_for('static', filename='owner-pwa/vertex-control.js') }}?v=vertex-neural-4" defer></script>
 {% endblock %}
