@@ -20479,11 +20479,13 @@ def lista_recepciones():
     orden_f = (request.args.get('orden') or ORDEN_FECHA).strip().lower()
     if orden_f not in (ORDEN_FECHA, ORDEN_MONTO):
         orden_f = ORDEN_FECHA
+    folio_f = (request.args.get('folio') or '').strip()
     page = max(1, request.args.get('page', 1, type=int))
 
     q = query_lista_recepciones(
         estado=estado_f or None,
         anio=anio_f if anio_f in (2025, 2026) else None,
+        folio=folio_f or None,
         orden=orden_f,
         ocultar_archivado=(estado_f != '__todos__' and estado_f != 'Archivado RCV'),
     )
@@ -20499,6 +20501,7 @@ def lista_recepciones():
     filtros = {
         'estado': estado_f,
         'anio': anio_f,
+        'folio': folio_f,
         'orden': orden_f,
         'page': page,
     }
@@ -20551,6 +20554,7 @@ def archivar_recepciones_rcv():
             'lista_recepciones',
             estado=request.args.get('estado', ''),
             anio=request.args.get('anio', ''),
+            folio=request.args.get('folio', ''),
             orden=request.args.get('orden', 'fecha'),
         )
     )

@@ -32,10 +32,19 @@ def _filtro_anio(q, year: int):
     )
 
 
+def normalizar_folio_busqueda(folio: str | None) -> str:
+    """Folio SII: solo dígitos y letras, sin puntos ni espacios extra."""
+    s = (folio or '').strip()
+    if not s:
+        return ''
+    return ''.join(ch for ch in s if ch.isalnum())
+
+
 def query_lista_recepciones(
     *,
     estado: str | None = None,
     anio: int | None = None,
+    folio: str | None = None,
     orden: str = ORDEN_FECHA,
     ocultar_archivado: bool = True,
 ):
@@ -54,6 +63,11 @@ def query_lista_recepciones(
 
     if anio in ANIOS_FILTRO:
         q = _filtro_anio(q, anio)
+
+    folio_q = normalizar_folio_busqueda(folio)
+    if folio_q:
+        patron = f'%{folio_q}%'
+        q = q.filter(RecepcionCompra.documento_numero.ilike(patron))
 
     orden = (orden or ORDEN_FECHA).strip().lower()
     if orden == ORDEN_MONTO:

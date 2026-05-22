@@ -63,17 +63,28 @@ def test_archivar_anio_2025(app_ctx, proveedor_rcv):
 
 
 @pytest.mark.smoke
+def test_query_filtro_folio(app_ctx, proveedor_rcv):
+    r = _crear_rcv(proveedor_rcv, 'FOLIO-UNICO-999', 2026, 1000.0)
+    q = query_lista_recepciones(folio='999')
+    ids = {x.id for x in q.filter(m.RecepcionCompra.proveedor_id == proveedor_rcv.id).all()}
+    assert r.id in ids
+
+
+@pytest.mark.smoke
 def test_lista_recepciones_http_filtros(app_client, proveedor_rcv):
     _crear_rcv(proveedor_rcv, 'HTTP-26', 2026, 99999.0)
+    _crear_rcv(proveedor_rcv, 'HTTP-FOLIO-42', 2026, 1.0)
     r = app_client.get(
         '/recepciones',
         query_string={
             'estado': ESTADO_PENDIENTE_ITEMS,
             'anio': 2026,
             'orden': 'monto',
+            'folio': '42',
         },
     )
     assert r.status_code == 200
+    assert b'HTTP-FOLIO-42' in r.data or b'folio=42' in r.data
     assert b'Pareto' in r.data or b'Monto total' in r.data or b'monto_total' in r.data.lower()
 
 
