@@ -60,3 +60,6 @@ liz/
 !templates/sobre_nosotros.html
 !templates/sobre_nosotros_2.html
 !static/img/lhexia_logo.svg
+
+# LhexIA Core HQ — repo Git independiente (confidencialidad plataforma SaaS)
+lhexia-core-hq/
