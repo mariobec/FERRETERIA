@@ -55,7 +55,8 @@ NO AHORA      →  multi-tenant, mover todo app.py, agentes IA en prod, refactor
 
 | Fase | Estado | Nota |
 |------|--------|------|
-| **SD-1** | 🟡 En curso | Toma inventario + venta diaria |
+| **SD-1** | 🟡 En curso | **D0 maestro Chilemat ✅** (Neon ~4.899 SKU) · **D1 lunes** piloto pistola TIENDA |
+| **SD-1 compras** | 🟡 Parcial | RCV encabezados en Neon; PDF/IA manual; doc `IMPORTAR_RCV_SII.md` |
 | POS-1…3 | ✅ Prod | Layout dock aprobado Mario (`5094d5d`) |
 | POS-4 | ✅ Prod | F8, búsqueda 2 chars (`309f02f`) |
 | **TV cliente** | ✅ Prod | Recomendaciones coherentes + tarjetas CFM (`4ae0292`, mayo 2026) |
@@ -88,10 +89,12 @@ Evitar «Fase 3» suelta. Usar **prefijo + número**:
 
 ## 6. Cliente #1 — Santo Domingo (resumen)
 
-- ~20 personas, **3 sucursales**, primer tenant implícito (una Neon, un Render).
-- **SD-1.1:** `/inventario/enrolamiento`, `/inventario/salud`, kardex.
-- **SD-1.2:** `/punto_venta`, vale → caja → cobro; búsqueda: probar filtro **Catálogo** si Operativo vacío.
-- **Cierre SD-1:** conteo por sucursal + ≥1 sucursal flujo vale sin bloqueos críticos.
+- ~20 personas, **1 establecimiento** (sin sucursales en piso; almacenes Tienda + Bodega), tenant implícito (Neon + Render).
+- **SD-1.0 (D0):** maestro Chilemat cargado Neon mayo 2026 (`productos_homologados_sd.csv`, barras `PEND-*`, stock 0).
+- **SD-1.1:** `/inventario/enrolamiento`, `/inventario/salud`, kardex — **siguiente: D1 piloto pistola** (`PAUSA_D1_PILOTO_PISTOLA.md`).
+- **SD-1.2:** `/punto_venta`, vale → caja → cobro; búsqueda: filtro **Catálogo** si Operativo vacío.
+- **Recepciones:** `/recepciones` + import RCV `--neon`; dedup folio; IA facturas post firma propuesta **$305.000**.
+- **Cierre SD-1:** conteo por **almacén** + ≥1 flujo vale sin bloqueos críticos.
 - Runbook corto piso: `../01-entrega-santo-domingo/CLIENTE_SANTO_DOMINGO.md`
 
 ---

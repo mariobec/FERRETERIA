@@ -347,20 +347,19 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Canónico:** detalle completo en **`docs/memory.md`** § «Dónde quedamos» y § «FE Maullín — pausa SII».
+**Canónico:** **`docs/memory.md`** § «Dónde quedamos» (actualizado 2026-05-22).
 
-**PRIORIDAD (2026-05-21):** solo **SD-1 piso** — inventario → casuísticas/caja/TV (checklist). Repo: `79220c9`, `d9a9594`, `dbe03ed` (offline F0). **Sin código nuevo** hasta cerrar checklist. FE ⏸ SII · Offline F1+ ⏸.
+**Cierre sesión 2026-05-22:** **D0 maestro Chilemat en Neon** (~4.899 SKU) · **RCV importado** (dedup folio) · **recepciones UI** en prod · **pausa hasta lunes D1** (piloto pistola TIENDA).
 
-**FE listo (gatillar manual cuando SII habilite firma):**
-- Petición portal SII folio **77326378627** — *Solicitud folios electrónicos y Timbraje* — estado **Recepcionada** (18/05/2026), RUT **8054120-1**.
-- Firma semilla: C14N + RSA-SHA1 + ISO-8859-1 (`facturacion_sii_soap.py`).
-- ZIP set: `storage/dtes/pruebas_sii/pruebas_sii_dte_verificacion.zip` (Acteco **475200**).
-- API: `GET /api/admin/facturacion/enviar-prueba-sii?dte_tipo=33&folio=1&reload_env=1` (sesión admin).
-- Scripts: `fe_diagnostico_sii.py`, `fe_diagnostico_sii_reintentos.py` (manual, sin bucle en background).
+| Siguiente | Doc |
+|-----------|-----|
+| **D1 lunes** — 50–80 SKU enrolamiento | `docs/planes/01-entrega-santo-domingo/PAUSA_D1_PILOTO_PISTOLA.md` |
+| RCV mensual / Pareto D2 | `docs/planes/01-entrega-santo-domingo/IMPORTAR_RCV_SII.md` |
+| Checklist D0–D5 | `docs/planes/01-entrega-santo-domingo/CHECKLIST_INVENTARIO_SD_D0_D5.md` |
 
-**TV/caja en prod (`4ae0292`):** recomendaciones TV; cierre caja solo `Pagado`; autorización descuentos POS.
+**No en Neon:** catálogo `SD-PRUEBA-*` (solo QA local). **IA facturas:** propuesta $305k aprobada; activar `OPENAI_API_KEY` en Render al firmar.
 
-**Pendiente local:** FE SOAP/TED sin commit; scaffold adapters; logos 3D. Casuísticas ✅ `79220c9`.
+**FE Maullín:** ⏸ SII (folio 77326378627 Recepcionada). **TV/caja prod:** `4ae0292`.
 
 ---
 

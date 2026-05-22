@@ -2,7 +2,7 @@
 
 > **LhexIA ERP** ([www.lhexia.cl](https://www.lhexia.cl)) — Sistema integral para ferretería y retail en Chile: ventas POS, caja con arqueo ciego, inventario multi-almacén, bodega con IA por voz, compras, créditos, facturación electrónica SII, BI gerencial, Customer 360 y torre de control para administración.
 
-**Última actualización:** 2026-05-21  
+**Última actualización:** 2026-05-22  
 **Versión operativa:** v2.0 (TEC cerrado) + **módulos v3** + **SD-1** (Santo Domingo) + **PLAT-1.1** (arqueo ciego) + **Control Center** + **VERTEX Centro de Mandos** (red neuronal + Mentor)  
 **Líneas `app.py`:** ~22.200 (monolito; rutas también en `blueprints/*`)  
 **Paquete `core/`:** dominio venta/cobro/stock (Clean Architecture ligera)  
@@ -166,6 +166,9 @@ flowchart TB
 | Ajustes | Unitario y masivo (CSV/Excel) con permiso `admin_inventario` |
 | Toma física | `/inventario/enrolamiento` — sesión, escaneo, líneas |
 | Salud inventario | `/inventario/salud` — desajustes maestro vs suma almacenes |
+| Panel inventario premium | `/inventario/dashboard-premium` — métricas reales (`inventario_dashboard_service.py`) |
+| Carga masiva catálogo | `/cargar_productos` — CSV; lotes cada 400 filas; stock 0 no exige `producto.id` previo (fix mayo 2026) |
+| Maestro Chilemat (D0) | `scripts/cargar_maestro_productos_neon.py --neon` desde `productos_homologados_sd.csv` (~4.913 SKU, `PEND-*`, stock 0) |
 | Categorías | Catálogo 2 niveles (categoría / subcategoría) |
 | Unidades | Factores conversión venta ↔ stock ↔ compra |
 | Stock crítico | Alertas bajo mínimo |
@@ -644,6 +647,7 @@ sistema_ventas_limpio/
 | GET | `/consulta-stock` | Consulta rápida | — (público) |
 | GET | `/inventario/enrolamiento` | Toma física | `enrolamiento_inventario` |
 | GET | `/inventario/salud` | Salud del inventario | `enrolamiento_inventario` |
+| GET | `/inventario/dashboard-premium` | Panel inventario (datos reales) | `ver_inventario` |
 
 ### 4.7 Bodega
 
@@ -668,6 +672,10 @@ sistema_ventas_limpio/
 | GET/POST | `/recepciones/nueva` | Nueva recepción | `gestionar_compras` |
 | GET | `/recepciones/<id>` | Detalle recepción | `gestionar_compras` |
 | GET | `/proveedores` | Maestro proveedores | `gestionar_compras` |
+
+**RCV SII (SD-1, mayo 2026):** `scripts/importar_rcv_sii.py` (**`--neon`** en prod) → `services/rcv_sii_import_service.py`. **Dedup:** mismo proveedor + tipo Factura + folio (`documento_numero`) → `omitidas_duplicado`. Sin watcher automático de `datos_rcv/`; portal DTE histórico = referencia, no import masivo. UI lista: Pareto por monto, folio, paginación 50, archivar RCV 2025 (`recepciones_lista_service.py`). Runbook: `docs/planes/01-entrega-santo-domingo/IMPORTAR_RCV_SII.md`.
+
+**PDF / IA:** adjunto por recepción en `static/uploads/recepciones/` (disco efímero Render). IA líneas requiere `OPENAI_API_KEY` (activación post firma propuesta cliente).
 
 ### 4.9 Créditos y cobranza
 
@@ -1113,6 +1121,9 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | 2026-05-21 | **Centro de Mandos VERTEX** `/owner/vertex-control`: red neuronal HUB, circuitos animados, feed global `scope=global_maestro`, píldoras v1.0 |
 | 2026-05-21 | **VERTEX animaciones** iteración neural-3→6: CSS `vertex-dash-anim`, anillos HUB, arco `conic-gradient`; fix deploy/caché |
 | 2026-05-21 | **Agente Mentor** (`vertex_mentor`): nodo violeta, tarjeta glass, demo NC → `/caja/cambios`; SD live siempre con mentor activo |
+| 2026-05-22 | **D0 maestro Chilemat:** ~4.913 SKU homologados → Neon (`scripts/cargar_maestro_productos_neon.py`); fix carga masiva `/cargar_productos` (stock sin `producto.id`) |
+| 2026-05-22 | **Recepciones SD-1:** RCV dedup folio, UI Pareto/archivo/folio, `IMPORTAR_RCV_SII.md`; panel inventario premium con datos reales (`inventario_dashboard_service.py`) |
+| 2026-05-22 | **Pausa operativa D1:** piloto pistola enrolamiento TIENDA — `PAUSA_D1_PILOTO_PISTOLA.md`; catálogo QA `SD-PRUEBA-*` solo local |
 
 ---
 

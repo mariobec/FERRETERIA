@@ -2,7 +2,7 @@
 
 **Cliente #1 LhexIA ERP** · **Alcance actual: SD-1** (POS + inventario)  
 **URL producción:** [www.lhexia.cl](https://www.lhexia.cl)  
-**Última actualización:** 2026-05-21
+**Última actualización:** 2026-05-22
 
 > **Este es el documento de entrada para todo lo operativo y técnico de Santo Domingo** (go-live, POS, inventario, infra, criterios de cierre).  
 > **Visión producto LhexIA** (comercial, multi-tenant, agentes globales) → [`LHEXIA_PRODUCTO.md`](LHEXIA_PRODUCTO.md).  
@@ -40,7 +40,8 @@ flowchart LR
 | Fase | Objetivo | Estado | Documento detalle |
 |------|----------|--------|-------------------|
 | **SD-1** | Go-live POS + inventario | 🟡 **Cierre en curso** | [`SD1_CIERRE_FASE1_VERTEX.md`](SD1_CIERRE_FASE1_VERTEX.md) |
-| SD-1.1 | Toma física | 🟡 Por **almacén** (tienda + bodega) | §4 · checklist §B |
+| SD-1.0 | Maestro Chilemat (D0) | ✅ ~4.899 SKU Neon, stock 0 | [`CHECKLIST_INVENTARIO_SD_D0_D5.md`](CHECKLIST_INVENTARIO_SD_D0_D5.md) §D0 |
+| SD-1.1 | Toma física | 🟡 **D1 lunes** — piloto pistola TIENDA | [`PAUSA_D1_PILOTO_PISTOLA.md`](PAUSA_D1_PILOTO_PISTOLA.md) |
 | SD-1.2 | POS venta diaria | ✅ Piloto OK · repetir retiros Tienda/Bodega | §5 · `docs/CASUISTICAS_VENTAS_QA.md` |
 | SD-1.3 | Infra + capacitación | ⏳ Sign-off | §6 · §E cierre |
 | **SD-2** | Caja multi-sucursal | ⏳ Post SD-1 | Caja ya madura en código |
@@ -54,8 +55,10 @@ flowchart LR
 
 | Módulo | Rutas clave | Estado repo |
 |--------|-------------|-------------|
-| **Inventario — enrolamiento** | `/inventario/enrolamiento` | ✅ |
+| **Inventario — enrolamiento** | `/inventario/enrolamiento` | ✅ · D1 lunes |
 | **Inventario — salud** | `/inventario/salud`, `?export=desajuste` | ✅ |
+| **Inventario — panel** | `/inventario/dashboard-premium` | ✅ Datos reales (mayo 2026) |
+| **Recepciones / RCV** | `/recepciones`, `importar_rcv_sii.py --neon` | ✅ Encabezados; PDF manual | [`IMPORTAR_RCV_SII.md`](IMPORTAR_RCV_SII.md) |
 | **Kardex** | `/kardex` | ✅ |
 | **Auditoría móvil** | `auditorias_inventario` + ajuste automático | ✅ |
 | **POS vendedor** | `/punto_venta`, `/buscar_producto` | ✅ Prod |

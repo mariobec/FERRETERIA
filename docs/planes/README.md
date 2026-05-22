@@ -17,6 +17,9 @@
 | **Fidelización + sorteo TV (backlog)** | [`02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`](02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md) |
 | **Vitácora reunión SD (puntos + chocolate)** | [`01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md`](01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md) |
 | **Santo Domingo entrega (portal)** | [`01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |
+| **Inventario SD D0–D5 (checklist)** | [`01-entrega-santo-domingo/CHECKLIST_INVENTARIO_SD_D0_D5.md`](01-entrega-santo-domingo/CHECKLIST_INVENTARIO_SD_D0_D5.md) |
+| **Importar RCV SII + recepciones** | [`01-entrega-santo-domingo/IMPORTAR_RCV_SII.md`](01-entrega-santo-domingo/IMPORTAR_RCV_SII.md) |
+| **Pausa / D1 piloto pistola** | [`01-entrega-santo-domingo/PAUSA_D1_PILOTO_PISTOLA.md`](01-entrega-santo-domingo/PAUSA_D1_PILOTO_PISTOLA.md) |
 | **POS offline-first (roadmap)** | [`04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](04-tecnico/ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md) |
 | **Casuísticas QA ventas** | [`../CASUISTICAS_VENTAS_QA.md`](../CASUISTICAS_VENTAS_QA.md) |
 | **PWA Dueño — validación prod** | [`01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md`](01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md) |
@@ -26,7 +29,7 @@
 | **ERP multi-sucursal (diseño VERTEX)** | [`../arquitectura/VERTEX_MULTI_SUCURSAL.md`](../arquitectura/VERTEX_MULTI_SUCURSAL.md) |
 | **VERTEX Master Core (píldoras / push-pull)** | [`../arquitectura/VERTEX_MASTER_CORE.md`](../arquitectura/VERTEX_MASTER_CORE.md) |
 
-**Bitácora técnica diaria:** [`../memory.md`](../memory.md) — § «Dónde quedamos» = foco SD-1 piso.
+**Bitácora técnica diaria:** [`../memory.md`](../memory.md) — § «Dónde quedamos» (2026-05-22: D0 ✅, D1 lunes).
 
 ---
 
@@ -50,7 +53,7 @@
 
 | Archivo | Rol |
 |---------|-----|
-| `ERP_MAESTRO.md` | **Mapa técnico + especificación funcional integral (§0) + planes (§19)** — actualizado 2026-05-21 |
+| `ERP_MAESTRO.md` | **Mapa técnico + especificación funcional integral (§0) + planes (§19)** — actualizado 2026-05-22 |
 | `FLUJOS_CRITICOS.md` | Secuencias que no romper |
 | `MIGRACION_RENDER_NEON.md` | Deploy y Neon |
 | `CASUISTICAS_PRUEBAS.md` | QA |

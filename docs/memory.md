@@ -225,6 +225,8 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 
 | Fecha       | Qué pasó |
 |------------|----------|
+| 2026-05-22 | **Cierre sesión SD-1 inventario/compras:** D0 maestro 4.913 en Neon (`cargar_maestro_productos_neon.py`); RCV dedup; UI recepciones Pareto/archivo/folio; doc `IMPORTAR_RCV_SII.md` + `PAUSA_D1_PILOTO_PISTOLA.md`; commits `c239429`, `14db53a`; propuesta IA facturas **$305k** aprobada (API pendiente Render). |
+| 2026-05-22 | **Recepciones + inventario UI:** `rcv_sii_import_service.py`, `recepciones_lista_service.py`, fix `/cargar_productos` 5k SKU, panel premium real (`inventario_dashboard_service.py`), QA `SD-PRUEBA-*` solo local. |
 | 2026-05-22 | **Inventario SD D0–D5:** `homologar_productos_excel.py --maestro` (`codigo_chilemat`, `PEND-*`, stock 0); checklist `CHECKLIST_INVENTARIO_SD_D0_D5.md`. |
 | 2026-05-22 | **Operación empresa:** Admin → Empresa — un local vs red (`operacion_un_local`, `operacion_sucursales_red_n`); `empresa_operacion_service.py`; Guardián lee JSON. Docs: SD ≠ 3 sucursales en piso. |
 | 2026-05-08 | Memoria arquitectura; módulos; venta dual POS vs formulario; caja día anterior; plan v2 Grok. |
@@ -350,17 +352,31 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Prioridad código (post validación piso 2026-05-21):** **SD-1 checklist piso firmado** ✅ · siguiente operativo: **un establecimiento** — enrolamiento por **almacenes** (Tienda + Bodega) + capacitación POS/caja (SD-1.3). **Multi-sucursal** = opción Admin → Empresa (`operacion_un_local`) + CRUD sucursales SD-2, no “3 locales” en SD. **PWA Guardián** en prod. **PLAT-1.2** offline solo si hay dolor de red. **FE Maullín congelado** (Form. 3230).
+**Cierre sesión 2026-05-22:** **D0 cerrado** · **RCV + recepciones en prod** · **pausa hasta D1 (lunes — piloto pistola)**.
 
-### Carril activo — SD-1 piso (operación + QA manual)
+### Estado SD-1 (mayo 2026)
 
-| Orden | Qué | Evidencia / herramienta |
-|-------|-----|-------------------------|
-| 1 | **Inventario** — enrolamiento + salud | `/inventario/enrolamiento`, `/inventario/salud` |
-| 2 | **POS + caja** — flujo vale completo | `docs/CASUISTICAS_VENTAS_QA.md` + `python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo` |
-| 3 | **TV + cierre** — prod ya desplegado | Ctrl+F5 TV cache `lhexia20260520reco2`; arqueo solo `Pagado` |
+| Hito | Estado | Notas |
+|------|--------|-------|
+| **D0 — Maestro Chilemat** | ✅ Cerrado | `productos_homologados_sd.csv` (4.913) → Neon vía `scripts/cargar_maestro_productos_neon.py` (~4.899 activos, `PEND-*`, stock 0) |
+| **RCV encabezados SII** | ✅ En Neon | Import CSV; **dedup automático** proveedor+folio (`omitidas_duplicado` al reimportar) |
+| **DTE portal histórico SII** | ✅ Validado | Detalle líneas = referencia; **no** import automático al ERP |
+| **UI `/recepciones`** | ✅ `main` | Pareto monto, folio, paginación 50, archivar RCV 2025, buscador folio (`14db53a`, `ab907b2`…) |
+| **PDF + IA facturas** | Manual 1×1 | Adjuntar en detalle recepción; IA requiere `OPENAI_API_KEY` Render (propuesta **$305.000** aprobada por cliente — activar al firmar) |
+| **D1 — Piloto pistola** | ⏸ Lunes | `docs/planes/01-entrega-santo-domingo/PAUSA_D1_PILOTO_PISTOLA.md` |
+| **D2 — Pareto facturas** | Después D1 | Top 300–500 de `/recepciones` 2026; doc `IMPORTAR_RCV_SII.md` |
+| **QA local SD-PRUEBA** | Solo local | `SD-PRUEBA-*` / `seed_sd_prueba_casuisticas.py` — **no** subir a Neon |
 
-**Cierre SD-1:** conteo por **almacén** del establecimiento + ≥1 vale → cobro sin bloqueos críticos (`SANTO_DOMINGO_ENTREGA.md`).
+### Carril activo — retomar lunes (D1)
+
+| Orden | Qué | Ruta / doc |
+|-------|-----|------------|
+| 1 | **Enrolamiento TIENDA** (50–80 SKU) | `/inventario/enrolamiento` · `PAUSA_D1_PILOTO_PISTOLA.md` |
+| 2 | Salud inventario (muestra) | `/inventario/salud` |
+| 3 | Panel inventario premium (datos reales) | `/inventario/dashboard-premium` |
+| 4 | Recepciones Pareto (si sobra tiempo) | `/recepciones` + `IMPORTAR_RCV_SII.md` |
+
+**Reglas pistola:** escanear **EAN del envase**; Caso B = buscar **código Chilemat** o nombre. **Multi-sucursal** post SD-1. **FE Maullín** congelado.
 
 ### Checklist SD-1 piso — ejecución automática (2026-05-21 sesión Cursor)
 

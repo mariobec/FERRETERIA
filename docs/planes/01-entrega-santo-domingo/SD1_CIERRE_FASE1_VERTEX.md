@@ -56,7 +56,9 @@ Listar **solo almacenes reales** de Santo Domingo (Admin → Almacenes). Típico
 | 2. BODEGA — Bodega | 2 | [ ] | | [ ] | |
 | _(preflight 2026-05-21; ajustar si Admin difiere)_ | | | | | |
 
-- [ ] D0: almacenes activos verificados (nombres anotados para capacitación)
+- [x] D0: maestro Chilemat en Neon (~4.899 SKU, stock 0, `PEND-*`) — 2026-05-22
+- [ ] D0: almacenes activos verificados en piso (nombres anotados para capacitación)
+- [ ] D1: piloto pistola TIENDA (50–80 SKU) — ver `PAUSA_D1_PILOTO_PISTOLA.md`
 - [ ] Permisos `enrolamiento_inventario` a encargados
 - [ ] Backup Neon antes de ajustes masivos: fecha _______
 

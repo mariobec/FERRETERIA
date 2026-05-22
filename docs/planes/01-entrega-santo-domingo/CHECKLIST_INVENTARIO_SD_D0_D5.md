@@ -3,7 +3,8 @@
 **Cliente:** Ferretería Santo Domingo (1 establecimiento · almacenes Tienda + Bodega)  
 **Sistema:** LhexIA ERP — [www.lhexia.cl](https://www.lhexia.cl)  
 **Estrategia:** Maestro Chilemat (stock 0) → piloto pistola → facturas Pareto 2026 → enrolamiento físico  
-**Fecha referencia:** Mayo 2026
+**Fecha referencia:** Mayo 2026  
+**Estado 2026-05-22:** **D0 cerrado** (maestro ~4.899 SKU en Neon) · **D1** lunes (`PAUSA_D1_PILOTO_PISTOLA.md`)
 
 ---
 
@@ -27,9 +28,11 @@
 
 ---
 
-## D0 — Homologar y cargar maestro (escritorio, ~4 h)
+## D0 — Homologar y cargar maestro (escritorio, ~4 h) ✅ Cerrado 2026-05-22
 
 **Objetivo:** Catálogo en ERP con **stock = 0**; barras reales se asignan en D2–D4.
+
+**Evidencia:** `CARGA DE DATOS/productos_homologados_sd.csv` (4.913 filas) → `python scripts/cargar_maestro_productos_neon.py --neon` (~4.899 creados, 14 actualizados). Alternativa web: Productos → Carga masiva (fix 5k filas en `main`).
 
 ### D0.1 Limpiar matriz Chilemat
 
@@ -71,11 +74,13 @@ python scripts/sd1_cierre_preflight.py
 
 - Objetivo D0: **productos activos >> 10** y la mayoría con algún identificador.
 
-**Criterio D0 cerrado:** ≥ 80 % del catálogo objetivo cargado con nombre + Chilemat; stock 0 en todo el maestro.
+**Criterio D0 cerrado:** ≥ 80 % del catálogo objetivo cargado con nombre + Chilemat; stock 0 en todo el maestro. **→ Cumplido.**
 
 ---
 
-## D1 — Piloto pistola + Caso B (piso, ~1 jornada)
+## D1 — Piloto pistola + Caso B (piso, ~1 jornada) ⏸ Lunes
+
+**Runbook:** [`PAUSA_D1_PILOTO_PISTOLA.md`](PAUSA_D1_PILOTO_PISTOLA.md)
 
 **Objetivo:** Medir cuántos productos “no coinciden” y entrenar al operador en **vincular**.
 
