@@ -1,7 +1,7 @@
 """
 Casuísticas integrales: venta (POS POST) → cobro caja → entrega tienda/bodega/mixto.
 
-Requiere catálogo TEST-CAS (fixture catalogo_casuisticas_qa o
+Requiere catálogo SD-PRUEBA (fixture catalogo_casuisticas_qa o
 `python scripts/seed_ventas_casuisticas_qa.py`).
 
 Matriz de IDs: tests/qa_catalogo_casuisticas.py → ESCENARIOS_VENTA

@@ -33,7 +33,7 @@ class TestPosLiveWall:
         """Panel derecho TV: 2-4 recomendaciones con clavo/obra en carrito."""
         _ensure_caja_abierta()
         cat = catalogo_casuisticas_qa
-        clavo = cat['by_barcode'].get('TEST-CAS-OFE-001') or cat['oferta_clavo']
+        clavo = cat['oferta_clavo']
         cemento = cat['cemento']
         venta, _ = crear_venta_pendiente(
             [(clavo, 1), (cemento, 1)],
@@ -58,7 +58,7 @@ class TestPosLiveWall:
         """Solo clavos: perfil fijación, sin herramientas eléctricas caras."""
         _ensure_caja_abierta()
         cat = catalogo_casuisticas_qa
-        clavo = cat['by_barcode'].get('TEST-CAS-OFE-001') or cat['oferta_clavo']
+        clavo = cat['oferta_clavo']
         venta, _ = crear_venta_pendiente(
             [(clavo, 2)],
             caja_abierta,

@@ -1,147 +1,267 @@
 """
-Catálogo QA — casuísticas de venta, caja, crédito, saldo a favor y obra (C360 / cross-sell).
+Catálogo QA — casuísticas venta, caja, crédito, saldo a favor, obra (C360 / cross-sell).
 
-Prefijos:
-  - Productos: codigo_barra `TEST-CAS-*`
-  - Clientes: nombre `TEST CAS *` y RUTs dedicados
+Prefijos Santo Domingo prueba:
+  - Productos: nombre `SD PRUEBA PRODUCTO …`, barras `SD-PRUEBA-*`
+  - Clientes: nombre `SD PRUEBA CLIENTE …`
 
-Usado por `tests/conftest.py`, `scripts/seed_ventas_casuisticas_qa.py` y
-`tests/test_ventas_casuisticas_flujo.py`.
+Precios: cada ítem trae `precio_compra`; `precio_venta` se calcula con margen
+objetivo (mark-up sobre costo) y terminación $90 salvo override.
+
+Usado por conftest, `scripts/seed_ventas_casuisticas_qa.py`, `scripts/seed_sd_prueba_casuisticas.py`.
 """
 from __future__ import annotations
 
-QA_CAS_PREFIX_BARCODE = 'TEST-CAS-'
+import csv
+from pathlib import Path
+
+QA_CAS_PREFIX_BARCODE = 'SD-PRUEBA-'
+QA_CAS_PREFIX_NOMBRE = 'SD PRUEBA PRODUCTO '
+QA_CAS_PREFIX_CLIENTE = 'SD PRUEBA CLIENTE '
 QA_CAS_USER = 'QA_CAS_TEST'
 
-# ── Productos ───────────────────────────────────────────────────────
-PRODUCTOS_CASUISTICAS = [
-    dict(
-        nombre='TEST CAS Cemento especial 25kg',
-        codigo_barra='TEST-CAS-CEM-001',
-        codigo_interno='TCAS-CEM-001',
-        precio_compra=4500,
-        precio_venta=7990,
+# Margen objetivo medio (~32 % sobre costo → markup tipo ferretería)
+MARGEN_VENTA_DEFAULT = 0.32
+TERMINACION_PRECIO_DEFAULT = 90
+
+# Códigos de barras estables (tests y seeds referencian estas constantes)
+BC_CEMENTO = 'SD-PRUEBA-CEM-001'
+BC_ARENA = 'SD-PRUEBA-ARE-001'
+BC_PVC = 'SD-PRUEBA-PVC-001'
+BC_PEGAMENTO = 'SD-PRUEBA-PEG-001'
+BC_LLAVE = 'SD-PRUEBA-LLV-001'
+BC_OFERTA_CLAVO = 'SD-PRUEBA-OFE-001'
+BC_OFERTA_BROCHA = 'SD-PRUEBA-OFE-002'
+BC_STOCK_BAJO = 'SD-PRUEBA-STK-001'
+BC_ALTO_ROTACION = 'SD-PRUEBA-VAR-001'
+
+# Legacy TEST-CAS (limpieza); ya no se crean en upsert
+LEGACY_BARCODE_PREFIX = 'TEST-CAS-'
+
+
+def precio_venta_desde_costo(
+    precio_compra: float,
+    margen: float = MARGEN_VENTA_DEFAULT,
+    terminacion: int = TERMINACION_PRECIO_DEFAULT,
+) -> float:
+    """Misma lógica que `_precio_sugerido_redondeado` en app.py (terminación 90)."""
+    try:
+        costo = float(precio_compra or 0)
+        margen = float(margen or MARGEN_VENTA_DEFAULT)
+    except (TypeError, ValueError):
+        return 0.0
+    margen = min(max(margen, 0.01), 0.90)
+    if costo <= 0:
+        return 0.0
+    base = costo / (1 - margen)
+    entero = int(round(base))
+    term = int(terminacion or 0)
+    if term == 90:
+        red = (entero // 100) * 100 + 90
+        if red < base:
+            red += 100
+        return float(red)
+    if term == 990:
+        miles = entero // 1000
+        red = miles * 1000 + 990
+        if red < base:
+            red = (miles + 1) * 1000 + 990
+        return float(red)
+    if term == 50:
+        red = (entero // 100) * 100 + 50
+        if red < base:
+            red += 100
+        return float(red)
+    return float(entero)
+
+
+def _producto(
+    codigo: str,
+    desc: str,
+    precio_compra: float,
+    *,
+    stock: int = 60,
+    unidad: str = 'Unidad',
+    categoria: str = 'Ferreteria',
+    subcategoria: str = '',
+    fase_obra: str | None = None,
+    margen: float | None = None,
+    precio_venta: float | None = None,
+    escenarios: tuple[str, ...] = (),
+    pos_oferta: bool = False,
+    pos_oferta_pct: float = 0.0,
+    codigo_chilemat: str | None = None,
+) -> dict:
+    mg = margen if margen is not None else MARGEN_VENTA_DEFAULT
+    pv = float(precio_venta) if precio_venta is not None else precio_venta_desde_costo(precio_compra, mg)
+    slug = codigo.replace(QA_CAS_PREFIX_BARCODE, '').replace('-', '')
+    row = dict(
+        nombre=f'{QA_CAS_PREFIX_NOMBRE}{desc}',
+        codigo_barra=codigo,
+        codigo_interno=f'SDPR-{slug}',
+        codigo_chilemat=codigo_chilemat or f'SDPR-{slug}',
+        precio_compra=float(precio_compra),
+        precio_venta=pv,
+        precio_mayoreo=max(0, int(round(pv * 0.94 / 10) * 10)),
+        stock=int(stock),
+        unidad=unidad,
+        categoria=categoria,
+        subcategoria=subcategoria or None,
+        fase_obra=fase_obra,
+        activo=True,
+        _escenarios=escenarios,
+    )
+    if pos_oferta:
+        row['_pos_descuento_preautorizado'] = True
+        row['_pos_descuento_preautorizado_pct'] = float(pos_oferta_pct)
+    return row
+
+
+# ── Productos (precio_compra obligatorio; venta = costo + margen medio) ──
+_PRODUCTOS_RAW = [
+    _producto(
+        BC_CEMENTO,
+        'Cemento especial 25kg',
+        4500,
         stock=80,
         unidad='Saco',
         categoria='Materiales',
         subcategoria='Cemento',
         fase_obra='OBRA_GRUESA',
-        activo=True,
+        escenarios=('CAS-V01', 'CAS-V04', 'CAS-V07', 'CAS-V08', 'CAS-C01'),
     ),
-    dict(
-        nombre='TEST CAS Arena gruesa m3',
-        codigo_barra='TEST-CAS-ARE-001',
-        codigo_interno='TCAS-ARE-001',
-        precio_compra=12000,
-        precio_venta=18990,
+    _producto(
+        BC_ARENA,
+        'Arena gruesa m3',
+        12000,
         stock=40,
         unidad='M3',
         categoria='Materiales',
         subcategoria='Arena',
         fase_obra='OBRA_GRUESA',
-        activo=True,
+        escenarios=('CAS-V05', 'CAS-V07'),
     ),
-    dict(
-        nombre='TEST CAS Tuberia PVC 32mm 3m',
-        codigo_barra='TEST-CAS-PVC-001',
-        codigo_interno='TCAS-PVC-001',
-        precio_compra=2200,
-        precio_venta=4490,
+    _producto(
+        BC_PVC,
+        'Tuberia PVC 32mm 3m',
+        2200,
         stock=60,
-        unidad='Unidad',
         categoria='Gasfiteria',
         subcategoria='PVC',
         fase_obra='INSTALACIONES',
-        activo=True,
+        escenarios=('CAS-V02', 'CAS-V03'),
     ),
-    dict(
-        nombre='TEST CAS Pegamento PVC 250cc',
-        codigo_barra='TEST-CAS-PEG-001',
-        codigo_interno='TCAS-PEG-001',
-        precio_compra=1800,
-        precio_venta=3290,
+    _producto(
+        BC_PEGAMENTO,
+        'Pegamento PVC 250cc',
+        1800,
         stock=90,
-        unidad='Unidad',
         categoria='Gasfiteria',
         subcategoria='Pegamentos',
         fase_obra='INSTALACIONES',
-        activo=True,
+        escenarios=('CAS-V07',),
     ),
-    dict(
-        nombre='TEST CAS Llave stillson 14"',
-        codigo_barra='TEST-CAS-LLV-001',
-        codigo_interno='TCAS-LLV-001',
-        precio_compra=6500,
-        precio_venta=11990,
+    _producto(
+        BC_LLAVE,
+        'Llave stillson 14 pulg',
+        6500,
         stock=25,
-        unidad='Unidad',
         categoria='Herramientas',
         subcategoria='Llaves',
         fase_obra='TERMINACIONES',
-        activo=True,
+        escenarios=('CAS-V08',),
     ),
-    dict(
-        nombre='TEST CAS OFERTA Clavo 3" promo',
-        codigo_barra='TEST-CAS-OFE-001',
-        codigo_interno='TCAS-OFE-001',
-        precio_compra=900,
-        precio_venta=1990,
+    _producto(
+        BC_OFERTA_CLAVO,
+        'Clavo 3 pulg promo POS',
+        900,
         stock=500,
         unidad='Caja',
         categoria='Fijaciones',
         subcategoria='Clavos',
         fase_obra='OBRA_GRUESA',
-        pos_descuento_preautorizado=True,
-        pos_descuento_preautorizado_pct=15.0,
-        activo=True,
+        escenarios=('CAS-V01', 'CAS-V03', 'CAS-V06'),
+        pos_oferta=True,
+        pos_oferta_pct=15.0,
     ),
-    dict(
-        nombre='TEST CAS OFERTA Brocha 4" promo',
-        codigo_barra='TEST-CAS-OFE-002',
-        codigo_interno='TCAS-OFE-002',
-        precio_compra=1200,
-        precio_venta=2990,
+    _producto(
+        BC_OFERTA_BROCHA,
+        'Brocha 4 pulg promo POS',
+        1200,
         stock=120,
-        unidad='Unidad',
         categoria='Pinturas',
         subcategoria='Brochas',
         fase_obra='ACABADOS',
-        pos_descuento_preautorizado=True,
-        pos_descuento_preautorizado_pct=10.0,
-        activo=True,
+        escenarios=('CAS-V06',),
+        pos_oferta=True,
+        pos_oferta_pct=10.0,
+    ),
+    _producto(
+        BC_STOCK_BAJO,
+        'Guante nitrilo par (stock critico QA)',
+        1500,
+        stock=3,
+        categoria='Seguridad',
+        subcategoria='EPP',
+        escenarios=('stock_critico',),
+        margen=0.28,
+    ),
+    _producto(
+        BC_ALTO_ROTACION,
+        'Tornillo drywall 6x1 caja',
+        2800,
+        stock=200,
+        unidad='Caja',
+        categoria='Fijaciones',
+        subcategoria='Tornillos',
+        escenarios=('rotacion',),
     ),
 ]
+
+PRODUCTOS_CASUISTICAS = []
+for _raw in _PRODUCTOS_RAW:
+    row = dict(_raw)
+    row.pop('_escenarios', None)
+    row.pop('_pos_descuento_preautorizado', None)
+    row.pop('_pos_descuento_preautorizado_pct', None)
+    PRODUCTOS_CASUISTICAS.append(row)
+
+# Metadatos por código (documentación / CSV)
+PRODUCTO_ESCENARIOS = {
+    r['codigo_barra']: _raw['_escenarios']
+    for r, _raw in zip(PRODUCTOS_CASUISTICAS, _PRODUCTOS_RAW)
+}
 
 CLIENTES_CASUISTICAS = [
     dict(
         rut='22.222.222-2',
-        nombre='TEST CAS Cliente Saldo Favor',
+        nombre=f'{QA_CAS_PREFIX_CLIENTE}Saldo Favor',
         giro='Particular',
         direccion='Calle Saldo 100, Santiago',
         telefono='+56922222222',
-        correo='saldo.favor@cas-test.cl',
+        correo='sd.prueba.saldo.favor@lhexia.cl',
         limite_credito=500_000,
         c360_etapa_actual='ACABADOS',
         saldo_favor_inicial=25_000,
     ),
     dict(
         rut='33.333.333-3',
-        nombre='TEST CAS Cliente Obra Gruesa',
+        nombre=f'{QA_CAS_PREFIX_CLIENTE}Obra Gruesa',
         giro='Constructor',
         direccion='Av. Obra 2000, Santiago',
         telefono='+56933333333',
-        correo='obra.gruesa@cas-test.cl',
+        correo='sd.prueba.obra@lhexia.cl',
         limite_credito=3_000_000,
         c360_etapa_actual='OBRA_GRUESA',
         saldo_favor_inicial=0,
     ),
     dict(
         rut='44.444.444-4',
-        nombre='TEST CAS Cliente Credito Cupo',
+        nombre=f'{QA_CAS_PREFIX_CLIENTE}Credito Cupo',
         giro='Electricista',
         direccion='Pasaje Volt 55, Maipu',
         telefono='+56944444444',
-        correo='credito.cupo@cas-test.cl',
+        correo='sd.prueba.credito@lhexia.cl',
         limite_credito=800_000,
         saldo_deudor_inicial=150_000,
         c360_etapa_actual='INSTALACIONES',
@@ -149,27 +269,41 @@ CLIENTES_CASUISTICAS = [
     ),
 ]
 
-# Matriz documentada (ID → escenario)
 ESCENARIOS_VENTA = {
-    'CAS-V01': 'POS emitir -> cobro efectivo retiro Tienda',
-    'CAS-V02': 'POS emitir -> cobro efectivo retiro Bodega -> preparacion bodega',
-    'CAS-V03': 'Vale mixto: linea Tienda + linea Bodega (retiro por linea)',
-    'CAS-V04': 'Cliente credito: cobro metodo Credito incrementa saldo_deudor',
-    'CAS-V05': 'Cliente saldo a favor: cobro con usar_saldo_favor parcial',
-    'CAS-V06': 'Producto OFERTA preautorizado (descuento POS sin supervisor)',
-    'CAS-V07': 'Cross-sell: carrito cemento sugiere arena/herramientas',
-    'CAS-V08': 'Cliente obra: historial cemento alimenta C360 / recomendaciones',
-    'CAS-C01': 'OC borrador con producto CAS -> recepcion parcial',
+    'CAS-V01': 'POS emitir -> cobro efectivo retiro Tienda (oferta clavo)',
+    'CAS-V02': 'POS emitir -> cobro efectivo retiro Bodega -> preparacion bodega (PVC)',
+    'CAS-V03': 'Vale mixto: linea Tienda + linea Bodega (oferta + PVC)',
+    'CAS-V04': 'Cliente credito: cobro Credito incrementa saldo_deudor (cemento)',
+    'CAS-V05': 'Cliente saldo a favor: cobro con usar_saldo_favor parcial (arena)',
+    'CAS-V06': 'Producto OFERTA preautorizado (clavo / brocha)',
+    'CAS-V07': 'Cross-sell: carrito cemento sugiere arena / complementos',
+    'CAS-V08': 'Cliente obra: etapa OBRA_GRUESA + producto fase_obra',
+    'CAS-C01': 'OC borrador con producto SD-PRUEBA -> recepcion',
+    'STOCK-BAJO': 'Producto SD-PRUEBA-STK-001 con stock <= umbral critico',
 }
 
 
+def _producto_row_para_upsert(data: dict) -> tuple[dict, dict | None]:
+    """Separa campos Producto vs flags POS opcionales."""
+    row = dict(data)
+    pos_pre = row.pop('pos_descuento_preautorizado', None)
+    pos_pct = row.pop('pos_descuento_preautorizado_pct', None)
+    meta = None
+    raw = next((r for r in _PRODUCTOS_RAW if r['codigo_barra'] == data.get('codigo_barra')), None)
+    if raw:
+        if raw.get('_pos_descuento_preautorizado'):
+            pos_pre = True
+            pos_pct = raw.get('_pos_descuento_preautorizado_pct')
+    if pos_pre is not None or pos_pct is not None:
+        meta = {'pos_pre': pos_pre, 'pos_pct': pos_pct}
+    return row, meta
+
+
 def upsert_catalogo_casuisticas(db, m):
-    """Crea/actualiza productos y clientes del catálogo CAS en la BD actual."""
+    """Crea/actualiza productos y clientes SD-PRUEBA en la BD actual."""
     productos = []
     for data in PRODUCTOS_CASUISTICAS:
-        row = dict(data)
-        pos_pre = row.pop('pos_descuento_preautorizado', None)
-        pos_pct = row.pop('pos_descuento_preautorizado_pct', None)
+        row, meta = _producto_row_para_upsert(dict(data))
         p = m.Producto.query.filter_by(codigo_barra=row['codigo_barra']).first()
         if not p:
             p = m.Producto(**row)
@@ -177,29 +311,34 @@ def upsert_catalogo_casuisticas(db, m):
         else:
             for k, v in row.items():
                 setattr(p, k, v)
-        if pos_pre is not None:
-            p.pos_descuento_preautorizado = bool(pos_pre)
-        if pos_pct is not None:
-            p.pos_descuento_preautorizado_pct = float(pos_pct)
+        if meta:
+            if meta.get('pos_pre') is not None:
+                p.pos_descuento_preautorizado = bool(meta['pos_pre'])
+            if meta.get('pos_pct') is not None:
+                p.pos_descuento_preautorizado_pct = float(meta['pos_pct'])
         productos.append(p)
     db.session.flush()
 
     aid_t = m.id_almacen_tienda()
     aid_b = m.id_almacen_bodega()
     for p in productos:
+        st = int(p.stock or 0)
         if aid_t:
             spa = m.StockPorAlmacen.query.filter_by(id_producto=p.id, id_almacen=aid_t).first()
+            qty_t = max(st, 5) if p.codigo_barra != BC_STOCK_BAJO else st
             if not spa:
-                db.session.add(m.StockPorAlmacen(id_producto=p.id, id_almacen=aid_t, cantidad=p.stock or 0))
+                db.session.add(m.StockPorAlmacen(id_producto=p.id, id_almacen=aid_t, cantidad=qty_t))
             else:
-                spa.cantidad = max(float(spa.cantidad or 0), float(p.stock or 0))
+                spa.cantidad = max(float(spa.cantidad or 0), float(qty_t))
         if aid_b:
             spb = m.StockPorAlmacen.query.filter_by(id_producto=p.id, id_almacen=aid_b).first()
-            qty_b = max(10, int((p.stock or 0) // 2))
+            qty_b = max(10, st // 2) if p.codigo_barra != BC_STOCK_BAJO else max(0, st)
             if not spb:
                 db.session.add(m.StockPorAlmacen(id_producto=p.id, id_almacen=aid_b, cantidad=qty_b))
             else:
                 spb.cantidad = max(float(spb.cantidad or 0), float(qty_b))
+        if hasattr(m, '_refrescar_stock_total_producto'):
+            m._refrescar_stock_total_producto(p)
 
     clientes = []
     for data in CLIENTES_CASUISTICAS:
@@ -229,7 +368,7 @@ def upsert_catalogo_casuisticas(db, m):
                     tipo='CREDITO',
                     monto=sf_ini,
                     saldo_resultante=sf_ini,
-                    observacion='Seed QA casuísticas — saldo inicial',
+                    observacion='Seed SD-PRUEBA casuísticas — saldo inicial',
                 )
             )
         clientes.append(cli)
@@ -238,8 +377,42 @@ def upsert_catalogo_casuisticas(db, m):
     return productos, clientes
 
 
+def export_csv_casuisticas(path: str | Path) -> Path:
+    """Exporta catálogo a CSV (carga masiva / revisión de márgenes)."""
+    path = Path(path)
+    cols = [
+        'nombre', 'codigo_chilemat', 'codigo_interno', 'codigo_barra',
+        'precio_compra', 'precio_venta', 'precio_mayoreo',
+        'unidad_compra', 'unidad_venta', 'factor_conversion', 'stock',
+        'categoria', 'subcategoria', 'escenarios_qa',
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('w', encoding='utf-8', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for p in PRODUCTOS_CASUISTICAS:
+            esc = ','.join(PRODUCTO_ESCENARIOS.get(p['codigo_barra'], ()))
+            w.writerow({
+                'nombre': p['nombre'],
+                'codigo_chilemat': p.get('codigo_chilemat', ''),
+                'codigo_interno': p.get('codigo_interno', ''),
+                'codigo_barra': p['codigo_barra'],
+                'precio_compra': p['precio_compra'],
+                'precio_venta': p['precio_venta'],
+                'precio_mayoreo': p.get('precio_mayoreo', ''),
+                'unidad_compra': p.get('unidad', 'Unidad'),
+                'unidad_venta': p.get('unidad', 'Unidad'),
+                'factor_conversion': 1,
+                'stock': p['stock'],
+                'categoria': p.get('categoria', ''),
+                'subcategoria': p.get('subcategoria', '') or '',
+                'escenarios_qa': esc,
+            })
+    return path
+
+
 def limpiar_catalogo_casuisticas(db, m, sa_text):
-    """Borra ventas y maestros TEST-CAS (orden FK)."""
+    """Borra ventas y maestros SD-PRUEBA y legacy TEST-CAS (orden FK)."""
     db.session.rollback()
     try:
         ruts = tuple(c['rut'] for c in CLIENTES_CASUISTICAS)
@@ -267,9 +440,11 @@ def limpiar_catalogo_casuisticas(db, m, sa_text):
                 except Exception:
                     db.session.rollback()
 
-        pids = [r[0] for r in db.session.execute(
-            sa_text("SELECT id FROM productos WHERE codigo_barra LIKE 'TEST-CAS-%'")).fetchall()]
-        if pids:
+        for like in (f'{QA_CAS_PREFIX_BARCODE}%', f'{LEGACY_BARCODE_PREFIX}%'):
+            pids = [r[0] for r in db.session.execute(
+                sa_text('SELECT id FROM productos WHERE codigo_barra LIKE :p'), {'p': like}).fetchall()]
+            if not pids:
+                continue
             pt = tuple(pids)
             dv_vids = [r[0] for r in db.session.execute(
                 sa_text('SELECT DISTINCT id_venta FROM detalle_ventas WHERE id_producto IN :p'),

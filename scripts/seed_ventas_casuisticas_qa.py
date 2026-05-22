@@ -2,7 +2,7 @@
 """
 Seed QA — catálogo de casuísticas venta / caja / entrega / compras.
 
-Crea productos TEST-CAS-*, clientes (crédito, saldo a favor, obra C360),
+Crea productos SD-PRUEBA-* (nombre SD PRUEBA PRODUCTO), clientes SD PRUEBA,
 stock tienda+bodega y opcionalmente ventas de ejemplo.
 
 Uso:
@@ -21,8 +21,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import app as m
 from tests.qa_catalogo_casuisticas import (
+    BC_CEMENTO,
+    BC_PVC,
     ESCENARIOS_VENTA,
+    MARGEN_VENTA_DEFAULT,
     QA_CAS_USER,
+    export_csv_casuisticas,
     limpiar_catalogo_casuisticas,
     upsert_catalogo_casuisticas,
 )
@@ -57,7 +61,7 @@ def _ventas_ejemplo(productos, clientes, caja):
         estado='Abierta', caja_id=caja.id, cliente_id=cli_obra.id, punto_retiro='Tienda')
     db.session.add(v1)
     db.session.flush()
-    p_cem = by['TEST-CAS-CEM-001']
+    p_cem = by[BC_CEMENTO]
     db.session.add(m.DetalleVenta(
         id_venta=v1.id, id_producto=p_cem.id, cantidad=2,
         precio_unitario=p_cem.precio_venta, subtotal=2 * p_cem.precio_venta))
@@ -70,7 +74,7 @@ def _ventas_ejemplo(productos, clientes, caja):
         estado='Abierta', caja_id=caja.id, cliente_id=cli_sf.id, punto_retiro='Bodega')
     db.session.add(v2)
     db.session.flush()
-    p_pvc = by['TEST-CAS-PVC-001']
+    p_pvc = by[BC_PVC]
     db.session.add(m.DetalleVenta(
         id_venta=v2.id, id_producto=p_pvc.id, cantidad=5,
         precio_unitario=p_pvc.precio_venta, subtotal=5 * p_pvc.precio_venta,
@@ -84,7 +88,8 @@ def _ventas_ejemplo(productos, clientes, caja):
 
 def main():
     parser = argparse.ArgumentParser(description='Seed catálogo casuísticas QA ventas')
-    parser.add_argument('--clean', action='store_true', help='Borra datos TEST-CAS antes de sembrar')
+    parser.add_argument('--clean', action='store_true', help='Borra SD-PRUEBA y legacy TEST-CAS')
+    parser.add_argument('--export-csv', action='store_true', help='Genera CARGA DE DATOS/sd_prueba_productos_casuisticas.csv')
     parser.add_argument('--con-ventas-ejemplo', action='store_true', help='Crea 2 vales Pendiente de muestra')
     args = parser.parse_args()
 
@@ -96,14 +101,25 @@ def main():
 
     with m.app.app_context():
         if args.clean:
-            print('[CAS] Limpiando TEST-CAS...')
+            print('[CAS] Limpiando SD-PRUEBA / TEST-CAS...')
             limpiar_catalogo_casuisticas(db, m, sa_text)
 
         productos, clientes = upsert_catalogo_casuisticas(db, m)
-        print(f'[CAS] Productos: {len(productos)} | Clientes: {len(clientes)}')
+        print(f'[CAS] Productos: {len(productos)} | Clientes: {len(clientes)} | margen ~{MARGEN_VENTA_DEFAULT:.0%}')
         for p in productos:
             pre = ' [OFERTA POS]' if getattr(p, 'pos_descuento_preautorizado', False) else ''
-            print(f'      {p.codigo_barra} — {p.nombre}{pre}')
+            costo = float(p.precio_compra or 0)
+            venta = float(p.precio_venta or 0)
+            mk = ((venta - costo) / venta * 100) if venta > 0 else 0
+            print(
+                f'      {p.codigo_barra} - costo ${costo:,.0f} -> venta ${venta:,.0f} '
+                f'(margen {mk:.0f}%){pre}'
+            )
+        if args.export_csv:
+            root = os.path.join(os.path.dirname(__file__), '..')
+            out = export_csv_casuisticas(
+                os.path.join(root, 'CARGA DE DATOS', 'sd_prueba_productos_casuisticas.csv'))
+            print(f'[CAS] CSV exportado: {out}')
         for c in clientes:
             sf = m._saldo_favor_actual(c.id)
             print(f'      {c.rut} — {c.nombre} | deuda={c.saldo_deudor:,.0f} | saldo_favor={sf:,.0f} | etapa={c.c360_etapa_actual}')

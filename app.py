@@ -1665,6 +1665,9 @@ _NAV_MAP = [
             {'label': 'Productos', 'icon': 'fa-boxes', 'endpoint': 'mostrar_productos',
              'permisos': ['ver_inventario', 'admin_inventario'],
              'endpoints_activos': ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos']},
+            {'label': 'Panel inventario', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_dashboard_premium',
+             'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario'],
+             'endpoints_activos': ['inventario_dashboard_premium']},
             {'label': 'Enrolamiento inventario', 'icon': 'fa-barcode', 'endpoint': 'inventario_enrolamiento',
              'permisos': ['enrolamiento_inventario', 'admin_inventario'],
              'endpoints_activos': ['inventario_enrolamiento'], 'requiere_endpoint': 'inventario_enrolamiento'},
@@ -1867,6 +1870,7 @@ _MODULOS_HUB = [
         'modulo': 'inventario',
         'accent': '#2563eb',
         'atajos': [
+            {'label': 'Panel inventario', 'endpoint': 'inventario_dashboard_premium', 'icon': 'fa-chart-pie'},
             {'label': 'Stock crítico', 'endpoint': 'stock_critico', 'icon': 'fa-triangle-exclamation'},
             {'label': 'Kardex', 'endpoint': 'kardex', 'icon': 'fa-clipboard-list'},
             {'label': 'Enrolamiento', 'endpoint': 'inventario_enrolamiento', 'icon': 'fa-barcode', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
@@ -8589,10 +8593,23 @@ def stock_critico():
 
 
 @app.route('/inventario/dashboard-premium')
-@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
 def inventario_dashboard_premium():
-    """Vista conceptual aislada para explorar un dashboard premium de stock."""
-    return render_template('stock_dashboard_premium.html')
+    """Panel premium de inventario con métricas reales (catálogo, stock, salud)."""
+    from services.inventario_dashboard_service import collect_dashboard_premium
+
+    umbral = request.args.get('umbral', 5, type=int)
+    payload = collect_dashboard_premium(umbral_critico=umbral)
+    return render_template(
+        'stock_dashboard_premium.html',
+        dash=payload,
+        urls={
+            'productos': url_for('mostrar_productos'),
+            'stock_critico': url_for('stock_critico', umbral=umbral),
+            'salud': url_for('inventario_salud'),
+            'enrolamiento': url_for('inventario_enrolamiento'),
+        },
+    )
 
 
 def _inventario_salud_payload(q, min_bodega):
@@ -9477,6 +9494,26 @@ def guardar_producto():
     db.session.commit()
     return redirect(url_for('mostrar_productos'))
 #..............................................................................................
+def _carga_masiva_aplicar_stock_si_corresponde(producto):
+    """
+    Sincroniza stock por almacén solo si el producto ya tiene id en sesión.
+    En altas nuevas, aplicar_stock con id=None provocaba 500 (TypeError en fijar_stock_almacen).
+    Maestro Chilemat (stock=0) no requiere filas en StockPorAlmacen en esta carga.
+    """
+    if not producto:
+        return
+    try:
+        stk = int(producto.stock or 0)
+    except (TypeError, ValueError):
+        stk = 0
+    if stk == 0:
+        return
+    if producto.id is None:
+        db.session.flush()
+    if producto.id is not None:
+        aplicar_stock_desde_catalogo_a_tienda(producto)
+
+
 @app.route('/cargar_productos', methods=['POST'])
 @permisos_required('admin_inventario', 'gestionar_usuarios')
 def cargar_productos():
@@ -9602,127 +9639,145 @@ def cargar_productos():
         prod_row.precio_venta = _precio_sugerido_redondeado(costo, mg, term)
         precios_sugeridos += 1
 
-    with transaccion_critica():
-        for row in filas:
-            codigo = _clip(_csv_cell(row, 'codigo_barra') or _csv_cell(row, 'codigo') or '', 50)
-            interno = _clip(_csv_cell(row, 'codigo_interno') or '', 32)
-            nombre = _clip(_csv_cell(row, 'nombre') or '', 100)
-            if not nombre:
-                omitidos += 1
-                continue
-            if not codigo and not interno:
-                omitidos += 1
-                continue
+    try:
+        commit_cada = int(os.getenv('CARGA_CSV_COMMIT_CADA', '400'))
+    except ValueError:
+        commit_cada = 400
+    commit_cada = max(50, min(commit_cada, 1000))
 
-            prod = None
-            desde_cache = False
-            if codigo and codigo in cache_por_codigo:
-                prod = cache_por_codigo[codigo]
-                desde_cache = True
-            elif interno and interno in cache_por_interno:
-                prod = cache_por_interno[interno]
-                desde_cache = True
+    for batch_start in range(0, len(filas), commit_cada):
+        batch = filas[batch_start:batch_start + commit_cada]
+        with transaccion_critica():
+            for row in batch:
+                codigo = _clip(_csv_cell(row, 'codigo_barra') or _csv_cell(row, 'codigo') or '', 50)
+                interno = _clip(_csv_cell(row, 'codigo_interno') or '', 32)
+                nombre = _clip(_csv_cell(row, 'nombre') or '', 100)
+                if not nombre:
+                    omitidos += 1
+                    continue
+                if not codigo and not interno:
+                    omitidos += 1
+                    continue
 
-            if prod is None:
-                with db.session.no_autoflush:
-                    if codigo:
-                        prod = Producto.query.filter_by(codigo_barra=codigo).first()
-                    if prod is None and interno:
-                        prod = Producto.query.filter_by(codigo_interno=interno).first()
-                es_nuevo = prod is None
-                if es_nuevo:
-                    if not codigo:
-                        omitidos += 1
-                        continue
-                    prod = Producto(codigo_barra=codigo, activo=True)
-                    db.session.add(prod)
-            else:
-                es_nuevo = False
-                if desde_cache:
-                    duplicados_archivo += 1
+                prod = None
+                desde_cache = False
+                if codigo and codigo in cache_por_codigo:
+                    prod = cache_por_codigo[codigo]
+                    desde_cache = True
+                elif interno and interno in cache_por_interno:
+                    prod = cache_por_interno[interno]
+                    desde_cache = True
 
-            if codigo:
-                cache_por_codigo[codigo] = prod
-            if interno:
-                cache_por_interno[interno] = prod
-
-            prod.nombre = nombre
-
-            if _csv_has('codigo_interno'):
-                ci = _clip(_csv_cell(row, 'codigo_interno'), 32)
-                if ci:
-                    prod.codigo_interno = ci
-            if _csv_has('codigo_chilemat'):
-                cm = _clip(_csv_cell(row, 'codigo_chilemat'), 80)
-                if cm:
-                    prod.codigo_chilemat = cm
-
-            if _csv_has('precio_compra'):
-                prod.precio_compra = _to_float(_csv_cell(row, 'precio_compra'), 0)
-
-            pv_cell = _csv_cell(row, 'precio_venta')
-            if pv_cell is not None:
-                if str(pv_cell).strip() != '':
-                    prod.precio_venta = _to_float(pv_cell, 0)
+                if prod is None:
+                    with db.session.no_autoflush:
+                        if codigo:
+                            prod = Producto.query.filter_by(codigo_barra=codigo).first()
+                        if prod is None and interno:
+                            prod = Producto.query.filter_by(codigo_interno=interno).first()
+                    es_nuevo = prod is None
+                    if es_nuevo:
+                        if not codigo:
+                            omitidos += 1
+                            continue
+                        prod = Producto(codigo_barra=codigo, activo=True)
+                        db.session.add(prod)
                 else:
-                    _aplicar_precio_venta_sugerido(prod, es_nuevo, row)
-            elif es_nuevo:
-                _aplicar_precio_venta_sugerido(prod, True, row)
+                    es_nuevo = False
+                    if desde_cache:
+                        duplicados_archivo += 1
 
-            if _csv_has('precio_mayoreo'):
-                prod.precio_mayoreo = _to_float(_csv_cell(row, 'precio_mayoreo'), 0)
+                if codigo:
+                    cache_por_codigo[codigo] = prod
+                if interno:
+                    cache_por_interno[interno] = prod
 
-            if _csv_has('unidad_venta') or _csv_has('unidad') or _csv_has('unidad_compra'):
-                prod.unidad = _clip(
-                    _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
-                    20,
-                )
-                prod.unidad_compra = _clip(
-                    _csv_cell(row, 'unidad_compra')
-                    or _csv_cell(row, 'unidad_venta')
-                    or _csv_cell(row, 'unidad')
-                    or "Unidad",
-                    20,
-                )
-                prod.unidad_venta = _clip(
-                    _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
-                    20,
-                )
-            elif es_nuevo:
-                prod.unidad = _clip("Unidad", 20)
-                prod.unidad_compra = _clip("Unidad", 20)
-                prod.unidad_venta = _clip("Unidad", 20)
+                prod.nombre = nombre
 
-            if _csv_has('factor_conversion'):
-                prod.factor_conversion = _to_float(_csv_cell(row, 'factor_conversion'), 1) or 1
-            elif es_nuevo:
-                prod.factor_conversion = 1.0
+                if _csv_has('codigo_interno'):
+                    ci = _clip(_csv_cell(row, 'codigo_interno'), 32)
+                    if ci:
+                        prod.codigo_interno = ci
+                if _csv_has('codigo_chilemat'):
+                    cm = _clip(_csv_cell(row, 'codigo_chilemat'), 80)
+                    if cm:
+                        prod.codigo_chilemat = cm
 
-            if _csv_has('stock'):
-                prod.stock = _to_int(_csv_cell(row, 'stock'), 0)
-                aplicar_stock_desde_catalogo_a_tienda(prod)
+                if _csv_has('precio_compra'):
+                    prod.precio_compra = _to_float(_csv_cell(row, 'precio_compra'), 0)
 
-            if _csv_has('categoria'):
-                prod.categoria = _clip(_csv_cell(row, 'categoria'), 50) or None
-            elif es_nuevo:
-                prod.categoria = None
-            if _csv_has('subcategoria'):
-                prod.subcategoria = _clip(_csv_cell(row, 'subcategoria'), 50) or None
-            elif es_nuevo:
-                prod.subcategoria = None
-            if _csv_has('ubicacion_pasillo'):
-                prod.ubicacion_pasillo = _clip(_csv_cell(row, 'ubicacion_pasillo'), 12) or None
-            if _csv_has('ubicacion_estante'):
-                prod.ubicacion_estante = _clip(_csv_cell(row, 'ubicacion_estante'), 12) or None
-            if _csv_has('ubicacion_nivel'):
-                prod.ubicacion_nivel = _clip(_csv_cell(row, 'ubicacion_nivel'), 12) or None
+                pv_cell = _csv_cell(row, 'precio_venta')
+                if pv_cell is not None:
+                    if str(pv_cell).strip() != '':
+                        prod.precio_venta = _to_float(pv_cell, 0)
+                    else:
+                        _aplicar_precio_venta_sugerido(prod, es_nuevo, row)
+                elif es_nuevo:
+                    _aplicar_precio_venta_sugerido(prod, True, row)
 
-            prod.activo = True
+                if _csv_has('precio_mayoreo'):
+                    prod.precio_mayoreo = _to_float(_csv_cell(row, 'precio_mayoreo'), 0)
 
-            if es_nuevo:
-                creados += 1
-            else:
-                actualizados += 1
+                if _csv_has('unidad_venta') or _csv_has('unidad') or _csv_has('unidad_compra'):
+                    prod.unidad = _clip(
+                        _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
+                        20,
+                    )
+                    prod.unidad_compra = _clip(
+                        _csv_cell(row, 'unidad_compra')
+                        or _csv_cell(row, 'unidad_venta')
+                        or _csv_cell(row, 'unidad')
+                        or "Unidad",
+                        20,
+                    )
+                    prod.unidad_venta = _clip(
+                        _csv_cell(row, 'unidad_venta') or _csv_cell(row, 'unidad') or "Unidad",
+                        20,
+                    )
+                elif es_nuevo:
+                    prod.unidad = _clip("Unidad", 20)
+                    prod.unidad_compra = _clip("Unidad", 20)
+                    prod.unidad_venta = _clip("Unidad", 20)
+
+                if _csv_has('factor_conversion'):
+                    prod.factor_conversion = _to_float(_csv_cell(row, 'factor_conversion'), 1) or 1
+                elif es_nuevo:
+                    prod.factor_conversion = 1.0
+
+                if _csv_has('stock'):
+                    prod.stock = _to_int(_csv_cell(row, 'stock'), 0)
+                    _carga_masiva_aplicar_stock_si_corresponde(prod)
+
+                if _csv_has('categoria'):
+                    prod.categoria = _clip(_csv_cell(row, 'categoria'), 50) or None
+                elif es_nuevo:
+                    prod.categoria = None
+                if _csv_has('subcategoria'):
+                    prod.subcategoria = _clip(_csv_cell(row, 'subcategoria'), 50) or None
+                elif es_nuevo:
+                    prod.subcategoria = None
+                if _csv_has('ubicacion_pasillo'):
+                    prod.ubicacion_pasillo = _clip(_csv_cell(row, 'ubicacion_pasillo'), 12) or None
+                if _csv_has('ubicacion_estante'):
+                    prod.ubicacion_estante = _clip(_csv_cell(row, 'ubicacion_estante'), 12) or None
+                if _csv_has('ubicacion_nivel'):
+                    prod.ubicacion_nivel = _clip(_csv_cell(row, 'ubicacion_nivel'), 12) or None
+
+                prod.activo = True
+
+                if es_nuevo:
+                    creados += 1
+                else:
+                    actualizados += 1
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(
+                f"Error en carga masiva (aprox. fila {batch_start + 1}): {str(e)}",
+                "danger",
+            )
+            return redirect(url_for('mostrar_productos'))
 
     usr_carga = current_user.nombre if current_user.is_authenticated else None
     _audit_log(
@@ -9743,12 +9798,6 @@ def cargar_productos():
             'precios_sugeridos': precios_sugeridos,
         },
     )
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error en carga masiva: {str(e)}", "danger")
-        return redirect(url_for('mostrar_productos'))
     msg = (
         f"Carga completada. Creados: {creados} | Actualizados: {actualizados} | "
         f"Omitidos: {omitidos} | Duplicados en archivo: {duplicados_archivo}."

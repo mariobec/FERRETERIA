@@ -330,8 +330,14 @@ def app_client(app_ctx):
 
 @pytest.fixture(scope='session')
 def catalogo_casuisticas_qa(app_ctx, limpieza_qa, productos_con_stock):
-    """Productos/clientes TEST-CAS para flujos venta→caja→entrega."""
-    from tests.qa_catalogo_casuisticas import upsert_catalogo_casuisticas
+    """Productos/clientes SD-PRUEBA para flujos venta→caja→entrega."""
+    from tests.qa_catalogo_casuisticas import (
+        BC_ARENA,
+        BC_CEMENTO,
+        BC_OFERTA_CLAVO,
+        BC_PVC,
+        upsert_catalogo_casuisticas,
+    )
 
     productos, clientes = upsert_catalogo_casuisticas(db, m)
     by_barcode = {p.codigo_barra: p for p in productos}
@@ -343,10 +349,10 @@ def catalogo_casuisticas_qa(app_ctx, limpieza_qa, productos_con_stock):
         cliente_saldo_favor=by_rut.get('22.222.222-2'),
         cliente_obra=by_rut.get('33.333.333-3'),
         cliente_credito_cas=by_rut.get('44.444.444-4'),
-        oferta_clavo=by_barcode.get('TEST-CAS-OFE-001'),
-        cemento=by_barcode.get('TEST-CAS-CEM-001'),
-        arena=by_barcode.get('TEST-CAS-ARE-001'),
-        pvc=by_barcode.get('TEST-CAS-PVC-001'),
+        oferta_clavo=by_barcode.get(BC_OFERTA_CLAVO),
+        cemento=by_barcode.get(BC_CEMENTO),
+        arena=by_barcode.get(BC_ARENA),
+        pvc=by_barcode.get(BC_PVC),
     )
 
 

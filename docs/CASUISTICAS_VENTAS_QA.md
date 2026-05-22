@@ -11,19 +11,25 @@ Set reproducible para Santo Domingo / SD-1: productos, clientes, ofertas POS y p
 | `tests/test_ventas_casuisticas_flujo.py` | Suite pytest (`-m casuisticas`) |
 | `tests/conftest.py` | Fixture `catalogo_casuisticas_qa` + helpers HTTP |
 
-## Productos (`TEST-CAS-*`)
+## Productos (`SD-PRUEBA-*`, nombre `SD PRUEBA PRODUCTO …`)
 
-| Código | Uso |
-|--------|-----|
-| `TEST-CAS-CEM-001` | Cemento — cross-sell obra + C360 `OBRA_GRUESA` |
-| `TEST-CAS-ARE-001` | Arena — complemento cross-sell |
-| `TEST-CAS-PVC-001` | Tubería PVC — retiro bodega |
-| `TEST-CAS-PEG-001` | Pegamento — par PVC |
-| `TEST-CAS-LLV-001` | Herramienta terminaciones |
-| `TEST-CAS-OFE-001` | **Oferta POS** — descuento preautorizado 15% |
-| `TEST-CAS-OFE-002` | **Oferta POS** — descuento preautorizado 10% |
+Cada fila incluye **`precio_compra`**; **`precio_venta`** se calcula con margen objetivo **~32 %** y terminación **$90** (ej. costo $4.500 → venta $6.590).
 
-Stock en **tienda** y **bodega** al sembrar.
+| Código | Costo ref. | Escenarios |
+|--------|------------|------------|
+| `SD-PRUEBA-CEM-001` | $4.500 | V01, V04, V07, V08, C01 |
+| `SD-PRUEBA-ARE-001` | $12.000 | V05, V07 |
+| `SD-PRUEBA-PVC-001` | $2.200 | V02, V03 |
+| `SD-PRUEBA-PEG-001` | $1.800 | V07 (par PVC) |
+| `SD-PRUEBA-LLV-001` | $6.500 | V08 |
+| `SD-PRUEBA-OFE-001` | $900 | V01, V03, V06 — oferta POS 15% |
+| `SD-PRUEBA-OFE-002` | $1.200 | V06 — oferta POS 10% |
+| `SD-PRUEBA-STK-001` | $1.500 | Stock crítico (3 u.) |
+| `SD-PRUEBA-VAR-001` | $2.800 | Alta rotación |
+
+CSV: `CARGA DE DATOS/sd_prueba_productos_casuisticas.csv` (`--export-csv`).
+
+Stock en **tienda** y **bodega** al sembrar. Limpieza borra también legacy `TEST-CAS-*`.
 
 ## Clientes
 
@@ -52,11 +58,14 @@ Además existen los clientes base de pytest (`11.111.111-1` crédito, cliente fi
 ## Comandos
 
 ```bash
-# Sembrar catálogo en BD local
-python scripts/seed_ventas_casuisticas_qa.py --clean
+# Sembrar catálogo SD-PRUEBA en BD local (+ CSV de márgenes)
+python scripts/seed_sd_prueba_casuisticas.py --clean
+
+# Equivalente explícito
+python scripts/seed_ventas_casuisticas_qa.py --clean --export-csv
 
 # Con 2 vales Pendiente de ejemplo para probar caja a mano
-python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo
+python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo --export-csv
 
 # Solo tests de casuísticas
 pytest tests/test_ventas_casuisticas_flujo.py -m casuisticas -q
