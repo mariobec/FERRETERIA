@@ -61,7 +61,7 @@ Todo desarrollo futuro respeta esta separación. **No mezclar** responsabilidade
 | **Objetivo** | Consolidar **Ferretería Santo Domingo (SD-1)** como caso de éxito real y blindado |
 | **Entregable** | ERP base + POS + **Agente Guardián** (semáforos ×4, arqueos ciegos, feed vivo, matriz de acciones, KPI ventas) |
 | **Impacto comercial** | Escudo operativo → red **Chilemat**; narrativa: *menos mermas, control en ruta* |
-| **Estado (mayo 2026)** | ✅ Guardián V3 prod. 🟡 SD-1 piso. ⏳ V3.1 `sucursal_id` post SD-1 |
+| **Estado (mayo 2026)** | ✅ Guardián V3 prod. 🟡 **Cierre SD-1** ([checklist](../planes/01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md)). ⏳ V3.1 post sign-off |
 
 **SD-1 = primer tenant lógico de VERTEX.**
 

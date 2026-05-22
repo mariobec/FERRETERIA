@@ -16,9 +16,15 @@ alwaysApply: true
 2. **Soluciones ERP** — Verticales: Ferretería (SD-1), Transporte, Retail.
 3. **LhexIA Agentes** — Guardián, Operador, Abastecedor (leen BD; no inventan cifras).
 
+## Cierre activo (SD-1)
+
+Checklist único: `docs/planes/01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md`  
+Preflight: `python scripts/sd1_cierre_preflight.py`  
+**No abrir semana 2 VERTEX** hasta sign-off §G del checklist.
+
 ## Orden de ejecución (acordado con Mario)
 
-1. **Fase 1 Bastión** — SD-1 + Guardián V3 (caso éxito #1).
+1. **Fase 1 Bastión** — **Cerrar SD-1** + Guardián V3 (caso éxito #1).
 2. **Fase 2** — Hermanos ERP (clonar transacciones VERTEX).
 3. **Fase 3** — LhexIA Connect (agentes sobre ERP ajeno).
 4. **Fase 4** — Zero-UI / 2030 (no bloquea 1–3).

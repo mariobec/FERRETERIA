@@ -38,10 +38,10 @@ flowchart LR
 
 | Fase | Objetivo | Estado | Documento detalle |
 |------|----------|--------|-------------------|
-| **SD-1** | Go-live POS + inventario | 🟡 **En curso** | Este doc §3–7 |
-| SD-1.1 | Toma física | 🟡 Operación | §4 |
-| SD-1.2 | POS venta diaria | 🟡 Validar piso + casuísticas QA | §5 · `docs/CASUISTICAS_VENTAS_QA.md` |
-| SD-1.3 | Infra + capacitación | ⏳ | §6 |
+| **SD-1** | Go-live POS + inventario | 🟡 **Cierre en curso** | [`SD1_CIERRE_FASE1_VERTEX.md`](SD1_CIERRE_FASE1_VERTEX.md) |
+| SD-1.1 | Toma física | 🟡 **3 sucursales pendientes** | §4 · checklist §B |
+| SD-1.2 | POS venta diaria | ✅ Piloto OK · replicar suc. 2–3 | §5 · `docs/CASUISTICAS_VENTAS_QA.md` |
+| SD-1.3 | Infra + capacitación | ⏳ Sign-off | §6 · §E cierre |
 | **SD-2** | Caja multi-sucursal | ⏳ Post SD-1 | Caja ya madura en código |
 | **SD-3** | Compras + FE producción | ⏳ | FE 🟡 certificación |
 
@@ -165,11 +165,11 @@ Flujos que no deben romperse: [`FLUJOS_CRITICOS.md`](FLUJOS_CRITICOS.md)
 
 ### Checklist piso SD-1 (2026-05-21 — sin código nuevo hasta firmar)
 
-1. [ ] Sesión enrolamiento en almacén piloto  
-2. [ ] Revisión `/inventario/salud` (export desajustes si aplica)  
-3. [ ] `python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo` en BD del entorno de prueba  
-4. [ ] Recorrer CAS-V01…V05 según [`CASUISTICAS_VENTAS_QA.md`](../../CASUISTICAS_VENTAS_QA.md)  
-5. [ ] TV cliente + cierre caja (solo ventas `Pagado`) en sucursal piloto  
+1. [x] Sesión enrolamiento en almacén piloto — validado piso 2026-05-21 (Mario)  
+2. [x] Revisión `/inventario/salud` — validado piso 2026-05-21  
+3. [x] `python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo` — vales **#2584**, **#2585**  
+4. [x] CAS-V01…V05 — pytest **11/11** + cobro manual vales seed OK piso  
+5. [x] TV cliente + cierre caja — validado piso 2026-05-21 (Mario)  
 
 **Memoria viva:** [`docs/memory.md`](../../memory.md) § «Dónde quedamos».
 | Equipo | ≥2 usuarios capacitados por módulo |
@@ -187,15 +187,17 @@ Flujos que no deben romperse: [`FLUJOS_CRITICOS.md`](FLUJOS_CRITICOS.md)
 
 ---
 
-## 10. Pendientes inmediatos
+## 10. Cierre SD-1 (activo)
+
+**Checklist único:** [`SD1_CIERRE_FASE1_VERTEX.md`](SD1_CIERRE_FASE1_VERTEX.md)
 
 | # | Acción | Responsable |
 |---|--------|-------------|
-| 1 | Validar 3 almacenes + permisos enrolamiento | Mario / operación |
-| 2 | Toma con `/inventario/enrolamiento` | Piso |
-| 3 | Commit/push POS-4 si búsqueda OK en prueba | Cursor / Mario |
-| 4 | Piloto vale → caja sucursal 1 | Piso |
-| 5 | Backup Neon antes de ajustes masivos stock | Mario |
+| 1 | Completar inventario **3 sucursales** (tabla §B del checklist) | Piso |
+| 2 | Vale → cobro **sucursales 2 y 3** | Piso |
+| 3 | `python scripts/sd1_cierre_preflight.py` en QA | Cursor |
+| 4 | Guardián en celular + `OWNER_SUPERVISOR_TELEFONO` | Mario |
+| 5 | Backup Neon + capacitación §E + **sign-off §G** | Mario |
 
 ---
 

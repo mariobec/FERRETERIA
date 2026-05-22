@@ -22,6 +22,7 @@
 | **PWA Dueño — validación prod** | [`01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md`](01-entrega-santo-domingo/OWNER_PWA_VALIDACION_PROD.md) |
 | **Biblia Ecosistema LhexIA VERTEX (4 fases)** | [`../arquitectura/LHEXIA_VERTEX_VISION.md`](../arquitectura/LHEXIA_VERTEX_VISION.md) |
 | **Tracker sprint VERTEX** | [`../arquitectura/VERTEX_SPRINT_TRACKER.md`](../arquitectura/VERTEX_SPRINT_TRACKER.md) |
+| **Cierre SD-1 Fase 1 (checklist)** | [`01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md`](01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md) |
 
 **Bitácora técnica diaria:** [`../memory.md`](../memory.md) — § «Dónde quedamos» = foco SD-1 piso.
 
