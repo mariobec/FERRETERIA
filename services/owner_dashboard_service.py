@@ -402,24 +402,53 @@ def _tarjeta_inventario(*, perfil: PerfilGuardian) -> dict[str, Any]:
     }
 
 
-def _kpis_ventas_hoy() -> dict[str, Any]:
+def _rango_dia_calendario(dia) -> tuple:
+    """Inicio inclusive y fin exclusive del día calendario (misma TZ que datetime.now())."""
+    from datetime import datetime, timedelta
+
+    inicio = datetime.combine(dia, datetime.min.time())
+    return inicio, inicio + timedelta(days=1)
+
+
+def _filtro_ventas_kpi_dia():
+    """Vales emitidos o cobrados hoy: Pagado + Pendiente; excluye Abierta y Anulada."""
+    from app import Venta
+
+    return Venta.estado.in_(('Pagado', 'Pendiente'))
+
+
+def kpis_ventas_hoy() -> dict[str, Any]:
+    """
+    Ventas del día para Guardián / gerencia.
+    Usa rango datetime (no DATE SQL) y estados Pagado+Pendiente para alinear con POS.
+    """
     from datetime import date, timedelta
 
     from app import Venta, db
-    from sqlalchemy import or_
 
     hoy = date.today()
     ayer = hoy - timedelta(days=1)
-    filtro_estado = or_(Venta.estado.is_(None), Venta.estado != 'Abierta')
+    inicio_hoy, fin_hoy = _rango_dia_calendario(hoy)
+    inicio_ayer, fin_ayer = _rango_dia_calendario(ayer)
+    filtro_estado = _filtro_ventas_kpi_dia()
+
     ventas_hoy = (
         db.session.query(db.func.sum(Venta.monto_total))
-        .filter(db.func.date(Venta.fecha) == hoy, filtro_estado)
+        .filter(
+            Venta.fecha >= inicio_hoy,
+            Venta.fecha < fin_hoy,
+            filtro_estado,
+        )
         .scalar()
         or 0
     )
     ventas_ayer = (
         db.session.query(db.func.sum(Venta.monto_total))
-        .filter(db.func.date(Venta.fecha) == ayer, filtro_estado)
+        .filter(
+            Venta.fecha >= inicio_ayer,
+            Venta.fecha < fin_ayer,
+            filtro_estado,
+        )
         .scalar()
         or 0
     )
@@ -430,7 +459,8 @@ def _kpis_ventas_hoy() -> dict[str, Any]:
             1,
         )
     transacciones = Venta.query.filter(
-        db.func.date(Venta.fecha) == hoy,
+        Venta.fecha >= inicio_hoy,
+        Venta.fecha < fin_hoy,
         filtro_estado,
     ).count()
     return {
@@ -439,6 +469,11 @@ def _kpis_ventas_hoy() -> dict[str, Any]:
         'var_vs_ayer_pct': var_pct,
         'transacciones_hoy': int(transacciones),
     }
+
+
+def _kpis_ventas_hoy() -> dict[str, Any]:
+    """Alias interno."""
+    return kpis_ventas_hoy()
 
 
 def _tablas_orden_compra_existen() -> bool:

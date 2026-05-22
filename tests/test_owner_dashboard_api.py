@@ -1,10 +1,12 @@
 """API PWA Guardián — GET /api/v1/owner/dashboard (v3)."""
 import time
 import uuid
+from datetime import datetime, timedelta
 
 import pytest
 
 import app as m
+from services.owner_dashboard_service import kpis_ventas_hoy
 from services.agente_ejecuciones_service import (
     EST_ALERTA_ABIERTA,
     TIPO_ALERTA,
@@ -64,6 +66,48 @@ class TestOwnerDashboardApi:
         assert data['status_caja'] in ('red', 'green', 'amber')
         assert data['status_global'] in ('red', 'green', 'amber')
         assert 'ventas_hoy_fmt' in data['consolidado']
+
+    def test_kpis_ventas_hoy_incluye_pagado_del_dia(self, app_client, caja_abierta):
+        """Venta Pagado con fecha hoy debe sumar en consolidado.ventas_hoy."""
+        uid = uuid.uuid4().hex[:8]
+        venta = m.Venta(
+            fecha=datetime.now(),
+            monto_total=31890.0,
+            usuario='__qa_runner__',
+            estado='Pagado',
+            metodo_pago='Efectivo',
+            caja_id=caja_abierta.id,
+        )
+        db.session.add(venta)
+        db.session.commit()
+        try:
+            kpis = kpis_ventas_hoy()
+            assert kpis['ventas_hoy_clp'] >= 31890
+            assert kpis['transacciones_hoy'] >= 1
+            r = app_client.get('/api/v1/owner/dashboard?v=3')
+            data = r.get_json().get('data') or {}
+            assert data['consolidado']['ventas_hoy_clp'] >= 31890
+        finally:
+            db.session.delete(venta)
+            db.session.commit()
+
+    def test_kpis_ventas_hoy_pendiente_emitido_hoy(self, app_client, caja_abierta):
+        """Pendiente con fecha hoy suma; Abierta no entra en el filtro KPI."""
+        antes = kpis_ventas_hoy()['ventas_hoy_clp']
+        v_hoy = m.Venta(
+            fecha=datetime.now(),
+            monto_total=15000.0,
+            usuario='__qa_runner__',
+            estado='Pendiente',
+            caja_id=caja_abierta.id,
+        )
+        db.session.add(v_hoy)
+        db.session.commit()
+        try:
+            assert kpis_ventas_hoy()['ventas_hoy_clp'] >= antes + 15000
+        finally:
+            db.session.delete(v_hoy)
+            db.session.commit()
 
     def test_dashboard_nocache_header(self, app_client):
         r = app_client.get('/api/v1/owner/dashboard?nocache=1')

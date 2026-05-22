@@ -5454,15 +5454,10 @@ def aplicar_ajuste_automatico(auditoria_id):
 
 
 # --- RUTAS DE NAVEGACIÓN ---
-# Página de inicio pública: siempre muestra la landing comercial.
+# Página de inicio pública: siempre muestra la landing (aunque haya sesión ERP).
 @app.route('/')
 @app.route('/index')
 def index():
-    try:
-        if current_user.is_authenticated:
-            return redirect(url_for('erp_hub'))
-    except Exception:
-        pass
     return render_template(
         'index.html',
         page_variant='home',
@@ -6751,31 +6746,19 @@ def _saludo_guardian_usuario(usuario):
 @permisos_required('panel_gerencia', 'ver_gerencia', 'gestionar_usuarios')
 def owner_mobile():
     """PWA dueño: semáforo API + KPIs colapsables (mobile-first)."""
-    hoy = datetime.now().date()
-    ayer = hoy - timedelta(days=1)
+    from services.owner_dashboard_service import kpis_ventas_hoy
 
-    ventas_hoy = db.session.query(db.func.sum(Venta.monto_total)).filter(
-        db.func.date(Venta.fecha) == hoy,
-        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
-    ).scalar() or 0
-    ventas_ayer = db.session.query(db.func.sum(Venta.monto_total)).filter(
-        db.func.date(Venta.fecha) == ayer,
-        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
-    ).scalar() or 0
-    transacciones_hoy = Venta.query.filter(
-        db.func.date(Venta.fecha) == hoy,
-        or_(Venta.estado.is_(None), Venta.estado != 'Abierta'),
-    ).count()
+    hoy = datetime.now().date()
+    kpis = kpis_ventas_hoy()
+    ventas_hoy = kpis['ventas_hoy_clp']
+    transacciones_hoy = kpis['transacciones_hoy']
+    var_ventas_hoy = kpis.get('var_vs_ayer_pct')
     bajo_stock = Producto.query.filter(Producto.stock < 5, Producto.activo == True).count()
     dinero_credito = db.session.query(db.func.sum(Cliente.saldo_deudor)).scalar() or 0
     oc_pendientes = 0
     if _tablas_orden_compra_existen():
         oc_estados_pend = ('Borrador', 'Enviada', 'Parcial')
         oc_pendientes = OrdenCompra.query.filter(OrdenCompra.estado.in_(oc_estados_pend)).count()
-
-    var_ventas_hoy = None
-    if ventas_ayer:
-        var_ventas_hoy = ((float(ventas_hoy) - float(ventas_ayer)) / float(ventas_ayer)) * 100.0
 
     # Predicción simple de quiebre (igual lógica del inicio)
     d30_inicio = datetime.combine(hoy - timedelta(days=30), datetime.min.time())
@@ -13443,6 +13426,8 @@ def finalizar_venta():
                 )
             )
             venta = Venta.query.get(venta.id)
+            # Fecha de negocio = emisión del vale (antes quedaba la del carrito Abierta).
+            venta.fecha = datetime.now()
             if _venta_tiene_lineas_a_pedido(venta):
                 from services.pos_compromiso_entrega_service import persistir_ventas_a_pedido
 
