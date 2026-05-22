@@ -73,7 +73,8 @@ Tenant (empresa cliente)
 | Tabla `Sucursal` dedicada | ❌ No existe |
 | `Almacen` sin `id_sucursal` | ✅ Solo almacenes globales |
 | Heurística Guardián por texto usuario/caja | 🟡 Prototipo dueño vs supervisor |
-| `OWNER_GUARDIAN_SUCURSALES_N=3` | 🟡 Demo **vista red** (Chilemat), no SD real |
+| Admin → Empresa `operacion_un_local` / `operacion_sucursales_red_n` | ✅ Persistido en `empresa_config.json` (default un local) |
+| `OWNER_GUARDIAN_UN_LOCAL` / `OWNER_GUARDIAN_SUCURSALES_N` | 🟡 Override env (emergencia); si no están definidos, usa JSON empresa |
 | Control Center multi-tarjeta | 🟡 Datos reales parciales |
 | Filtro obligatorio `sucursal_id` en queries prod | ❌ Post SD-1 |
 

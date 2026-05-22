@@ -49,7 +49,7 @@ Esta sección describe **toda la funcionalidad operativa y el potencial** del ER
 | **Inteligencia** | Bodega por voz, cross-sell en TV cliente, Customer 360, dashboards gerencia, Control Center |
 | **Gobernanza** | RBAC granular, auditoría `erp_audit_log`, módulos activables por empresa |
 
-**Cliente laboratorio:** Ferretería Santo Domingo (~20 personas, 3 sucursales, ~4.000 SKU). El mismo código base es la semilla del **producto SaaS LhexIA** (multi-tenant planificado post SD-1).
+**Cliente laboratorio:** Ferretería Santo Domingo (~20 personas, **1 establecimiento** en piso, inventario por almacenes tienda/bodega, ~4.000 SKU). El mismo código base es la semilla del **producto SaaS LhexIA** (multi-sucursal en producto; multi-tenant post SD-1).
 
 ### 0.2 Actores y perfiles
 
@@ -360,7 +360,7 @@ Casos extendidos documentados en [`CASUISTICAS_VENTAS_QA.md`](CASUISTICAS_VENTAS
 
 | Horizonte | Capacidad |
 |-----------|-----------|
-| **Corto (SD-1)** | POS + inventario estables en 3 sucursales; índices BD; casuísticas QA verdes |
+| **Corto (SD-1)** | POS + inventario estables en **un local** (almacenes); índices BD; casuísticas QA verdes |
 | **Medio (PLAT 1–2)** | Offline 8h, Control Center con datos reales multi-sucursal, logs IA HITL |
 | **Medio (SD-3)** | FE Maullín producción, OC/recepción masivo |
 | **Largo (LX-)** | Multi-tenant SaaS, onboarding tenant, licencias |
@@ -854,6 +854,11 @@ Configurados en **Mantenedores > Datos de empresa** (`/admin/empresa`), almacena
 | `mod_inventario` | Inventario | Productos, bodega, compras, recepciones |
 | `mod_bi` | BI y análisis | Reportes, revisión precios |
 | `mod_ia` | IA | Abastecimiento inteligente, OCR facturas |
+| `operacion_un_local` | Operación | `"1"` = un establecimiento (SD-1); `"0"` = red multi-sucursal (copy Guardián / demo Chilemat) |
+| `operacion_sucursales_red_n` | Operación | Locales en vista red (1–99) hasta CRUD `sucursales` (SD-2) |
+| `cierre_caja_modo` | Caja | `ciego` \| `visible` |
+
+Override env (emergencia): `OWNER_GUARDIAN_UN_LOCAL`, `OWNER_GUARDIAN_SUCURSALES_N`, `CIERRE_CAJA_MODO`.
 
 ---
 
@@ -1442,7 +1447,7 @@ python scripts/seed_demo_data.py --clean   # limpia datos DEMO
 
 ### Prioridad operativa (SD-1)
 
-**Cliente #1:** Ferretería Santo Domingo — 3 sucursales, ~20 personas, ~4.000 SKU.  
+**Cliente #1:** Ferretería Santo Domingo — 1 establecimiento en piso, ~20 personas, ~4.000 SKU; producto preparado para N sucursales (Admin → Empresa).  
 **Foco actual:** POS + inventario (toma física) + operación diaria estable. Detalle: [`planes/01-entrega-santo-domingo/`](planes/01-entrega-santo-domingo/).
 
 ### Matriz de módulos (2026-05-21)

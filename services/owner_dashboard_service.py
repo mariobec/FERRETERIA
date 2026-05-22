@@ -15,6 +15,7 @@ from services.agente_ejecuciones_service import (
 )
 from services.agente_ejecuciones_service import listar_alertas_operativas
 from services.control_center_service import obtener_tarjetas_sucursales
+from services.empresa_operacion_service import es_operacion_un_local, obtener_sucursales_red_n
 
 _CODIGOS_CAJA = ('caja_descuadre', 'caja_dia_anterior')
 
@@ -654,12 +655,8 @@ def _status_global(*statuses: str) -> str:
 
 
 def _guardian_un_local() -> bool:
-    """SD-1: un establecimiento — copy de presentación sin “red 3 sucursales”."""
-    return os.getenv('OWNER_GUARDIAN_UN_LOCAL', '1').strip().lower() not in (
-        '0',
-        'false',
-        'no',
-    )
+    """Un establecimiento vs red — ver Admin > Empresa o env OWNER_GUARDIAN_UN_LOCAL."""
+    return es_operacion_un_local()
 
 
 def _establecimiento_label() -> str:
@@ -694,7 +691,7 @@ def _consolidado_financiero(
     bloque = obtener_tarjetas_sucursales(calcular_ctx=calcular_ctx_caja)
     total = int(bloque.get('alerta_global_clp') or 0)
     cajas_desc = int(bloque.get('cajas_con_descuadre', 0) or 0)
-    sucursales_n = 1 if un_local else int(os.getenv('OWNER_GUARDIAN_SUCURSALES_N', '3') or 3)
+    sucursales_n = 1 if un_local else obtener_sucursales_red_n()
     if un_local:
         detalle = (
             f'{establecimiento} · {cajas_desc} cierre(s) con diferencia'

@@ -7,7 +7,7 @@
 
 ## Qué SÍ está en SD-1 (listo para demo)
 
-**UI presentación (2026-05-21):** hero con anillo de estado, ventas destacadas, copiloto VERTEX, 4 tarjetas visibles, feed con iconos. Env `OWNER_GUARDIAN_UN_LOCAL=1` (default) evita copy “3 sucursales”.
+**UI presentación (2026-05-21):** hero con anillo de estado, ventas destacadas, copiloto VERTEX, 4 tarjetas visibles, feed con iconos. **Admin → Empresa → Un establecimiento** (`operacion_un_local=1`, default) evita copy “3 sucursales”; env `OWNER_GUARDIAN_UN_LOCAL` solo override.
 
 | Función | Comportamiento |
 |---------|----------------|

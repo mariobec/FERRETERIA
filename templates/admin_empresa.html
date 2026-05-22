@@ -121,6 +121,38 @@
           </div>
           <div class="col-12">
             <hr>
+            <label class="form-label fw-semibold mb-2">Operación del negocio</label>
+            <div class="border rounded p-3">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="operacion_modo" id="operacionUnLocal" value="un_local"
+                       {% if (empresa.operacion_un_local or '1') == '1' %}checked{% endif %}>
+                <label class="form-check-label" for="operacionUnLocal">
+                  <strong>Un establecimiento</strong> (recomendado — Santo Domingo SD-1)
+                  <span class="d-block small text-muted mt-1">
+                    Un solo local en piso; inventario por <strong>almacenes</strong> (tienda y bodega). Guardián y reportes hablan de «establecimiento», no de red.
+                  </span>
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="operacion_modo" id="operacionMultiSucursal" value="multi_sucursal"
+                       {% if (empresa.operacion_un_local or '1') != '1' %}checked{% endif %}>
+                <label class="form-check-label" for="operacionMultiSucursal">
+                  <strong>Red multi-sucursal</strong> (Chilemat / varios locales)
+                  <span class="d-block small text-muted mt-1">
+                    Vista consolidada y copy de red en Guardián. La alta de sucursales reales en BD es fase SD-2; aquí solo define cuántos locales muestra la demo hasta entonces.
+                  </span>
+                </label>
+              </div>
+              <div class="mt-3 {% if (empresa.operacion_un_local or '1') == '1' %}d-none{% endif %}" id="operacionSucursalesRedWrap">
+                <label class="form-label fw-semibold mb-1" for="operacionSucursalesRedN">Locales en vista red (demo)</label>
+                <input type="number" class="form-control" style="max-width: 8rem;" name="operacion_sucursales_red_n"
+                       id="operacionSucursalesRedN" min="1" max="99" step="1"
+                       value="{{ empresa.operacion_sucursales_red_n or '3' }}">
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <hr>
             <label class="form-label fw-semibold mb-2">Cierre de caja</label>
             <div class="border rounded p-3">
               <div class="form-check mb-2">
@@ -197,4 +229,17 @@
     </div>
   </div>
 </div>
+<script>
+(function () {
+  var radios = document.querySelectorAll('input[name="operacion_modo"]');
+  var wrap = document.getElementById('operacionSucursalesRedWrap');
+  if (!radios.length || !wrap) return;
+  function sync() {
+    var multi = document.getElementById('operacionMultiSucursal');
+    wrap.classList.toggle('d-none', !(multi && multi.checked));
+  }
+  radios.forEach(function (r) { r.addEventListener('change', sync); });
+  sync();
+})();
+</script>
 {% endblock %}

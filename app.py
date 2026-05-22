@@ -491,6 +491,10 @@ def _config_empresa_default():
         "rut_emisor": (os.getenv("EMPRESA_RUT") or "").strip(),
         # Caja: ciego = sin teórico en pantalla (default SD); visible = resumen + teórico
         "cierre_caja_modo": "ciego",
+        # Operación: "1" = un establecimiento (SD-1); "0" = red multi-sucursal (Chilemat demo)
+        "operacion_un_local": "1",
+        # Solo copy/vista red hasta CRUD sucursales (SD-2); no crea locales en BD
+        "operacion_sucursales_red_n": "3",
     }
 
 
@@ -16924,12 +16928,23 @@ def admin_empresa():
                 if (request.form.get('cierre_caja_modo') or 'ciego').strip().lower() == 'ciego'
                 else "visible"
             ),
+            "operacion_un_local": (
+                "1"
+                if (request.form.get('operacion_modo') or 'un_local').strip().lower() == 'un_local'
+                else "0"
+            ),
+            "operacion_sucursales_red_n": (request.form.get('operacion_sucursales_red_n') or '3').strip(),
         }
         try:
             umbral = float(str(data['pos_descuento_umbral_pin_pct']).replace(',', '.'))
             data['pos_descuento_umbral_pin_pct'] = str(max(0.0, min(100.0, umbral)))
         except (TypeError, ValueError):
             data['pos_descuento_umbral_pin_pct'] = '20'
+        try:
+            n_suc = int(str(data['operacion_sucursales_red_n']).replace(',', '.').split('.')[0])
+            data['operacion_sucursales_red_n'] = str(max(1, min(99, n_suc)))
+        except (TypeError, ValueError):
+            data['operacion_sucursales_red_n'] = '3'
         if not (data["nombre_comercial"] or '').strip():
             flash("El nombre comercial es obligatorio.", "warning")
             return redirect(url_for('admin_empresa'))

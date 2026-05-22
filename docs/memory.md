@@ -225,6 +225,7 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 
 | Fecha       | Qué pasó |
 |------------|----------|
+| 2026-05-22 | **Operación empresa:** Admin → Empresa — un local vs red (`operacion_un_local`, `operacion_sucursales_red_n`); `empresa_operacion_service.py`; Guardián lee JSON. Docs: SD ≠ 3 sucursales en piso. |
 | 2026-05-08 | Memoria arquitectura; módulos; venta dual POS vs formulario; caja día anterior; plan v2 Grok. |
 | 2026-05-10 | Cierre plan v2.0; servicios extraídos; `transaccion_critica` ampliada. |
 | 2026-05-11 | Bodega Fase 3 SLA/TV; RBAC v2 `_NAV_MAP`. |
@@ -348,7 +349,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Prioridad código (post validación piso 2026-05-21):** **SD-1 checklist piso firmado** ✅ · siguiente operativo: **3 sucursales** conteo + capacitación (SD-1.3). **PWA Dueño** en prod: `72f349a` pushed `main` 2026-05-21 → Render auto-deploy. **PLAT-1.2** offline solo si hay dolor de red. **FE Maullín congelado** (Form. 3230).
+**Prioridad código (post validación piso 2026-05-21):** **SD-1 checklist piso firmado** ✅ · siguiente operativo: **un establecimiento** — enrolamiento por **almacenes** (Tienda + Bodega) + capacitación POS/caja (SD-1.3). **Multi-sucursal** = opción Admin → Empresa (`operacion_un_local`) + CRUD sucursales SD-2, no “3 locales” en SD. **PWA Guardián** en prod. **PLAT-1.2** offline solo si hay dolor de red. **FE Maullín congelado** (Form. 3230).
 
 ### Carril activo — SD-1 piso (operación + QA manual)
 
@@ -358,7 +359,7 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 | 2 | **POS + caja** — flujo vale completo | `docs/CASUISTICAS_VENTAS_QA.md` + `python scripts/seed_ventas_casuisticas_qa.py --clean --con-ventas-ejemplo` |
 | 3 | **TV + cierre** — prod ya desplegado | Ctrl+F5 TV cache `lhexia20260520reco2`; arqueo solo `Pagado` |
 
-**Cierre SD-1:** conteo por sucursal + ≥1 sucursal con vale → cobro sin bloqueos críticos (`SANTO_DOMINGO_ENTREGA.md`).
+**Cierre SD-1:** conteo por **almacén** del establecimiento + ≥1 vale → cobro sin bloqueos críticos (`SANTO_DOMINGO_ENTREGA.md`).
 
 ### Checklist SD-1 piso — ejecución automática (2026-05-21 sesión Cursor)
 
@@ -972,6 +973,8 @@ pytest tests/test_agente_operador.py tests/test_agente_operador_v02.py tests/tes
 OWNER_SUPERVISOR_TELEFONO=+569XXXXXXXX   # botón Llamar supervisor (tel:)
 OWNER_PWA_SUCURSAL_LABEL=Santo Domingo   # texto tarjeta inventario
 ```
+
+**Operación un local vs red:** Admin → **Datos de empresa** → *Un establecimiento* (default SD) o *Red multi-sucursal* → `operacion_un_local` / `operacion_sucursales_red_n` en `empresa_config.json`. Guardián: `services/empresa_operacion_service.py` (env `OWNER_GUARDIAN_*` solo override).
 
 **Tests smoke:** `pytest tests/test_owner_dashboard_api.py -m smoke -q`
 
