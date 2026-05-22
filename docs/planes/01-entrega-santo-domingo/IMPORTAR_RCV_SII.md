@@ -26,6 +26,10 @@ python scripts/importar_rcv_sii.py --input "compras_rcv_2026.csv" --dry-run
 # 3) Import real (producción Neon / www.lhexia.cl)
 python scripts/importar_rcv_sii.py --neon --input "compras_rcv_2026.csv"
 
+# Lote: todos los CSV en datos_rcv/ (PowerShell)
+.\scripts\reimportar_rcv_neon_todos.ps1
+# Simulación: .\scripts\reimportar_rcv_neon_todos.ps1 -DryRun
+
 # Solo facturas electrónicas 33
 python scripts/importar_rcv_sii.py -i compras.csv --tipos 33
 ```
@@ -57,3 +61,13 @@ Migración enum archivado (una vez Neon):
 ```bash
 python scripts/apply_sql_neon.py sql/2026_05_22_recepciones_archivado_rcv.sql
 ```
+
+## Purga maestro PRD (solo Neon, antes de Chilemat)
+
+```bash
+python scripts/purge_maestro_productos_neon.py --neon --dry-run
+# CONFIRMAR_PURGA_MAESTRO=SI
+python scripts/purge_maestro_productos_neon.py --neon
+```
+
+No usa `--neon` → no toca Postgres local del prototipo.
