@@ -263,6 +263,9 @@
     })();
     </script>
     {% endif %}
+    {% if recepciones_lista_page %}
+    <script src="{{ url_for('static', filename='js/recepciones-folio-filtro.js') }}?v={{ recepciones_folio_js_v }}"></script>
+    {% endif %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

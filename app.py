@@ -2149,6 +2149,15 @@ def inject_company_context():
             brand_ctx['pos_url_destino'] = _pos_url_destino(current_user)
     except Exception:
         brand_ctx['pos_url_destino'] = None
+    recepciones_lista_page = False
+    try:
+        recepciones_lista_page = request.endpoint == 'lista_recepciones'
+    except RuntimeError:
+        pass
+    recepciones_ui = {
+        'recepciones_lista_page': recepciones_lista_page,
+        'recepciones_folio_js_v': '20260522b',
+    }
     try:
         return {
             'empresa_cfg': obtener_config_empresa(),
@@ -2156,6 +2165,7 @@ def inject_company_context():
             'usuario_tiene_permiso': usuario_tiene_permiso,
             'modulo_activo': modulo_activo,
             'nav_menu': nav,
+            **recepciones_ui,
             **brand_ctx,
         }
     except Exception:
@@ -2166,6 +2176,7 @@ def inject_company_context():
             'modulo_activo': lambda _nombre: True,
             'nav_menu': [],
             'lhexia_icon_transparent_src': brand_ctx.get('lhexia_icon_transparent_src', brand_ctx.get('lhexia_icon_src')),
+            **recepciones_ui,
             **brand_ctx,
         }
 
