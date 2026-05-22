@@ -3,7 +3,19 @@
 **Script:** `scripts/importar_rcv_sii.py`  
 **Servicio:** `services/rcv_sii_import_service.py`  
 **SQL Neon:** `sql/2026_05_22_rcv_sii_recepciones.sql`  
-**Listado UI:** `/recepciones` (filtros, Pareto por monto, folio, archivar 2025)
+**Listado UI:** `/recepciones` (filtros, Pareto por monto, folio, archivar 2025)  
+**Cierre sesión SD-1:** 2026-05-22 · D0 maestro cargado · UI recepciones en `main` (commits `7557b35`–`ab907b2` + `c239429`)
+
+---
+
+## Origen de datos (validado en piso)
+
+| Fuente | Qué aporta | Import al ERP |
+|--------|------------|---------------|
+| **RCV Compras (CSV SII)** | Encabezados: RUT, folio, fechas, montos, razón social | **Automático** → `scripts/importar_rcv_sii.py` (dedup por folio) |
+| **Portal histórico DTE (SII)** | Detalle líneas del documento (ítems, cantidades, textos) | **No automático** — referencia para PDF adjunto + líneas manuales o IA (`OPENAI_API_KEY`) |
+
+La data de origen del RCV está confirmada. El detalle DTE del portal sirve para contrastar al cargar cada factura en el Pareto; no reemplaza el CSV de encabezados.
 
 ---
 
