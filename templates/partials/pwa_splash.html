@@ -1,0 +1,36 @@
+{# Splash primera carga móvil / PWA — ocultar al DOM listo #}
+<div id="lhexiaAppSplash" class="lhexia-app-splash" role="status" aria-live="polite" aria-label="Cargando LhexIA">
+  <div class="lhexia-app-splash__aurora" aria-hidden="true">
+    <span class="lhexia-app-splash__blob lhexia-app-splash__blob--blue"></span>
+    <span class="lhexia-app-splash__blob lhexia-app-splash__blob--orange"></span>
+  </div>
+  <div class="lhexia-app-splash__content">
+    <img
+      src="{{ url_for('static', filename='img/lhexia-core-reveal-square.png') }}?v=lhexia20260522core1"
+      alt=""
+      class="lhexia-app-splash__core"
+      width="120"
+      height="120"
+    >
+    <div class="lhexia-app-splash__key-row">
+      <span class="lhexia-app-splash__key" aria-hidden="true"><i class="fas fa-key"></i></span>
+      <h1 class="lhexia-app-splash__title">LhexIA Guardián</h1>
+    </div>
+    <p class="lhexia-app-splash__sub">Cargando…</p>
+  </div>
+</div>
+<script>
+(function () {
+  var el = document.getElementById('lhexiaAppSplash');
+  if (!el) return;
+  function hide() {
+    el.classList.add('is-done');
+    setTimeout(function () { el.remove(); }, 400);
+  }
+  if (document.readyState === 'complete') {
+    setTimeout(hide, 280);
+  } else {
+    window.addEventListener('load', function () { setTimeout(hide, 280); }, { once: true });
+  }
+})();
+</script>

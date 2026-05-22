@@ -168,7 +168,12 @@ class TestOwnerDashboardApi:
         assert b'ownerGuardianSemMini' in r.data
         rm = app_client.get('/owner-pwa/manifest.webmanifest')
         assert rm.status_code == 200
-        assert rm.get_json().get('name') == 'Lhexia Guardián'
+        manifest = rm.get_json()
+        assert manifest.get('name') == 'Lhexia Guardián'
+        assert manifest.get('short_name') == 'Guardián'
+        assert manifest.get('background_color') == '#0b0f19'
+        icons = manifest.get('icons') or []
+        assert any('owner-pwa/icon-512' in (i.get('src') or '') for i in icons)
 
     def test_dashboard_sin_sesion_401(self, app_ctx):
         c = m.app.test_client(use_cookies=False)

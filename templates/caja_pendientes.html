@@ -2,7 +2,59 @@
 
 {% block extra_css %}
 <style>
-    .header-cajera { background: linear-gradient(90deg, #14532d, #166534); color: white; padding: 18px; border-radius: 12px; }
+    .header-cajera {
+        background: linear-gradient(90deg, #14532d, #166534);
+        color: white;
+        padding: 18px;
+        border-radius: 12px;
+    }
+    .header-cajera__right {
+        text-align: right;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 10px;
+    }
+    .header-cajera__actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+    .header-cajera__actions .btn {
+        min-height: 40px;
+        white-space: nowrap;
+    }
+    @media (max-width: 767.98px) {
+        .header-cajera {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 12px;
+            padding: 14px;
+        }
+        .header-cajera__right {
+            text-align: left;
+            align-items: stretch;
+            width: 100%;
+        }
+        .header-cajera__clock h3 {
+            font-size: 1.35rem;
+            margin-bottom: 0;
+        }
+        .header-cajera__actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .header-cajera__actions .btn {
+            width: 100%;
+            font-size: 0.78rem;
+            padding: 0.45rem 0.5rem;
+        }
+        .header-cajera .row.g-3 > [class*="col-md"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+    }
     .card-indicador { border-radius: 12px; border: 1px solid var(--ds-border); box-shadow: var(--ds-shadow-sm); }
     .modal-premium .modal-content { border-radius: 25px; border: none; }
     .modal-premium .modal-header { background: #f8f9fa; border-bottom: 2px solid #166534; }
@@ -21,32 +73,34 @@
     
     <!-- 1. ENCABEZADO -->
     <div class="header-cajera d-flex justify-content-between align-items-center mb-4">
-        <div>
+        <div class="header-cajera__main">
             <h4 class="fw-bold mb-1"><i class="fas fa-cash-register me-2"></i>Panel de Cobranza</h4>
             <p class="mb-0">Cajero/a: <span class="fw-bold">{{ current_user.nombre }}</span></p>
         </div>
-        <div class="text-end">
+        <div class="header-cajera__right">
+        <div class="header-cajera__clock">
             <h3 id="hora-actual" class="fw-bold mb-0">00:00:00</h3>
-            <p id="fecha-actual" class="mb-2 small opacity-75"></p>
-            <div class="d-flex gap-2 justify-content-end">
-                <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-light">
-                    <i class="fas fa-cash-register me-1"></i> POS
-                </a>
-                {% if usuario_tiene_permiso('gestionar_usuarios') %}
-                <a href="{{ url_for('caja_historial_cierres') }}" class="btn btn-sm btn-outline-light">
-                    <i class="fas fa-history me-1"></i> Historial Cierres
-                </a>
-                {% endif %}
-                <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-warning fw-bold">
-                    <i class="fas fa-hand-holding-usd me-1"></i> Abonos Crédito
-                </a>
-                <a href="{{ url_for('caja_cambios') }}" class="btn btn-sm btn-info fw-bold text-white">
-                    <i class="fas fa-rotate me-1"></i> Cambios
-                </a>
-                <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-light">
-                    <i class="fas fa-exchange-alt me-1"></i> Movimientos
-                </a>
-            </div>
+            <p id="fecha-actual" class="mb-0 small opacity-75"></p>
+        </div>
+        <div class="header-cajera__actions">
+            <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-light">
+                <i class="fas fa-cash-register me-1"></i> POS
+            </a>
+            {% if usuario_tiene_permiso('gestionar_usuarios') %}
+            <a href="{{ url_for('caja_historial_cierres') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-history me-1"></i> Historial
+            </a>
+            {% endif %}
+            <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-warning fw-bold">
+                <i class="fas fa-hand-holding-usd me-1"></i> Abonos
+            </a>
+            <a href="{{ url_for('caja_cambios') }}" class="btn btn-sm btn-info fw-bold text-white">
+                <i class="fas fa-rotate me-1"></i> Cambios
+            </a>
+            <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-light">
+                <i class="fas fa-exchange-alt me-1"></i> Movimientos
+            </a>
+        </div>
         </div>
     </div>
 

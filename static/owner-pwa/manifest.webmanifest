@@ -1,21 +1,21 @@
 {
   "id": "/owner-mobile",
-  "name": "LhexIA Dueño",
-  "short_name": "Dueño",
-  "description": "Control en un vistazo — caja e inventario",
+  "name": "Lhexia Guardián",
+  "short_name": "Guardián",
+  "description": "Agente móvil de control — caja e inventario en vivo",
   "start_url": "/owner-mobile",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
   "lang": "es-CL",
   "categories": ["business", "finance"],
   "icons": [
     {
-      "src": "/static/img/lhexia-icon-approved.png",
-      "sizes": "256x256",
+      "src": "/static/owner-pwa/icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
@@ -26,7 +26,7 @@
       "purpose": "any"
     },
     {
-      "src": "/static/owner-pwa/icon-512.png",
+      "src": "/static/owner-pwa/icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

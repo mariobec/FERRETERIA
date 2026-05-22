@@ -43,7 +43,7 @@
   {% endif %}
   {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
   <a href="{{ url_for('owner_mobile') }}" class="mobile-quick-dock__item mobile-quick-dock__item--accent">
-    <i class="fas fa-mobile-screen"></i><span>Dueño</span>
+    <i class="fas fa-mobile-screen"></i><span>Guardián</span>
   </a>
   {% endif %}
   <button type="button" class="mobile-quick-dock__item" data-bs-toggle="offcanvas" data-bs-target="#mobileNavOffcanvas">

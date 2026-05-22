@@ -1,0 +1,126 @@
+/* Splash PWA / primera carga móvil — estética login (llave + núcleo, sin pantalla azul circuito) */
+
+.lhexia-app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #0b0f19;
+  color: #f8fafc;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.lhexia-app-splash.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.lhexia-app-splash__aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    rgba(11, 15, 25, 0.98),
+    rgba(15, 23, 42, 0.96),
+    rgba(30, 58, 138, 0.22),
+    rgba(11, 15, 25, 0.98)
+  );
+}
+
+.lhexia-app-splash__blob {
+  position: absolute;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: 0.45;
+}
+
+.lhexia-app-splash__blob--blue {
+  top: -4rem;
+  left: -4rem;
+  background: radial-gradient(circle, rgba(30, 58, 138, 0.85), transparent 70%);
+}
+
+.lhexia-app-splash__blob--orange {
+  right: -5rem;
+  top: 20%;
+  background: radial-gradient(circle, rgba(234, 88, 12, 0.75), transparent 72%);
+}
+
+.lhexia-app-splash__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.lhexia-app-splash__core {
+  width: 120px;
+  height: 120px;
+  border-radius: 22px;
+  object-fit: contain;
+  box-shadow:
+    0 0 32px rgba(234, 88, 12, 0.45),
+    0 14px 40px rgba(0, 0, 0, 0.45);
+  margin-bottom: 8px;
+}
+
+.lhexia-app-splash__key-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.lhexia-app-splash__key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 11px;
+  font-size: 1.05rem;
+  color: #fcd34d;
+  background: linear-gradient(145deg, rgba(234, 88, 12, 0.45), rgba(251, 191, 36, 0.22));
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 20px rgba(234, 88, 12, 0.45);
+}
+
+.lhexia-app-splash__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.lhexia-app-splash__sub {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  color: rgba(248, 250, 252, 0.65);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+  .lhexia-app-splash {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lhexia-app-splash {
+    transition: none;
+  }
+}

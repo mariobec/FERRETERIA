@@ -1,7 +1,7 @@
 {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
-<div id="ownerInstallBanner" class="hub-pwa-install d-none" role="region" aria-label="Instalar app Dueño">
+<div id="ownerInstallBanner" class="hub-pwa-install d-none" role="region" aria-label="Instalar Lhexia Guardián">
   <div class="flex-grow-1">
-    <strong>App Dueño en su teléfono</strong>
+    <strong>App Guardián en su teléfono</strong>
     <span class="d-block small opacity-90">Semáforo caja e inventario — acceso en un toque</span>
   </div>
   <a href="{{ url_for('owner_mobile') }}" class="btn btn-sm btn-light fw-bold text-dark">Abrir panel</a>

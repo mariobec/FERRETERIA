@@ -28,14 +28,14 @@ def register_owner_api_routes(app):
             'display': 'standalone',
             'display_override': ['standalone', 'fullscreen'],
             'orientation': 'portrait',
-            'background_color': '#020617',
-            'theme_color': '#020617',
+            'background_color': '#0b0f19',
+            'theme_color': '#0b0f19',
             'lang': 'es-CL',
             'categories': ['business', 'finance'],
             'icons': [
                 {
-                    'src': f'{base}/static/img/lhexia-icon-transparent.png',
-                    'sizes': '256x256',
+                    'src': f'{base}/static/owner-pwa/icon-192.png',
+                    'sizes': '192x192',
                     'type': 'image/png',
                     'purpose': 'any',
                 },
@@ -46,7 +46,7 @@ def register_owner_api_routes(app):
                     'purpose': 'any',
                 },
                 {
-                    'src': f'{base}/static/owner-pwa/icon-512.png',
+                    'src': f'{base}/static/owner-pwa/icon-512-maskable.png',
                     'sizes': '512x512',
                     'type': 'image/png',
                     'purpose': 'maskable',
