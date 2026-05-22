@@ -18,10 +18,16 @@ pip install -r requirements.txt
 python homologar_productos_excel.py --input "ruta/a/tu/archivo.xlsx" --output "productos_homologados.csv"
 ```
 
+**Matriz Chilemat (maestro sin stock, barras después en enrolamiento):**
+
+```bash
+python homologar_productos_excel.py --input "matriz_chilemat.xlsx" --output "productos_homologados.csv" --maestro
+```
+
 Opcionalmente genera archivo de errores:
 
 ```bash
-python homologar_productos_excel.py --input "ruta/a/tu/archivo.xlsx" --output "productos_homologados.csv" --errores "productos_errores.csv"
+python homologar_productos_excel.py --input "ruta/a/tu/archivo.xlsx" --output "productos_homologados.csv" --errores "productos_errores.csv" --maestro
 ```
 
 ## 3) Revisar resultado
@@ -38,6 +44,8 @@ python homologar_productos_excel.py --input "ruta/a/tu/archivo.xlsx" --output "p
 ## Columnas objetivo del ERP
 
 - nombre
+- codigo_chilemat (referencia cadena; con `--maestro` genera `PEND-*` y `CHM-*` si faltan barras/interno)
+- codigo_interno
 - codigo_barra
 - precio_compra
 - precio_venta

@@ -225,6 +225,7 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 
 | Fecha       | Qué pasó |
 |------------|----------|
+| 2026-05-22 | **Inventario SD D0–D5:** `homologar_productos_excel.py --maestro` (`codigo_chilemat`, `PEND-*`, stock 0); checklist `CHECKLIST_INVENTARIO_SD_D0_D5.md`. |
 | 2026-05-22 | **Operación empresa:** Admin → Empresa — un local vs red (`operacion_un_local`, `operacion_sucursales_red_n`); `empresa_operacion_service.py`; Guardián lee JSON. Docs: SD ≠ 3 sucursales en piso. |
 | 2026-05-08 | Memoria arquitectura; módulos; venta dual POS vs formulario; caja día anterior; plan v2 Grok. |
 | 2026-05-10 | Cierre plan v2.0; servicios extraídos; `transaccion_critica` ampliada. |
