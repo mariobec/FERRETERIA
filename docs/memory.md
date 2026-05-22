@@ -983,4 +983,102 @@ OWNER_PWA_SUCURSAL_LABEL=Santo Domingo   # texto tarjeta inventario
 
 ---
 
-*Última actualización: 2026-05-21 — PWA Dueño API + UI Fase 2; smoke 105+; agentes y cierre caja en prod. Prioridad: SD-1 piso. FE en pausa.*
+---
+
+## Sesión 2026-05-21 — VERTEX Centro de Mandos + animaciones + Agente Mentor (chat Cursor)
+
+**Transcripción:** `agent-transcripts/bc4d8ea6-60b4-441b-bbaf-b5a8fb5551a9`  
+**Documento maestro ampliado:** `docs/ERP_MAESTRO.md` §19.6.1, rutas §4.3, changelog 2026-05-21.
+
+### Contexto de la sesión
+
+Mario validó el **Centro de Mandos Global** (`/owner/vertex-control?scope=global_maestro`) en www.lhexia.cl. Feedback iterativo:
+
+1. Mapa cognitivo “otro nivel” visualmente ✅ tras varias rondas de animación.
+2. Problema inicial: **solo el icono central se movía**; circuitos y anillos estáticos.
+3. Causa raíz: código con fix **sin push a `origin/main`** + animaciones SVG (SMIL/WAAPI) poco fiables en Windows/Edge.
+4. Producto: faltaba el **Agente Mentor** (asesoría cajera/vendedora — ej. cómo hacer nota de crédito).
+
+### PWA Guardián (trabajo previo misma línea de producto)
+
+| Pieza | Detalle |
+|-------|---------|
+| Ruta | `/owner-mobile` — renombrado producto **Guardián** (no “Dueño”) |
+| Manifest | `name`/`short_name` Guardián, `background_color` `#0b0f19` |
+| Iconos | `scripts/build_guardian_pwa_icons.py` → `static/owner-pwa/icon-*.png` desde `lhexia-core-reveal-square.png` |
+| Splash | `templates/partials/pwa_splash.html` + `static/css/pwa-splash.css` |
+| Caja móvil | `templates/caja_pendientes.html` — header columna, botones 2×2 |
+| **Operativa** | Tras deploy: **desinstalar PWA vieja** y reinstalar para icono/splash nuevos |
+
+### Centro de Mandos VERTEX — arquitectura
+
+| Capa | Archivos |
+|------|----------|
+| Ruta + permiso | `blueprints/owner_api.py` — `@permisos_required('gestionar_usuarios')`, `usuario_es_vertex_maestro()` |
+| Shell HTML | `templates/owner_vertex_control.html` — stage neural, HUB HTML, SVG `#vertexNeuralSvg`, riles glass |
+| API | `GET /api/v1/owner/dashboard?scope=global_maestro` |
+| Servicio | `services/vertex_control_center_service.py` — `_cliente_santo_domingo_live`, `_clientes_mock`, `_grafo_agentes`, `_feed_preview_global` |
+| Píldoras | `services/vertex_pildora_contract.py` — `build_pildora`, `asegurar_pildoras_demo_red`, tenants `santo_domingo`, `sodimac_piloto`, `easy_demo` |
+| Front | `static/owner-pwa/vertex-control.js`, `vertex-control.css` — cache **`vertex-neural-6`** |
+
+**Layout mapa:** HUB `(400,262)` · clientes en slots TL/TR/BR · paths PCB ortogonales · 3 líneas energía por arista (rail + track + energy).
+
+### Animaciones — evolución técnica (importante para retomar)
+
+| Versión cache | Enfoque | Resultado en piso |
+|---------------|---------|-------------------|
+| neural-2 / 3 | SMIL `<animate stroke-dashoffset>` | Casi nada visible |
+| neural-4 | Web Animations API en paths SVG | Usuario: “nada” (sin deploy + WAAPI débil en SVG) |
+| **neural-5 / 6** | **CSS `@keyframes`** `.vertex-dash-anim` + anillos `rotate` + arco `conic-gradient` en `.vertex-hub-vault::before` | ✅ Aprobado “maravilloso” |
+
+**Reglas fijadas:**
+
+- No setear `stroke-dashoffset` inline en JS.
+- Clase `vertex-neural-live` en SVG (también en template por defecto).
+- `wireEnergyPaths()` solo añade clases + dots en `requestAnimationFrame`.
+- `@media (prefers-reduced-motion: reduce)` en VERTEX: duraciones más largas, no `animation: none` global.
+- Quitar `contain: layout style` del stage (podía interferir).
+
+**Commits (orden):** `40dd867` red neuronal · `06a7020` SMIL · `a8f9e38` WAAPI · `fc1d58b` CSS neural-5 · `e9d7af6` Mentor · push a `main` obligatorio antes de validar prod.
+
+### Agente Mentor (`vertex_mentor`) — 2026-05-21 tarde
+
+**Producto:** mismo rol que **LhexIA Guía** (Agente 3 en `docs/planes/06-agentes-ia/CONSOLIDACION_4_AGENTES_ASESORIA.md`) — guía procesos para cajera/vendedora, no supervisión ni stock.
+
+| Implementado hoy | Pendiente (post SD-1) |
+|------------------|----------------------|
+| Nodo grafo violeta, leyenda, pill módulo | Chat / panel en POS |
+| Tarjeta glass riel izquierdo (icono `fa-graduation-cap`) | RAG `ERP_MAESTRO` + `CASUISTICAS_VENTAS_QA` |
+| SD live: `mentor` en `agentes_activos` + `vertex_mentor` en módulos | Botón “Pedir ayuda al Mentor” en caja/POS |
+| Píldora demo NC → `/caja/cambios` | Métricas consultas reales |
+
+**Demo píldoras:** `mentor_guia_nota_credito` (SD), `mentor_capacitacion` (Sodimac). Test: `test_pildora_mentor_demo_red`.
+
+### Enlaces útiles operación
+
+| Vista | URL |
+|-------|-----|
+| Guardián (un cliente) | `/owner-mobile` |
+| VERTEX maestro | `/owner/vertex-control` |
+| Control operativo SD | `/admin/control-center` |
+| API maestro | `/api/v1/owner/dashboard?scope=global_maestro` |
+
+### Validación
+
+```bash
+pytest tests/test_owner_dashboard_api.py -q
+# shell: vertex-neural-6 en HTML; grafo con nodo mentor
+```
+
+Prod: Ctrl+Shift+R; verificar deploy Render tras cada push.
+
+### Próximo paso sugerido (no implementado)
+
+- **Mentor en POS:** FAB o enlace contextual “¿Cómo hago una nota de crédito?” → wizard o RAG.
+- Checkpoint git antes de UI POS: `checkpoint/vertex-mentor-pos-YYYY-MM-DD` (regla `.cursor/rules/punto-restauracion-cambios-drasticos.mdc`).
+
+**Eje:** SD-1 + PLAT Etapa 2 visual; IA Mentor completo post SD-1.
+
+---
+
+*Última actualización: 2026-05-21 — VERTEX Centro de Mandos (red neuronal neural-6), Agente Mentor, PWA Guardián; memoria sincronizada con `ERP_MAESTRO.md` §19.6.1. Prioridad: SD-1 piso + validar Mentor en deploy.*

@@ -3,7 +3,7 @@
 > **LhexIA ERP** ([www.lhexia.cl](https://www.lhexia.cl)) — Sistema integral para ferretería y retail en Chile: ventas POS, caja con arqueo ciego, inventario multi-almacén, bodega con IA por voz, compras, créditos, facturación electrónica SII, BI gerencial, Customer 360 y torre de control para administración.
 
 **Última actualización:** 2026-05-21  
-**Versión operativa:** v2.0 (TEC cerrado) + **módulos v3** + **SD-1** (Santo Domingo) + **PLAT-1.1** (arqueo ciego) + **Control Center** (maquetación Etapa 2)  
+**Versión operativa:** v2.0 (TEC cerrado) + **módulos v3** + **SD-1** (Santo Domingo) + **PLAT-1.1** (arqueo ciego) + **Control Center** + **VERTEX Centro de Mandos** (red neuronal + Mentor)  
 **Líneas `app.py`:** ~22.200 (monolito; rutas también en `blueprints/*`)  
 **Paquete `core/`:** dominio venta/cobro/stock (Clean Architecture ligera)  
 **Templates:** ~122 vistas Jinja2 · **Suite de tests:** ~344 tests (`pytest tests/ --collect-only`)  
@@ -596,7 +596,9 @@ sistema_ventas_limpio/
 | Método | Ruta | Función |
 |---|---|---|
 | GET | `/inicio` | Dashboard principal (KPIs) |
-| GET | `/owner-mobile` | Vista ejecutiva mobile-first |
+| GET | `/owner-mobile` | PWA **Guardián** (dueño/gerente, semáforos SD) |
+| GET | `/owner/vertex-control` | **Centro de Mandos VERTEX** (multi-cliente maestro) |
+| GET | `/api/v1/owner/dashboard` | API JSON Guardián; `?scope=global_maestro` para VERTEX |
 | GET | `/ayuda` | Centro de ayuda |
 
 ### 4.4 Punto de venta (POS)
@@ -1102,6 +1104,10 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | 2026-05-21 | **PLAT-1.1** Arqueo ciego fusionado en `Caja` + UI cierre + detalle admin |
 | 2026-05-21 | **Control Center** `GET /admin/control-center` + `dashboard_madre.html` (maquetación Etapa 2) |
 | 2026-05-21 | Seed demo arqueo `scripts/seed_arqueo_demo_vendedor.py` |
+| 2026-05-21 | **PWA Guardián** rebranding: iconos premium, splash estilo login, caja móvil 2×2; manifest nombre «Guardián» |
+| 2026-05-21 | **Centro de Mandos VERTEX** `/owner/vertex-control`: red neuronal HUB, circuitos animados, feed global `scope=global_maestro`, píldoras v1.0 |
+| 2026-05-21 | **VERTEX animaciones** iteración neural-3→6: CSS `vertex-dash-anim`, anillos HUB, arco `conic-gradient`; fix deploy/caché |
+| 2026-05-21 | **Agente Mentor** (`vertex_mentor`): nodo violeta, tarjeta glass, demo NC → `/caja/cambios`; SD live siempre con mentor activo |
 
 ---
 
@@ -1183,10 +1189,70 @@ Detalle offline: [`ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](planes/04-tecnico/RO
 
 | Hito | Entregable | Estado |
 |------|------------|--------|
-| **2.0** | Maquetación Control Center | ✅ UI + ruta + servicio |
-| **2.1** | Tabla `agente_ejecuciones` | ⏳ |
+| **2.0** | Maquetación Control Center (`/admin/control-center`) | ✅ UI + ruta + servicio |
+| **2.0b** | **Centro de Mandos VERTEX** (`/owner/vertex-control`) | ✅ Red neuronal + feed global (sesión 2026-05-21) |
+| **2.1** | Tabla `agente_ejecuciones` | 🟡 En uso (píldoras v1.0 + alertas Operador) |
 | **2.2** | Bandeja HITL obligatoria | ⏳ |
 | **2.3** | `pgvector` + ingest marketing | ⏳ |
+
+#### 19.6.1 Centro de Mandos VERTEX — red neuronal multi-cliente (2026-05-21)
+
+**Audiencia:** Dueño plataforma LhexIA (`gestionar_usuarios` + opcional `LHEXIA_VERTEX_MAESTRO_USERS`). No es la PWA Guardián de una sola ferretería.
+
+| Pieza | Ubicación |
+|-------|-----------|
+| Ruta shell | `GET /owner/vertex-control` — `blueprints/owner_api.py`, `templates/owner_vertex_control.html` |
+| API | `GET /api/v1/owner/dashboard?scope=global_maestro` — header `X-Lhexia-Scope: global_maestro` |
+| Servicio | `services/vertex_control_center_service.py` — clientes live/mock, `grafo_agentes`, `feed_preview_global` |
+| Contrato píldoras | `services/vertex_pildora_contract.py` — `vertex_pildora` v1.0, semillas demo (`asegurar_pildoras_demo_red`) |
+| Front | `static/owner-pwa/vertex-control.js` + `vertex-control.css` (cache bust `?v=vertex-neural-6`) |
+| Enlace operativo SD | Botón **Guardián** → `/owner-mobile`; **Módulos** → hub ERP |
+
+**Clientes en red (payload API):**
+
+| `id` | Fuente | Agentes en mapa |
+|------|--------|-----------------|
+| `santo_domingo` | **live** (Guardián v3 + KPIs reales) | Guardián, Operador, **Mentor**, Inventario (si semáforo inv. amarillo/rojo) |
+| `sodimac_piloto` | mock | Guardián, Operador, Logística, **Mentor** |
+| `easy_demo` | mock | Guardián, Inventario, **Mentor** |
+
+**Agentes producto VERTEX (módulos `vertex_*`):**
+
+| Clave grafo | Módulo | Rol en producto |
+|-------------|--------|-----------------|
+| `guardian` | `vertex_guardian` | Arqueo, caja, cumplimiento (PWA Guardián) |
+| `operador` | `vertex_operador` | Alertas operativas, vales, quiebres, descuadres |
+| `logistica` | `vertex_logistica` | Traslados, SLA bodega |
+| `inventario` | `vertex_inventario` | Stock, salud inventario |
+| **`mentor`** | **`vertex_mentor`** | **LhexIA Guía** — asesoría a cajera/vendedora en procesos (NC, vales, permisos). Alineado con Agente 3 en `CONSOLIDACION_4_AGENTES_ASESORIA.md`. **MVP VERTEX:** nodo violeta + tarjeta glass + píldoras demo; **pendiente SD-1+:** chat/RAG en POS |
+
+**UI mapa cognitivo:**
+
+- **HUB central:** anillos concéntricos CSS (rotación), isotipo hexagonal `lhexia-icon-approved.png`, leyenda circuitos.
+- **Circuitos PCB:** HUB → clientes (paths SVG); pulsos eléctricos vía **CSS `@keyframes` `stroke-dashoffset`** (clase `vertex-dash-anim` tras API); puntos viajeros en rAF.
+- **Rieles glass:** tarjetas Agente Preview (izq: Guardián/Mentor; der: Logística/Operador).
+- **HUD:** % autonomía agentes (derivado de alertas rojo/amarillo).
+
+**Píldoras demo Mentor (persistidas en `agente_ejecuciones`):**
+
+| dedupe_key | Título | `nav_href` |
+|------------|--------|------------|
+| `vertex:maestro:santo_domingo:mentor_nota_credito` | Guía nota de crédito — consultas vendedoras | `/caja/cambios` |
+| `vertex:maestro:sodimac_piloto:mentor_capacitacion` | Onboarding cajera — vale y cobro | `/punto_venta` |
+
+**Animaciones — lecciones sesión 2026-05-21:**
+
+1. **No** fijar `stroke-dashoffset` inline en JS (bloquea CSS).
+2. SMIL / WAAPI en SVG paths **no fiables** en Edge/Windows → solución final: **CSS puro** + clase `vertex-neural-live` en `#vertexNeuralSvg`.
+3. Anillos HUB: contenedor `inset:0; margin:auto` + `@keyframes rotate` (sin mezclar `translate` en keyframes).
+4. `prefers-reduced-motion`: en VERTEX se **ralentiza**, no se apaga todo (Windows “animaciones reducidas”).
+5. **Deploy:** commits deben estar en `origin/main` + Render; recarga **Ctrl+Shift+R** (`vertex-neural-6`).
+
+**Commits relevantes (mayo 2026):** `40dd867` red neuronal inicial · `06a7020` pulsos SMIL · `a8f9e38` WAAPI · `fc1d58b` CSS puro neural-5 · `e9d7af6` Agente Mentor.
+
+**Tests:** `tests/test_owner_dashboard_api.py` — `test_dashboard_global_maestro_scope`, `test_owner_vertex_control_shell`, `test_pildora_mentor_demo_red`.
+
+**Pendiente producto (acordado en chat):** botón “Pedir ayuda al Mentor” en POS/caja móvil; RAG sobre `ERP_MAESTRO` + `CASUISTICAS_VENTAS_QA` (post SD-1).
 
 ### 19.7 Etapa 3 — Inteligencia digital
 
@@ -1450,4 +1516,4 @@ Un módulo se considera **cerrado** cuando:
 
 ---
 
-*Última revisión maestra: 2026-05-21 — §0 Especificación funcional integral + §19 Planes estratégicos; `app.py` ~22.2k líneas, ~344 tests, Control Center y arqueo ciego PLAT-1.1 documentados.*
+*Última revisión maestra: 2026-05-21 — §19.6.1 Centro de Mandos VERTEX + Agente Mentor; PWA Guardián; animaciones red neuronal; ver también `docs/memory.md` sesión VERTEX.*
