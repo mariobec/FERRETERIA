@@ -13,12 +13,15 @@
 
 ## Antes de la toma de inventario (D0)
 
-### 1. Almacenes (3 sucursales)
+### 1. Almacenes (un establecimiento — sin sucursales)
 
-En **Administración → Almacenes** (o script existente `crear_almacenes_tienda_bodega.py`):
+Santo Domingo opera en **un solo local**. El inventario se hace por **almacén** (ej. tienda y bodega).
 
-- [ ] Cada sucursal tiene al menos un almacén **activo** (tienda y/o bodega según operación).
-- [ ] Anotar `id` y nombre de cada almacén para capacitación.
+En **Administración → Almacenes**:
+
+- [ ] Listar todos los almacenes **activos** del negocio.
+- [ ] Anotar `id` y nombre de cada uno para capacitación.
+- [ ] No confundir con “sucursales”: Chilemat/red es fase comercial posterior.
 
 ### 2. Permisos
 
@@ -54,11 +57,11 @@ Si flash “Faltan tablas de enrolamiento”, aplicar en BD:
 ### Opción A: Enrolamiento con sesión (recomendado)
 
 1. Ir a **`/inventario/enrolamiento`**
-2. Elegir **almacén / sucursal** de la sesión
+2. Elegir **almacén** de la sesión (tienda o bodega)
 3. Escanear código de barras (pistola) o buscar producto
 4. Registrar cantidad contada (suma en sesión)
 5. Repetir por pasillo / zona
-6. Al terminar sucursal: export o revisar en **Salud inventario**
+6. Al terminar ese almacén: revisar **Salud inventario**
 
 ### Opción B: Salud y corrección
 
@@ -86,8 +89,8 @@ Si flash “Faltan tablas de enrolamiento”, aplicar en BD:
 
 | Área | Criterio |
 |------|----------|
-| Inventario | Las 3 sucursales con conteo registrado o plan de corrección documentado |
-| POS | Al menos 1 sucursal con flujo vale completo sin bloqueos críticos |
+| Inventario | Cada almacén activo con conteo o plan de corrección documentado |
+| POS | Al menos un flujo vale → cobro completo sin bloqueos críticos |
 | Datos | Códigos de barra críticos existen en catálogo |
 | Equipo | 2+ usuarios capacitados por módulo |
 

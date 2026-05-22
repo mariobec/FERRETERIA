@@ -16,7 +16,8 @@
 | Dato | Valor |
 |------|-------|
 | Negocio | Ferretería mediana, ~20 trabajadores |
-| Sucursales | **3** |
+| Establecimientos | **1** (Santo Domingo — **sin sucursales**) |
+| Almacenes ERP | Tienda + bodega (y otros que existan en Admin → Almacenes) |
 | Rol en LhexIA | Cliente diseño, laboratorio real, caso de éxito |
 | Tenant | Implícito único (una BD Neon, un Render) |
 | Urgencia | Prototipo estable **POS + inventario** en ~2 semanas |
@@ -39,13 +40,13 @@ flowchart LR
 | Fase | Objetivo | Estado | Documento detalle |
 |------|----------|--------|-------------------|
 | **SD-1** | Go-live POS + inventario | 🟡 **Cierre en curso** | [`SD1_CIERRE_FASE1_VERTEX.md`](SD1_CIERRE_FASE1_VERTEX.md) |
-| SD-1.1 | Toma física | 🟡 **3 sucursales pendientes** | §4 · checklist §B |
-| SD-1.2 | POS venta diaria | ✅ Piloto OK · replicar suc. 2–3 | §5 · `docs/CASUISTICAS_VENTAS_QA.md` |
+| SD-1.1 | Toma física | 🟡 Por **almacén** (tienda + bodega) | §4 · checklist §B |
+| SD-1.2 | POS venta diaria | ✅ Piloto OK · repetir retiros Tienda/Bodega | §5 · `docs/CASUISTICAS_VENTAS_QA.md` |
 | SD-1.3 | Infra + capacitación | ⏳ Sign-off | §6 · §E cierre |
 | **SD-2** | Caja multi-sucursal | ⏳ Post SD-1 | Caja ya madura en código |
 | **SD-3** | Compras + FE producción | ⏳ | FE 🟡 certificación |
 
-**Cierre SD-1:** conteo por sucursal registrado + ≥1 sucursal con flujo vale completo sin bloqueos críticos.
+**Cierre SD-1:** conteo por **almacén** del establecimiento + ≥1 flujo vale → cobro sin bloqueos críticos. *(No aplica “3 sucursales” — SD es un solo local.)*
 
 ---
 
@@ -159,8 +160,8 @@ Flujos que no deben romperse: [`FLUJOS_CRITICOS.md`](FLUJOS_CRITICOS.md)
 
 | Área | Criterio |
 |------|----------|
-| Inventario | 3 sucursales con conteo o plan de corrección documentado |
-| POS | ≥1 sucursal flujo vale completo sin bloqueos críticos |
+| Inventario | Todos los **almacenes activos** con conteo o plan de corrección |
+| POS | ≥1 flujo vale → cobro completo sin bloqueos críticos |
 | Datos | Códigos de barra críticos en catálogo |
 
 ### Checklist piso SD-1 (2026-05-21 — sin código nuevo hasta firmar)
@@ -193,8 +194,8 @@ Flujos que no deben romperse: [`FLUJOS_CRITICOS.md`](FLUJOS_CRITICOS.md)
 
 | # | Acción | Responsable |
 |---|--------|-------------|
-| 1 | Completar inventario **3 sucursales** (tabla §B del checklist) | Piso |
-| 2 | Vale → cobro **sucursales 2 y 3** | Piso |
+| 1 | Completar inventario **cada almacén** (tienda + bodega) — tabla §B checklist | Piso |
+| 2 | Repetir vale → cobro (Bodega / Mixto si falta) en el mismo local | Piso |
 | 3 | `python scripts/sd1_cierre_preflight.py` en QA | Cursor |
 | 4 | Guardián en celular + `OWNER_SUPERVISOR_TELEFONO` | Mario |
 | 5 | Backup Neon + capacitación §E + **sign-off §G** | Mario |

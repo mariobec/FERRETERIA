@@ -19,7 +19,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='Preflight cierre SD-1')
-    parser.add_argument('--min-almacenes', type=int, default=3, help='Mínimo almacenes activos')
+    parser.add_argument(
+        '--min-almacenes',
+        type=int,
+        default=2,
+        help='Minimo almacenes activos (SD: tipico tienda+bodega, no sucursales)',
+    )
     args = parser.parse_args()
 
     import app as m  # noqa: E402
@@ -34,7 +39,7 @@ def main() -> int:
         lines.append(f'Almacenes activos: {activos} (mínimo {args.min_almacenes})')
         if activos < args.min_almacenes:
             ok = False
-            lines.append('  FAIL - configurar sucursales en Admin > Almacenes')
+            lines.append('  FAIL - revisar almacenes activos en Admin > Almacenes (SD = 1 local)')
         else:
             for a in m.Almacen.query.filter_by(activo=True).order_by(m.Almacen.id).all():
                 lines.append(f'  - [{a.id}] {a.codigo} - {a.nombre}')

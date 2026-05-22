@@ -3,11 +3,12 @@
 **Ecosistema:** LhexIA VERTEX · **Solución:** LhexIA Ferretería · **Cliente:** Santo Domingo  
 **Fecha objetivo cierre:** _______________ · **Firma operación:** _______________
 
-> Este documento es la **puerta de salida** de SD-1. Cuando todos los ítems obligatorios estén marcados, SD-1 queda **cerrado** y se abre SD-2 / semana 2 VERTEX.
+> Este documento es la **puerta de salida** de SD-1. Cuando todos los ítems obligatorios estén marcados, SD-1 queda **cerrado** y se abre SD-2 / demo red Chilemat.
+
+**Aclaración operativa (2026-05-21):** Ferretería Santo Domingo es **un solo establecimiento** (una dirección / operación en piso). **No tiene sucursales.** En el ERP, el inventario se trabaja por **almacenes** (ej. tienda y bodega en el mismo local). La “red” y varias sucursales en Guardián corresponden a **Chilemat / VERTEX futuro**, no al alcance SD-1.
 
 **Runbook piso:** [`CLIENTE_SANTO_DOMINGO.md`](CLIENTE_SANTO_DOMINGO.md)  
-**Portal entrega:** [`SANTO_DOMINGO_ENTREGA.md`](SANTO_DOMINGO_ENTREGA.md)  
-**Biblia VERTEX:** [`../../arquitectura/LHEXIA_VERTEX_VISION.md`](../../arquitectura/LHEXIA_VERTEX_VISION.md)
+**Portal entrega:** [`SANTO_DOMINGO_ENTREGA.md`](SANTO_DOMINGO_ENTREGA.md)
 
 ---
 
@@ -15,8 +16,8 @@
 
 | # | Criterio | Obligatorio |
 |---|----------|-------------|
-| C1 | **3 sucursales** con sesión de enrolamiento cerrada *o* plan escrito de corrección | Sí |
-| C2 | **≥1 sucursal** (ideal 3) con flujo **vale → cobro → stock** sin bloqueo crítico | Sí |
+| C1 | **Todos los almacenes activos** del establecimiento con sesión de enrolamiento cerrada *o* plan de corrección documentado | Sí |
+| C2 | **≥1 día operativo** con flujo **vale → cobro → stock** sin bloqueo crítico (ideal: Tienda + Bodega + Mixto) | Sí |
 | C3 | **Smoke tests** repo en verde (`pytest -m smoke`) | Sí |
 | C4 | **Casuísticas** ventas (`pytest -m casuisticas`) en verde en BD QA | Sí |
 | C5 | **Guardián** probado en celular (semáforos + ventas hoy + actualizar) | Sí |
@@ -25,9 +26,7 @@
 
 ---
 
-## A. Tecnología — validación automática (Cursor / CI)
-
-Ejecutar en PC con BD local o QA (no producción sin `ALLOW_TESTS_ON_REMOTE`):
+## A. Tecnología — validación automática
 
 ```bash
 pytest tests/ -m smoke -q --tb=no
@@ -36,60 +35,58 @@ pytest tests/test_owner_dashboard_api.py -m smoke -q
 python scripts/sd1_cierre_preflight.py
 ```
 
-| Check | Comando / evidencia | Estado | Fecha |
-|-------|---------------------|--------|-------|
-| A1 | Smoke **113+ passed** | [ ] | |
-| A2 | Casuísticas **11/11** | [ ] | |
-| A3 | Guardián API smoke | [ ] | |
-| A4 | Preflight script OK | [ ] | |
-| A5 | Último deploy Render = commit `________` en `main` | [ ] | |
-
-**Última corrida documentada (2026-05-21):** smoke 113 passed · casuísticas 11 passed · Guardián 7 passed.
+| Check | Estado | Fecha |
+|-------|--------|-------|
+| A1 Smoke 113+ | [ ] | |
+| A2 Casuísticas 11/11 | [ ] | |
+| A3 Guardián API | [ ] | |
+| A4 Preflight OK | [ ] | |
+| A5 Deploy Render commit `________` | [ ] | |
 
 ---
 
-## B. Inventario — 3 sucursales (piso)
+## B. Inventario — por almacén (mismo establecimiento)
 
-| Sucursal / almacén | ID almacén | Sesión enrolamiento | Fecha cierre sesión | Salud revisada | Responsable |
-|--------------------|------------|---------------------|---------------------|----------------|-------------|
+Listar **solo almacenes reales** de Santo Domingo (Admin → Almacenes). Típico: **Tienda** + **Bodega** (2 sesiones, no “3 sucursales”).
+
+| Almacén | ID | Sesión enrolamiento cerrada | Fecha | Salud OK | Responsable |
+|---------|-----|----------------------------|-------|----------|-------------|
 | 1. _______________ | | [ ] | | [ ] | |
 | 2. _______________ | | [ ] | | [ ] | |
-| 3. _______________ | | [ ] | | [ ] | |
+| _(opcional)_ 3. _______ | | [ ] | | [ ] | |
 
-**Rutas:** `/inventario/enrolamiento` → `/inventario/salud` → export CSV si hay desajuste.
+- [ ] D0: almacenes activos verificados (nombres anotados para capacitación)
+- [ ] Permisos `enrolamiento_inventario` a encargados
+- [ ] Backup Neon antes de ajustes masivos: fecha _______
 
-- [ ] D0: 3 almacenes activos verificados (Admin → Almacenes)
-- [ ] Permisos `enrolamiento_inventario` asignados a encargados
-- [ ] Backup Neon hecho antes de ajustes masivos: fecha _______
+**Rutas:** `/inventario/enrolamiento` → por cada almacén → `/inventario/salud`
 
 ---
 
-## C. POS y caja — operación real
+## C. POS y caja — mismo local
 
-| Sucursal | Vale emitido # | Cobro Pagado | Retiro (Tienda/Bodega/Mixto) | TV ticket | OK |
-|----------|----------------|--------------|------------------------------|-----------|-----|
-| Piloto (hecho) | 2584 / 2585 | [x] | [x] | [x] | [x] |
-| Sucursal 2 | | [ ] | [ ] | [ ] | [ ] |
-| Sucursal 3 | | [ ] | [ ] | [ ] | [ ] |
+| Escenario | Vale # | Cobro Pagado | Retiro | TV | OK |
+|-----------|--------|--------------|--------|-----|-----|
+| Piloto (validado 2026-05-21) | 2584 / 2585 | [x] | Tienda / Bodega | [x] | [x] |
+| Tienda (si distinto del piloto) | | [ ] | Tienda | [ ] | [ ] |
+| Bodega | | [ ] | Bodega | [ ] | [ ] |
+| Mixto (opcional) | | [ ] | Mixto | [ ] | [ ] |
 
-**Flujo:** `/punto_venta` → emitir vale → `/caja/vales_pendientes` → cobrar.
-
-- [ ] Ctrl+F5 en POS tras último deploy
-- [ ] Búsqueda con 2–3 caracteres; filtro **Catálogo** probado si Operativo vacío
+- [ ] Ctrl+F5 POS tras último deploy
 - [ ] Cierre de caja del día sin error crítico
 
 ---
 
-## D. LhexIA Guardián (Fase 1 VERTEX)
+## D. LhexIA Guardián
 
-| Ítem | OK | Notas |
-|------|-----|-------|
-| `/owner-mobile` carga en celular | [ ] | |
-| Mini semáforos (Caja Inv Créd OC) visibles | [ ] | |
-| Ventas hoy reflejan operación del día | [ ] | |
-| Botón Actualizar refresca datos | [ ] | |
-| `OWNER_SUPERVISOR_TELEFONO` en Render | [ ] | |
-| PWA instalada en pantalla inicio (opcional) | [ ] | |
+| Ítem | OK |
+|------|-----|
+| `/owner-mobile` en celular | [ ] |
+| Mini semáforos + tarjetas | [ ] |
+| Ventas hoy coherente con operación | [ ] |
+| `OWNER_SUPERVISOR_TELEFONO` en Render | [ ] |
+
+*Nota:* “3 sucursal(es)” en consolidado/desfalco red es **vista Chilemat/demo red**, no implica que SD tenga 3 locales.
 
 ---
 
@@ -100,39 +97,29 @@ python scripts/sd1_cierre_preflight.py
 | POS / vale | | | |
 | Caja / cobro | | | |
 | Inventario enrolamiento | | | |
-| Guardián móvil (gerencia) | | | |
+| Guardián (gerencia) | | | |
 
 ---
 
-## F. Fuera de alcance (no bloquean cierre)
+## F. Sign-off
 
-- Multi-tenant producción
-- FE SII timbrado masivo
-- Transporte / Retail / LhexIA Connect
-- LLM / CrewAI en prod
+| Rol | Nombre | Fecha | OK |
+|-----|--------|-------|-----|
+| Operación SD | | | [ ] |
+| Mario | | | [ ] |
 
----
-
-## G. Sign-off
-
-| Rol | Nombre | Fecha | OK SD-1 cerrado |
-|-----|--------|-------|-----------------|
-| Cliente / operación | | | [ ] |
-| Producto (Mario) | | | [ ] |
-| Técnico (LhexIA) | | | [ ] |
-
-**Al firmar:** actualizar `SANTO_DOMINGO_ENTREGA.md` §2 estado → **SD-1 ✅ Cerrado** y `VERTEX_SPRINT_TRACKER.md` Semana 1 → completada.
+**Al firmar:** `SANTO_DOMINGO_ENTREGA.md` → SD-1 ✅ Cerrado.
 
 ---
 
-## H. Día 1–3 sugerido (cerrar en 72 h)
+## G. Plan sugerido (1 establecimiento — 2–3 días)
 
-| Día | Foco | Entregable |
-|-----|------|------------|
-| **D1** | Inventario sucursal 1 + 2 | 2 filas tabla §B completas |
-| **D2** | Inventario sucursal 3 + 1 vale/cobro suc. 2 | Tabla §B + §C |
-| **D3** | Vale/cobro suc. 3 + capacitación + Guardián + sign-off | §E + §G |
+| Día | Foco |
+|-----|------|
+| **D1** | Enrolamiento almacén Tienda + revisar salud |
+| **D2** | Enrolamiento almacén Bodega + 1 vale/cobro retiro Bodega |
+| **D3** | Vale Mixto o repetición flujo + capacitación + Guardián + sign-off |
 
 ---
 
-*SD-1 cerrado = Fase 1 VERTEX Bastión lista para demo Chilemat (SD-2 comercial).*
+*SD-1 cerrado = un ferreterón blindado. Chilemat / multi-sucursal = SD-2 y VERTEX Fase 2.*

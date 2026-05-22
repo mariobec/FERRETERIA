@@ -9,8 +9,8 @@
 
 | ID | Tarea | Responsable | Estado |
 |----|-------|-------------|--------|
-| **SD-C01** | 3 sucursales enrolamiento + salud | Piso | ⏳ |
-| **SD-C02** | Vale → cobro sucursales 2 y 3 | Piso | ⏳ |
+| **SD-C01** | Enrolamiento **todos los almacenes** (tienda + bodega, 1 local) | Piso | ⏳ |
+| **SD-C02** | Vale → cobro retiros faltantes (Bodega/Mixto) | Piso | ⏳ |
 | **SD-C03** | Capacitación 2 usuarios × módulo | Piso | ⏳ |
 | **SD-C04** | Guardián celular + teléfono supervisor Render | Mario | ⏳ |
 | **SD-C05** | Backup Neon pre-ajustes stock | Mario | ⏳ |

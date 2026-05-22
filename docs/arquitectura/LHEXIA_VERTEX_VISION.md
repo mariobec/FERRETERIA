@@ -63,7 +63,7 @@ Todo desarrollo futuro respeta esta separación. **No mezclar** responsabilidade
 | **Impacto comercial** | Escudo operativo → red **Chilemat**; narrativa: *menos mermas, control en ruta* |
 | **Estado (mayo 2026)** | ✅ Guardián V3 prod. 🟡 **Cierre SD-1** ([checklist](../planes/01-entrega-santo-domingo/SD1_CIERRE_FASE1_VERTEX.md)). ⏳ V3.1 post sign-off |
 
-**SD-1 = primer tenant lógico de VERTEX.**
+**SD-1 = primer tenant lógico de VERTEX** (un establecimiento, sin sucursales; inventario por almacén tienda/bodega). Multi-sucursal = Chilemat / Fase 2.
 
 ---
 
