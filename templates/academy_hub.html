@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block body_class %}lhexia-academy-hub-page{% endblock %}
+
+{% block extra_css %}
+<style>
+  .lhexia-academy-hub-hero {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(76, 29, 149, 0.35));
+    border: 1px solid rgba(167, 139, 250, 0.35);
+    border-radius: 16px;
+    padding: 1.5rem 1.75rem;
+    color: var(--lhexia-platinum, #e2e8f0);
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+  }
+  .lhexia-academy-camino {
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px;
+    padding: 1rem 1.15rem 1.15rem;
+    height: 100%;
+    backdrop-filter: blur(8px);
+  }
+  .lhexia-academy-camino__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .lhexia-academy-camino__title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f5f3ff;
+    margin: 0;
+  }
+  .lhexia-academy-camino__desc {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin: 0.2rem 0 0;
+  }
+  .lhexia-academy-camino__progress {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.85rem;
+  }
+  .lhexia-academy-camino__progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #8b5cf6, #22c55e);
+    border-radius: 999px;
+    transition: width 0.35s ease;
+  }
+  .lhexia-academy-hub-card {
+    background: rgba(30, 27, 75, 0.35);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+  .lhexia-academy-hub-card.is-done {
+    border-color: rgba(34, 197, 94, 0.45);
+  }
+  .lhexia-academy-hub-card__head {
+    padding: 0.65rem 0.85rem;
+  }
+  .lhexia-academy-hub-card__toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 0;
+    color: #e2e8f0;
+    font-weight: 600;
+    font-size: 0.88rem;
+    text-align: left;
+    padding: 0;
+  }
+  .lhexia-academy-hub-card__toggle i.fa-chevron-down {
+    color: #a78bfa;
+    transition: transform 0.2s ease;
+  }
+  .lhexia-academy-hub-card.is-open .lhexia-academy-hub-card__toggle i.fa-chevron-down {
+    transform: rotate(180deg);
+  }
+  .lhexia-academy-hub-card__content {
+    display: none;
+    padding: 0 0.85rem 0.85rem;
+    font-size: 0.84rem;
+    color: #cbd5e1;
+  }
+  .lhexia-academy-hub-card.is-open .lhexia-academy-hub-card__content {
+    display: block;
+  }
+  .lhexia-academy-hub-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <header id="lhexia-academy" class="lhexia-academy-hub-hero help-anchor mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h1 class="h4 fw-bold mb-2">
+          <i class="fas fa-graduation-cap me-2" style="color:#a78bfa;"></i>LhexIA Mentor Academy
+        </h1>
+        <p class="mb-0 small" style="color:#cbd5e1; line-height:1.6;">
+          Tres caminos por rol — progreso según guías consultadas y checklists completados.
+          En piso use el botón violeta <strong>Mentor</strong> en POS y caja.
+        </p>
+      </div>
+      <span class="badge text-orange border px-2 py-1" style="color:#ff5500;border-color:#ff5500;background:rgba(255,85,0,0.12);font-weight:600;">
+        <i class="fas fa-satellite-dish me-1"></i>vertex_mentor
+      </span>
+    </div>
+    <div class="lhexia-academy-callout lhexia-academy-callout--invariante mt-3 mb-0">
+      <i class="fas fa-shield-halved me-2" style="color:#ff5500;"></i>{{ invariante_financiera }}
+    </div>
+  </header>
+
+  {% if academy_caminos %}
+  <div class="row g-3 mb-4">
+    {% for camino in academy_caminos %}
+    <div class="col-lg-4">
+      <section id="{{ camino.ancla_id }}" class="lhexia-academy-camino help-anchor">
+        <div class="lhexia-academy-camino__head">
+          <div>
+            <h2 class="lhexia-academy-camino__title">
+              <i class="fas {{ camino.icon }} me-2 text-info"></i>{{ camino.titulo }}
+            </h2>
+            <p class="lhexia-academy-camino__desc">{{ camino.descripcion }}</p>
+          </div>
+          <span class="badge bg-dark border border-secondary text-nowrap">
+            {{ camino.completados }}/{{ camino.total }}
+          </span>
+        </div>
+        <div class="lhexia-academy-camino__progress" role="progressbar"
+             aria-valuenow="{{ camino.pct }}" aria-valuemin="0" aria-valuemax="100"
+             aria-label="Progreso {{ camino.titulo }}">
+          <div class="lhexia-academy-camino__progress-bar" style="width: {{ camino.pct }}%;"></div>
+        </div>
+        <p class="small text-muted mb-2">{{ camino.pct }}% completado</p>
+
+        {% for art in camino.articulos %}
+        <article class="lhexia-academy-hub-card{% if art.completado %} is-done{% endif %}"
+                 data-dedupe-key="{{ art.dedupe_key }}">
+          <div class="lhexia-academy-hub-card__head">
+            <button type="button" class="lhexia-academy-hub-card__toggle" aria-expanded="false">
+              <span>
+                {% if art.completado %}<i class="fas fa-check-circle text-success me-1"></i>{% endif %}
+                {{ art.title }}
+              </span>
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="lhexia-academy-hub-card__content">
+            {% if art.summary_html %}
+            <div class="lhexia-academy-rich mb-2">{{ art.summary_html | safe }}</div>
+            {% elif art.summary %}
+            <p class="mb-2">{{ art.summary }}</p>
+            {% endif %}
+            <div class="lhexia-academy-rich">
+              {% if art.content_html %}
+              {{ art.content_html | safe }}
+              {% else %}
+              <p class="lhexia-academy-p">{{ art.content_markdown }}</p>
+              {% endif %}
+            </div>
+            <div class="lhexia-academy-hub-card__actions">
+              {% if art.practicar_href %}
+              <a class="btn btn-sm btn-outline-info" href="{{ art.practicar_href }}">
+                <i class="fas fa-bolt me-1"></i>Practicar ahora
+              </a>
+              {% endif %}
+              <a class="btn btn-sm btn-outline-secondary" href="{{ art.ancla or art.ancla_ayuda }}">
+                <i class="fas fa-book-open me-1"></i>En esta página
+              </a>
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+    </div>
+    {% endfor %}
+  </div>
+  {% elif academy_articulos %}
+  <p class="text-muted">No hay caminos visibles para su rol. Revise permisos con el administrador.</p>
+  {% else %}
+  <p class="text-muted">Manual V2 no disponible. Contacte al administrador.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="lhexia-academy-hub-config" type="application/json">{{ {
+  'log_read_url': url_for('api_mentor_log_read')
+} | tojson }}</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var cfgEl = document.getElementById('lhexia-academy-hub-config');
+  var logUrl = '';
+  try {
+    logUrl = JSON.parse(cfgEl.textContent).log_read_url;
+  } catch (e) { /* noop */ }
+
+  function postTelemetria(dedupeKey, accion) {
+    if (!logUrl || !dedupeKey) return;
+    fetch(logUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        dedupe_key: dedupeKey,
+        accion: accion || 'expandir',
+        url: window.location.pathname + window.location.hash
+      })
+    }).catch(function () {});
+  }
+
+  document.querySelectorAll('.lhexia-academy-hub-card').forEach(function (card) {
+    var key = card.getAttribute('data-dedupe-key');
+    if (key) postTelemetria(key, 'cargar');
+
+    var btn = card.querySelector('.lhexia-academy-hub-card__toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var willOpen = !card.classList.contains('is-open');
+      card.classList.toggle('is-open', willOpen);
+      btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      if (willOpen && key) postTelemetria(key, 'expandir');
+    });
+  });
+
+  var hash = (window.location.hash || '').replace(/^#/, '');
+  if (hash) {
+    var target = document.getElementById(hash);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+});
+</script>
+{% endblock %}

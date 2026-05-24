@@ -11,6 +11,7 @@ from services.agente_ejecuciones_service import (
     TIPO_ALERTA,
     asegurar_tabla,
     contar_alertas_abiertas,
+    cuerpo_alerta_para_ui,
     parse_payload_json,
 )
 from services.agente_ejecuciones_service import listar_alertas_operativas
@@ -185,9 +186,9 @@ def _tipo_accion(codigo: str | None) -> str | None:
 
 def _tarjeta_desde_alerta(row, *, dominio: str) -> dict[str, Any]:
     payload = parse_payload_json(row.payload_json)
-    mensaje = (row.cuerpo or '').strip()
-    if payload.get('enriquecido_semantico'):
-        mensaje = mensaje or (payload.get('cuerpo_base_v01') or '')
+    mensaje = cuerpo_alerta_para_ui(row.cuerpo, payload)
+    if not mensaje and payload.get('enriquecido_semantico'):
+        mensaje = (payload.get('cuerpo_base_v01') or '').strip()[:500]
     estado = _severidad_a_estado(row.severidad)
     codigo = row.codigo or ''
     return {
@@ -626,6 +627,7 @@ def _feed_preview(*, perfil: PerfilGuardian, limite: int = 5) -> list[dict[str, 
             nav = f'/editar_venta/{venta_id}'
         elif (row.codigo or '') in _CODIGOS_CAJA:
             nav = _URL_CONTROL_CENTER
+        mensaje = cuerpo_alerta_para_ui(row.cuerpo, payload)
         feed.append({
             'id': row.id,
             'tipo': 'alerta',
@@ -633,6 +635,8 @@ def _feed_preview(*, perfil: PerfilGuardian, limite: int = 5) -> list[dict[str, 
             'severidad': (row.severidad or 'info').lower(),
             'codigo': row.codigo or '',
             'titulo': (row.titulo or 'Alerta operador')[:120],
+            'mensaje': mensaje[:280] if mensaje else '',
+            'enriquecido': bool(payload.get('enriquecido_semantico')),
             'hace': _fmt_hace(row.updated_at or row.created_at),
             'estado': row.estado,
             'nav_href': nav,
@@ -722,10 +726,17 @@ def _mensaje_ia(
     tarjeta_caja: dict[str, Any],
     tarjeta_inventario: dict[str, Any],
     consolidado: dict[str, Any],
+    feed_preview: list[dict[str, Any]] | None = None,
 ) -> str:
     partes = []
     if perfil.codigo == 'mock_dueno':
         partes.append('Modo demostración Guardián.')
+
+    # Priorizar texto enriquecido del Operador (Ollama local) si existe en el feed.
+    for item in feed_preview or []:
+        if item.get('enriquecido') and (item.get('mensaje') or '').strip():
+            partes.append((item['mensaje'] or '').strip()[:400])
+            break
 
     est_caja = tarjeta_caja.get('estado', 'verde')
     if est_caja == 'rojo':
@@ -810,6 +821,7 @@ def construir_owner_dashboard(
         tarjeta_caja=tarjeta_caja,
         tarjeta_inventario=tarjeta_inventario,
         consolidado=consolidado,
+        feed_preview=feed,
     )
     if t_cred['estado'] in ('rojo', 'amarillo'):
         mensaje_ia = (mensaje_ia + ' ' + (t_cred.get('mensaje') or '')).strip()[:600]
@@ -844,6 +856,8 @@ def construir_owner_dashboard(
             'ecosystem': 'lhexia_vertex',
             'poll_recomendado_ms': 30000,
             'presentacion_ui': 'vertex_guardian_pro',
+            'operador_enriquecimiento': 'ollama_pc_sucursal',
+            'operador_scan_cron': '/api/agente/operador/dispatch-scan',
             'establecimiento_label': _establecimiento_label(),
             'un_local': _guardian_un_local(),
         },

@@ -4,7 +4,7 @@ Este archivo es la **memoria viva** del trabajo en el repo. El usuario y el agen
 
 **Copia canónica (detalle completo):** `docs/memory.md` — mantener sincronizado al actualizar. Este archivo = índice + «Dónde quedamos» breve.
 
-**Planes:** `docs/planes/README.md` · **Memory Grok:** `docs/planes/00-alineacion/MEMORY_GROK.md` · **Backlog post SD-1 (puntos + sorteo TV):** `docs/planes/02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`
+**Planes:** `docs/planes/README.md` · **Memory Grok:** `docs/planes/00-alineacion/MEMORY_GROK.md` · **Backlog post SD-1 (puntos + sorteo TV):** `docs/planes/02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md` · **Piloto IA SD/Chilemat:** `docs/planes/06-agentes-ia/MEMORY_PILOTO_IA_SD_CHILEMAT.md`
 
 ## Cómo usarlo
 
@@ -239,9 +239,8 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 | 2026-05-16 | **Fase 1.3** `DescontarStockCobroService`, `AppCobroStockAdapter`, `procesar_cobro_caja` + `cobrar_venta_efectivo` (conftest) alineados. |
 | 2026-05-17 | **Convención ambientes:** desarrollo = local, productivo = Render (+ Neon). |
 | 2026-05-17 | **POS asistente búsqueda manual:** commit `8c9535c` — input `#posBuscarManual`, panel tarjetas, `/buscar_producto?enriquecido=1`. **Pendiente `git push` a Render.** |
-| 2026-05-20 | **POS pantalla vendedora (WIP local):** semáforo, filtros, compromiso entrega, layout sin sidebar, tarjetas carrito, `/pos` acceso directo. **Análisis rediseño profundo guardado abajo — pendiente aprobación usuario.** |
+| 2026-05-24 | **Piloto IA SD→Chilemat:** análisis estrategia (Ollama local + Operador + Guardián + Liz/Gemini); memoria en `docs/planes/06-agentes-ia/MEMORY_PILOTO_IA_SD_CHILEMAT.md` + regla `.cursor/rules/ia-piloto-chilemat.mdc`. Pendiente: decisión prioridad Dueño vs Mostrador e implementación. |
 
----
 
 ## POS — Pantalla vendedora (rediseño premium) — ANÁLISIS PARA RETOMAR
 
@@ -345,11 +344,109 @@ Checkpoint tag → Fase A (buscador) → validar → Fase B (carrito) → valida
 
 ---
 
+## Piloto IA SD → Chilemat — ANÁLISIS PARA RETOMAR (2026-05-24)
+
+**Estado:** estrategia acordada con Mario; **pendiente ejecución** esta noche.  
+**Doc canónico:** `docs/planes/06-agentes-ia/MEMORY_PILOTO_IA_SD_CHILEMAT.md`  
+**Regla Cursor:** `.cursor/rules/ia-piloto-chilemat.mdc`
+
+**Principio:** no bajar ambición; IA debe **funcionar en piso** para capturar red Chilemat (SD = piloto #1).
+
+### Diagnóstico rápido
+
+| Capa | Realidad hoy | Gap |
+|------|--------------|-----|
+| Operador | SQL → alertas; Ollama enriquece en worker local | Sin Ollama/cron = no se siente IA |
+| Guardián | KPIs + plantillas (`mensaje_ia`) | No muestra alertas Operador enriquecidas |
+| Liz | Gemini FC; sin key → regex | POS se siente tonto |
+| Ollama | Integrado; **PC sucursal**, no Render | Falta instalar + cron |
+
+### Decisiones estratégicas
+
+- **Licencia grande charo — Ollama $0 + Gemini ~$0–15/mes + OpenAI mini opcional ~$5–25/mes.
+- **Ollama:** **SÍ** en PC SD — paso #1 (`qwen2.5:7b-instruct-q4_K_M`, cron scan+enrich cada 10–15 min).
+- **Restructurar:** **mínimo** — encender stack; wiring Guardián ↔ alertas Operador; no CrewAI.
+
+### Flujo héroe demo Chilemat
+
+Operador detecta (cron) → Ollama explica → Guardián `/owner-mobile` + Liz en POS (Gemini).
+
+### Fases
+
+| Fase | Qué |
+|------|-----|
+| 0 | Ollama + cron + GEMINI en Render + alertas en Guardián |
+| 1 | Piloto SD 1–2 semanas; ajustar umbrales |
+| 2 | Replicar Chilemat (mini PC + Ollama por local) |
+| 3 | HITL acciones (WA vale pendiente, aprobación dueño) |
+
+### Inversión piloto
+
+≤ $400 una vez (mini PC) + ≤ $40/mes cloud.
+
+### Pendiente Mario (al retomar)
+
+Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador** Liz | **(3) Ambos**.
+
+### Archivos clave
+
+`services/agente_operador_service.py`, `ollama_client.py`, `scripts/agente_operador_scan.py`, `scripts/agente_operador_enrich.py`, `owner_dashboard_service.py`, `/api/demo/chat`, `.env.example` § Operador.
+
+---
+
 ## Dónde quedamos (retomar desde aquí)
 
 **Canónico:** **`docs/memory.md`** § «Dónde quedamos» (actualizado 2026-05-22).
 
 **Cierre sesión 2026-05-22:** **D0 maestro Chilemat en Neon** (~4.899 SKU) · **RCV importado** (dedup folio) · **recepciones UI** en prod · **pausa hasta lunes D1** (piloto pistola TIENDA).
+
+---
+
+## Piloto IA SD → Chilemat (2026-05-24) — RETOMAR ESTA NOCHE
+
+**Autorización Mario:** implementar todo el piloto IA; avanzar sin pedir OK en cada paso.  
+**Restricción actual:** sin cobertura para pagar OpenAI/Gemini → **Ollama local primero**; Liz/visión cuando haya keys.
+
+**Regla Cursor:** `.cursor/rules/ia-piloto-chilemat.mdc`
+
+### Stack acordado (bajo costo)
+
+| Pieza | Dónde corre | Costo |
+|-------|-------------|-------|
+| **Operador scan** (SQL) | Render cron `POST /api/agente/operador/dispatch-scan` | $0 |
+| **Operador enrich** (texto IA) | PC SD + Ollama | $0 |
+| **Guardián** | `/owner-mobile` — feed + mensaje IA | $0 |
+| **Liz POS** | Render — requiere `GEMINI_API_KEY` (pendiente pago) | ~$0–15/mes |
+| **OpenAI** | factura/foto — pendiente pago | opcional |
+
+### Hecho en repo (2026-05-24, sesión autónoma)
+
+- Cron **`POST /api/agente/operador/dispatch-scan`** (Bearer `AGENTE_OPERADOR_CRON_SECRET` o fallback cobranza).
+- Guardián: **feed con `mensaje` + badge «IA local»** si Ollama enriqueció; **`mensaje_ia`** prioriza texto enrich.
+- Helper **`cuerpo_alerta_para_ui()`** — oculta bloque `[Base operativa]` en móvil.
+- Scripts: `agente_operador_ciclo.py`, `setup_ollama_sd.ps1`, `registrar_tarea_operador_windows.ps1`, `smoke_agente_operador_cron.py`.
+- Tests: `tests/test_agente_operador_cron.py`.
+
+### Checklist noche (Mario — Ollama)
+
+1. Instalar [Ollama](https://ollama.com) en PC SD.
+2. `powershell -ExecutionPolicy Bypass -File scripts/setup_ollama_sd.ps1`
+3. En `.env.local`: `DATABASE_URL` = misma Neon que Render.
+4. Probar: `python scripts/agente_operador_ciclo.py`
+5. Tarea cada 10 min: `scripts/registrar_tarea_operador_windows.ps1`
+6. En Render: cron cada 10 min → `POST /api/agente/operador/dispatch-scan` con Bearer (mismo secreto que cobranza si no hay dedicado).
+7. Abrir `/owner-mobile` — hbuilder — ver **Pulso operativo** con texto IA tras enrich.
+
+### Pendiente (sin keys cloud)
+
+- [ ] `GEMINI_API_KEY` en Render → Liz POS
+- [ ] `OPENAI_API_KEY` → OCR factura / foto material (opcional demo)
+- [ ] Validar 1 semana en piso SD (umbrales vale/descuadre)
+- [ ] Paquete replicable Chilemat (mini PC + Ollama por local)
+
+### Decisión original (prioridad)
+
+**Dueño primero** — Guardián + Operador + Ollama (vendible a red Chilemat).
 
 | Siguiente | Doc |
 |-----------|-----|
@@ -425,4 +522,4 @@ Detalle: `docs/memory.md` § «Live Wall / Experience Wall». Commit `4ae0292`. 
 
 ---
 
-*Última actualización: 2026-05-20 — FE Maullín cerrado en código; prioridad SD-1 POS/inventario; SII timbraje pendiente.*
+*Última actualización: 2026-05-24 — Piloto IA Operador+Guardián+Ollama; FE Maullín en código; SD-1 POS/inventario.*

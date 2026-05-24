@@ -157,6 +157,17 @@ flowchart LR
 | Fase 2 | **LX-2** Agentes IA (CrewAI) | ⏳ | 4–6 meses — detalle en eje **IA-*** |
 | Fase 3 | **LX-3** Comercial SaaS (landing, pricing) | ⏳ | 6+ meses |
 
+### LX-ACAD — Mentor Academy en piso (paralelo SD-1, 2026-05-23)
+
+| Fase | Nombre | Objetivo | Estado |
+|------|--------|----------|--------|
+| **LX-ACAD-1** | Practicar Ahora | Deep links sidebar + hub → pantalla operativa | 📋 Listo para dev |
+| **LX-ACAD-2** | Hub 3 caminos | `/academy` por rol + % vía telemetría | 📋 |
+| **LX-ACAD-3** | Checklist persistente | `user_academy_progress` + `POST /api/mentor/save_step` | 📋 |
+| **LX-ACAD-4** | Guía Activa | Toggle sidebar + `difficulty_level` / `estimated_time` | 📋 |
+
+Doc: [`../02-producto-lhexia/LX_ACAD_TICKETS_SD1.md`](../02-producto-lhexia/LX_ACAD_TICKETS_SD1.md) · Prompt: [`../02-producto-lhexia/LX_ACAD_CURSOR_PROMPT_SD1.md`](../02-producto-lhexia/LX_ACAD_CURSOR_PROMPT_SD1.md)
+
 ---
 
 ## 6. Eje IA — Agentes IA 24/7

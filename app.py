@@ -2029,15 +2029,8 @@ def _hub_usuario_tiene_permiso(usuario, *permisos):
 
 
 def _pos_url_destino(usuario=None):
-    """
-    URL al POS pantalla vendedora (fullwidth, sin sidebar ERP).
-    Admin/supervisor: ?layout=vendedor para no caer en el POS clásico del menú lateral.
-    """
-    u = usuario if usuario is not None else current_user
-    kwargs = {}
-    if _rol_es_administrador_por_nombre(getattr(u, 'rol', None)):
-        kwargs['layout'] = 'vendedor'
-    return url_for('punto_venta', **kwargs)
+    """URL al POS pantalla vendedora (fullwidth por defecto)."""
+    return url_for('punto_venta')
 
 
 def _hub_url_para_modulo(mod, usuario):
@@ -2071,6 +2064,9 @@ def _hub_url_para_modulo(mod, usuario):
         ):
             return url_for('mostrar_productos')
         return url_for('consulta_stock_publica')
+
+    if mod_id == 'capacitacion':
+        return url_for('centro_ayuda') + '#lhexia-academy'
 
     ep = mod.get('endpoint')
     if ep:
@@ -2586,6 +2582,9 @@ def forzar_cambio_clave_si_corresponde():
         and app.config.get('_BODEGA_RETIRO_COL_OK')
         and app.config.get('_BODEGA_SUGERIDO_COL_OK')
         and app.config.get('_FE_PHASE1_OK')
+        and app.config.get('_AGENTE_EJECUCIONES_TABLE_OK')
+        and app.config.get('_ACADEMY_ARTICLES_TABLE_OK')
+        and app.config.get('_USER_ACADEMY_PROGRESS_TABLE_OK')
     )
     if not _all_schema_ok:
         if time.time() < float(app.config.get('_SCHEMA_ENSURE_BACKOFF_UNTIL') or 0):
@@ -2604,6 +2603,7 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_tabla_cobranza_whatsapp_log()
                     _asegurar_tabla_erp_audit_log()
                     _asegurar_tabla_agente_ejecuciones()
+                    _asegurar_tabla_academy_articles()
                     _asegurar_tabla_cafs_y_columnas_ventas_fe()
                     db.session.rollback()
                     _asegurar_columnas_ventas_bodega_despacho()
@@ -3526,6 +3526,40 @@ class AgenteEjecucion(db.Model):
     fecha_reconocido = db.Column(db.DateTime, nullable=True)
 
 
+class AcademyArticle(db.Model):
+    """LhexIA Academy — artículos de capacitación persistidos (Mentor / vertex_mentor)."""
+
+    __tablename__ = 'academy_articles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    dedupe_key = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    category = db.Column(db.String(32), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    summary = db.Column(db.Text, nullable=True)
+    content_markdown = db.Column(db.Text, nullable=True)
+    video_url = db.Column(db.String(512), nullable=True)
+    permissions_required = db.Column(db.String(120), nullable=False, default='vendedor')
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+
+class UserAcademyProgress(db.Model):
+    """Progreso checklist LhexIA Academy por usuario y guía (dedupe_key)."""
+
+    __tablename__ = 'user_academy_progress'
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'dedupe_key', name='uq_user_academy_progress_dedupe'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False, index=True)
+    article_id = db.Column(db.Integer, db.ForeignKey('academy_articles.id'), nullable=True)
+    dedupe_key = db.Column(db.String(128), nullable=False, index=True)
+    completed_steps_json = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+
 class WebAnalyticsVisitor(db.Model):
     __tablename__ = 'web_analytics_visitors'
 
@@ -3794,6 +3828,38 @@ def _asegurar_tabla_agente_ejecuciones():
     except Exception as ex:
         db.session.rollback()
         app.logger.warning('No se pudo crear tabla agente_ejecuciones: %s', ex)
+        return False
+
+
+def _asegurar_tabla_academy_articles():
+    """Crea `academy_articles` e injerta seed Manual V2 (idempotente)."""
+    try:
+        if not app.config.get('_ACADEMY_ARTICLES_TABLE_OK'):
+            AcademyArticle.__table__.create(bind=db.engine, checkfirst=True)
+            db.session.commit()
+            app.config['_ACADEMY_ARTICLES_TABLE_OK'] = True
+        from services.academy_bootstrap import asegurar_academy_seed
+
+        asegurar_academy_seed()
+        _asegurar_tabla_user_academy_progress()
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla academy_articles: %s', ex)
+        return False
+
+
+def _asegurar_tabla_user_academy_progress():
+    """Crea `user_academy_progress` (idempotente)."""
+    try:
+        if not app.config.get('_USER_ACADEMY_PROGRESS_TABLE_OK'):
+            UserAcademyProgress.__table__.create(bind=db.engine, checkfirst=True)
+            db.session.commit()
+            app.config['_USER_ACADEMY_PROGRESS_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla user_academy_progress: %s', ex)
         return False
 
 
@@ -7872,13 +7938,34 @@ def simulador_margen():
     )
 
 
-# --- REVERT-BUNDLE: centro de ayuda + permiso panel_gerencia (simulador). Eliminar este bloque y plantillas/ayuda/* para deshacer. ---
 @app.route('/ayuda')
 @login_required
 def centro_ayuda():
-    """Guías en lenguaje simple para tableros gerenciales (no modifica datos)."""
+    """LhexIA Academy — Manual Operativo V2 + guías por rol (solo lectura)."""
     _seed_permisos_catalogo_si_vacio()
-    return render_template('ayuda/index.html')
+    from services.academy_service import listar_manual_v2_para_ayuda
+
+    return render_template(
+        'ayuda/index.html',
+        academy_articulos=listar_manual_v2_para_ayuda(),
+    )
+
+
+@app.route('/academy')
+@login_required
+def lhexia_academy():
+    """LhexIA Academy — hub HUD central (Manual V2 + telemetría VERTEX)."""
+    _seed_permisos_catalogo_si_vacio()
+    from services.academy_format import INVARIANTE_FINANCIERA
+    from services.academy_service import construir_caminos_academy_hub, listar_manual_v2_para_ayuda
+
+    uid = int(current_user.id) if current_user.is_authenticated else None
+    return render_template(
+        'academy_hub.html',
+        academy_articulos=listar_manual_v2_para_ayuda(),
+        academy_caminos=construir_caminos_academy_hub(uid),
+        invariante_financiera=INVARIANTE_FINANCIERA,
+    )
 
 
 def _factor_estacional_categoria(categoria, mes):
@@ -11612,14 +11699,14 @@ def _pos_enlazar_cliente_desde_cotizacion(venta, cotizacion_origen):
 
 
 def _pos_layout_fullwidth_vendedor() -> bool:
-    """POS pantalla vendedora (sin sidebar). Vendedor: siempre. Admin: con ?layout=vendedor."""
+    """POS pantalla vendedora (sin sidebar ERP). Layout clásico solo con ?layout=clasico."""
     try:
         if not current_user.is_authenticated:
             return False
         if not usuario_tiene_permiso('pos_emitir_vale'):
             return False
-        if usuario_tiene_permiso('gestionar_usuarios'):
-            return (request.args.get('layout') or '').strip().lower() == 'vendedor'
+        if (request.args.get('layout') or '').strip().lower() == 'clasico':
+            return False
         return True
     except Exception:
         return False
@@ -12412,6 +12499,11 @@ def _vale_despacho_alertas_cron_secret():
     return (os.getenv('VALE_DESPACHO_ALERTAS_CRON_SECRET') or '').strip() or _cobranza_dispatch_cron_secret()
 
 
+def _agente_operador_cron_secret():
+    """Bearer para cron de escaneo SQL LhexIA Operador (Render / cron-job.org)."""
+    return (os.getenv('AGENTE_OPERADOR_CRON_SECRET') or '').strip() or _cobranza_dispatch_cron_secret()
+
+
 def _vale_despacho_sin_cobro_alert_horas():
     try:
         h = int((os.getenv('VALE_DESPACHO_SIN_COBRO_ALERTA_HORAS') or '48').strip())
@@ -12750,6 +12842,95 @@ def api_pos_vales_hoy():
             'hora': hora,
         })
     return jsonify({'ok': True, 'items': items})
+
+
+def api_pos_mentor_contexto():
+    """Contexto LhexIA Academy / Mentor (alias legacy → /api/mentor/context)."""
+    return api_mentor_context()
+
+
+def api_mentor_context():
+    """Contexto LhexIA Academy / Mentor para sidebar POS, caja y bodega."""
+    if not (
+        usuario_tiene_permiso('pos_emitir_vale')
+        or usuario_tiene_permiso('caja_cobrar_vale')
+        or usuario_tiene_permiso('gestionar_usuarios')
+    ):
+        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+    from services.academy_service import construir_contexto_mentor_db
+
+    url = (request.args.get('url') or request.args.get('path') or request.referrer or '').strip()
+    try:
+        payload = construir_contexto_mentor_db(url=url)
+        return jsonify(payload)
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_mentor_context: %s', ex)
+        return jsonify({'ok': False, 'error': 'contexto'}), 500
+
+
+def api_pos_mentor_telemetria():
+    """Telemetría legacy (alias → /api/mentor/log_read)."""
+    return api_mentor_log_read()
+
+
+def api_mentor_log_read():
+    """Telemetría: lectura/expansión de tarjeta Academy → agente_ejecuciones."""
+    if not (
+        usuario_tiene_permiso('pos_emitir_vale')
+        or usuario_tiene_permiso('caja_cobrar_vale')
+        or usuario_tiene_permiso('gestionar_usuarios')
+    ):
+        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+    data = request.get_json(silent=True) or {}
+    dedupe_key = (data.get('dedupe_key') or data.get('componente') or '').strip()
+    accion = (data.get('accion') or 'cargar').strip()[:32]
+    url = (data.get('url') or request.referrer or '').strip()
+    from services.academy_service import registrar_lectura_academy
+
+    try:
+        out = registrar_lectura_academy(
+            usuario_id=int(current_user.id),
+            usuario_nombre=getattr(current_user, 'nombre', '') or '',
+            dedupe_key=dedupe_key,
+            accion=accion,
+            url=url,
+        )
+        code = 200 if out.get('ok') else 400
+        return jsonify(out), code
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_mentor_log_read: %s', ex)
+        return jsonify({'ok': False, 'error': 'telemetria'}), 500
+
+
+def api_mentor_save_step():
+    """Persiste paso de checklist Academy (LX-ACAD-3)."""
+    if not (
+        usuario_tiene_permiso('pos_emitir_vale')
+        or usuario_tiene_permiso('caja_cobrar_vale')
+        or usuario_tiene_permiso('gestionar_usuarios')
+    ):
+        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+    data = request.get_json(silent=True) or {}
+    dedupe_key = (data.get('dedupe_key') or '').strip()
+    step_id = (data.get('step_id') or '').strip()
+    checked = bool(data.get('checked', True))
+    from services.academy_service import guardar_paso_academy
+
+    try:
+        out = guardar_paso_academy(
+            user_id=int(current_user.id),
+            dedupe_key=dedupe_key,
+            step_id=step_id,
+            checked=checked,
+        )
+        code = 200 if out.get('ok') else 400
+        return jsonify(out), code
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_mentor_save_step: %s', ex)
+        return jsonify({'ok': False, 'error': 'save_step'}), 500
 
 
 def api_pos_pedidos_apedido():
@@ -15594,33 +15775,41 @@ def ver_ticket_cobro(id):
         vuelto=float((request.args.get('vuelto') or venta.vuelto or 0)),
     )
 
-# busca productos por código o nombre para agregar en venta........................................
-@app.route('/buscar_producto')
-@login_required
-@caja_requerida
-def buscar_producto():
-    q = (request.args.get('q') or '').strip()
+def _buscar_productos_json(
+    q: str,
+    *,
+    filtro_pos: str = 'catalogo',
+    enriquecido: bool = True,
+    out_lim: int | None = None,
+):
+    """
+    Búsqueda unificada POS / cotizaciones (nombre, códigos, marca, stock tienda+bodega).
+    Devuelve {'results': [...], 'meta': {...}} compatible con Select2 o tarjetas enriquecidas.
+    """
+    q = (q or '').strip()
     if len(q) < 2:
-        return jsonify({"results": []})
+        return {'results': [], 'meta': {}}
     if not _asegurar_columnas_productos_legacy():
-        return jsonify({"results": []})
+        return {'results': [], 'meta': {}}
 
-    from services.pos_busqueda_service import resolver_filtro_busqueda_pos
+    from services.pos_busqueda_service import (
+        construir_badges_semaforo,
+        enriquecer_item_busqueda_pos,
+        filtrar_productos_por_filtro_pos,
+        ordenar_candidatos_busqueda,
+    )
 
-    filtro_pos = resolver_filtro_busqueda_pos(request.args)
+    filtro_pos = str(filtro_pos or 'catalogo').lower()
+    if filtro_pos not in ('operativo', 'tienda', 'catalogo'):
+        filtro_pos = 'catalogo'
     filtro_estricto_stock = filtro_pos in ('operativo', 'tienda')
-
-    # Operativo/tienda: más candidatos SQL y filtro por stock; catálogo: lista amplia
     fetch_limit = 260 if filtro_estricto_stock else 80
+
     try:
         insp = sa_inspect(db.engine)
         cols = {c['name'] for c in insp.get_columns('productos')}
         if not {'id', 'nombre'}.issubset(cols):
-            return jsonify({"results": []})
-
-        enriquecido = request.args.get('enriquecido', '').strip().lower() in (
-            '1', 'true', 'si', 'yes', 'on'
-        )
+            return {'results': [], 'meta': {}}
 
         campos = ['id', 'nombre']
         for c in (
@@ -15632,10 +15821,8 @@ def buscar_producto():
                 campos.append(c)
 
         dn = (db.engine.dialect.name or '').lower()
-        # Subcadena sin LIKE wildcards (%/_ en la búsqueda no rompen el filtro; evita ESCAPE dialect-dependent).
-        params = {"lim": fetch_limit, "qplain": q}
+        params = {'lim': fetch_limit, 'qplain': q}
         if dn == 'postgresql':
-            # LIKE + lower() permite usar índices GIN pg_trgm (sql/2026_05_21_rendimiento_sd1_postgresql.sql).
             def _substr_match(col: str) -> str:
                 return f"lower(COALESCE({col},'')) LIKE '%' || lower(:qplain) || '%'"
         elif dn in ('mysql', 'mysqldb', 'mariadb'):
@@ -15646,51 +15833,57 @@ def buscar_producto():
 
         if _substr_match:
             filtros = [_substr_match('nombre')]
-            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat', 'marca', 'fabricante', 'categoria', 'subcategoria'):
+            for c in (
+                'codigo_barra', 'codigo_interno', 'codigo_chilemat',
+                'marca', 'fabricante', 'categoria', 'subcategoria',
+            ):
                 if c in cols:
                     filtros.append(_substr_match(c))
         else:
-            like = f"%{q}%"
+            like = f'%{q}%'
             params['like'] = like
-            filtros = ["LOWER(nombre) LIKE LOWER(:like)"]
-            for c in ('codigo_barra', 'codigo_interno', 'codigo_chilemat', 'marca', 'fabricante', 'categoria', 'subcategoria'):
+            filtros = ['LOWER(nombre) LIKE LOWER(:like)']
+            for c in (
+                'codigo_barra', 'codigo_interno', 'codigo_chilemat',
+                'marca', 'fabricante', 'categoria', 'subcategoria',
+            ):
                 if c in cols:
-                    filtros.append(f"LOWER({c}) LIKE LOWER(:like)")
+                    filtros.append(f'LOWER({c}) LIKE LOWER(:like)')
 
         where_parts = [f"({' OR '.join(filtros)})"]
         if 'activo' in cols:
-            where_parts.insert(0, "(activo IS NULL OR activo = TRUE)")
+            where_parts.insert(0, '(activo IS NULL OR activo = TRUE)')
         if filtro_estricto_stock:
             precio_exprs = []
             if 'precio_venta' in cols:
-                precio_exprs.append("COALESCE(precio_venta, 0)")
+                precio_exprs.append('COALESCE(precio_venta, 0)')
             if 'precio_mayoreo' in cols:
-                precio_exprs.append("COALESCE(precio_mayoreo, 0)")
+                precio_exprs.append('COALESCE(precio_mayoreo, 0)')
             if precio_exprs:
                 where_parts.append(f"(({') + ('.join(precio_exprs)}) > 0)")
 
         if dn == 'postgresql':
             ord_expr = "strpos(lower(COALESCE(nombre,'')), lower(:qplain))"
-            ord_suffix = " ASC NULLS LAST, nombre ASC "
+            ord_suffix = ' ASC NULLS LAST, nombre ASC '
         elif dn in ('mysql', 'mysqldb', 'mariadb'):
             ord_expr = "LOCATE(lower(:qplain), lower(COALESCE(nombre,'')))"
-            ord_suffix = " ASC, nombre ASC "
+            ord_suffix = ' ASC, nombre ASC '
         else:
-            ord_expr = "1"
-            ord_suffix = " ASC, nombre ASC "
+            ord_expr = '1'
+            ord_suffix = ' ASC, nombre ASC '
 
         sql = (
             f"SELECT {', '.join(campos)} "
             f"FROM productos "
             f"WHERE {' AND '.join(where_parts)} "
             f"ORDER BY ({ord_expr}){ord_suffix}"
-            f"LIMIT :lim"
+            f'LIMIT :lim'
         )
         productos = db.session.execute(text(sql), params).mappings().all()
     except Exception as ex:
         db.session.rollback()
-        app.logger.exception("buscar_producto falló; devolviendo lista vacía para no romper Select2: %s", ex)
-        return jsonify({"results": []})
+        app.logger.exception('_buscar_productos_json falló: %s', ex)
+        return {'results': [], 'meta': {}}
 
     pid_list = [int(r['id']) for r in productos if r.get('id') is not None]
     if pid_list:
@@ -15698,20 +15891,16 @@ def buscar_producto():
     else:
         stock_t_map, stock_b_map = {}, {}
 
-    from services.pos_busqueda_service import (
-        construir_badges_semaforo,
-        enriquecer_item_busqueda_pos,
-        filtrar_productos_por_filtro_pos,
-        ordenar_candidatos_busqueda,
-    )
-
     cfg_emp = obtener_config_empresa()
     n_antes_filtro_stock = len(productos) if productos else 0
     if filtro_estricto_stock and productos:
         productos = filtrar_productos_por_filtro_pos(
             productos, stock_t_map, stock_b_map, filtro_pos, cfg_emp
         )
-    out_lim = 15 if enriquecido else 28
+
+    if out_lim is None:
+        out_lim = 15 if enriquecido else 28
+
     candidatos = []
     for p in productos:
         pid = int(p.get('id'))
@@ -15721,7 +15910,7 @@ def buscar_producto():
             or (p.get('codigo_chilemat') or '').strip()
         )
         nombre = (p.get('nombre') or '').strip()
-        sufijo = codigo if codigo else f"id {pid}"
+        sufijo = codigo if codigo else f'id {pid}'
         if enriquecido:
             st_t = int(stock_t_map.get(pid, 0))
             st_b = int(stock_b_map.get(pid, 0))
@@ -15734,7 +15923,7 @@ def buscar_producto():
                 stock_tienda=st_t,
                 stock_bodega=st_b,
                 nombre=nombre,
-                codigo=codigo or f"id {pid}",
+                codigo=codigo or f'id {pid}',
                 precio=precio,
                 precio_fmt=_fmt_clp_busqueda_pos(precio),
                 marca=_producto_marca_desde_row(p, cols),
@@ -15743,9 +15932,9 @@ def buscar_producto():
             )
         else:
             item = {
-                "id": str(pid),
-                "producto_id": pid,
-                "text": f"{nombre} ({sufijo})",
+                'id': str(pid),
+                'producto_id': pid,
+                'text': f'{nombre} ({sufijo})',
             }
         candidatos.append(item)
 
@@ -15759,7 +15948,49 @@ def buscar_producto():
     meta = {}
     if filtro_estricto_stock and n_antes_filtro_stock > 0 and not candidatos:
         meta['filtrados_por_stock'] = True
-    return jsonify({"results": candidatos[:out_lim], "meta": meta})
+    return {'results': candidatos[:out_lim], 'meta': meta}
+
+
+def _cotizacion_item_desde_busqueda(row: dict) -> dict:
+    """Formato plano para agregar línea en formulario cotización."""
+    pid = row.get('producto_id') or row.get('id')
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        pid = None
+    return {
+        'id': pid,
+        'codigo': row.get('codigo') or '',
+        'nombre': row.get('nombre') or row.get('text') or '',
+        'precio': float(row.get('precio') or 0),
+        'precio_fmt': row.get('precio_fmt') or _fmt_clp_busqueda_pos(row.get('precio') or 0),
+        'unidad': row.get('unidad') or '',
+        'stock': int(row.get('stock_total') or 0),
+        'stock_tienda': int(row.get('stock_tienda') or 0),
+        'stock_bodega': int(row.get('stock_bodega') or 0),
+        'semaforo': row.get('semaforo') or '',
+        'semaforo_label': row.get('semaforo_label') or '',
+        'marca': row.get('marca') or '',
+        'badges': row.get('badges') or [],
+    }
+
+
+# busca productos por código o nombre para agregar en venta........................................
+@app.route('/buscar_producto')
+@login_required
+@caja_requerida
+def buscar_producto():
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+    from services.pos_busqueda_service import resolver_filtro_busqueda_pos
+
+    filtro_pos = resolver_filtro_busqueda_pos(request.args)
+    enriquecido = request.args.get('enriquecido', '').strip().lower() in (
+        '1', 'true', 'si', 'yes', 'on',
+    )
+    data = _buscar_productos_json(q, filtro_pos=filtro_pos, enriquecido=enriquecido)
+    return jsonify(data)
 
 # proceso de apertura de caja desde pantalla de caja........................................................................
 
@@ -16655,6 +16886,36 @@ def admin_agente_operador_escanear():
     else:
         flash(res.get('motivo', 'Error al escanear'), 'warning')
     return redirect(url_for('admin_control_center'))
+
+
+@app.route('/api/agente/operador/dispatch-scan', methods=['POST'])
+def api_agente_operador_dispatch_scan():
+    """
+    Cron: escaneo SQL Operador (vales pendientes, descuadres caja) → agente_ejecuciones.
+    Authorization: Bearer AGENTE_OPERADOR_CRON_SECRET (fallback COBRANZA_DISPATCH_CRON_SECRET).
+    El enriquecimiento Ollama NO corre aquí — solo en PC sucursal (scripts/agente_operador_enrich.py).
+    """
+    secret = _agente_operador_cron_secret()
+    if not secret:
+        return jsonify({'ok': False, 'error': 'cron_secret_not_configured'}), 503
+    tok = _bearer_token_from_request()
+    try:
+        if not tok or not hmac.compare_digest(tok, secret):
+            return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'unauthorized'}), 401
+
+    try:
+        from services.agente_operador_service import escanear_y_registrar_alertas
+
+        _asegurar_tabla_agente_ejecuciones()
+        res = escanear_y_registrar_alertas()
+        ok = bool(res.get('ok'))
+        status = 200 if ok else 500
+        return jsonify({'ok': ok, 'scan': res}), status
+    except Exception as ex:
+        app.logger.exception('agente_operador_dispatch_scan')
+        return jsonify({'ok': False, 'error': str(ex)[:500]}), 500
 
 
 # editar usuario....................................................................................
@@ -23138,38 +23399,18 @@ def cotizacion_convertir_venta(cot_id):
 
 @app.route('/api/cotizaciones/buscar_productos')
 @login_required
+@permisos_required('pos_emitir_vale')
 def cotizaciones_api_buscar_productos():
-    """Busqueda rapida de productos para autocompletar lineas en cotizaciones."""
+    """Búsqueda homologada con POS (catálogo + semáforo tienda/bodega)."""
     q = (request.args.get('q') or '').strip()
     if len(q) < 2:
-        return jsonify(items=[])
-    like = f"%{q.lower()}%"
-    productos = (
-        Producto.query
-        .filter(
-            db.or_(
-                db.func.lower(Producto.nombre).like(like),
-                Producto.codigo_barra.ilike(f"%{q}%"),
-                Producto.codigo_chilemat.ilike(f"%{q}%"),
-                Producto.codigo_interno.ilike(f"%{q}%"),
-            )
-        )
-        .order_by(Producto.nombre.asc())
-        .limit(15)
-        .all()
-    )
-    items = [
-        {
-            'id': p.id,
-            'codigo': p.codigo_barra or p.codigo_interno or p.codigo_chilemat or '',
-            'nombre': p.nombre,
-            'precio': float(p.precio_venta or 0),
-            'unidad': p.unidad_venta or p.unidad or '',
-            'stock': p.stock or 0,
-        }
-        for p in productos
-    ]
-    return jsonify(items=items)
+        return jsonify(items=[], results=[], meta={})
+    filtro = (request.args.get('filtro_pos') or 'catalogo').strip().lower()
+    if filtro not in ('catalogo', 'operativo', 'tienda'):
+        filtro = 'catalogo'
+    data = _buscar_productos_json(q, filtro_pos=filtro, enriquecido=True, out_lim=15)
+    items = [_cotizacion_item_desde_busqueda(r) for r in data.get('results') or []]
+    return jsonify(items=items, results=data.get('results') or [], meta=data.get('meta') or {})
 
 
 @app.route('/api/cotizaciones/buscar_clientes')
@@ -23626,10 +23867,12 @@ from blueprints.c360 import register_c360_routes
 from blueprints.caja import register_caja_routes
 from blueprints.owner_api import register_owner_api_routes
 from blueprints.pos import register_pos_routes
+from blueprints.academy import register_academy_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
 register_pos_routes(app)
+register_academy_routes(app)
 register_c360_routes(app)
 register_owner_api_routes(app)
 
@@ -23651,6 +23894,9 @@ def _schema_ensure_on_startup():
         _asegurar_tabla_cliente_prediccion_log()
         _asegurar_tabla_cobranza_whatsapp_log()
         _asegurar_tabla_erp_audit_log()
+        _asegurar_tabla_agente_ejecuciones()
+        _asegurar_tabla_academy_articles()
+        _asegurar_tabla_user_academy_progress()
         _asegurar_tablas_web_analytics()
         _asegurar_tablas_seo_monitor()
         _asegurar_tabla_cafs_y_columnas_ventas_fe()

@@ -68,9 +68,10 @@
       <h4 class="fw-bold mb-1"><i class="fas fa-rotate me-2 text-primary"></i>Cambios premium</h4>
       <p class="text-muted mb-0">Devolución + nueva entrega + compensación automática con saldo a favor.</p>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
+    <div class="d-flex gap-2 flex-wrap align-items-center">
       <a class="btn btn-outline-primary" href="{{ url_for('caja_cambios_historial') }}"><i class="fas fa-clock-rotate-left me-1"></i>Historial</a>
       <a class="btn btn-outline-secondary" href="{{ url_for('caja_pendientes') }}"><i class="fas fa-arrow-left me-1"></i>Volver caja</a>
+      {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% include 'partials/help_screen_link.html' %}
       {% if cambio_reciente %}
       <a class="btn btn-dark" href="{{ url_for('ticket_cambio', id=cambio_reciente.id, auto_print='1') }}" target="_blank"><i class="fas fa-print me-1"></i>Ticket #{{ cambio_reciente.id }}</a>
       {% endif %}
@@ -264,6 +265,8 @@
     </div>
   </form>
 </div>
+
+{% include 'partials/lhexia_mentor_sidebar.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -648,4 +651,5 @@
   refresh();
 })();
 </script>
+{% include 'partials/lhexia_mentor_init.html' %}
 {% endblock %}

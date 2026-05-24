@@ -1331,8 +1331,18 @@ class TestCotizaciones:
 
     def test_cotizaciones_buscar_productos(self, app_client, productos_con_stock):
         p = productos_con_stock[0]
-        r = app_client.get(f'/api/cotizaciones/buscar_productos?q={p.nombre[:5]}')
-        assert r.status_code in (200, 302)
+        r = app_client.get(
+            f'/api/cotizaciones/buscar_productos?q={p.nombre[:5]}&filtro_pos=catalogo'
+        )
+        assert r.status_code == 200
+        data = r.get_json()
+        assert 'items' in data and 'results' in data
+        assert len(data['items']) >= 1
+        first = data['items'][0]
+        assert first.get('nombre')
+        assert 'semaforo' in first
+        assert 'stock_tienda' in first
+        assert 'stock_bodega' in first
 
     def test_cotizaciones_buscar_clientes(self, app_client, cliente_credito):
         r = app_client.get(f'/api/cotizaciones/buscar_clientes?q={cliente_credito.nombre[:4]}')
@@ -1424,15 +1434,16 @@ class TestHubModulosUrls:
         assert r.status_code == 200
         assert b'Punto de venta' in r.data
         assert b'/punto_venta' in r.data
-        assert b'layout=vendedor' in r.data
+        # POS vendedor fullwidth por defecto (sin ?layout=vendedor en URL del hub)
+        assert b'layout=clasico' not in r.data
 
     def test_resolver_pos_con_caja_abierta(self, app_ctx, caja_abierta):
         user = _get_admin_user()
         mod = next(x for x in m._MODULOS_HUB if x['id'] == 'pos')
         with m.app.test_request_context('/'):
             url = m._hub_url_para_modulo(mod, user)
-        assert '/punto_venta' in url
-        assert 'layout=vendedor' in url
+        assert url.rstrip('/').endswith('/punto_venta')
+        assert 'layout=' not in url
 
     def test_resolver_pos_sin_caja_a_abrir_caja(self, app_ctx):
         user = _get_admin_user()
@@ -1454,8 +1465,8 @@ class TestHubModulosUrls:
         pos = next((x for x in mods if x.get('id') == 'pos'), None)
         assert pos is not None
         assert pos.get('url')
-        assert '/punto_venta' in pos['url']
-        assert 'layout=vendedor' in pos['url']
+        assert pos['url'].rstrip('/').endswith('/punto_venta')
+        assert 'layout=' not in pos['url']
 
 
 # Como correr solo estos tests

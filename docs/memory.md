@@ -1102,3 +1102,20 @@ Prod: Ctrl+Shift+R; verificar deploy Render tras cada push.
 ---
 
 *Última actualización: 2026-05-21 — VERTEX Centro de Mandos (red neuronal neural-6), Agente Mentor, PWA Guardián; memoria sincronizada con `ERP_MAESTRO.md` §19.6.1. Prioridad: SD-1 piso + validar Mentor en deploy.*
+
+---
+
+## Sesión 2026-05-23 — Documentación LhexIA Academy + Mentor piso
+
+**Doc técnica (handoff otra IA):** [`planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md`](planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md)  
+**ERP maestro:** `ERP_MAESTRO.md` §19.6.2  
+**Tests:** `pytest tests/test_academy_mentor_api.py tests/test_pos_mentor_academy.py -v` (16 passed)  
+**Implementación ya en main:** `/academy`, `academy_articles`, API `/api/mentor/*`, sidebar POS/caja. Mentor VERTEX dueño sigue en §19.6.1 (mapa neuronal).
+
+**Roadmap SD-1 (Mario alineado con Cursor):** tickets **LX-ACAD-1…4** + prompt Cursor en `docs/planes/02-producto-lhexia/LX_ACAD_TICKETS_SD1.md` y `LX_ACAD_CURSOR_PROMPT_SD1.md`. Sin big-bang Grok v4.
+
+**LX-ACAD-3 implementado:** `user_academy_progress`, `POST /api/mentor/save_step`, checklist en sidebar (`pos.js`), tests `test_academy_progress.py` — 21 tests Academy verdes.
+
+**Flujo caja completo Mentor (2026-05-23):** `abrir_caja`, `movimiento_caja`, `caja_cambios` + artículos Manual D/E + `practicar_href` — 27 tests Academy verdes.
+
+**LX-ACAD-1/2/3 cerrados:** hub `/academy` tres caminos con % progreso, Practicar ahora en hub/sidebar/píldora, checklist persistente — **31 tests** (`test_academy_hub.py` incluido).

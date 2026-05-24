@@ -47,6 +47,13 @@ def _wrap_pos_ticket_vale(fn):
     )
 
 
+def _wrap_pos_mentor_api(fn):
+    m = app_module()
+    return login_required(
+        m.permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')(fn)
+    )
+
+
 def register_pos_routes(app):
     m = app_module()
     app.add_url_rule('/punto_venta', 'punto_venta', _wrap_pos_emitir_caja(m.punto_venta), methods=['GET'])
@@ -202,5 +209,17 @@ def register_pos_routes(app):
         '/api/pos/producto-alta-rapida',
         'api_pos_producto_alta_rapida',
         _wrap_pos_api_emitir(m.api_pos_producto_alta_rapida),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/mentor/contexto',
+        'api_pos_mentor_contexto',
+        _wrap_pos_mentor_api(m.api_pos_mentor_contexto),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/mentor/telemetria',
+        'api_pos_mentor_telemetria',
+        _wrap_pos_mentor_api(m.api_pos_mentor_telemetria),
         methods=['POST'],
     )

@@ -20,42 +20,97 @@
   }
   .help-card { border-radius: 14px; }
   .help-card h5 { letter-spacing: .1px; }
-  .help-tag { font-size: .78rem; }
-  .help-role-pill { border-radius: 999px; font-size: .75rem; }
-  .help-modern-note { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 10px; padding: .75rem; }
-  .help-search { max-width: 420px; }
   .help-faq-item { border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: .6rem; }
-  .help-faq-item .accordion-button { border-radius: 10px; }
+  .help-faq-item .accordion-button { border-radius: 10px; font-size: .95rem; }
+  .help-faq-item .accordion-button:not(.collapsed) { background: #f8fafc; color: #0f172a; }
   .help-empty { display: none; }
+  .help-search { max-width: 420px; }
+  .help-anchor { scroll-margin-top: 5rem; }
+  .help-flow-step {
+    border-left: 3px solid var(--bs-primary);
+    padding-left: .85rem;
+    margin-bottom: .5rem;
+    font-size: .92rem;
+  }
+  .help-cap-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    height: 100%;
+    background: #fafafa;
+  }
+  .help-cap-card h6 { font-weight: 700; }
+  .help-checklist { list-style: none; padding-left: 0; margin-bottom: 0; }
+  .help-checklist li { padding: .25rem 0; font-size: .9rem; }
+  .help-checklist li::before { content: "☐ "; color: #64748b; }
+  .lhexia-academy-hero { border: 1px solid rgba(139, 92, 246, 0.28); background: linear-gradient(180deg, rgba(139, 92, 246, 0.08), #fff); }
+  .lhexia-academy-card { background: #fff; }
+  .help-md-pre {
+    white-space: pre-wrap;
+    font-family: inherit;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem;
+    max-height: 280px;
+    overflow: auto;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0 help-shell">
+
   <div class="help-hero mb-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
       <div>
-        <h3 class="m-0 fw-bold"><i class="fas fa-book-open me-2 text-warning"></i>Manual Operativo del Sistema</h3>
-        <p class="mb-0 small opacity-75">Guía por módulos para operar el ERP de forma ordenada y segura en el día a día.</p>
+        <h3 class="m-0 fw-bold"><i class="fas fa-graduation-cap me-2 text-warning"></i>LhexIA Academy</h3>
+        <p class="mb-0 small opacity-75">Manual Operativo V2, guías por rol y buenas prácticas en piso (solo lectura).</p>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
         <span class="badge bg-light text-dark help-chip"><i class="fas fa-shield-alt me-1"></i>Control interno</span>
         <span class="badge bg-light text-dark help-chip"><i class="fas fa-clipboard-check me-1"></i>Checklist diario</span>
-        <span class="badge bg-light text-dark help-chip"><i class="fas fa-history me-1"></i>Trazabilidad</span>
+        <span class="badge bg-light text-dark help-chip"><i class="fas fa-graduation-cap me-1"></i>Capacitación</span>
       </div>
     </div>
   </div>
 
   <div class="alert alert-light border mb-3">
-    <strong>Importante:</strong> este manual no modifica datos. Algunas secciones dependen de permisos por rol. Si no ves un módulo, solicita revisión en <strong>Roles y permisos</strong>.
+    <strong>Importante:</strong> esta página es documentación — no abre módulos operativos. Para vender use <strong>Punto de venta</strong> en el menú.
+    En pantalla, el Mentor violeta muestra la misma guía según contexto.
   </div>
+
+  {% include 'ayuda/academy_manual_v2.html' %}
+
+  <article id="orden-diario" class="card card-ds help-card mb-3 help-anchor">
+    <div class="card-body">
+      <h5 class="fw-bold mb-2"><i class="fas fa-route me-2 text-primary"></i>Orden recomendado del día</h5>
+      <p class="small text-muted mb-2">Siga esta secuencia para mantener stock, caja e informes alineados.</p>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <div class="help-flow-step"><strong>1.</strong> Abrir caja al iniciar turno</div>
+          <div class="help-flow-step"><strong>2.</strong> Recepciones (si llega mercadería)</div>
+          <div class="help-flow-step"><strong>3.</strong> Punto de venta — emitir vales</div>
+          <div class="help-flow-step"><strong>4.</strong> Vales pendientes — cobrar en caja</div>
+        </div>
+        <div class="col-md-6">
+          <div class="help-flow-step"><strong>5.</strong> Bodega — despachos si aplica</div>
+          <div class="help-flow-step"><strong>6.</strong> Kardex — validar movimientos críticos</div>
+          <div class="help-flow-step"><strong>7.</strong> Cerrar caja al finalizar turno</div>
+          <div class="help-flow-step"><strong>8.</strong> BI / IA abastecimiento — revisión gerencial</div>
+        </div>
+      </div>
+    </div>
+  </article>
 
   <nav class="card card-ds mb-3">
     <div class="card-body py-3">
       <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div class="fw-semibold">Buscar tarea o error frecuente</div>
         <div class="help-search">
-          <input id="helpSearchInput" type="search" class="form-control form-control-sm" placeholder="Ej: cerrar caja, arqueo, stock crítico, anular vale">
+          <input id="helpSearchInput" type="search" class="form-control form-control-sm" placeholder="Ej: cerrar caja, enrolamiento, stock insuficiente">
         </div>
       </div>
     </div>
@@ -64,43 +119,96 @@
   <div class="card card-ds mb-3">
     <div class="card-body py-2">
       <ul class="nav nav-pills flex-wrap gap-2" id="helpRoleTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="tab-cajera" data-bs-toggle="pill" data-bs-target="#pane-cajera" type="button" role="tab">Cajera / Caja</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="tab-vendedor" data-bs-toggle="pill" data-bs-target="#pane-vendedor" type="button" role="tab">Vendedor</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="tab-bodega" data-bs-toggle="pill" data-bs-target="#pane-bodega" type="button" role="tab">Bodega / Inventario</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="tab-admin" data-bs-toggle="pill" data-bs-target="#pane-admin" type="button" role="tab">Administrador / Gerencia</button>
-        </li>
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#pane-cajera" type="button">Cajera / Caja</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-vendedor" type="button">Vendedor</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-bodega" type="button">Bodega / Inventario</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-admin" type="button">Administrador / Gerencia</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#pane-capacitacion" type="button"><i class="fas fa-graduation-cap me-1"></i>Capacitación</button></li>
       </ul>
     </div>
   </div>
 
   <div class="tab-content">
+
     <section class="tab-pane fade show active" id="pane-cajera" role="tabpanel">
-      <article class="card card-ds help-card mb-3">
+      <article id="abrir-caja" class="card card-ds help-card mb-3 help-anchor">
         <div class="card-body">
           <h5 class="fw-bold mb-2"><i class="fas fa-cash-register me-2 text-primary"></i>Flujo de turno en caja</h5>
           <div class="accordion" id="accCajera">
             <div class="accordion-item help-faq-item" data-help-search="abrir caja inicio turno monto inicial">
-              <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#cajera1">Como abrir caja correctamente</button></h2>
-              <div id="cajera1" class="accordion-collapse collapse show" data-bs-parent="#accCajera"><div class="accordion-body">Ir a <strong>Abrir caja</strong>, registrar monto inicial real y confirmar. No iniciar ventas sin apertura registrada.</div></div>
+              <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#cajera1">Cómo abrir caja correctamente</button></h2>
+              <div id="cajera1" class="accordion-collapse collapse show" data-bs-parent="#accCajera">
+                <div class="accordion-body">
+                  <ol class="mb-2 ps-3">
+                    <li>Ir a <strong>Abrir caja</strong>.</li>
+                    <li>Registrar el <strong>monto inicial real</strong> en efectivo.</li>
+                    <li>Confirmar apertura.</li>
+                  </ol>
+                  <p class="mb-0 small text-muted">No inicie ventas ni cobros sin apertura registrada. Si el POS está bloqueado, revise si hay caja del día anterior sin cerrar.</p>
+                </div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="cobrar vale pendientes metodo pago efectivo debito credito">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera2">Como cobrar vales pendientes</button></h2>
-              <div id="cajera2" class="accordion-collapse collapse" data-bs-parent="#accCajera"><div class="accordion-body">Desde <strong>Vales pendientes</strong>, seleccionar vale, elegir metodo de pago y confirmar. El cobro deja trazabilidad de ingreso.</div></div>
+            <div id="caja-pendientes" class="accordion-item help-faq-item help-anchor" data-help-search="cobrar vale pendientes metodo pago efectivo debito credito vuelto">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera2">Cómo cobrar vales pendientes</button></h2>
+              <div id="cajera2" class="accordion-collapse collapse" data-bs-parent="#accCajera">
+                <div class="accordion-body">
+                  <ol class="mb-2 ps-3">
+                    <li>Desde <strong>Vales pendientes</strong>, seleccionar el vale.</li>
+                    <li>Elegir método de pago (efectivo, débito, crédito, etc.).</li>
+                    <li>Confirmar cobro e imprimir/enviar documento si corresponde.</li>
+                    <li>Entregar vuelto — el sistema puede mostrar banner de confirmación.</li>
+                  </ol>
+                  <p class="mb-0 small">El cobro registra ingreso en caja y descuenta stock. Verifique que el vale no quede en pendiente.</p>
+                </div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="cerrar caja cuadratura arqueo diferencia supervisor">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera3">Como cerrar caja y hacer cuadratura</button></h2>
-              <div id="cajera3" class="accordion-collapse collapse" data-bs-parent="#accCajera"><div class="accordion-body">Ingresar efectivo contado, revisar diferencia vs teorico y agregar observacion si corresponde. Si supera umbral, un responsable con rol admin, permiso gestionar usuarios o ver gerencia debe ingresar su usuario y clave del ERP.</div></div>
+            <div id="cerrar-caja" class="accordion-item help-faq-item help-anchor" data-help-search="cerrar caja cuadratura arqueo diferencia supervisor cierre ciego">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera3">Cómo cerrar caja y hacer cuadratura</button></h2>
+              <div id="cajera3" class="accordion-collapse collapse" data-bs-parent="#accCajera">
+                <div class="accordion-body">
+                  <ol class="mb-2 ps-3">
+                    <li>Ir a <strong>Cerrar caja</strong>.</li>
+                    <li>Contar efectivo en gaveta y registrar monto declarado.</li>
+                    <li>Registrar montos de tarjeta/vouchers según indique la pantalla.</li>
+                    <li>Revisar diferencia vs teórico; agregar observación si hay descuadre.</li>
+                    <li>Si supera umbral, un responsable con permiso de supervisor ingresa usuario y clave.</li>
+                  </ol>
+                  <p class="mb-0 small text-muted">En modo cierre a ciegas no verá totales teóricos hasta después — cuente físicamente antes de confirmar.</p>
+                </div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="error caja dia anterior abierta">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera4">Error: caja de dia anterior abierta</button></h2>
-              <div id="cajera4" class="accordion-collapse collapse" data-bs-parent="#accCajera"><div class="accordion-body">El sistema bloquea POS hasta cerrar la caja anterior. Entrar a <strong>Cerrar caja</strong>, cuadrar y luego abrir caja nueva.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="movimiento caja ingreso egreso retiro motivo">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera4">Movimientos extraordinarios de caja</button></h2>
+              <div id="cajera4" class="accordion-collapse collapse" data-bs-parent="#accCajera">
+                <div class="accordion-body">
+                  Use <strong>Movimientos</strong> para ingresos o egresos fuera de venta normal.
+                  En egresos indique responsable y motivo. Todo queda en historial para auditoría.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="error caja dia anterior abierta bloqueo pos">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera5">Error: caja de día anterior abierta</button></h2>
+              <div id="cajera5" class="accordion-collapse collapse" data-bs-parent="#accCajera">
+                <div class="accordion-body">El sistema bloquea POS hasta cerrar la caja anterior. Entrar a <strong>Cerrar caja</strong>, cuadrar y luego abrir caja nueva.</div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="cambios devoluciones nota credito saldo favor">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera6">Cambios y devoluciones</button></h2>
+              <div id="cajera6" class="accordion-collapse collapse" data-bs-parent="#accCajera">
+                <div class="accordion-body">
+                  Desde <strong>Cambios</strong> procese devoluciones con trazabilidad.
+                  Puede generarse saldo a favor o nota según política del local. Registre siempre el motivo.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="creditos abonos cuotas cobranza">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cajera7">Abonos a crédito</button></h2>
+              <div id="cajera7" class="accordion-collapse collapse" data-bs-parent="#accCajera">
+                <div class="accordion-body">
+                  En <strong>Créditos</strong> busque la cuenta del cliente, registre abono y emita comprobante.
+                  Verifique que el saldo deudor disminuya correctamente.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -108,21 +216,52 @@
     </section>
 
     <section class="tab-pane fade" id="pane-vendedor" role="tabpanel">
-      <article class="card card-ds help-card mb-3">
+      <article id="faq-pos" class="card card-ds help-card mb-3 help-anchor">
         <div class="card-body">
-          <h5 class="fw-bold mb-2"><i class="fas fa-receipt me-2 text-success"></i>Ventas mostrador</h5>
+          <div class="alert alert-primary-subtle border small mb-3">
+            Manual oficial POS: <a href="#academy-pos">Sección A — POS y Semáforos</a> (Manual V2 arriba).
+          </div>
+          <h5 class="fw-bold mb-2"><i class="fas fa-receipt me-2 text-success"></i>FAQ mostrador (POS)</h5>
           <div class="accordion" id="accVendedor">
-            <div class="accordion-item help-faq-item" data-help-search="pos buscar producto agregar cantidad stock">
-              <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#vend1">Como emitir un vale desde POS</button></h2>
-              <div id="vend1" class="accordion-collapse collapse show" data-bs-parent="#accVendedor"><div class="accordion-body">Buscar producto, validar cantidad y emitir vale. Si hay alertas de stock, ajustar antes de emitir.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="pos buscar producto agregar cantidad stock emitir vale">
+              <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#vend1">Cómo emitir un vale desde POS</button></h2>
+              <div id="vend1" class="accordion-collapse collapse show" data-bs-parent="#accVendedor">
+                <div class="accordion-body">
+                  <ol class="mb-2 ps-3">
+                    <li>Ir a <strong>Punto de venta</strong>.</li>
+                    <li>Buscar producto por nombre o código de barra y agregar al carrito.</li>
+                    <li>Ajustar cantidad; revisar alertas de stock.</li>
+                    <li>Identificar cliente (RUT) o usar cliente final genérico.</li>
+                    <li><strong>Emitir vale</strong> — el cobro lo hace caja en Vales pendientes.</li>
+                  </ol>
+                </div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="descuento supervisor autorizacion">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vend2">Descuentos con autorizacion</button></h2>
-              <div id="vend2" class="accordion-collapse collapse" data-bs-parent="#accVendedor"><div class="accordion-body">Si el descuento supera permiso del usuario, se solicitan credenciales de supervisor autorizado.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="descuento supervisor autorizacion limite">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vend2">Descuentos con autorización</button></h2>
+              <div id="vend2" class="accordion-collapse collapse" data-bs-parent="#accVendedor">
+                <div class="accordion-body">Si el descuento supera el permiso del usuario, el sistema solicita credenciales de supervisor autorizado en <strong>POS autorización descuentos</strong>.</div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="anular vale cliente no retorna">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vend3">Cuando anular un vale</button></h2>
-              <div id="vend3" class="accordion-collapse collapse" data-bs-parent="#accVendedor"><div class="accordion-body">Solo si el cliente no vuelve a pagar. Registrar motivo para mantener historial y control.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="anular vale cliente no retorna motivo">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vend3">Cuándo anular un vale</button></h2>
+              <div id="vend3" class="accordion-collapse collapse" data-bs-parent="#accVendedor">
+                <div class="accordion-body">Solo si el cliente no volverá a pagar. Registre motivo para mantener historial. No anule vales ya cobrados — use Cambios en caja.</div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="stock insuficiente conversion unidades cantidad">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vend4">Alerta: stock insuficiente</button></h2>
+              <div id="vend4" class="accordion-collapse collapse" data-bs-parent="#accVendedor">
+                <div class="accordion-body">
+                  Reduzca cantidad o retire el ítem. Si el producto usa conversión de unidades (ej. caja → unidad), lea el texto de consumo real de stock antes de confirmar.
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="cotizacion convertir venta pos precargado">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vend5">Venta desde cotización</button></h2>
+              <div id="vend5" class="accordion-collapse collapse" data-bs-parent="#accVendedor">
+                <div class="accordion-body">Desde <strong>Cotizaciones</strong>, convierta a venta. El POS precarga cliente y líneas. Revise precios antes de emitir vale.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -132,19 +271,102 @@
     <section class="tab-pane fade" id="pane-bodega" role="tabpanel">
       <article class="card card-ds help-card mb-3">
         <div class="card-body">
-          <h5 class="fw-bold mb-2"><i class="fas fa-boxes-stacked me-2 text-warning"></i>Inventario y bodega</h5>
-          <div class="accordion" id="accBodega">
-            <div class="accordion-item help-faq-item" data-help-search="productos crear editar codigo precio unidad">
+          <h5 class="fw-bold mb-2"><i class="fas fa-boxes-stacked me-2 text-warning"></i>Productos y stock</h5>
+          <div class="accordion" id="accBodegaProd">
+            <div class="accordion-item help-faq-item" data-help-search="productos crear editar codigo precio unidad categoria csv importar">
               <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#bod1">Crear o editar productos</button></h2>
-              <div id="bod1" class="accordion-collapse collapse show" data-bs-parent="#accBodega"><div class="accordion-body">Mantener codigo, nombre, precio y unidad de forma consistente. Evitar duplicados por codigo.</div></div>
+              <div id="bod1" class="accordion-collapse collapse show" data-bs-parent="#accBodegaProd">
+                <div class="accordion-body">
+                  Mantenga código, nombre, precio compra/venta y unidad consistentes. Complete categoría para búsquedas en POS.
+                  Evite códigos de barra duplicados. Para carga masiva use la sección de importación CSV en Productos.
+                </div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="stock critico quiebre reposicion">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bod2">Que hacer con stock critico</button></h2>
-              <div id="bod2" class="accordion-collapse collapse" data-bs-parent="#accBodega"><div class="accordion-body">Revisar lista de criticos, validar stock fisico y priorizar reposicion por rotacion.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="stock critico quiebre reposicion umbral">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bod2">Qué hacer con stock crítico</button></h2>
+              <div id="bod2" class="accordion-collapse collapse" data-bs-parent="#accBodegaProd">
+                <div class="accordion-body">Revise la lista de críticos, valide stock físico en bodega y priorice reposición por rotación. Use IA Abastecimiento como apoyo.</div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="kardex movimientos entrada salida ajuste">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bod3">Como usar kardex para auditar</button></h2>
-              <div id="bod3" class="accordion-collapse collapse" data-bs-parent="#accBodega"><div class="accordion-body">Filtrar por producto y fecha para revisar entradas/salidas. Investigar diferencias con soporte documental.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="kardex movimientos entrada salida auditar filtro">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#bod3">Cómo usar kardex para auditar</button></h2>
+              <div id="bod3" class="accordion-collapse collapse" data-bs-parent="#accBodegaProd">
+                <div class="accordion-body">
+                  Filtre por producto y fecha. Debe ver <strong>ENTRADA</strong> al finalizar recepciones y <strong>SALIDA</strong> al cobrar ventas.
+                  Si falta un movimiento, la operación origen probablemente no se completó.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article id="recepciones" class="card card-ds help-card mb-3 help-anchor">
+        <div class="card-body">
+          <h5 class="fw-bold mb-2"><i class="fas fa-truck-loading me-2 text-info"></i>Recepciones de mercadería</h5>
+          <div class="accordion" id="accRecep">
+            <div class="accordion-item help-faq-item" data-help-search="recepcion nueva proveedor factura guia lineas finalizar">
+              <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#rec1">Registrar ingreso de mercadería</button></h2>
+              <div id="rec1" class="accordion-collapse collapse show" data-bs-parent="#accRecep">
+                <div class="accordion-body">
+                  <ol class="mb-0 ps-3">
+                    <li><strong>Recepciones</strong> → Nueva recepción → proveedor y tipo documento.</li>
+                    <li>Agregar líneas: producto, cantidad física, costo unitario.</li>
+                    <li>Revisar resumen y <strong>finalizar</strong> (solo entonces impacta stock).</li>
+                    <li>Confirmar entrada en Kardex.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="recepcion tablet bodega caminar incompleta pendiente">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rec2">Recepción en bodega (tablet)</button></h2>
+              <div id="rec2" class="accordion-collapse collapse" data-bs-parent="#accRecep">
+                <div class="accordion-body">Abra la recepción pendiente en tablet, registre ítems caminando la bodega y finalice desde resumen. No deje recepciones a medias sin revisar.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article id="enrolamiento" class="card card-ds help-card mb-3 help-anchor">
+        <div class="card-body">
+          <h5 class="fw-bold mb-2"><i class="fas fa-barcode me-2 text-warning"></i>Enrolamiento con pistola</h5>
+          <div class="help-kpi mb-3">
+            <strong>Regla:</strong> la pistola alimenta <code>codigo_barra</code>. El código interno (FERRE-0001) lo asigna el sistema.
+          </div>
+          <div class="accordion" id="accEnrol">
+            <div class="accordion-item help-faq-item" data-help-search="enrolamiento pistola escanear almacen sesion nueva">
+              <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#enr1">Antes de escanear</button></h2>
+              <div id="enr1" class="accordion-collapse collapse show" data-bs-parent="#accEnrol">
+                <div class="accordion-body">
+                  <ol class="mb-0 ps-3">
+                    <li>Elija <strong>Almacén</strong> (donde sumará stock al vincular).</li>
+                    <li>Use <strong>Nueva sesión</strong> para reiniciar conteo.</li>
+                    <li>Pistolee y pulse Enter — no recargue la página.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="enrolamiento reconocido vincular buscar chilemat interno alta manual">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#enr2">Tres casos al escanear</button></h2>
+              <div id="enr2" class="accordion-collapse collapse" data-bs-parent="#accEnrol">
+                <div class="accordion-body">
+                  <ul class="mb-0">
+                    <li><strong>Reconocido:</strong> bip corto — suma conteo de sesión.</li>
+                    <li><strong>Vincular:</strong> doble tono — busque producto en catálogo y asigne el código.</li>
+                    <li><strong>Alta manual:</strong> tono grave — producto nuevo con nombre y categoría.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="recepcion pistola codigo barra sin duplicar stock INT provisional">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#enr3">Pistola en recepción (sin duplicar stock)</button></h2>
+              <div id="enr3" class="accordion-collapse collapse" data-bs-parent="#accEnrol">
+                <div class="accordion-body">
+                  En recepción ya finalizada por cantidades, use <strong>Pistola</strong> en cada línea solo para guardar el código de barra real.
+                  No vuelve a sumar stock. Códigos provisionales <code>INT-…</code> se reemplazan al pistolar el código real.
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -154,37 +376,159 @@
     <section class="tab-pane fade" id="pane-admin" role="tabpanel">
       <article class="card card-ds help-card mb-3">
         <div class="card-body">
-          <h5 class="fw-bold mb-2"><i class="fas fa-user-shield me-2 text-secondary"></i>Administracion y gerencia</h5>
+          <h5 class="fw-bold mb-2"><i class="fas fa-user-shield me-2 text-secondary"></i>Administración</h5>
           <div class="accordion" id="accAdmin">
-            <div class="accordion-item help-faq-item" data-help-search="roles permisos usuarios acceso">
+            <div class="accordion-item help-faq-item" data-help-search="roles permisos usuarios acceso minimo">
               <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#adm1">Gestionar roles y permisos</button></h2>
-              <div id="adm1" class="accordion-collapse collapse show" data-bs-parent="#accAdmin"><div class="accordion-body">Asignar solo permisos necesarios por rol. Revisar accesos al menos una vez por mes.</div></div>
+              <div id="adm1" class="accordion-collapse collapse show" data-bs-parent="#accAdmin">
+                <div class="accordion-body">Asigne solo permisos necesarios por rol (principio de mínimo privilegio). Revise accesos al menos una vez al mes.</div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="bi reportes indicadores margen crecimiento">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm2">Que revisar en reportes y BI</button></h2>
-              <div id="adm2" class="accordion-collapse collapse" data-bs-parent="#accAdmin"><div class="accordion-body">Ventas diarias, margen, metodos de pago, top productos y quiebres para decisiones rapidas.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="usuarios crear clave temporal inactivo">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm2">Crear usuarios</button></h2>
+              <div id="adm2" class="accordion-collapse collapse" data-bs-parent="#accAdmin">
+                <div class="accordion-body">Cree usuario con rol, entregue clave temporal y confirme cambio obligatorio al primer ingreso. Desactive usuarios que ya no trabajan.</div>
+              </div>
             </div>
-            <div class="accordion-item help-faq-item" data-help-search="mantenedores catalogo unidades almacenes clientes">
-              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm3">Mantenedores sin afectar operacion</button></h2>
-              <div id="adm3" class="accordion-collapse collapse" data-bs-parent="#accAdmin"><div class="accordion-body">Aplicar cambios fuera de hora punta y validar impacto con una prueba corta en POS o inventario.</div></div>
+            <div class="accordion-item help-faq-item" data-help-search="bi reportes indicadores margen crecimiento exportar csv">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm3">Qué revisar en reportes y BI</button></h2>
+              <div id="adm3" class="accordion-collapse collapse" data-bs-parent="#accAdmin">
+                <div class="accordion-body">Ventas diarias, margen, métodos de pago, top productos y quiebres. Exporte CSV para análisis externo si lo necesita.</div>
+              </div>
             </div>
+            <div class="accordion-item help-faq-item" data-help-search="revision precios margen motivo bitacora masivo">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm4">Revisión de precios</button></h2>
+              <div id="adm4" class="accordion-collapse collapse" data-bs-parent="#accAdmin">
+                <div class="accordion-body">Siempre registre motivo del cambio. No aplique ajustes masivos sin filtrar antes. Revise bitácora reciente.</div>
+              </div>
+            </div>
+            <div id="simulador-margen" class="accordion-item help-faq-item help-anchor" data-help-search="simulador margen elasticidad precio costo escenario">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm5">Simulador de margen</button></h2>
+              <div id="adm5" class="accordion-collapse collapse" data-bs-parent="#accAdmin">
+                <div class="accordion-body">
+                  Simula escenarios de Δ precio, Δ costo y elasticidad sobre ventas históricas pagadas.
+                  Use categoría para acotar. Los iconos <span class="kpi-help">?</span> en pantalla explican cada KPI.
+                  <a href="{{ url_for('simulador_margen') }}" class="d-inline-block mt-2">Abrir simulador</a>
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item help-faq-item" data-help-search="mantenedores catalogo unidades almacenes empresa fuera hora punta">
+              <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#adm6">Mantenedores sin afectar operación</button></h2>
+              <div id="adm6" class="accordion-collapse collapse" data-bs-parent="#accAdmin">
+                <div class="accordion-body">Aplique cambios en catálogo, unidades y almacenes fuera de hora punta. Valide con una prueba corta en POS o inventario.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="tab-pane fade" id="pane-capacitacion" role="tabpanel">
+      <article id="capacitacion" class="card card-ds help-card mb-3 help-anchor">
+        <div class="card-body">
+          <h5 class="fw-bold mb-3"><i class="fas fa-graduation-cap me-2 text-primary"></i>Plan de capacitación (4 sesiones)</h5>
+          <p class="text-muted small">Al completar las 4 sesiones el equipo opera el ciclo: producto → recepción → venta → cobro → kardex → reporte.</p>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <div class="help-cap-card">
+                <h6>Sesión 1 · Productos y recepciones</h6>
+                <p class="small text-muted mb-2">60–90 min · Bodega + admin</p>
+                <ul class="help-checklist">
+                  <li>Alta manual de producto</li>
+                  <li>Registrar proveedor</li>
+                  <li>Finalizar recepción</li>
+                  <li>Verificar Kardex</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="help-cap-card">
+                <h6>Sesión 2 · POS y caja</h6>
+                <p class="small text-muted mb-2">60 min · Vendedor + cajera</p>
+                <ul class="help-checklist">
+                  <li>Abrir caja</li>
+                  <li>Emitir vale en POS</li>
+                  <li>Cobrar en vales pendientes</li>
+                  <li>Cerrar caja</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="help-cap-card">
+                <h6>Sesión 3 · Kardex e indicadores</h6>
+                <p class="small text-muted mb-2">45 min · Supervisor</p>
+                <ul class="help-checklist">
+                  <li>Auditar movimientos</li>
+                  <li>Stock crítico</li>
+                  <li>BI reportes</li>
+                  <li>IA abastecimiento</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="help-cap-card">
+                <h6>Sesión 4 · Admin y seguridad</h6>
+                <p class="small text-muted mb-2">30 min · Administrador</p>
+                <ul class="help-checklist">
+                  <li>Usuarios y roles</li>
+                  <li>Datos de empresa</li>
+                  <li>Unidades y conversiones</li>
+                  <li>Política de claves</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="help-kpi">
+            <strong>Sesión especial (go-live):</strong> enrolamiento con pistola — 45 min durante carga de inventario.
+            Vaya a la pestaña <em>Bodega / Inventario → Enrolamiento con pistola</em>.
           </div>
         </div>
       </article>
     </section>
   </div>
 
+  <article id="errores-comunes" class="card card-ds help-card mb-3 help-anchor">
+    <div class="card-body">
+      <h5 class="fw-bold mb-2"><i class="fas fa-triangle-exclamation me-2 text-danger"></i>Errores comunes — acción inmediata</h5>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered mb-0">
+          <thead class="table-light"><tr><th>Situación</th><th>Qué hacer</th></tr></thead>
+          <tbody>
+            <tr class="help-faq-item" data-help-search="stock insuficiente pos cantidad conversion">
+              <td>Stock insuficiente en POS</td>
+              <td>Ajustar cantidad, quitar ítem o verificar conversión de unidad</td>
+            </tr>
+            <tr class="help-faq-item" data-help-search="recepcion no impacta kardex finalizar parcial">
+              <td>Recepción no impacta Kardex</td>
+              <td>Confirmar que está <strong>finalizada</strong>, no solo guardada parcial</td>
+            </tr>
+            <tr class="help-faq-item" data-help-search="usuario no puede entrar inactivo clave temporal">
+              <td>Usuario no puede entrar</td>
+              <td>Revisar si está inactivo o debe cambiar clave temporal</td>
+            </tr>
+            <tr class="help-faq-item" data-help-search="menu no visible permiso rol">
+              <td>Menú o módulo no visible</td>
+              <td>Revisar rol y permisos con administrador</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+
   <article class="card card-ds help-card mb-4">
     <div class="card-body">
-      <h6 class="fw-bold mb-2"><i class="fas fa-link me-2 text-primary"></i>Accesos rapidos</h6>
+      <h6 class="fw-bold mb-2"><i class="fas fa-circle-info me-2 text-muted"></i>Referencias cruzadas</h6>
+      <p class="small text-muted mb-2">Anclas del Manual V2 y FAQ por rol:</p>
       <div class="d-flex flex-wrap gap-2">
-        <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-outline-primary">Punto de venta</a>
-        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-outline-primary">Vales pendientes</a>
-        <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-primary">Productos</a>
-        <a href="{{ url_for('kardex') }}" class="btn btn-sm btn-outline-primary">Kardex</a>
-        <a href="{{ url_for('business_intelligence') }}" class="btn btn-sm btn-outline-primary">BI reportes</a>
+        <a href="#academy-pos" class="btn btn-sm btn-outline-primary">POS y semáforos</a>
+        <a href="#academy-caja" class="btn btn-sm btn-outline-primary">Arqueo ciego PLAT-1.1</a>
+        <a href="#academy-bodega" class="btn btn-sm btn-outline-primary">Telemetría V3</a>
+        <a href="#cerrar-caja" class="btn btn-sm btn-outline-secondary">FAQ cierre caja</a>
+        <a href="#enrolamiento" class="btn btn-sm btn-outline-secondary">FAQ enrolamiento</a>
+        <a href="#errores-comunes" class="btn btn-sm btn-outline-danger">Errores comunes</a>
       </div>
-      <p id="helpEmptyState" class="help-empty text-muted small mt-3 mb-0">No hay resultados para esa busqueda. Prueba con otra palabra.</p>
+      <p id="helpEmptyState" class="help-empty text-muted small mt-3 mb-0">No hay resultados para esa búsqueda. Prueba con otra palabra.</p>
     </div>
   </article>
 
@@ -197,20 +541,61 @@
   const searchInput = document.getElementById('helpSearchInput');
   const items = Array.from(document.querySelectorAll('.help-faq-item'));
   const empty = document.getElementById('helpEmptyState');
-  if (!searchInput || !items.length || !empty) return;
+  const tabMap = {
+    'lhexia-academy': null,
+    'academy-pos': null, 'academy-caja': null, 'academy-bodega': null,
+    'orden-diario': null,
+    'abrir-caja': 'pane-cajera', 'caja-pendientes': 'pane-cajera', 'cerrar-caja': 'pane-cajera',
+    'faq-pos': 'pane-vendedor', 'pos': 'pane-vendedor',
+    'recepciones': 'pane-bodega', 'enrolamiento': 'pane-bodega',
+    'simulador-margen': 'pane-admin',
+    'capacitacion': 'pane-capacitacion',
+    'errores-comunes': null,
+  };
 
   const normalize = (v) => (v || '').toLowerCase().trim();
-  searchInput.addEventListener('input', () => {
-    const q = normalize(searchInput.value);
-    let visibleCount = 0;
-    items.forEach((item) => {
-      const text = normalize(item.getAttribute('data-help-search') + ' ' + item.textContent);
-      const show = !q || text.includes(q);
-      item.style.display = show ? '' : 'none';
-      if (show) visibleCount += 1;
+
+  if (searchInput && items.length && empty) {
+    searchInput.addEventListener('input', () => {
+      const q = normalize(searchInput.value);
+      let visibleCount = 0;
+      items.forEach((item) => {
+        const text = normalize((item.getAttribute('data-help-search') || '') + ' ' + item.textContent);
+        const show = !q || text.includes(q);
+        item.style.display = show ? '' : 'none';
+        if (show) visibleCount += 1;
+      });
+      empty.style.display = visibleCount === 0 ? 'block' : 'none';
     });
-    empty.style.display = visibleCount === 0 ? 'block' : 'none';
-  });
+  }
+
+  function activateTab(paneId) {
+    if (!paneId) return;
+    const btn = document.querySelector(`[data-bs-target="#${paneId}"]`);
+    if (btn && window.bootstrap) {
+      bootstrap.Tab.getOrCreateInstance(btn).show();
+    }
+  }
+
+  function openAnchor(id) {
+    if (!id) return;
+    activateTab(tabMap[id]);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const collapse = el.querySelector('.accordion-collapse');
+    const toggle = el.querySelector('.accordion-button');
+    if (collapse && toggle && !collapse.classList.contains('show')) {
+      toggle.click();
+    }
+  }
+
+  if (location.hash) {
+    openAnchor(location.hash.slice(1));
+  } else {
+    openAnchor('lhexia-academy');
+  }
+  window.addEventListener('hashchange', () => openAnchor(location.hash.slice(1)));
 })();
 </script>
 {% endblock %}

@@ -8,7 +8,8 @@
 **Aclaración operativa (2026-05-21):** Santo Domingo hoy es **un solo establecimiento** en piso (sin locales adicionales). El inventario va por **almacenes** (tienda + bodega). **LhexIA VERTEX sí será multi-sucursal** (crear sucursales, caja/POS por local) — ver [`../../arquitectura/VERTEX_MULTI_SUCURSAL.md`](../../arquitectura/VERTEX_MULTI_SUCURSAL.md). Eso se implementa **después** de cerrar SD-1; en Guardián, textos tipo “3 sucursales” son **vista demo red** (Chilemat), no la operación actual de SD.
 
 **Runbook piso:** [`CLIENTE_SANTO_DOMINGO.md`](CLIENTE_SANTO_DOMINGO.md)  
-**Día 1 hoy:** [`SD1_DIA1_PISO.md`](SD1_DIA1_PISO.md) · `python scripts/sd1_estado_piso.py`  
+**Día 1 hoy:** [`SD1_DIA1_PISO.md`](SD1_DIA1_PISO.md) · **Imprimir:** [`SD1_DIA1_PISO_HOJA_1_PAGINA.md`](SD1_DIA1_PISO_HOJA_1_PAGINA.md) · `python scripts/sd1_estado_piso.py`  
+**Backup C7:** [`SD1_BACKUP_NEON_C7.md`](SD1_BACKUP_NEON_C7.md)  
 **Portal entrega:** [`SANTO_DOMINGO_ENTREGA.md`](SANTO_DOMINGO_ENTREGA.md)
 
 ---
@@ -38,11 +39,11 @@ python scripts/sd1_cierre_preflight.py
 
 | Check | Estado | Fecha |
 |-------|--------|-------|
-| A1 Smoke 116+ (1 skip) | [x] | 2026-05-21 |
+| A1 Smoke 144 passed, 3 skipped | [x] | 2026-05-23 |
 | A2 Casuísticas 11/11 | [x] | 2026-05-21 |
 | A3 Guardián API + global_maestro | [x] | 2026-05-21 |
-| A4 Preflight OK (2 almacenes) | [x] | 2026-05-21 |
-| A5 Deploy Render commit `________` | [ ] | |
+| A4 Preflight OK (2 almacenes) | [x] | 2026-05-23 |
+| A5 Deploy Render commit `7b0079b` *(repo local; confirmar en Render)* | [ ] | 2026-05-23 |
 
 ---
 
@@ -60,7 +61,7 @@ Listar **solo almacenes reales** de Santo Domingo (Admin → Almacenes). Típico
 - [ ] D0: almacenes activos verificados en piso (nombres anotados para capacitación)
 - [ ] D1: piloto pistola TIENDA (50–80 SKU) — ver `PAUSA_D1_PILOTO_PISTOLA.md`
 - [ ] Permisos `enrolamiento_inventario` a encargados
-- [ ] Backup Neon antes de ajustes masivos: fecha _______
+- [ ] Backup Neon antes de ajustes masivos: fecha _______ — guía [`SD1_BACKUP_NEON_C7.md`](SD1_BACKUP_NEON_C7.md)
 
 **Rutas:** `/inventario/enrolamiento` → por cada almacén → `/inventario/salud`
 

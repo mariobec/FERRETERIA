@@ -14,6 +14,9 @@
 | **Ritmo equipo (Daily / Weekly / Sprint)** | [`00-alineacion/EQUIPO_RITMO_ASYNC.md`](00-alineacion/EQUIPO_RITMO_ASYNC.md) |
 | **Plantilla documentos cliente** | [`00-alineacion/PLANTILLA_DOCUMENTO_CLIENTE.md`](00-alineacion/PLANTILLA_DOCUMENTO_CLIENTE.md) |
 | **Producto LhexIA (portal)** | [`02-producto-lhexia/LHEXIA_PRODUCTO.md`](02-producto-lhexia/LHEXIA_PRODUCTO.md) |
+| **LhexIA Academy + Mentor (piso)** | [`02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md`](02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md) |
+| **LX-ACAD tickets SD-1** | [`02-producto-lhexia/LX_ACAD_TICKETS_SD1.md`](02-producto-lhexia/LX_ACAD_TICKETS_SD1.md) |
+| **LX-ACAD prompt Cursor** | [`02-producto-lhexia/LX_ACAD_CURSOR_PROMPT_SD1.md`](02-producto-lhexia/LX_ACAD_CURSOR_PROMPT_SD1.md) |
 | **Fidelización + sorteo TV (backlog)** | [`02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md`](02-producto-lhexia/PLAN_FIDELIZACION_Y_PROMO_EXPERIENCE.md) |
 | **Vitácora reunión SD (puntos + chocolate)** | [`01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md`](01-entrega-santo-domingo/VITACORA_REUNION_FIDELIZACION_PROMO_SD.md) |
 | **Santo Domingo entrega (portal)** | [`01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md`](01-entrega-santo-domingo/SANTO_DOMINGO_ENTREGA.md) |

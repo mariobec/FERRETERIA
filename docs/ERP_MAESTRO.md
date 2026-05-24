@@ -2,8 +2,8 @@
 
 > **LhexIA ERP** ([www.lhexia.cl](https://www.lhexia.cl)) — Sistema integral para ferretería y retail en Chile: ventas POS, caja con arqueo ciego, inventario multi-almacén, bodega con IA por voz, compras, créditos, facturación electrónica SII, BI gerencial, Customer 360 y torre de control para administración.
 
-**Última actualización:** 2026-05-22  
-**Versión operativa:** v2.0 (TEC cerrado) + **módulos v3** + **SD-1** (Santo Domingo) + **PLAT-1.1** (arqueo ciego) + **Control Center** + **VERTEX Centro de Mandos** (red neuronal + Mentor)  
+**Última actualización:** 2026-05-23  
+**Versión operativa:** v2.0 (TEC cerrado) + **módulos v3** + **SD-1** (Santo Domingo) + **PLAT-1.1** (arqueo ciego) + **Control Center** + **VERTEX Centro de Mandos** + **LhexIA Academy / Mentor piso**  
 **Líneas `app.py`:** ~22.200 (monolito; rutas también en `blueprints/*`)  
 **Paquete `core/`:** dominio venta/cobro/stock (Clean Architecture ligera)  
 **Templates:** ~122 vistas Jinja2 · **Suite de tests:** ~344 tests (`pytest tests/ --collect-only`)  
@@ -1124,6 +1124,7 @@ gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 6 --timeout 90
 | 2026-05-22 | **D0 maestro Chilemat:** ~4.913 SKU homologados → Neon (`scripts/cargar_maestro_productos_neon.py`); fix carga masiva `/cargar_productos` (stock sin `producto.id`) |
 | 2026-05-22 | **Recepciones SD-1:** RCV dedup folio, UI Pareto/archivo/folio, `IMPORTAR_RCV_SII.md`; panel inventario premium con datos reales (`inventario_dashboard_service.py`) |
 | 2026-05-22 | **Pausa operativa D1:** piloto pistola enrolamiento TIENDA — `PAUSA_D1_PILOTO_PISTOLA.md`; catálogo QA `SD-PRUEBA-*` solo local |
+| 2026-05-23 | **LhexIA Academy + Mentor piso:** `academy_articles` Manual V2, hub `/academy`, API `/api/mentor/*`, sidebar POS/caja; doc [`planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md`](planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md) |
 
 ---
 
@@ -1240,7 +1241,7 @@ Detalle offline: [`ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](planes/04-tecnico/RO
 | `operador` | `vertex_operador` | Alertas operativas, vales, quiebres, descuadres |
 | `logistica` | `vertex_logistica` | Traslados, SLA bodega |
 | `inventario` | `vertex_inventario` | Stock, salud inventario |
-| **`mentor`** | **`vertex_mentor`** | **LhexIA Guía** — asesoría a cajera/vendedora en procesos (NC, vales, permisos). Alineado con Agente 3 en `CONSOLIDACION_4_AGENTES_ASESORIA.md`. **MVP VERTEX:** nodo violeta + tarjeta glass + píldoras demo; **pendiente SD-1+:** chat/RAG en POS |
+| **`mentor`** | **`vertex_mentor`** | **LhexIA Guía** — asesoría a cajera/vendedora (NC, vales, arqueo). Agente 3 en `CONSOLIDACION_4_AGENTES_ASESORIA.md`. **VERTEX:** nodo + píldoras demo maestro; **piso SD-1:** sidebar Academy en POS/caja — ver §19.6.2 y [`LHEXIA_ACADEMY_MENTOR.md`](planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md). **Post SD-1:** RAG/chat LLM |
 
 **UI mapa cognitivo:**
 
@@ -1268,7 +1269,29 @@ Detalle offline: [`ROADMAP_POS_CONTINUIDAD_OPERACIONAL.md`](planes/04-tecnico/RO
 
 **Tests:** `tests/test_owner_dashboard_api.py` — `test_dashboard_global_maestro_scope`, `test_owner_vertex_control_shell`, `test_pildora_mentor_demo_red`.
 
-**Pendiente producto (acordado en chat):** botón “Pedir ayuda al Mentor” en POS/caja móvil; RAG sobre `ERP_MAESTRO` + `CASUISTICAS_VENTAS_QA` (post SD-1).
+#### 19.6.2 LhexIA Academy + Mentor en piso (2026-05-23)
+
+Capacitación contextual para vendedor/cajera en el flujo real (no sustituye el mapa VERTEX del dueño en §19.6.1).
+
+| Componente | Detalle |
+|------------|---------|
+| **Hub** | `GET /academy` — Manual V2 (POS, Caja PLAT-1.1, Bodega telemetría V3) |
+| **Ayuda** | `/ayuda` embebe artículos filtrados por rol |
+| **BD** | `academy_articles` — seed idempotente `services/academy_bootstrap.py` |
+| **API** | `GET /api/mentor/context`, `POST /api/mentor/log_read` (`blueprints/academy.py`); alias `/api/pos/mentor/*` |
+| **UI** | Sidebar `lhexia-mentor-sidebar` en `/punto_venta`, `/caja/vales_pendientes`, `/caja/cambios`, `/cerrar_caja` |
+| **Servicios** | `academy_service.py`, `vertex_mentor_service.py`, `academy_format.py` |
+| **Telemetría** | Lecturas → `agente_ejecuciones` (`agente_nombre=mentor`, origen `academy_sidebar`) |
+
+**Documentación técnica (handoff IA):** [`docs/planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md`](planes/02-producto-lhexia/LHEXIA_ACADEMY_MENTOR.md)
+
+**Tests regresión (16):**
+
+```bash
+pytest tests/test_academy_mentor_api.py tests/test_pos_mentor_academy.py -v
+```
+
+**Pendiente post SD-1:** RAG/chat sobre `ERP_MAESTRO` + `CASUISTICAS_VENTAS_QA`; videos en `video_url`; extensión PWA caja móvil.
 
 ### 19.7 Etapa 3 — Inteligencia digital
 
@@ -1532,4 +1555,4 @@ Un módulo se considera **cerrado** cuando:
 
 ---
 
-*Última revisión maestra: 2026-05-21 — §19.6.1 Centro de Mandos VERTEX + Agente Mentor; PWA Guardián; animaciones red neuronal; ver también `docs/memory.md` sesión VERTEX.*
+*Última revisión maestra: 2026-05-23 — §19.6.1 Centro de Mandos VERTEX + §19.6.2 LhexIA Academy/Mentor piso; PWA Guardián; ver `LHEXIA_ACADEMY_MENTOR.md` y `docs/memory.md`.*

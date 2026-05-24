@@ -1,0 +1,24 @@
+---
+description: Piloto IA SD/Chilemat — stack híbrido Ollama+Operador+Guardián+Liz (retomar implementación)
+alwaysApply: false
+---
+
+# Piloto IA — Santo Domingo → Chilemat
+
+**Memoria completa:** `docs/planes/06-agentes-ia/MEMORY_PILOTO_IA_SD_CHILEMAT.md`  
+**Índice:** `memory.md` (historial 2026-05-24)
+
+## Resumen ejecutivo (no reimplementar sin leer memoria)
+
+- **No** reescribir con CrewAI; **sí** encender lo existente.
+- **Ollama en PC sucursal** ($0): cron `agente_operador_scan.py` + `agente_operador_enrich.py`; Render con `AGENTE_OLLAMA_ENABLED=0`.
+- **Gemini** en Render para Liz (`GEMINI_API_KEY`).
+- **Flujo héroe demo:** Operador detecta → Ollama explica → Guardián `/owner-mobile` muestra al dueño.
+- **OpenAI mini** opcional (factura/foto); no es el núcleo del piloto.
+- **Pendiente decisión Mario:** prioridad 1 Dueño | 2 Mostrador | 3 Ambos.
+
+Antes de cambios en agentes/POS/Guardián: leer memoria § fases y § archivos clave.
+
+## Modo autónomo (Mario 2026-05-24)
+
+Implementar piloto IA **sin pedir OK paso a paso**. Sin keys cloud: priorizar Operador+Ollama+Guardián. Liz/OpenAI cuando haya cobertura para pagar APIs.

@@ -38,6 +38,8 @@ _CODIGO_A_PRODUCTO = {
     'mentor_guia_nota_credito': _MODULO_MENTOR,
     'mentor_capacitacion': _MODULO_MENTOR,
     'mentor_consulta_proceso': _MODULO_MENTOR,
+    'mentor_consulta_academy': _MODULO_MENTOR,
+    'mentor_caja_dia_anterior': _MODULO_MENTOR,
 }
 
 
@@ -276,17 +278,45 @@ def asegurar_pildoras_demo_red() -> int:
 
 
 def listar_filas_feed_maestro(*, limite: int = 20) -> list:
-    """Filas recientes aptas para feed global (píldora explícita o alertas SD locales)."""
-    from services.agente_ejecuciones_service import listar_alertas_operativas
+    """Filas recientes aptas para feed global (píldora explícita, alertas SD, telemetría Academy)."""
+    from services.agente_ejecuciones_service import TIPO_LOG, listar_alertas_operativas
+
+    AgenteEjecucion = None
+    try:
+        from app import AgenteEjecucion as _AE
+        AgenteEjecucion = _AE
+    except Exception:
+        pass
 
     rows = listar_alertas_operativas(limite=max(limite * 3, 30), solo_abiertas=False)
+    mentor_logs: list = []
+    if AgenteEjecucion and asegurar_tabla():
+        mentor_logs = (
+            AgenteEjecucion.query.filter_by(agente_nombre='mentor', tipo=TIPO_LOG)
+            .order_by(AgenteEjecucion.created_at.desc())
+            .limit(max(limite, 10))
+            .all()
+        )
+    merged = list(mentor_logs) + list(rows)
+    merged.sort(key=lambda r: r.created_at or datetime.min, reverse=True)
+    seen_ids: set[int] = set()
+    deduped: list = []
+    for row in merged:
+        if row.id in seen_ids:
+            continue
+        seen_ids.add(row.id)
+        deduped.append(row)
+
     out = []
-    for row in rows:
+    for row in deduped:
         payload = parse_payload_json(row.payload_json)
         if payload.get('vertex_pildora_version') == PILDORA_VERSION:
             out.append(row)
             continue
         if row.agente_nombre in ('operador', 'guardian', 'mentor', AGENTE_VERTEX_HUB):
+            if payload.get('vertex_pildora_version') == PILDORA_VERSION and row.agente_nombre == 'mentor':
+                out.append(row)
+                continue
             if payload.get('tenant_id') in (TENANT_SODIMAC, TENANT_EASY):
                 out.append(row)
                 continue

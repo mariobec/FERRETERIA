@@ -21,13 +21,14 @@
         </div>
 
         <div class="card-body p-4 p-md-5">
-            <div class="d-flex gap-2 mb-3">
+            <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
                 <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">
                     <i class="fas fa-home me-1"></i> Inicio
                 </a>
                 <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-cash-register me-1"></i> POS
                 </a>
+                {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy caja' %}{% include 'partials/help_screen_link.html' %}
             </div>
             <div class="alert alert-warning small">
                 <i class="fas fa-info-circle"></i>
@@ -56,4 +57,6 @@
         </div>
     </div>
 </div>
+{% include 'partials/lhexia_mentor_sidebar.html' %}
+{% include 'partials/lhexia_mentor_init.html' %}
 {% endblock %}

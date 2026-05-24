@@ -503,6 +503,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
       </button>
       {% include 'pos/includes/premium_pedidos_apedido_btn.html' %}
       <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-success" title="Ir a caja"><i class="fas fa-cash-register"></i><span class="d-none d-md-inline ms-1">Caja</span></a>
+      {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'btn-outline-light' %}{% include 'partials/help_screen_link.html' %}
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="TV cliente"><i class="fas fa-tv"></i><span class="d-none d-md-inline ms-1">TV</span></a>
       {% endif %}
@@ -542,6 +543,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
       <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-success btn-sm">
         <i class="fas fa-file-invoice-dollar me-1"></i> Caja
       </a>
+      {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy POS' %}{% include 'partials/help_screen_link.html' %}
     </div>
   </div>
   {% endif %}
@@ -849,7 +851,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
               <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems</small>
             </div>
             <div class="pos-dock-actions">
-              <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Nueva cotización"><i class="fas fa-file-alt me-1"></i> Cotizar</a>
+              <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Abre cotización en blanco (no lleva el carrito actual)"><i class="fas fa-file-invoice-dollar me-1"></i> Nueva cotización</a>
               <button id="emitirValeBtn" type="submit" class="btn btn-ds-primary fw-bold px-4"><i class="fas fa-file-invoice-dollar me-2"></i> Emitir vale <span class="pos-dock-kbd ms-1">F8</span></button>
             </div>
           </div>
@@ -888,9 +890,9 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
       </div>
       <div class="pos-dock-actions">
         {% if not pos_layout_fullwidth %}
-        <small class="text-muted d-none d-xl-block align-self-center">F2 · F3 · <span class="pos-dock-kbd">F8</span> emitir · <span class="pos-dock-kbd">F4</span> cotizar</small>
+        <small class="text-muted d-none d-xl-block align-self-center">F2 · F3 · <span class="pos-dock-kbd">F8</span> emitir · <span class="pos-dock-kbd">F4</span> cotización</small>
         {% endif %}
-        <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Nueva cotización (F4)"><i class="fas fa-file-alt me-1"></i> Cotizar</a>
+        <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-outline-light btn-sm btn-pos-cotizar" id="posBtnCotizar" title="Cotización en blanco — no arrastra este carrito (F4)"><i class="fas fa-file-invoice-dollar me-1"></i> Nueva cotización</a>
         {% if not pos_layout_fullwidth %}
         <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-cash-register me-1"></i> Caja</a>
         {% endif %}
@@ -1145,6 +1147,8 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   </div>
 </div>
 
+{% include 'partials/lhexia_mentor_sidebar.html' %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1170,7 +1174,11 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
     'vales_hoy': url_for('api_pos_vales_hoy'),
     'pedidos_apedido': url_for('api_pos_pedidos_apedido'),
     'cotizacion_nueva': url_for('cotizacion_nueva'),
-    'nueva_venta': url_for('api_pos_nueva_venta')
+    'nueva_venta': url_for('api_pos_nueva_venta'),
+    'mentor_context': url_for('api_mentor_context'),
+    'mentor_log_read': url_for('api_mentor_log_read'),
+    'mentor_contexto': url_for('api_mentor_context'),
+    'mentor_telemetria': url_for('api_mentor_log_read')
   },
   'vale_resume': pos_vale_resume,
   'credito_urls': pos_credito_urls,

@@ -33,11 +33,12 @@
     <h1 class="caja-cierre-ciego__title mb-1">
       {% if cierre_a_ciegas %}Cierre de turno a ciegas{% else %}Cierre de turno (modo visible){% endif %}
     </h1>
-    <p class="caja-cierre-ciego__meta mb-0">
+    <p class="caja-cierre-ciego__meta mb-2">
       Punto de venta:
       <strong>{{ punto_venta_label or ('Caja #' ~ caja.id) }}</strong>
       · Operador: <strong>{{ caja.usuario_apertura or current_user.nombre }}</strong>
     </p>
+    {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Guía de cierre' %}{% include 'partials/help_screen_link.html' %}
   </header>
 
   {% if vales_pendientes_cierre or tickets_abiertos_cierre %}
@@ -176,6 +177,8 @@
     </button>
   </form>
 </div>
+
+{% include 'partials/lhexia_mentor_sidebar.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -214,4 +217,5 @@
   obs?.addEventListener('input', () => { obsCount.textContent = String(obs.value.length); });
 })();
 </script>
+{% include 'partials/lhexia_mentor_init.html' %}
 {% endblock %}

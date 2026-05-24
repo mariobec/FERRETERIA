@@ -1,0 +1,203 @@
+/* Módulo cotizaciones — alineado con design-system / búsqueda POS */
+
+.cot-page-header {
+  padding: 1rem 1.15rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #f8fafc 100%);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+}
+
+.cot-page-header h3 {
+  color: #78350f;
+  font-weight: 700;
+}
+
+.cot-card {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.cot-card .card-header {
+  border-radius: 16px 16px 0 0;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.cot-search-hero {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0.65rem 0.85rem;
+}
+
+.cot-search-hero:focus-within {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+.cot-search-hero input {
+  border: 0;
+  box-shadow: none;
+  padding-left: 0.25rem;
+}
+
+.cot-search-hero input:focus {
+  box-shadow: none;
+}
+
+.cot-search-filters .btn {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.cot-search-filters .btn.active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+  font-weight: 600;
+}
+
+.cot-search-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+}
+
+.cot-search-card {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.cot-search-card:hover,
+.cot-search-card.cot-search-card--active {
+  background: #fffbeb;
+}
+
+.cot-search-card:last-child {
+  border-bottom: 0;
+}
+
+.cot-search-card--semaforo-verde {
+  border-left: 3px solid #22c55e;
+}
+
+.cot-search-card--semaforo-amarillo {
+  border-left: 3px solid #eab308;
+}
+
+.cot-search-card--semaforo-azul {
+  border-left: 3px solid #3b82f6;
+}
+
+.cot-semaforo-luz {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 0.35rem;
+}
+
+.cot-semaforo-luz--verde {
+  background: #22c55e;
+}
+
+.cot-semaforo-luz--amarillo {
+  background: #eab308;
+}
+
+.cot-semaforo-luz--azul {
+  background: #3b82f6;
+}
+
+.cot-search-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  margin-right: 0.2rem;
+  margin-top: 0.15rem;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.cot-search-badge--verde {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.cot-search-badge--amarillo {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.cot-search-badge--azul {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.cot-cliente-suggest .list-group-item-action {
+  cursor: pointer;
+}
+
+.cot-totales-sticky {
+  position: sticky;
+  bottom: 0.5rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #fff 12%);
+  padding-top: 0.5rem;
+}
+
+.cot-totales-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+}
+
+.cot-lineas-table thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.cot-btn-primary {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+}
+
+.cot-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  color: #fff;
+}
+
+.cot-btn-primary:disabled {
+  opacity: 0.55;
+}
+
+.cot-lista-kpi .card {
+  border-radius: 12px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.cot-lista-kpi .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}

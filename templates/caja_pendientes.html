@@ -100,6 +100,7 @@
             <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-light">
                 <i class="fas fa-exchange-alt me-1"></i> Movimientos
             </a>
+            {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'btn-outline-light' %}{% include 'partials/help_screen_link.html' %}
         </div>
         </div>
     </div>
@@ -483,6 +484,8 @@
         </div>
     </div>
 </div>
+
+{% include 'partials/lhexia_mentor_sidebar.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -650,4 +653,5 @@
   });
 </script>
 {% endif %}
+{% include 'partials/lhexia_mentor_init.html' %}
 {% endblock %}

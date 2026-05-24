@@ -913,3 +913,408 @@ body .card.card-ds > .card-header {
         font-size: 0.9rem;
     }
 }
+
+/* ── LhexIA Academy / Mentor (vertex_mentor) — paleta violeta logotipo ── */
+:root {
+    --lhexia-mentor-violet: #8b5cf6;
+    --lhexia-mentor-violet-soft: #a78bfa;
+    --lhexia-mentor-violet-glow: rgba(139, 92, 246, 0.45);
+    --lhexia-mentor-panel-bg: rgba(15, 23, 42, 0.94);
+}
+
+.lhexia-mentor-fab {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 1045;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 1px solid rgba(167, 139, 250, 0.55);
+    background: linear-gradient(145deg, rgba(139, 92, 246, 0.95), rgba(109, 40, 217, 0.92));
+    color: #f5f3ff;
+    box-shadow: 0 0 22px var(--lhexia-mentor-violet-glow), 0 8px 24px rgba(0, 0, 0, 0.28);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.lhexia-mentor-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 28px rgba(167, 139, 250, 0.65), 0 10px 28px rgba(0, 0, 0, 0.32);
+}
+
+.lhexia-mentor-sidebar {
+    position: fixed;
+    inset: 0;
+    z-index: 1055;
+    pointer-events: none;
+    visibility: hidden;
+    transition: visibility 0.2s ease;
+}
+.lhexia-mentor-sidebar.is-open {
+    pointer-events: auto;
+    visibility: visible;
+}
+.lhexia-mentor-sidebar__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.55);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.lhexia-mentor-sidebar.is-open .lhexia-mentor-sidebar__backdrop {
+    opacity: 1;
+}
+.lhexia-mentor-sidebar__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: min(420px, 100vw);
+    height: 100%;
+    background: var(--lhexia-mentor-panel-bg);
+    border-left: 1px solid rgba(167, 139, 250, 0.35);
+    box-shadow: -8px 0 40px rgba(139, 92, 246, 0.18);
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    color: #e2e8f0;
+}
+.lhexia-mentor-sidebar.is-open .lhexia-mentor-sidebar__panel {
+    transform: translateX(0);
+}
+.lhexia-mentor-sidebar__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(167, 139, 250, 0.22);
+    background: linear-gradient(135deg, rgba(76, 29, 149, 0.35), rgba(15, 23, 42, 0.2));
+}
+.lhexia-mentor-sidebar__title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+    color: #f5f3ff;
+}
+.lhexia-mentor-sidebar__sub {
+    font-size: 0.78rem;
+    color: #c4b5fd;
+}
+.lhexia-mentor-sidebar__body {
+    flex: 1;
+    overflow: auto;
+    padding: 14px 16px 18px;
+}
+.lhexia-mentor-sidebar__foot {
+    padding: 12px 16px 16px;
+    border-top: 1px solid rgba(167, 139, 250, 0.18);
+}
+.lhexia-mentor-sidebar__section-title {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #a78bfa;
+    margin: 0 0 10px;
+    font-weight: 700;
+}
+.lhexia-mentor-sidebar__loading {
+    font-size: 0.88rem;
+    color: #cbd5e1;
+    padding: 8px 0 12px;
+}
+
+.lhexia-mentor-glass-card {
+    border-radius: 14px;
+    padding: 14px 14px 12px;
+    margin-bottom: 14px;
+    background: rgba(30, 27, 75, 0.55);
+    border: 1px solid rgba(167, 139, 250, 0.55);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(10px);
+}
+.lhexia-mentor-glass-card--priority {
+    border-color: rgba(196, 181, 253, 0.75);
+    box-shadow: 0 0 26px rgba(139, 92, 246, 0.22);
+}
+.lhexia-mentor-glass-card__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.lhexia-mentor-glass-card__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139, 92, 246, 0.28);
+    color: #e9d5ff;
+    box-shadow: 0 0 12px rgba(167, 139, 250, 0.35);
+}
+.lhexia-mentor-glass-card__badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #ddd6fe;
+    background: rgba(139, 92, 246, 0.25);
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+.lhexia-mentor-glass-card__title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+    color: #f5f3ff;
+}
+.lhexia-mentor-glass-card__body {
+    font-size: 0.86rem;
+    color: #ddd6fe;
+    line-height: 1.45;
+    margin: 0;
+}
+.lhexia-mentor-glass-card__nav {
+    margin-top: 10px;
+}
+
+.lhexia-mentor-guide {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.65);
+}
+.lhexia-mentor-guide__toggle {
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    color: #e2e8f0;
+    padding: 10px 12px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.lhexia-mentor-guide__toggle:hover {
+    background: rgba(139, 92, 246, 0.12);
+}
+.lhexia-mentor-guide__toggle i.fa-chevron-down {
+    transition: transform 0.2s ease;
+    color: #a78bfa;
+}
+.lhexia-mentor-guide.is-open .lhexia-mentor-guide__toggle i.fa-chevron-down {
+    transform: rotate(180deg);
+}
+.lhexia-mentor-guide__body {
+    display: none;
+    padding: 0 12px 12px;
+    font-size: 0.84rem;
+    color: #cbd5e1;
+}
+.lhexia-mentor-guide.is-open .lhexia-mentor-guide__body {
+    display: block;
+}
+.lhexia-mentor-guide__steps {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+.lhexia-mentor-guide__steps li {
+    margin-bottom: 4px;
+}
+.lhexia-mentor-guide__link {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: #c4b5fd;
+}
+.lhexia-mentor-guide--complete {
+    border-color: rgba(34, 197, 94, 0.55);
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.15);
+}
+.lhexia-mentor-guide--complete .lhexia-mentor-guide__toggle span::after {
+    content: " ✓";
+    color: #4ade80;
+    font-weight: 700;
+}
+.lhexia-mentor-checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.lhexia-mentor-checklist__item {
+    margin-bottom: 8px;
+}
+.lhexia-mentor-checklist__label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+    color: #e2e8f0;
+}
+.lhexia-mentor-checklist__label input.lhexia-step-check {
+    margin-top: 3px;
+    accent-color: #8b5cf6;
+    flex-shrink: 0;
+}
+.lhexia-mentor-checklist__text {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.lhexia-mentor-sidebar__shortcuts {
+    margin-bottom: 12px;
+}
+.lhexia-mentor-shortcuts-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.lhexia-mentor-shortcuts-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    border-radius: 8px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.22);
+    font-size: 0.82rem;
+    color: #e2e8f0;
+}
+.lhexia-mentor-shortcuts-list kbd {
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(167, 139, 250, 0.45);
+    color: #c4b5fd;
+}
+
+/* ── LhexIA Academy HUD V3 — tipografía espacial + badges ciberneón ── */
+:root {
+    --lhexia-platinum: #e2e8f0;
+    --lhexia-neon-orange: #ff5500;
+    --lhexia-neon-orange-glow: rgba(255, 85, 0, 0.45);
+}
+
+.lhexia-academy-rich,
+.lhexia-mentor-guide__body .lhexia-academy-rich {
+    color: var(--lhexia-platinum);
+}
+.lhexia-academy-p,
+.lhexia-academy-rich p,
+.lhexia-mentor-guide__body p {
+    line-height: 1.6;
+    margin-bottom: 14px;
+    color: var(--lhexia-platinum);
+}
+.lhexia-academy-list,
+.lhexia-mentor-guide__steps.lhexia-academy-rich {
+    line-height: 1.6;
+    margin-bottom: 14px;
+    padding-left: 1.2rem;
+    color: var(--lhexia-platinum);
+}
+.lhexia-academy-list li,
+.lhexia-mentor-guide__steps li {
+    margin-bottom: 14px;
+}
+.lhexia-academy-subtitle {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    color: var(--lhexia-platinum);
+    font-weight: 700;
+    margin: 12px 0 10px;
+}
+.lhexia-academy-callout {
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 3px solid var(--lhexia-neon-orange);
+    border-radius: 4px 12px 12px 4px;
+    padding: 14px;
+    color: var(--lhexia-platinum);
+    line-height: 1.6;
+    margin-bottom: 14px;
+    backdrop-filter: blur(6px);
+}
+.lhexia-academy-callout--invariante {
+    border-left-width: 4px;
+    font-weight: 600;
+    box-shadow: 0 0 18px rgba(255, 85, 0, 0.12);
+}
+.lhexia-academy-kbd-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.22);
+    font-size: 0.82rem;
+    color: var(--lhexia-platinum);
+}
+.lhexia-academy-kbd-row kbd {
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(167, 139, 250, 0.45);
+    color: #c4b5fd;
+}
+.lhexia-mentor-invariante {
+    margin-bottom: 12px;
+}
+.lhexia-mentor-guide__body .lhexia-academy-rich {
+    padding: 4px 2px 8px;
+}
+
+/* Hub central /academy */
+.lhexia-academy-hub-page .app-main {
+    background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 48%, #0f172a 100%);
+}
+.lhexia-academy-hub-page .app-main .container-fluid {
+    max-width: 1280px;
+}
+
+/* POS — glow-focus HUD al enfocar buscador único */
+body.pos-hud-search-focus .pos-vendedor-chrome,
+body.pos-hud-search-focus .pos-identify-card,
+body.pos-hud-search-focus .pos-premium-col--cart,
+body.pos-hud-search-focus .pos-command-card,
+body.pos-hud-search-focus .pos-page-header,
+body.pos-hud-search-focus .pos-toolbar-actions {
+    opacity: 0.45;
+    transition: opacity 0.3s ease;
+}
+body.pos-hud-search-focus #posBuscarManual,
+body.pos-hud-search-focus #posBarcodeWedge,
+body.pos-hud-search-focus .pos-unified-search-hero,
+body.pos-hud-search-focus .pos-search-hero__field {
+    opacity: 1;
+}
+body.pos-hud-search-focus #posBuscarManual:focus,
+body.pos-hud-search-focus #posBarcodeWedge:focus,
+body.pos-hud-search-focus .pos-unified-search-hero:focus-within {
+    box-shadow: 0 0 0 2px var(--lhexia-neon-orange-glow), 0 0 28px var(--lhexia-neon-orange-glow);
+    border-radius: 12px;
+    transition: box-shadow 0.3s ease;
+}
+body.pos-hud-search-focus .lhexia-mentor-sidebar.is-open .lhexia-mentor-sidebar__panel {
+    box-shadow: -8px 0 48px var(--lhexia-neon-orange-glow), -2px 0 0 rgba(255, 85, 0, 0.35);
+}
+body.pos-hud-search-focus .lhexia-mentor-fab {
+    box-shadow: 0 0 22px var(--lhexia-neon-orange-glow), 0 8px 24px rgba(0, 0, 0, 0.28);
+}

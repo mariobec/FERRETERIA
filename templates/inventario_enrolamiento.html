@@ -122,6 +122,7 @@
           {% endfor %}
         </select>
         <div class="d-flex justify-content-end gap-2 mt-2 enrol-top-actions">
+          {% set help_anchor = 'academy-bodega' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'btn-outline-info' %}{% include 'partials/help_screen_link.html' %}
           <button type="button" class="btn btn-outline-light btn-sm" id="enrol-nueva-sesion"><i class="fas fa-redo me-1"></i>Nueva sesión</button>
           <button type="button" class="btn btn-outline-secondary btn-sm" id="enrol-toggle-avanzado"><i class="fas fa-sliders-h me-1"></i>Opciones avanzadas</button>
         </div>

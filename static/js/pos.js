@@ -4134,13 +4134,450 @@
         e.preventDefault();
         const cotUrl = u && u.cotizacion_nueva;
         if (cotUrl) window.location.href = cotUrl;
-        else mostrarPosToast("Cotizaciones no disponibles.");
+        else mostrarPosToast("Módulo cotizaciones no disponible.");
       }
       if (e.key === "F8") {
         if (isTypingInField(e.target)) return;
         e.preventDefault();
         posEmitirValeAtajo();
       }
+    });
+  });
+})();
+
+/**
+ * LhexIA Academy — Mentor sidebar (POS + caja).
+ * Expone initLhexiaMentorAcademy({ urls: { contexto, telemetria } }).
+ */
+(function () {
+  "use strict";
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderPildoraCard(pill, priority) {
+    if (!pill) return "";
+    var titulo = escapeHtml(pill.titulo || pill.title || "Mentor");
+    var cuerpo = escapeHtml(pill.mensaje_corto || pill.summary || "");
+    var practicarHref = pill.practicar_href || pill.nav_href || "";
+    var nav = practicarHref ? escapeHtml(practicarHref) : "";
+    var dedupe =
+      (pill.kpi_snapshot && pill.kpi_snapshot.pildora_dedupe_key) ||
+      pill.dedupe_key ||
+      (pill.kpi_snapshot && pill.kpi_snapshot.dedupe_key) ||
+      "";
+    var navBtn = nav
+      ? '<a class="btn btn-sm btn-outline-info lhexia-mentor-glass-card__nav" href="' +
+        nav +
+        '"><i class="fas fa-bolt me-1"></i>Practicar ahora</a>'
+      : "";
+    return (
+      '<article class="lhexia-mentor-glass-card' +
+      (priority ? " lhexia-mentor-glass-card--priority" : "") +
+      ' vertex-glass-card--mentor" data-mentor-node="vertex_mentor"' +
+      (dedupe ? ' data-dedupe-key="' + escapeHtml(dedupe) + '"' : "") +
+      ">" +
+      '<div class="lhexia-mentor-glass-card__head">' +
+      '<span class="lhexia-mentor-glass-card__icon"><i class="fas fa-graduation-cap"></i></span>' +
+      '<span class="lhexia-mentor-glass-card__badge">Mentor · prioridad</span>' +
+      "</div>" +
+      '<h4 class="lhexia-mentor-glass-card__title">' +
+      titulo +
+      "</h4>" +
+      (cuerpo ? '<p class="lhexia-mentor-glass-card__body">' + cuerpo + "</p>" : "") +
+      navBtn +
+      "</article>"
+    );
+  }
+
+  function formatStepText(text) {
+    if (window.LhexiaAcademyFormat) {
+      return LhexiaAcademyFormat.formatAcademyRichText("- " + text)
+        .replace(/^<ul class="lhexia-academy-list"><li>/, "")
+        .replace(/<\/li><\/ul>$/, "");
+    }
+    return escapeHtml(text);
+  }
+
+  function renderGuideBody(guide) {
+    var detalle = Array.isArray(guide.pasos_detalle) ? guide.pasos_detalle : [];
+    if (detalle.length) {
+      var dedupe = escapeHtml(guide.dedupe_key || "");
+      return (
+        '<ul class="lhexia-mentor-checklist lhexia-academy-rich">' +
+        detalle
+          .map(function (s) {
+            var sid = escapeHtml(s.id || "");
+            var checked = s.completed ? " checked" : "";
+            return (
+              '<li class="lhexia-mentor-checklist__item">' +
+              '<label class="lhexia-mentor-checklist__label">' +
+              '<input type="checkbox" class="lhexia-step-check" data-dedupe-key="' +
+              dedupe +
+              '" data-step-id="' +
+              sid +
+              '"' +
+              checked +
+              ">" +
+              '<span class="lhexia-mentor-checklist__text">' +
+              formatStepText(s.texto || "") +
+              "</span>" +
+              "</label></li>"
+            );
+          })
+          .join("") +
+        "</ul>"
+      );
+    }
+    if (guide.content_html) {
+      return '<div class="lhexia-academy-rich">' + guide.content_html + "</div>";
+    }
+    if (guide.content_markdown && window.LhexiaAcademyFormat) {
+      return (
+        '<div class="lhexia-academy-rich">' +
+        LhexiaAcademyFormat.formatAcademyRichText(guide.content_markdown) +
+        "</div>"
+      );
+    }
+    var pasos = Array.isArray(guide.pasos) ? guide.pasos : [];
+    if (!pasos.length) return "";
+    return (
+      '<ol class="lhexia-mentor-guide__steps lhexia-academy-rich">' +
+      pasos
+        .map(function (p) {
+          return "<li>" + formatStepText(p) + "</li>";
+        })
+        .join("") +
+      "</ol>"
+    );
+  }
+
+  function renderGuide(guide) {
+    var key = escapeHtml(guide.dedupe_key || "");
+    var titulo = escapeHtml(guide.titulo || guide.title || "Guía");
+    var bodyHtml = renderGuideBody(guide);
+    var completeCls = guide.progress_complete ? " lhexia-mentor-guide--complete" : "";
+    var ayuda = guide.ancla_ayuda
+      ? '<a class="lhexia-mentor-guide__link" href="' +
+        escapeHtml(guide.ancla_ayuda) +
+        '" target="_blank" rel="noopener">Ver en manual completo</a>'
+      : "";
+    var practicar = guide.practicar_href
+      ? '<a class="btn btn-sm btn-outline-info lhexia-mentor-practicar w-100 mt-2" href="' +
+        escapeHtml(guide.practicar_href) +
+        '"><i class="fas fa-bolt me-1"></i>Practicar ahora</a>'
+      : "";
+    return (
+      '<div class="lhexia-mentor-guide' +
+      completeCls +
+      '" data-dedupe-key="' +
+      key +
+      '">' +
+      '<button type="button" class="lhexia-mentor-guide__toggle" aria-expanded="false">' +
+      "<span>" +
+      titulo +
+      "</span>" +
+      '<i class="fas fa-chevron-down" aria-hidden="true"></i>' +
+      "</button>" +
+      '<div class="lhexia-mentor-guide__body">' +
+      bodyHtml +
+      practicar +
+      ayuda +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function renderInvariante(data) {
+    var el = document.getElementById("lhexiaMentorInvariante");
+    if (!el) return;
+    var txt =
+      (data && data.invariante_financiera) ||
+      (window.LhexiaAcademyFormat && LhexiaAcademyFormat.INVARIANTE_FINANCIERA) ||
+      "";
+    var show = txt && data && data.categoria_academy === "pos";
+    if (!show) {
+      el.classList.add("d-none");
+      el.innerHTML = "";
+      return;
+    }
+    el.classList.remove("d-none");
+    el.innerHTML =
+      '<div class="lhexia-academy-callout lhexia-academy-callout--invariante">' +
+      '<i class="fas fa-shield-halved me-2" style="color:#ff5500;"></i>' +
+      escapeHtml(txt) +
+      "</div>";
+  }
+
+  function postTelemetria(url, dedupeKey, accion) {
+    if (!url || !dedupeKey) return;
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        dedupe_key: dedupeKey,
+        accion: accion || "expandir",
+        url: window.location.pathname + window.location.search,
+      }),
+    }).catch(function () {});
+  }
+
+  function resolveMentorUrls(urls) {
+    urls = urls || {};
+    return {
+      contexto: urls.context || urls.contexto || "",
+      telemetria: urls.log_read || urls.telemetria || "",
+      save_step: urls.save_step || "",
+    };
+  }
+
+  var _saveStepTimers = {};
+
+  function postSaveStep(saveUrl, dedupeKey, stepId, checked) {
+    if (!saveUrl || !dedupeKey || !stepId) return Promise.resolve();
+    var tKey = dedupeKey + ":" + stepId;
+    if (_saveStepTimers[tKey]) clearTimeout(_saveStepTimers[tKey]);
+    return new Promise(function (resolve) {
+      _saveStepTimers[tKey] = setTimeout(function () {
+        fetch(saveUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            dedupe_key: dedupeKey,
+            step_id: stepId,
+            checked: !!checked,
+          }),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
+            resolve(data);
+          })
+          .catch(function () {
+            resolve(null);
+          });
+      }, 280);
+    });
+  }
+
+  function bindChecklistHandlers(root, saveUrl) {
+    if (!root || !saveUrl) return;
+    root.querySelectorAll(".lhexia-step-check").forEach(function (cb) {
+      cb.addEventListener("change", function () {
+        var dedupe = cb.getAttribute("data-dedupe-key") || "";
+        var stepId = cb.getAttribute("data-step-id") || "";
+        var wrap = cb.closest(".lhexia-mentor-guide");
+        postSaveStep(saveUrl, dedupe, stepId, cb.checked).then(function (data) {
+          if (!data || !data.ok) return;
+          if (wrap && data.all_complete) {
+            wrap.classList.add("lhexia-mentor-guide--complete");
+          } else if (wrap && !data.all_complete) {
+            wrap.classList.remove("lhexia-mentor-guide--complete");
+          }
+        });
+      });
+    });
+  }
+
+  function extractDedupeFromPill(pill) {
+    if (!pill) return "";
+    var snap = pill.kpi_snapshot || {};
+    return snap.pildora_dedupe_key || pill.dedupe_key || snap.dedupe_key || "";
+  }
+
+  function renderShortcuts(atajos) {
+    var section = document.getElementById("lhexiaMentorShortcuts");
+    var listEl = document.getElementById("lhexiaMentorShortcutsList");
+    if (!section || !listEl) return;
+    var list = Array.isArray(atajos) ? atajos : [];
+    if (!list.length) {
+      section.classList.add("d-none");
+      listEl.innerHTML = "";
+      return;
+    }
+    listEl.innerHTML = list
+      .map(function (a) {
+        var accion = a.accion || a.action || "";
+        if (window.LhexiaAcademyFormat) {
+          accion = LhexiaAcademyFormat.normalizarAtajosTexto(accion);
+        }
+        return (
+          "<li><kbd>" +
+          escapeHtml(a.tecla || a.key || "") +
+          "</kbd><span>" +
+          escapeHtml(accion) +
+          "</span></li>"
+        );
+      })
+      .join("");
+    section.classList.remove("d-none");
+  }
+
+  function logCardsOnLoad(root, logUrl) {
+    if (!root || !logUrl) return;
+    root.querySelectorAll("[data-dedupe-key]").forEach(function (node) {
+      var key = node.getAttribute("data-dedupe-key");
+      if (key) postTelemetria(logUrl, key, "cargar");
+    });
+  }
+
+  window.initLhexiaMentorAcademy = function initLhexiaMentorAcademy(opts) {
+    opts = opts || {};
+    var urls = resolveMentorUrls(opts.urls || {});
+    var sidebar = document.getElementById("lhexia-mentor-sidebar");
+    var fab = document.getElementById("lhexiaMentorFab");
+    if (!sidebar || !fab) return;
+
+    var backdrop = document.getElementById("lhexiaMentorBackdrop");
+    var closeBtn = document.getElementById("lhexiaMentorClose");
+    var loadingEl = document.getElementById("lhexiaMentorLoading");
+    var priorityEl = document.getElementById("lhexiaMentorPriority");
+    var libraryEl = document.getElementById("lhexiaMentorLibrary");
+    var contextLoaded = false;
+    var contextPayload = null;
+
+    function setOpen(open) {
+      sidebar.classList.toggle("is-open", !!open);
+      sidebar.setAttribute("aria-hidden", open ? "false" : "true");
+      fab.setAttribute("aria-expanded", open ? "true" : "false");
+      document.body.classList.toggle("lhexia-mentor-sidebar-open", !!open);
+    }
+
+    function renderLibrary(guides) {
+      if (!libraryEl) return;
+      var list = Array.isArray(guides) ? guides : [];
+      libraryEl.innerHTML = list.map(renderGuide).join("");
+      libraryEl.querySelectorAll(".lhexia-mentor-guide__toggle").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var wrap = btn.closest(".lhexia-mentor-guide");
+          if (!wrap) return;
+          var willOpen = !wrap.classList.contains("is-open");
+          wrap.classList.toggle("is-open", willOpen);
+          btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+          if (willOpen) {
+            var key = wrap.getAttribute("data-dedupe-key");
+            postTelemetria(urls.telemetria, key, "expandir");
+          }
+        });
+      });
+      bindChecklistHandlers(libraryEl, urls.save_step);
+    }
+
+    function applyContext(data) {
+      contextPayload = data || {};
+      var pill = contextPayload.pildora_prioritaria;
+      var art = contextPayload.articulo_principal;
+      if (priorityEl) {
+        if (art && (art.pasos_detalle || art.content_html)) {
+          priorityEl.innerHTML = renderGuide(art);
+          var artWrap = priorityEl.querySelector(".lhexia-mentor-guide");
+          if (artWrap) artWrap.classList.add("is-open");
+          bindChecklistHandlers(priorityEl, urls.save_step);
+        } else {
+          priorityEl.innerHTML = renderPildoraCard(pill || art, true);
+        }
+      }
+      renderInvariante(contextPayload);
+      renderShortcuts(contextPayload.atajos_teclado);
+      renderLibrary(contextPayload.biblioteca);
+      logCardsOnLoad(priorityEl, urls.telemetria);
+      logCardsOnLoad(libraryEl, urls.telemetria);
+      contextLoaded = true;
+    }
+
+    function loadContext(force) {
+      if (!urls.contexto) return Promise.resolve();
+      if (contextLoaded && !force) return Promise.resolve(contextPayload);
+      if (loadingEl) loadingEl.classList.remove("d-none");
+      var q =
+        urls.contexto +
+        (urls.contexto.indexOf("?") >= 0 ? "&" : "?") +
+        "url=" +
+        encodeURIComponent(window.location.pathname + window.location.search);
+      return fetch(q, { credentials: "same-origin" })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (data && data.ok !== false) applyContext(data);
+        })
+        .catch(function () {
+          if (priorityEl) {
+            priorityEl.innerHTML =
+              '<p class="small text-muted mb-0">No se pudo cargar el Mentor. Intente de nuevo.</p>';
+          }
+        })
+        .finally(function () {
+          if (loadingEl) loadingEl.classList.add("d-none");
+        });
+    }
+
+    function openSidebar() {
+      setOpen(true);
+      loadContext(false);
+    }
+
+    fab.addEventListener("click", openSidebar);
+    if (closeBtn) closeBtn.addEventListener("click", function () { setOpen(false); });
+    if (backdrop) backdrop.addEventListener("click", function () { setOpen(false); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && sidebar.classList.contains("is-open")) setOpen(false);
+    });
+  };
+
+  document.addEventListener("DOMContentLoaded", function () {
+    if (!document.getElementById("lhexia-mentor-sidebar")) return;
+    var cfgEl = document.getElementById("pos-config");
+    if (!cfgEl || !cfgEl.textContent) return;
+    try {
+      var cfg = JSON.parse(cfgEl.textContent);
+      if (cfg.urls && (cfg.urls.mentor_context || cfg.urls.mentor_contexto)) {
+        window.initLhexiaMentorAcademy({
+          urls: {
+            context: cfg.urls.mentor_context || cfg.urls.mentor_contexto,
+            log_read: cfg.urls.mentor_log_read || cfg.urls.mentor_telemetria,
+            save_step: cfg.urls.mentor_save_step || cfg.urls.save_step || "",
+            contexto: cfg.urls.mentor_context || cfg.urls.mentor_contexto,
+            telemetria: cfg.urls.mentor_log_read || cfg.urls.mentor_telemetria,
+          },
+        });
+      }
+    } catch (e) { /* noop */ }
+  });
+})();
+
+/** POS HUD — glow-focus al enfocar buscador único (#posBuscarManual / #posBarcodeWedge). */
+(function () {
+  "use strict";
+  var FOCUS_CLASS = "pos-hud-search-focus";
+
+  function searchInputs() {
+    return [document.getElementById("posBuscarManual"), document.getElementById("posBarcodeWedge")].filter(
+      Boolean
+    );
+  }
+
+  function syncGlowFocus() {
+    var focused = searchInputs().some(function (el) {
+      return document.activeElement === el;
+    });
+    document.body.classList.toggle(FOCUS_CLASS, focused);
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    searchInputs().forEach(function (inp) {
+      inp.addEventListener("focus", syncGlowFocus);
+      inp.addEventListener("blur", function () {
+        setTimeout(syncGlowFocus, 0);
+      });
     });
   });
 })();

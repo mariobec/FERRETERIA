@@ -1,32 +1,35 @@
 {% extends "base.html" %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-homolog-20260523">
+{% endblock %}
 {% block content %}
 <div class="container-fluid py-3">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+  <div class="cot-page-header d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
     <div>
-      <h3 class="mb-0"><i class="fas fa-file-invoice-dollar me-2 text-warning"></i>Cotizaciones rápidas</h3>
-      <small class="text-muted">Genera, sigue y convierte cotizaciones en ventas con un solo click.</small>
+      <h3 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>Cotizaciones</h3>
+      <p class="mb-0 small text-muted">Presupuestos comerciales · convertir a vale en POS cuando el cliente confirme.</p>
     </div>
-    <a href="{{ url_for('cotizacion_nueva') }}" class="btn btn-warning btn-lg">
+    <a href="{{ url_for('cotizacion_nueva') }}" class="btn cot-btn-primary btn-lg">
       <i class="fas fa-plus me-1"></i>Nueva cotización
     </a>
   </div>
 
-  <div class="row g-2 mb-3">
+  <div class="row g-2 mb-3 cot-lista-kpi">
     {% set chips = [
       ('', 'Todas', kpis.values()|sum, 'bg-secondary'),
       ('Vigente', 'Vigentes', kpis.Vigente, 'bg-success'),
       ('Vencida', 'Vencidas', kpis.Vencida, 'bg-warning text-dark'),
       ('Aceptada', 'Aceptadas', kpis.Aceptada, 'bg-primary'),
       ('Rechazada', 'Rechazadas', kpis.Rechazada, 'bg-danger'),
-      ('Convertida', 'Convertidas en venta', kpis.Convertida, 'bg-info text-dark'),
+      ('Convertida', 'En venta', kpis.Convertida, 'bg-info text-dark'),
     ] %}
     {% for est, label, count, badge in chips %}
     <div class="col-6 col-md-2">
-      <a class="card text-decoration-none h-100 {% if estado == est %}border-warning border-2{% else %}border-light-subtle{% endif %}"
+      <a class="card text-decoration-none h-100 {% if estado == est %}border-warning border-2 shadow-sm{% endif %}"
          href="{{ url_for('cotizaciones_lista', estado=est, q=q or none) }}">
         <div class="card-body py-2 px-3">
           <span class="badge {{ badge }} mb-1">{{ label }}</span>
-          <div class="fs-4 fw-bold">{{ count }}</div>
+          <div class="fs-4 fw-bold text-dark">{{ count }}</div>
         </div>
       </a>
     </div>
@@ -36,17 +39,20 @@
   <form class="row g-2 mb-3" method="get" action="{{ url_for('cotizaciones_lista') }}">
     <input type="hidden" name="estado" value="{{ estado }}">
     <div class="col-md-8">
-      <input class="form-control" type="text" name="q" value="{{ q }}" placeholder="Buscar por número de cotización, cliente, RUT o teléfono...">
+      <div class="input-group">
+        <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+        <input class="form-control" type="text" name="q" value="{{ q }}" placeholder="Número, cliente, RUT o teléfono…">
+      </div>
     </div>
     <div class="col-md-2 d-grid">
-      <button type="submit" class="btn btn-outline-primary"><i class="fas fa-search me-1"></i>Buscar</button>
+      <button type="submit" class="btn btn-outline-primary">Buscar</button>
     </div>
     <div class="col-md-2 d-grid">
-      <a href="{{ url_for('cotizaciones_lista') }}" class="btn btn-outline-secondary"><i class="fas fa-eraser me-1"></i>Limpiar</a>
+      <a href="{{ url_for('cotizaciones_lista') }}" class="btn btn-outline-secondary">Limpiar</a>
     </div>
   </form>
 
-  <div class="card shadow-sm">
+  <div class="card cot-card shadow-sm">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
@@ -55,7 +61,7 @@
             <th>Fecha</th>
             <th>Cliente</th>
             <th class="text-end">Total</th>
-            <th>Validez</th>
+            <th>Vence</th>
             <th>Estado</th>
             <th class="text-end">Acciones</th>
           </tr>
@@ -64,19 +70,19 @@
           {% for c in cotizaciones %}
           <tr>
             <td><strong>{{ c.numero }}</strong></td>
-            <td>{{ c.fecha.strftime('%d-%m-%Y %H:%M') if c.fecha else '' }}</td>
+            <td class="text-nowrap small">{{ c.fecha.strftime('%d-%m-%Y %H:%M') if c.fecha else '' }}</td>
             <td>
               <div>{{ c.cliente_nombre or '—' }}</div>
               {% if c.cliente_rut or c.cliente_telefono %}
-              <small class="text-muted">{{ c.cliente_rut or '' }} {% if c.cliente_telefono %}· {{ c.cliente_telefono }}{% endif %}</small>
+              <small class="text-muted">{{ c.cliente_rut or '' }}{% if c.cliente_telefono %} · {{ c.cliente_telefono }}{% endif %}</small>
               {% endif %}
             </td>
             <td class="text-end fw-bold">${{ "{:,.0f}".format(c.monto_total or 0).replace(",", ".") }}</td>
-            <td>
+            <td class="small">
               {% if c.fecha_vencimiento %}
                 {{ c.fecha_vencimiento.strftime('%d-%m-%Y') }}
                 {% if c.estado == 'Vigente' and c.esta_vencida %}
-                <span class="badge bg-warning text-dark ms-1">Vencida</span>
+                <span class="badge bg-warning text-dark">Vencida</span>
                 {% endif %}
               {% else %}—{% endif %}
             </td>
@@ -91,22 +97,18 @@
               <span class="badge {{ estado_badge.get(c.estado, 'bg-secondary') }}">{{ c.estado }}</span>
             </td>
             <td class="text-end">
-              <div class="btn-group btn-group-sm" role="group">
-                <a href="{{ url_for('cotizacion_detalle', cot_id=c.id) }}" class="btn btn-outline-primary" title="Ver detalle">
-                  <i class="fas fa-eye"></i>
-                </a>
+              <div class="btn-group btn-group-sm">
+                <a href="{{ url_for('cotizacion_detalle', cot_id=c.id) }}" class="btn btn-outline-primary" title="Ver"><i class="fas fa-eye"></i></a>
                 {% if c.estado in ('Vigente', 'Vencida') %}
-                <a href="{{ url_for('cotizacion_editar', cot_id=c.id) }}" class="btn btn-outline-warning" title="Editar">
-                  <i class="fas fa-pen-to-square"></i>
-                </a>
+                <a href="{{ url_for('cotizacion_editar', cot_id=c.id) }}" class="btn btn-outline-warning" title="Editar"><i class="fas fa-pen"></i></a>
                 {% endif %}
               </div>
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-center text-muted py-4">
-              No hay cotizaciones registradas. <a href="{{ url_for('cotizacion_nueva') }}" class="link-warning">Crear la primera</a>.
+            <td colspan="7" class="text-center text-muted py-5">
+              Sin cotizaciones. <a href="{{ url_for('cotizacion_nueva') }}" class="fw-bold">Crear la primera</a>
             </td>
           </tr>
           {% endfor %}

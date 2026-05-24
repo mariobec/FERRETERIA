@@ -1,0 +1,21 @@
+{# Scripts de inicialización LhexIA Academy Mentor (POS + caja). #}
+<script id="lhexia-mentor-config" type="application/json">{{ {
+  'urls': {
+    'context': url_for('api_mentor_context'),
+    'log_read': url_for('api_mentor_log_read'),
+    'save_step': url_for('api_mentor_save_step'),
+    'contexto': url_for('api_mentor_context'),
+    'telemetria': url_for('api_mentor_log_read')
+  }
+} | tojson }}</script>
+<script src="{{ url_for('static', filename='js/academy-format.js') }}?v=academy-hud-v3"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=mentor-academy-acad3"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var el = document.getElementById('lhexia-mentor-config');
+  if (!el || typeof window.initLhexiaMentorAcademy !== 'function') return;
+  try {
+    window.initLhexiaMentorAcademy(JSON.parse(el.textContent));
+  } catch (e) { /* noop */ }
+});
+</script>

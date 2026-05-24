@@ -3,6 +3,8 @@
 **Objetivo del día:** cerrar conteo del almacén **Tienda** y dejar **salud inventario** revisada. Caja abierta para prueba POS si el equipo puede.
 
 **Checklist maestro:** [`SD1_CIERRE_FASE1_VERTEX.md`](SD1_CIERRE_FASE1_VERTEX.md)  
+**Imprimir 1 página:** [`SD1_DIA1_PISO_HOJA_1_PAGINA.md`](SD1_DIA1_PISO_HOJA_1_PAGINA.md)  
+**Backup Neon (C7):** [`SD1_BACKUP_NEON_C7.md`](SD1_BACKUP_NEON_C7.md)  
 **Runbook corto:** [`CLIENTE_SANTO_DOMINGO.md`](CLIENTE_SANTO_DOMINGO.md)
 
 ---
@@ -19,7 +21,7 @@ python scripts/sd1_estado_piso.py
 | `sd1_cierre_preflight.py` | Almacenes, rutas HTTP, catálogo |
 | `sd1_estado_piso.py` | Caja, sesiones enrolamiento, ventas hoy, alertas |
 
-- [ ] Backup Neon anotado (fecha: ___________) — **C7**
+- [ ] Backup Neon anotado (fecha: ___________) — **C7** → pasos en [`SD1_BACKUP_NEON_C7.md`](SD1_BACKUP_NEON_C7.md)
 - [ ] Ctrl+F5 o “Añadir a inicio” si usan PWA Guardián
 
 ---

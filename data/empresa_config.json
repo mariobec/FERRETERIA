@@ -19,5 +19,7 @@
   "pos_descuento_umbral_pin_pct": "20",
   "pos_descuento_autorizacion_por_cliente": "0",
   "rut_emisor": "8054120-1",
-  "cierre_caja_modo": "ciego"
+  "cierre_caja_modo": "ciego",
+  "operacion_un_local": "1",
+  "operacion_sucursales_red_n": "3"
 }

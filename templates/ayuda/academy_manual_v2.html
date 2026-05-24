@@ -1,0 +1,84 @@
+{# LhexIA Academy — Manual Operativo V2 (persistido en academy_articles) #}
+
+<article id="lhexia-academy" class="card card-ds help-card mb-3 help-anchor lhexia-academy-hero">
+
+  <div class="card-body">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+
+      <div>
+
+        <h5 class="fw-bold mb-1"><i class="fas fa-graduation-cap me-2 text-primary"></i>LhexIA Academy · Manual V2</h5>
+
+        <p class="small text-muted mb-0">Contenido oficial de capacitación. En POS y caja use el botón violeta <strong>Mentor</strong> para guías contextuales en pantalla.</p>
+
+      </div>
+
+      <a href="{{ url_for('lhexia_academy') }}" class="btn btn-sm btn-outline-primary">Abrir hub HUD</a>
+
+    </div>
+
+    {% if academy_articulos %}
+
+    <div class="row g-3">
+
+      {% for art in academy_articulos %}
+
+      {% set ancla_id = 'academy-' ~ art.category %}
+
+      <div class="col-lg-4">
+
+        <section id="{{ ancla_id }}" class="help-cap-card help-anchor lhexia-academy-card h-100">
+
+          {% if art.category == 'pos' %}<span id="pos" class="visually-hidden" aria-hidden="true"></span>{% endif %}
+
+          <h6 class="mb-1">{{ art.title }}</h6>
+
+          {% if art.summary_html %}
+
+          <div class="small text-muted mb-2 lhexia-academy-rich">{{ art.summary_html | safe }}</div>
+
+          {% else %}
+
+          <p class="small text-muted mb-2">{{ art.summary }}</p>
+
+          {% endif %}
+
+          <details class="small mt-auto">
+
+            <summary class="text-primary fw-semibold" style="cursor:pointer;">Ver manual completo</summary>
+
+            <div class="lhexia-academy-rich mt-2">
+
+              {% if art.content_html %}
+
+              {{ art.content_html | safe }}
+
+              {% else %}
+
+              <p class="lhexia-academy-p">{{ art.content_markdown }}</p>
+
+              {% endif %}
+
+            </div>
+
+          </details>
+
+        </section>
+
+      </div>
+
+      {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <p class="small text-muted mb-0">Manual V2 no disponible. Contacte al administrador para ejecutar la migración de Academy.</p>
+
+    {% endif %}
+
+  </div>
+
+</article>
+

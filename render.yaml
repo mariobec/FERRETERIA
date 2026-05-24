@@ -44,6 +44,11 @@ services:
         value: "5"
       - key: DB_POOL_TIMEOUT
         value: "30"
+      # Operador IA: cron scan SQL cada 10 min (NO AGENTE_OPERADOR_SCAN_ON_LOAD en prod).
+      # POST /api/agente/operador/dispatch-scan Bearer AGENTE_OPERADOR_CRON_SECRET
+      # Enriquecimiento Ollama solo PC sucursal (AGENTE_OLLAMA_ENABLED=0 en Render).
+      - key: AGENTE_OLLAMA_ENABLED
+        value: "0"
       # Paridad con defaults de app.py / tienda (opcional; mismo texto que en .env.local).
       - key: EMPRESA_NOMBRE_COMERCIAL
         sync: false

@@ -276,7 +276,11 @@
         '<span class="owner-guardian-feed-agent" aria-hidden="true"><i class="fas ' + icon + '"></i></span>' +
         '<span class="owner-guardian-feed-body">' +
         '<span class="owner-guardian-feed-item-title">' + escapeHtml(it.titulo || '') + '</span>' +
-        '<span class="owner-guardian-feed-meta">' + escapeHtml(it.hace || 'Ahora') + '</span>' +
+        (it.mensaje
+          ? '<span class="owner-guardian-feed-item-msg">' + escapeHtml(it.mensaje) + '</span>'
+          : '') +
+        '<span class="owner-guardian-feed-meta">' + escapeHtml(it.hace || 'Ahora') +
+        (it.enriquecido ? ' · IA local' : '') + '</span>' +
         (it.codigo ? '<span class="owner-guardian-feed-codigo">' + escapeHtml(it.codigo) + '</span>' : '') +
         '</span>' +
         '<i class="fas fa-chevron-right owner-guardian-feed-chevron" aria-hidden="true"></i>' +

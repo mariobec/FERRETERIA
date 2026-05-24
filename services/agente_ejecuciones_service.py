@@ -24,6 +24,7 @@ EST_HITL_RECHAZADA = 'rechazada'
 # Logs
 EST_LOG_OK = 'completada'
 EST_LOG_ERROR = 'error'
+EST_LOG_EJECUTADO = 'ejecutado'
 
 
 def _model():
@@ -52,6 +53,19 @@ def parse_payload_json(raw: str | None) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except (TypeError, ValueError):
         return {}
+
+
+def cuerpo_alerta_para_ui(cuerpo: str | None, payload: dict[str, Any] | None = None) -> str:
+    """Texto visible en Guardián / feed — sin bloque [Base operativa] si hubo enrich Ollama."""
+    raw = (cuerpo or '').strip()
+    if not raw:
+        return ''
+    payload = payload or {}
+    if payload.get('enriquecido_semantico') and '\n---\n' in raw:
+        lead = raw.split('\n---\n', 1)[0].strip()
+        if lead:
+            return lead[:500]
+    return raw[:500]
 
 
 def listar_alertas_sin_enriquecer(*, limite: int = 5) -> list:
@@ -274,4 +288,38 @@ def ultimo_borrador_hitl():
         AgenteEjecucion.query.filter_by(tipo=TIPO_BORRADOR)
         .order_by(AgenteEjecucion.id.desc())
         .first()
+    )
+
+
+def registrar_ejecucion_mentor(
+    *,
+    usuario_id: int,
+    usuario_nombre: str,
+    dedupe_key: str,
+    titulo: str,
+    cuerpo: str | None = None,
+    codigo: str = 'mentor_consulta_academy',
+    payload: dict | None = None,
+    caja_id: int | None = None,
+) -> int | None:
+    """
+    Telemetría LhexIA Academy — cada consulta/expansión de guía (sin bloqueo dedupe).
+    Alimenta feed VERTEX con tipo log_ejecucion / estado ejecutado.
+    """
+    pill = dict(payload or {})
+    pill.setdefault('usuario_id', usuario_id)
+    pill.setdefault('usuario_nombre', (usuario_nombre or '')[:120])
+    pill.setdefault('dedupe_key_componente', dedupe_key)
+    pill.setdefault('origen', 'academy_sidebar')
+    return crear_registro(
+        agente_nombre='mentor',
+        tipo=TIPO_LOG,
+        estado=EST_LOG_EJECUTADO,
+        titulo=(titulo or 'Consulta Academy')[:255],
+        cuerpo=cuerpo,
+        severidad='info',
+        codigo=codigo,
+        dedupe_key=None,
+        payload=pill,
+        caja_id=caja_id,
     )
