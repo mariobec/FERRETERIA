@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if current_user.is_authenticated %}
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    {% endif %}
     <title>LhexIA ERP | {{ empresa_cfg.nombre_comercial }}</title>
        
     <!-- 1. Bootstrap (local, sin CDN) -->
@@ -17,7 +21,7 @@
 
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}?v=erp-ops-v7">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}?v=erp-ops-v10-caja-kpi-hover">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-erp-shell.css') }}?v=mobile-shell-2">
     <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     {% if current_user.is_authenticated %}
@@ -246,19 +250,20 @@
 
     {% if current_user.is_authenticated and (usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios')) and request.endpoint not in ('owner_mobile', 'login') %}
     <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
+    {% endif %}
+    {% if current_user.is_authenticated and request.endpoint not in ('owner_mobile', 'login') %}
     <script>
-    /* El SW con scope / cacheaba el ERP en Chrome móvil; solo vive en /owner-mobile (PWA). */
+    /* Chrome/Edge: SW o caché antigua dejaba HTML/CSS viejos; Glass de Cursor no cachea igual. */
     (function () {
-      if (!('serviceWorker' in navigator)) return;
-      if (window.matchMedia('(display-mode: standalone)').matches) return;
-      navigator.serviceWorker.getRegistrations().then(function (regs) {
-        regs.forEach(function (reg) { reg.unregister(); });
-      });
-      if (window.caches) {
-        caches.keys().then(function (keys) {
-          keys.filter(function (k) { return k.indexOf('lhexia-owner-pwa-') === 0; })
-            .forEach(function (k) { caches.delete(k); });
+      if (sessionStorage.getItem('lhexia-sw-cache-cleared-v1')) return;
+      sessionStorage.setItem('lhexia-sw-cache-cleared-v1', '1');
+      if ('serviceWorker' in navigator && !window.matchMedia('(display-mode: standalone)').matches) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
         });
+      }
+      if (window.caches) {
+        caches.keys().then(function (keys) { keys.forEach(function (k) { caches.delete(k); }); });
       }
     })();
     </script>

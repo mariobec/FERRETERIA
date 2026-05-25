@@ -1,64 +1,56 @@
 {% extends "base.html" %}
-{% block body_class %}erp-ops-space {% endblock %}
+{% block body_class %}erp-ops-space page-caja-pendientes{% endblock %}
 
 {% block extra_css %}
-<style>
-    .header-cajera {
-        background: linear-gradient(90deg, #14532d, #166534);
-        color: white;
-        padding: 18px;
-        border-radius: 12px;
+<!-- caja-pendientes-ui-v4 — estilos modales/tabla; header premium en design-system.css -->
+<style id="caja-pendientes-page-fix">
+    .modal-premium .modal-content {
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #1e293b !important;
+        color: #e2e8f0 !important;
     }
-    .header-cajera__right {
-        text-align: right;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 10px;
+    .modal-premium .modal-header {
+        background: #22252a !important;
+        color: #ffffff !important;
+        border-bottom: 2px solid #166534 !important;
     }
-    .header-cajera__actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        justify-content: flex-end;
+    .modal-premium .modal-title {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
-    .header-cajera__actions .btn {
-        min-height: 40px;
-        white-space: nowrap;
+    .modal-premium .btn-close {
+        filter: invert(1) grayscale(100%) brightness(200%);
     }
-    @media (max-width: 767.98px) {
-        .header-cajera {
-            flex-direction: column;
-            align-items: stretch !important;
-            gap: 12px;
-            padding: 14px;
-        }
-        .header-cajera__right {
-            text-align: left;
-            align-items: stretch;
-            width: 100%;
-        }
-        .header-cajera__clock h3 {
-            font-size: 1.35rem;
-            margin-bottom: 0;
-        }
-        .header-cajera__actions {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        .header-cajera__actions .btn {
-            width: 100%;
-            font-size: 0.78rem;
-            padding: 0.45rem 0.5rem;
-        }
-        .header-cajera .row.g-3 > [class*="col-md"] {
-            flex: 0 0 100%;
-            max-width: 100%;
-        }
+    .modal-premium .modal-body .display-5.text-primary {
+        color: #fb923c !important;
+        -webkit-text-fill-color: #fb923c !important;
     }
-    .card-indicador { border-radius: 12px; border: 1px solid var(--ds-border); box-shadow: var(--ds-shadow-sm); }
-    .modal-premium .modal-content { border-radius: 25px; border: none; }
-    .modal-premium .modal-header { background: #f8f9fa; border-bottom: 2px solid #166534; }
+    .modal-premium .form-label {
+        color: #e2e8f0 !important;
+    }
+    .modal-premium .form-control,
+    .modal-premium .form-select {
+        background: rgba(15, 23, 42, 0.9) !important;
+        color: #f1f5f9 !important;
+        border-color: rgba(148, 163, 184, 0.4) !important;
+    }
+    .modal-premium .form-text,
+    .modal-premium .alert-light {
+        color: #cbd5e1 !important;
+        background: rgba(15, 23, 42, 0.55) !important;
+        border-color: rgba(148, 163, 184, 0.25) !important;
+    }
+    .modal-premium .modal-footer {
+        border-top-color: rgba(255, 255, 255, 0.1) !important;
+    }
+    body.page-caja-pendientes .modal-premium .modal-dialog {
+        max-width: 520px;
+    }
+    body.page-caja-pendientes .modal-premium .modal-body {
+        max-height: min(70vh, 520px);
+        overflow-y: auto;
+    }
     .vuelto-banner {
         border: 2px solid #f59e0b;
         background: linear-gradient(90deg, #fff7ed, #fffbeb);
@@ -207,39 +199,39 @@
 <div class="container-fluid px-0 caja-pendientes-hud">
     {% set vuelto_ultima = (request.args.get('vuelto') or '0')|replace(',', '.')|float %}
     
-    <!-- 1. ENCABEZADO -->
-    <div class="header-cajera d-flex justify-content-between align-items-center mb-4">
-        <div class="header-cajera__main">
-            <h4 class="fw-bold mb-1"><i class="fas fa-cash-register me-2"></i>Panel de Cobranza</h4>
-            <p class="mb-0">Cajero/a: <span class="fw-bold">{{ current_user.nombre }}</span></p>
+    <!-- 1. ENCABEZADO PREMIUM -->
+    <header class="caja-hdr-premium mb-4" role="banner">
+        <div class="caja-hdr-premium__brand">
+            <span class="caja-hdr-premium__eyebrow"><i class="fas fa-cash-register" aria-hidden="true"></i> Módulo caja</span>
+            <h1 class="caja-hdr-premium__title">Panel de Cobranza</h1>
+            <p class="caja-hdr-premium__meta mb-0">Cajero/a: <strong>{{ current_user.nombre }}</strong></p>
         </div>
-        <div class="header-cajera__right">
-        <div class="header-cajera__clock">
-            <h3 id="hora-actual" class="fw-bold mb-0">00:00:00</h3>
-            <p id="fecha-actual" class="mb-0 small opacity-75"></p>
-        </div>
-        <div class="header-cajera__actions">
-            <a href="{{ url_for('punto_venta') }}" class="btn btn-sm btn-light">
-                <i class="fas fa-cash-register me-1"></i> POS
+        <nav class="caja-nav-dock" aria-label="Accesos rápidos de caja">
+            <a href="{{ url_for('punto_venta') }}" class="caja-nav-dock__link caja-nav-dock__link--primary">
+                <i class="fas fa-cash-register" aria-hidden="true"></i><span>POS</span>
             </a>
             {% if usuario_tiene_permiso('gestionar_usuarios') %}
-            <a href="{{ url_for('caja_historial_cierres') }}" class="btn btn-sm btn-outline-light">
-                <i class="fas fa-history me-1"></i> Historial
+            <a href="{{ url_for('caja_historial_cierres') }}" class="caja-nav-dock__link">
+                <i class="fas fa-history" aria-hidden="true"></i><span>Historial</span>
             </a>
             {% endif %}
-            <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-warning fw-bold">
-                <i class="fas fa-hand-holding-usd me-1"></i> Abonos
+            <a href="{{ url_for('modulo_creditos') }}" class="caja-nav-dock__link caja-nav-dock__link--accent-amber">
+                <i class="fas fa-hand-holding-usd" aria-hidden="true"></i><span>Abonos</span>
             </a>
-            <a href="{{ url_for('caja_cambios') }}" class="btn btn-sm btn-info fw-bold text-white">
-                <i class="fas fa-rotate me-1"></i> Cambios
+            <a href="{{ url_for('caja_cambios') }}" class="caja-nav-dock__link caja-nav-dock__link--accent-sky">
+                <i class="fas fa-rotate" aria-hidden="true"></i><span>Cambios</span>
             </a>
-            <a href="{{ url_for('movimiento_caja') }}" class="btn btn-sm btn-outline-light">
-                <i class="fas fa-exchange-alt me-1"></i> Movimientos
+            <a href="{{ url_for('movimiento_caja') }}" class="caja-nav-dock__link">
+                <i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Movimientos</span>
             </a>
-            {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'btn-outline-light' %}{% include 'partials/help_screen_link.html' %}
+            {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'caja-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
+        </nav>
+        <div class="caja-hdr-premium__clock" aria-live="polite">
+            <span class="caja-hdr-premium__clock-label">Turno activo</span>
+            <time id="hora-actual" class="caja-hdr-premium__time">00:00:00</time>
+            <span id="fecha-actual" class="caja-hdr-premium__date"></span>
         </div>
-        </div>
-    </div>
+    </header>
 
     <!-- 2. BOTÓN DE IMPRESIÓN (Si existe última venta) -->
     {% if request.args.get('ultima_venta') %}
@@ -288,12 +280,42 @@
     {% endif %}
 
     <!-- 3. INDICADORES -->
-    <div class="row g-3 mb-4">
-        <div class="col-md"><div class="card card-indicador bg-primary text-white p-3"><h4>{{ tickets_emitidos }}</h4><p class="mb-0">Docs cobrados hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de documentos cobrados en la caja actualmente abierta.">?</span></p><small class="opacity-75">Esta caja</small></div></div>
-        <div class="col-md"><div class="card card-indicador bg-success text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_apertura).replace(",", ".") }}</h4><p class="mb-0">Apertura Caja</p><small class="opacity-75">Turno actual</small></div></div>
-        <div class="col-md"><div class="card card-indicador bg-warning text-dark p-3"><h4>$ {{ "{:,.0f}".format(monto_vendido).replace(",", ".") }}</h4><p class="mb-0">Monto cobrado hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Suma cobrada en documentos pagados de esta caja.">?</span></p><small class="opacity-75">Pagado · esta caja</small></div></div>
-        <div class="col-md"><div class="card card-indicador bg-danger text-white p-3"><h4>$ {{ "{:,.0f}".format(monto_pendiente).replace(",", ".") }}</h4><p class="mb-0">Por cobrar <span class="kpi-help" data-bs-toggle="tooltip" title="Vales pendientes sin método de pago final registrado.">?</span></p><small class="opacity-75">Cola de vales (sin método)</small></div></div>
-        <div class="col-md"><div class="card card-indicador bg-info text-white p-3"><h4>$ {{ "{:,.0f}".format(vuelto_entregado).replace(",", ".") }}</h4><p class="mb-0">Vueltos hoy</p><small class="opacity-75">Pagado · esta caja</small></div></div>
+    <div class="row g-3 mb-4 caja-kpi-row">
+        <div class="col-md">
+            <article class="caja-kpi caja-kpi--blue">
+                <div class="caja-kpi__value">{{ tickets_emitidos }}</div>
+                <p class="caja-kpi__label mb-0">Docs cobrados hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad de documentos cobrados en la caja actualmente abierta.">?</span></p>
+                <small class="caja-kpi__hint">Esta caja</small>
+            </article>
+        </div>
+        <div class="col-md">
+            <article class="caja-kpi caja-kpi--green">
+                <div class="caja-kpi__value">$ {{ "{:,.0f}".format(monto_apertura).replace(",", ".") }}</div>
+                <p class="caja-kpi__label mb-0">Apertura caja</p>
+                <small class="caja-kpi__hint">Turno actual</small>
+            </article>
+        </div>
+        <div class="col-md">
+            <article class="caja-kpi caja-kpi--amber">
+                <div class="caja-kpi__value">$ {{ "{:,.0f}".format(monto_vendido).replace(",", ".") }}</div>
+                <p class="caja-kpi__label mb-0">Monto cobrado hoy <span class="kpi-help" data-bs-toggle="tooltip" title="Suma cobrada en documentos pagados de esta caja.">?</span></p>
+                <small class="caja-kpi__hint">Pagado · esta caja</small>
+            </article>
+        </div>
+        <div class="col-md">
+            <article class="caja-kpi caja-kpi--rose">
+                <div class="caja-kpi__value">$ {{ "{:,.0f}".format(monto_pendiente).replace(",", ".") }}</div>
+                <p class="caja-kpi__label mb-0">Por cobrar <span class="kpi-help" data-bs-toggle="tooltip" title="Vales pendientes sin método de pago final registrado.">?</span></p>
+                <small class="caja-kpi__hint">Cola de vales</small>
+            </article>
+        </div>
+        <div class="col-md">
+            <article class="caja-kpi caja-kpi--cyan">
+                <div class="caja-kpi__value">$ {{ "{:,.0f}".format(vuelto_entregado).replace(",", ".") }}</div>
+                <p class="caja-kpi__label mb-0">Vueltos hoy</p>
+                <small class="caja-kpi__hint">Pagado · esta caja</small>
+            </article>
+        </div>
     </div>
 
     <div class="card card-ds mb-4" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important;">
@@ -410,10 +432,14 @@
                             </td>
                             <td style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ v.fecha.strftime('%H:%M') }}</td>
                             <td class="caja-celda-principal" style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ v.usuario }}</td>
-                            <td class="caja-monto" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</td>
+                            <td class="caja-monto" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">$ {{ "{:,.0f}".format(v.monto_cobro_ui).replace(",", ".") }}</td>
                             <td class="text-center" style="background-color: rgba(15, 23, 42, 0.72) !important;">
                                 <div class="caja-cola-acciones">
-                                    {% if v.stock_cobrable %}
+                                    {% if (v.monto_cobro_ui or 0) <= 0 and v.cola_es_borrador %}
+                                    <a href="{{ url_for('punto_venta') }}" class="btn btn-caja-ghost btn-sm px-3 rounded-pill" style="color: #fbbf24 !important; border: 1px solid rgba(251, 191, 36, 0.55) !important;" title="Agregar productos y emitir vale desde el POS">
+                                        Ir al POS
+                                    </a>
+                                    {% elif v.stock_cobrable and (v.monto_cobro_ui or 0) > 0 %}
                                     <button type="button" class="btn btn-caja-cobrar btn-sm px-3 rounded-pill" style="color: #fb923c !important; background-color: rgba(251, 146, 60, 0.18) !important; border: 1px solid rgba(251, 146, 60, 0.65) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #fb923c !important;" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
                                         Cobrar
                                     </button>
@@ -454,8 +480,9 @@
             </div>
             {% for v in cola_combined %}
             {% set saldo_disp = v.saldo_favor_disponible or 0 %}
-            {% set saldo_sugerido = saldo_disp if saldo_disp < (v.monto_total or 0) else (v.monto_total or 0) %}
-            {% set total_sugerido = (v.monto_total or 0) - saldo_sugerido %}
+            {% set monto_cobro = v.monto_cobro_ui if v.monto_cobro_ui is defined else (v.monto_total or 0) %}
+            {% set saldo_sugerido = saldo_disp if saldo_disp < monto_cobro else monto_cobro %}
+            {% set total_sugerido = monto_cobro - saldo_sugerido %}
             <div class="modal fade modal-premium" id="modalCobro{{ v.id }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content shadow-lg">
@@ -466,7 +493,12 @@
                             </div>
                             <div class="modal-body p-4">
                                 <div class="text-center mb-4">
-                                    <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h1>
+                                    <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(monto_cobro).replace(",", ".") }}</h1>
+                                    {% if monto_cobro <= 0 %}
+                                    <p class="small text-warning mb-2">Sin líneas con precio. Complete la venta en el <a href="{{ url_for('punto_venta') }}" class="alert-link">Punto de venta</a> (agregar productos → <strong>Emitir vale</strong>) y vuelva a cobrar aquí.</p>
+                                    {% elif v.cola_es_borrador %}
+                                    <p class="small text-muted mb-0">Borrador POS: al cobrar se emite y paga en un paso.</p>
+                                    {% endif %}
                                 </div>
                                 {% if v.cliente %}
                                 <div class="alert {% if (v.cliente.saldo_deudor or 0) > 0 %}alert-warning{% else %}alert-light{% endif %} py-2 mb-3">
@@ -490,7 +522,7 @@
                                     <label class="form-label fw-bold">Usar saldo a favor</label>
                                     <div class="input-group">
                                         <span class="input-group-text">$</span>
-                                        <input type="number" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" class="form-control" value="{{ saldo_sugerido|round(0)|int }}" min="0" max="{{ saldo_sugerido|round(0)|int }}" step="any" data-disponible="{{ saldo_disp }}" data-total="{{ v.monto_total }}" oninput="actualizarSaldoFavorCobro({{ v.id }})">
+                                        <input type="number" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" class="form-control" value="{{ saldo_sugerido|round(0)|int }}" min="0" max="{{ saldo_sugerido|round(0)|int }}" step="any" data-disponible="{{ saldo_disp }}" data-total="{{ monto_cobro }}" oninput="actualizarSaldoFavorCobro({{ v.id }})">
                                         <button class="btn btn-outline-warning" type="button" onclick="usarMaximoSaldoFavor({{ v.id }})">Usar máximo</button>
                                     </div>
                                     <div class="form-text">Puedes cambiarlo a 0 si el cliente prefiere no usar su saldo ahora.</div>
@@ -500,7 +532,7 @@
                                     <span id="total_a_pagar_{{ v.id }}">$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</span>
                                 </div>
                                 {% else %}
-                                <input type="hidden" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" value="0" data-disponible="0" data-total="{{ v.monto_total }}">
+                                <input type="hidden" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" value="0" data-disponible="0" data-total="{{ monto_cobro }}">
                                 {% endif %}
                                 {% endif %}
                                 <div class="mb-3">
@@ -532,13 +564,13 @@
                                 {% endif %}
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Monto Recibido</label>
-                                    <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
+                                    <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ monto_cobro }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
                                     <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.</div>
                                 </div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-primary fw-bold px-4">FINALIZAR</button>
+                                <button type="submit" class="btn btn-primary fw-bold px-4" {% if monto_cobro <= 0 %}disabled{% endif %}>FINALIZAR</button>
                             </div>
                         </form>
                     </div>

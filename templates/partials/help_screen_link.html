@@ -4,7 +4,7 @@
    - help_link_label: texto visible (default: solo icono)
    - help_link_class: clase btn (default: btn-outline-secondary) #}
 <a href="{{ url_for('lhexia_academy') }}{% if help_anchor %}#{{ help_anchor }}{% endif %}"
-   class="btn btn-sm {{ help_link_class or 'btn-outline-secondary' }} help-screen-link"
+   class="{% if not help_link_no_bootstrap_btn %}btn btn-sm {% endif %}{{ help_link_class or 'btn-outline-secondary' }} help-screen-link"
    title="Abrir guía de ayuda{% if help_anchor %} · {{ help_anchor }}{% endif %}">
   <i class="fas fa-circle-question{% if help_link_label %} me-1{% endif %}"></i>{% if help_link_label %}{{ help_link_label }}{% endif %}
 </a>

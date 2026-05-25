@@ -992,6 +992,9 @@
     }
     const banner = document.getElementById("posBannerApedido");
     if (banner) banner.classList.add("d-none");
+    if (typeof window.posSyncHudSearchFocus === "function") {
+      window.posSyncHudSearchFocus();
+    }
   }
 
   async function posActualizarRetiroLinea(detalleId, valor, urlRetiro) {
@@ -1195,6 +1198,9 @@
       if (!hero) return;
       hero.classList.toggle("pos-manual-search-hero--suggest-open", !!open);
       hero.classList.toggle("pos-unified-search-hero--suggest-open", !!open);
+      if (typeof window.posSyncHudSearchFocus === "function") {
+        window.posSyncHudSearchFocus();
+      }
     }
 
     let activeIndex = -1;
@@ -4554,7 +4560,7 @@
   });
 })();
 
-/** POS HUD — glow-focus al enfocar buscador único (#posBuscarManual / #posBarcodeWedge). */
+/** POS HUD — atenuar resto solo mientras el panel de sugerencias está abierto. */
 (function () {
   "use strict";
   var FOCUS_CLASS = "pos-hud-search-focus";
@@ -4565,12 +4571,20 @@
     );
   }
 
+  function posSuggestPanelAbierto() {
+    return !!document.querySelector(
+      ".pos-unified-search-hero--suggest-open, .pos-manual-search-hero--suggest-open"
+    );
+  }
+
   function syncGlowFocus() {
     var focused = searchInputs().some(function (el) {
       return document.activeElement === el;
     });
-    document.body.classList.toggle(FOCUS_CLASS, focused);
+    document.body.classList.toggle(FOCUS_CLASS, focused && posSuggestPanelAbierto());
   }
+
+  window.posSyncHudSearchFocus = syncGlowFocus;
 
   document.addEventListener("DOMContentLoaded", function () {
     searchInputs().forEach(function (inp) {
@@ -4579,5 +4593,6 @@
         setTimeout(syncGlowFocus, 0);
       });
     });
+    syncGlowFocus();
   });
 })();

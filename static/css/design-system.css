@@ -1812,3 +1812,366 @@ body.erp-ops-space .modal-header {
 body.erp-ops-space .modal-footer {
     border-top-color: var(--border-card-glass);
 }
+
+/* ── Caja / Panel de cobranza premium (vales pendientes) ── */
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) auto auto;
+    align-items: center;
+    gap: 1rem 1.35rem;
+    padding: 1.1rem 1.35rem;
+    color: #f8fafc;
+    background: linear-gradient(
+        135deg,
+        rgba(10, 28, 22, 0.96) 0%,
+        rgba(22, 101, 52, 0.88) 48%,
+        rgba(12, 30, 24, 0.96) 100%
+    );
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    border-radius: 16px;
+    box-shadow:
+        0 14px 42px rgba(0, 0, 0, 0.32),
+        inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(187, 247, 208, 0.85);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__title {
+    margin: 0 0 0.2rem;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: #fff;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__meta {
+    font-size: 0.875rem;
+    color: rgba(226, 232, 240, 0.82);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__meta strong {
+    color: #fff;
+    font-weight: 700;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link,
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock .help-screen-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    box-sizing: border-box;
+    min-height: 38px;
+    height: 38px;
+    padding: 0 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    color: rgba(248, 250, 252, 0.92);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    transition:
+        background 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease,
+        transform 0.12s ease,
+        box-shadow 0.18s ease;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link i,
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock .help-screen-link i {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link:hover,
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock .help-screen-link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+    transform: translateY(-1px);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link--primary {
+    color: #14532d;
+    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link--primary:hover {
+    color: #052e16;
+    background: #fff;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link--accent-amber i {
+    color: #fbbf24;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link--accent-sky i {
+    color: #38bdf8;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__clock {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    min-width: 8.5rem;
+    padding: 0.55rem 0.9rem;
+    text-align: right;
+    background: rgba(0, 0, 0, 0.26);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__clock-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(187, 247, 208, 0.75);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__time {
+    display: block;
+    margin: 0.1rem 0 0;
+    font-size: 1.45rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    color: #fff;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__date {
+    font-size: 0.75rem;
+    color: rgba(226, 232, 240, 0.72);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi {
+    position: relative;
+    overflow: hidden;
+    padding: 1rem 1.1rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    cursor: default;
+    transition:
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.22s ease,
+        border-color 0.22s ease,
+        background 0.22s ease;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--caja-kpi-accent, #4ade80);
+    opacity: 0.95;
+    transition:
+        height 0.22s ease,
+        opacity 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        120% 80% at 50% 0%,
+        color-mix(in srgb, var(--caja-kpi-accent, #4ade80) 22%, transparent),
+        transparent 62%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:hover {
+    transform: translateY(-4px);
+    background: rgba(20, 30, 48, 0.88);
+    border-color: color-mix(in srgb, var(--caja-kpi-accent, #4ade80) 42%, rgba(255, 255, 255, 0.12));
+    box-shadow:
+        0 14px 32px rgba(0, 0, 0, 0.34),
+        0 0 0 1px color-mix(in srgb, var(--caja-kpi-accent, #4ade80) 18%, transparent),
+        0 0 28px color-mix(in srgb, var(--caja-kpi-accent, #4ade80) 22%, transparent);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:hover::before {
+    height: 4px;
+    opacity: 1;
+    box-shadow: 0 0 14px var(--caja-kpi-accent, #4ade80);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:hover::after {
+    opacity: 1;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:active {
+    transform: translateY(-2px);
+    transition-duration: 0.1s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.erp-ops-space.page-caja-pendientes .caja-kpi,
+    body.erp-ops-space.page-caja-pendientes .caja-kpi::before,
+    body.erp-ops-space.page-caja-pendientes .caja-kpi::after {
+        transition: none;
+    }
+
+    body.erp-ops-space.page-caja-pendientes .caja-kpi:hover {
+        transform: none;
+    }
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi__value {
+    position: relative;
+    z-index: 1;
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: #f8fafc;
+    margin-bottom: 0.25rem;
+    transition:
+        color 0.22s ease,
+        text-shadow 0.22s ease,
+        transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:hover .caja-kpi__value {
+    transform: scale(1.02);
+    color: #fff;
+    text-shadow: 0 0 20px color-mix(in srgb, var(--caja-kpi-accent, #4ade80) 45%, transparent);
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:hover .caja-kpi__label {
+    color: #e2e8f0;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi__label {
+    position: relative;
+    z-index: 1;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    transition: color 0.22s ease;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi__hint {
+    position: relative;
+    z-index: 1;
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    transition: color 0.22s ease;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi:hover .caja-kpi__hint {
+    color: #b0bac5;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi--blue {
+    --caja-kpi-accent: #60a5fa;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi--green {
+    --caja-kpi-accent: #4ade80;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi--amber {
+    --caja-kpi-accent: #fbbf24;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi--rose {
+    --caja-kpi-accent: #f87171;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-kpi--cyan {
+    --caja-kpi-accent: #22d3ee;
+}
+
+body.erp-ops-space.page-caja-pendientes .caja-pendientes-hud .card-header .btn.btn-sm {
+    --bs-btn-padding-y: 0;
+    --bs-btn-padding-x: 0.75rem;
+    --bs-btn-font-size: 0.8125rem;
+    --bs-btn-line-height: 1;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 0 0.75rem !important;
+    font-weight: 600 !important;
+}
+
+@media (max-width: 1199.98px) {
+    body.erp-ops-space.page-caja-pendientes .caja-hdr-premium {
+        grid-template-columns: 1fr;
+        gap: 0.85rem;
+    }
+
+    body.erp-ops-space.page-caja-pendientes .caja-nav-dock {
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    body.erp-ops-space.page-caja-pendientes .caja-hdr-premium__clock {
+        align-items: flex-start;
+        text-align: left;
+        width: 100%;
+    }
+}
+
+@media (max-width: 575.98px) {
+    body.erp-ops-space.page-caja-pendientes .caja-nav-dock {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link,
+    body.erp-ops-space.page-caja-pendientes .caja-nav-dock .help-screen-link {
+        width: 100%;
+        min-height: 40px;
+        height: 40px;
+    }
+
+    body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link--primary {
+        grid-column: 1 / -1;
+    }
+}

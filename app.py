@@ -186,6 +186,16 @@ if _on_render_host or os.getenv('BEHIND_PROXY', '').strip().lower() in ('1', 'tr
 # Desactivar explícitamente con FLASK_TEMPLATE_RELOAD=0 si no lo deseas.
 if os.getenv('FLASK_TEMPLATE_RELOAD', '1') != '0':
     app.config['TEMPLATES_AUTO_RELOAD'] = True
+# Evita que Chrome/Edge muestren HTML viejo (Cursor Glass siempre carga fresco).
+if os.getenv('FLASK_HTML_NO_CACHE', '1') != '0':
+    @app.after_request
+    def _no_cache_html_responses(response):
+        ct = (response.content_type or '').split(';')[0].strip().lower()
+        if ct == 'text/html':
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
 db = SQLAlchemy(app)
 # Una sola petición a la vez ejecuta el bloque de auto-migración (before_request autenticado).
 _SCHEMA_ENSURE_LOCK = threading.Lock()
@@ -659,6 +669,72 @@ def _ticket_linea_subtotal_clp(detalle):
 def _venta_bruto_desde_detalles_lineas(detalles):
     """Suma bruto CLP desde líneas. Misma regla que `Venta.recalcular_total`."""
     return sum(_ticket_linea_subtotal_clp(d) for d in (detalles or []))
+
+
+def _venta_count_detalles(venta_id):
+    try:
+        vid = int(venta_id)
+    except (TypeError, ValueError):
+        return 0
+    return int(
+        db.session.query(db.func.count(DetalleVenta.id))
+        .filter(DetalleVenta.id_venta == vid)
+        .scalar()
+        or 0
+    )
+
+
+def _monto_cobro_venta_bruto_sql(venta_id):
+    """Suma bruto desde BD (no depende del identity map tras rollback)."""
+    try:
+        vid = int(venta_id)
+    except (TypeError, ValueError):
+        return 0.0
+    filas = (
+        db.session.query(
+            DetalleVenta.cantidad,
+            DetalleVenta.precio_unitario,
+            DetalleVenta.descuento,
+            DetalleVenta.subtotal,
+        )
+        .filter(DetalleVenta.id_venta == vid)
+        .all()
+    )
+    if not filas:
+        return 0.0
+    total = 0.0
+    for cant, pu, desc, sub in filas:
+        if sub and float(sub) > 0:
+            total += float(sub)
+            continue
+        class _Lin:
+            pass
+
+        lin = _Lin()
+        lin.cantidad = cant
+        lin.precio_unitario = pu
+        lin.descuento = desc
+        total += _ticket_linea_subtotal_clp(lin)
+    return float(total)
+
+
+def _monto_cobro_venta_ui(venta):
+    """Monto a mostrar en caja; borradores POS (Abierta) suelen tener monto_total=0 en BD."""
+    mt = float(venta.monto_total or 0)
+    if mt > 0:
+        return mt
+    detalles = getattr(venta, 'detalles', None)
+    bruto = _venta_bruto_desde_detalles_lineas(detalles) if detalles else 0
+    if bruto > 0:
+        return float(int(bruto or 0))
+    vid = getattr(venta, 'id', None)
+    if vid is not None:
+        bruto_sql = _monto_cobro_venta_bruto_sql(vid)
+        if bruto_sql > 0:
+            return bruto_sql
+    if (getattr(venta, 'estado', None) or '').strip() == 'Abierta':
+        return 0.0
+    return mt
 
 
 def _ticket_agrupar_detalles_por_retiro(venta):
@@ -10311,7 +10387,7 @@ def guardar_venta():
     return redirect(url_for('mostrar_ventas'))
 
 
-def _reparar_precios_cero_lineas_venta_abierta(venta):
+def _reparar_precios_cero_lineas_venta_abierta(venta, *, flash_msg=True):
     """
     Líneas POS con precio_unitario 0 pero el catálogo ya tiene precio (venta o mayoreo).
     Actualiza y recalcula total.
@@ -10338,10 +10414,11 @@ def _reparar_precios_cero_lineas_venta_abierta(venta):
         return False
     venta.recalcular_total()
     db.session.commit()
-    flash(
-        f"Se actualizó el precio en {arreglados} línea(s) que estaban en $0 según precio venta/mayoreo del catálogo.",
-        "info",
-    )
+    if flash_msg:
+        flash(
+            f"Se actualizó el precio en {arreglados} línea(s) que estaban en $0 según precio venta/mayoreo del catálogo.",
+            "info",
+        )
     return True
 
 
@@ -14310,38 +14387,45 @@ def caja_pendientes():
     borradores_pos = []
     if cid is not None:
         borradores_pos = (
-            Venta.query.options(joinedload(Venta.cliente))
+            Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles))
             .filter(Venta.estado == "Abierta", Venta.caja_id == cid)
             .order_by(Venta.fecha.desc())
             .all()
         )
-    db.session.rollback()
     for v in borradores_pos:
+        if _venta_count_detalles(v.id) > 0:
+            _reparar_precios_cero_lineas_venta_abierta(v, flash_msg=False)
+            db.session.refresh(v)
         falt = _venta_validar_stock_tienda(v)
         v.stock_cobrable = len(falt) == 0
         v.stock_alerta = "; ".join(falt[:2]) if falt else ""
         v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
         v.cola_es_borrador = True
+        v.monto_cobro_ui = _monto_cobro_venta_ui(v)
+    # Borradores sin líneas no se cobran en caja (evita modal $0); completar en POS.
+    borradores_pos = [v for v in borradores_pos if (v.monto_cobro_ui or 0) > 0]
 
     # Cola para cobrar en esta pantalla (mismo filtro que la tabla de vales)
     vales = (
-        Venta.query.filter(
+        Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles))
+        .filter(
             Venta.estado == "Pendiente",
             Venta.metodo_pago.is_(None),
         )
         .order_by(Venta.fecha.desc())
         .all()
     )
-    db.session.rollback()
     for v in vales:
         falt = _venta_validar_stock_tienda(v)
         v.stock_cobrable = len(falt) == 0
         v.stock_alerta = "; ".join(falt[:2]) if falt else ""
         v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
         v.cola_es_borrador = False
+        v.monto_cobro_ui = _monto_cobro_venta_ui(v)
 
     _asegurar_columnas_ventas_bodega_despacho()
-    cola_combined = list(borradores_pos) + list(vales)
+    # Vales emitidos (Pendiente) primero; luego borradores POS con total > 0.
+    cola_combined = list(vales) + list(borradores_pos)
     for v in cola_combined:
         v.tiene_despacho_bodega = _venta_tiene_despacho_bodega(v)
     cot_ids = [v.cotizacion_origen_id for v in vales if v.cotizacion_origen_id]
@@ -15520,7 +15604,9 @@ def _cobro_respuesta_json_solicitada() -> bool:
 
 def procesar_cobro_caja(id):
     db.session.rollback()
-    venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
+    venta = Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles)).get_or_404(id)
+    if (venta.estado or '').strip() == 'Abierta':
+        venta.recalcular_total()
     caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
     metodo = request.form.get('metodo_pago')
     tipo_doc = request.form.get('tipo_documento', 'Boleta')
@@ -15568,7 +15654,16 @@ def procesar_cobro_caja(id):
         # Partimos la transacci├│n real desde un estado limpio. Esto evita que
         # un SELECT/validaci├│n previa deje Postgres en InFailedSqlTransaction.
         db.session.rollback()
-        venta = Venta.query.options(joinedload(Venta.detalles)).get_or_404(id)
+        venta = Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles)).get_or_404(id)
+        if (venta.estado or '').strip() == 'Abierta':
+            _reparar_precios_cero_lineas_venta_abierta(venta, flash_msg=False)
+            venta = Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles)).get_or_404(id)
+            venta.recalcular_total()
+            if float(venta.monto_total or 0) <= 0:
+                bruto = _monto_cobro_venta_bruto_sql(venta.id)
+                if bruto > 0:
+                    venta.monto_total = float(bruto)
+                    venta.desglosar_iva()
         caja_activa = Caja.query.filter_by(estado="Abierta").order_by(Caja.id.desc()).first()
 
         try:
