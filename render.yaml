@@ -57,7 +57,7 @@ services:
       - key: OPENAI_VISION_DETAIL
         value: "low"
       - key: IA_FACTURA_PDF_PAGINAS
-        value: "2"
+        value: "3"
       # Paridad con defaults de app.py / tienda (opcional; mismo texto que en .env.local).
       - key: EMPRESA_NOMBRE_COMERCIAL
         sync: false

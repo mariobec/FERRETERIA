@@ -18712,15 +18712,16 @@ def _openai_extraer_items_factura(data_urls_jpeg, api_key):
     if detail not in ('low', 'high', 'auto'):
         detail = 'low'
     instrucciones = (
-        'Eres un asistente para ferretería en Chile. Lee la factura o guía de despacho en la(s) imagen(es) '
-        'y extrae SOLO las líneas de productos mercadería (excluye totales, IVA, texto legal, envío vacío). '
-        'Responde con un JSON válido (sin markdown) con esta forma exacta:\n'
+        'Eres un asistente para ferretería en Chile. Lee la factura electrónica o guía en la(s) imagen(es). '
+        'Extrae SOLO filas de productos de la tabla (excluye totales, IVA 19%, timbre, referencias). '
+        'Responde JSON válido (sin markdown):\n'
         '{"items":[{"codigo_proveedor": string o null, "descripcion": string, "cantidad": number, '
         '"precio_unitario": number o null}]}\n'
-        'cantidad = unidades facturadas (entero o decimal que redondearemos). '
-        'precio_unitario = precio NETO unitario en pesos chilenos (sin IVA): lee columnas P.Unit, Precio, '
-        'Valor unit., Neto unit. o calcula subtotal_linea/cantidad. Si la guía no trae precios, usa null. '
-        'No uses puntos de miles en JSON (ej. 1990.5 no "1.990").'
+        'Reglas Chile (ej. Chilemat): columna Codigo → codigo_proveedor (ej. INT-110109). '
+        'Columna Precio → precio_unitario NETO unitario sin IVA. Si Precio vacío pero hay Valor y Cantidad, '
+        'precio_unitario = Valor/Cantidad. cantidad = solo número (100 si dice "100 kg" o "50 roll"). '
+        'Precios en JSON como número decimal con punto (1498.37), sin separador de miles. '
+        'Incluye todas las filas de la tabla aunque sean varias páginas.'
     )
     content = [{'type': 'text', 'text': instrucciones}]
     for url in data_urls_jpeg:
@@ -19033,6 +19034,46 @@ def _armar_top3_identificacion_foto(frase):
     return out[:3], estrategia, unclear
 
 
+def _parse_cantidad_ia(val):
+    """Cantidad numérica desde IA (acepta '100 kg', '50 roll', 100)."""
+    if val is None or val == '':
+        return 0
+    if isinstance(val, (int, float)):
+        return max(0, int(round(float(val))))
+    m = re.search(r'[\d]+(?:[.,]\d+)?', str(val).replace(' ', ''))
+    if not m:
+        return 0
+    s = m.group(0)
+    if ',' in s and '.' in s:
+        if s.rfind(',') > s.rfind('.'):
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            s = s.replace(',', '')
+    elif ',' in s:
+        parts = s.split(',')
+        if len(parts) == 2 and len(parts[1]) <= 2:
+            s = parts[0].replace('.', '') + '.' + parts[1]
+        else:
+            s = s.replace(',', '')
+    elif s.count('.') == 1:
+        ent, dec = s.split('.', 1)
+        if dec.isdigit() and len(dec) == 3 and ent.isdigit():
+            s = ent + dec
+    try:
+        return max(0, int(round(float(s))))
+    except ValueError:
+        return 0
+
+
+def _codigo_linea_factura(codigo_factura, descripcion):
+    """Codigo proveedor / INT- desde columna Codigo o descripción."""
+    cod = (str(codigo_factura) if codigo_factura is not None else '').strip().upper()
+    if cod:
+        return cod
+    m = re.search(r'\b(INT-\d+)\b', (descripcion or ''), re.IGNORECASE)
+    return m.group(1).upper() if m else ''
+
+
 def _parse_precio_clp_ia(val):
     """Convierte precio devuelto por IA (número o string CLP) a float o None."""
     if val is None or val == '':
@@ -19093,22 +19134,23 @@ def _costo_sugerido_linea_factura(producto, proveedor_id, precio_ia):
 
 def _matchear_producto_linea_factura(codigo_factura, descripcion):
     """Empareja una línea de factura con Producto (código de barra / nombre)."""
-    cod = (str(codigo_factura) if codigo_factura is not None else '').strip()
+    cod = _codigo_linea_factura(codigo_factura, descripcion)
     if cod:
-        p = (
-            Producto.query.filter(Producto.activo.isnot(False))
-            .filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cod.upper())
-            .first()
-        )
-        if p:
-            return p, 'codigo'
-        p = (
-            Producto.query.filter(Producto.activo.isnot(False))
-            .filter(Producto.codigo_barra == cod)
-            .first()
-        )
-        if p:
-            return p, 'codigo'
+        for campo, etiqueta in (
+            ('codigo_barra', 'codigo'),
+            ('codigo_chilemat', 'codigo_chilemat'),
+            ('codigo_interno', 'codigo_interno'),
+        ):
+            col = getattr(Producto, campo, None)
+            if col is None:
+                continue
+            p = (
+                Producto.query.filter(Producto.activo.isnot(False))
+                .filter(db.func.upper(db.func.trim(col)) == cod)
+                .first()
+            )
+            if p:
+                return p, etiqueta
     desc = (descripcion or '').strip()
     if not desc:
         return None, None
@@ -21320,22 +21362,19 @@ def api_ia_factura_analizar(rid):
     for row in lineas:
         cod = row.get('codigo_proveedor')
         desc = row.get('descripcion') or ''
-        try:
-            cant = float(row.get('cantidad') or 0)
-        except (TypeError, ValueError):
-            cant = 0
-        cant_i = int(round(cant))
+        cant_i = _parse_cantidad_ia(row.get('cantidad'))
         if cant_i <= 0:
             continue
         precio_f = _parse_precio_clp_ia(row.get('precio_unitario'))
-        p, how = _matchear_producto_linea_factura(cod, desc)
+        cod_norm = _codigo_linea_factura(cod, desc)
+        p, how = _matchear_producto_linea_factura(cod_norm, desc)
         costo_u, costo_origen = _costo_sugerido_linea_factura(
             p, rec.proveedor_id, precio_f
         )
         out.append(
             {
                 'descripcion_factura': desc,
-                'codigo_factura': cod,
+                'codigo_factura': cod_norm or cod,
                 'cantidad_documento': cant_i,
                 'cantidad_recibida': cant_i,
                 'precio_unitario': costo_u,
