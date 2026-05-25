@@ -1,0 +1,2 @@
+# Opcional — solo PC con extractor de catálogo proveedor (scripts/agente_extractor_proveedor.py)
+playwright>=1.40.0
