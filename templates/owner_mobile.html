@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-4">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-6">
 {% endblock %}
 
 {% block content %}
@@ -66,7 +66,7 @@
   class="owner-pwa-wrap owner-guardian-wrap"
   id="ownerPwaApp"
   data-api-url="{{ url_for('api_owner_dashboard_v1') }}"
-  data-poll-ms="45000"
+  data-poll-ms="15000"
   data-cc-url="{{ url_for('admin_control_center') }}"
   data-ventas-fmt="${{ '{:,.0f}'.format(ventas_hoy).replace(',', '.') }}"
   data-var-pct="{{ var_ventas_hoy if var_ventas_hoy is not none else '' }}"
@@ -266,5 +266,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-mobile-4"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-mobile-6"></script>
 {% endblock %}

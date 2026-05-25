@@ -16608,6 +16608,13 @@ def cerrar_caja():
             flash(f'No se pudo cerrar caja: {ex}', 'danger')
         return redirect(url_for('cerrar_caja'))
 
+    try:
+        from services.agente_operador_service import registrar_alerta_cierre_caja_inmediata
+
+        registrar_alerta_cierre_caja_inmediata(caja.id)
+    except Exception:
+        app.logger.exception('agente_operador_cierre_caja_inmediato')
+
     return render_template(
         'ticket_cierre.html',
         caja=caja,

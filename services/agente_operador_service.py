@@ -11,6 +11,7 @@ from services.agente_ejecuciones_service import (
     EST_ALERTA_ABIERTA,
     TIPO_ALERTA,
     aplicar_enriquecimiento_semantico,
+    asegurar_tabla,
     crear_registro,
     existe_dedupe_abierta,
     listar_alertas_sin_enriquecer,
@@ -62,6 +63,75 @@ def _payload_operador(base: dict | None) -> dict:
     return p
 
 
+def _registrar_alerta_caja_descuadre(c) -> int | None:
+    """Una caja cerrada con |diferencia| >= umbral Operador. Retorna id de alerta o None."""
+    umbral_clp = _umbral_descuadre_clp()
+    diff = int(round(float(c.diferencia_cierre or 0)))
+    if abs(diff) < max(1, umbral_clp):
+        return None
+    dedupe = f'operador:caja_descuadre:{c.id}'
+    if existe_dedupe_abierta(dedupe):
+        return None
+    modo_cierre = (getattr(c, 'modo_cierre_arqueo', None) or '').strip().lower()
+    if modo_cierre not in ('ciego', 'visible'):
+        from services.cierre_caja_config_service import obtener_modo_cierre_caja
+
+        modo_cierre = obtener_modo_cierre_caja()
+    if modo_cierre == 'visible':
+        sev = 'critical'
+    else:
+        sev = 'critical' if diff < 0 else 'warning'
+    titulo = f'Caja #{c.id} descuadre {_fmt_clp(diff)} CLP'
+    etiqueta_modo = 'ciego' if modo_cierre == 'ciego' else 'visible'
+    cuerpo = (
+        f'Cierre {c.fecha_cierre.strftime("%d-%m-%Y %H:%M") if c.fecha_cierre else "—"}. '
+        f'Apertura: {c.usuario_apertura or "—"}. '
+        f'Modo arqueo: {etiqueta_modo}. Diferencia arqueo.'
+    )
+    return crear_registro(
+        agente_nombre='operador',
+        tipo=TIPO_ALERTA,
+        estado=EST_ALERTA_ABIERTA,
+        titulo=titulo[:255],
+        cuerpo=cuerpo,
+        severidad=sev,
+        codigo='caja_descuadre',
+        dedupe_key=dedupe,
+        payload=_payload_operador({
+            'caja_id': c.id,
+            'diferencia_clp': diff,
+            'modo_cierre': modo_cierre,
+            'cuerpo_base_v01': cuerpo,
+            'origen': 'cierre_caja_inmediato',
+        }),
+        caja_id=c.id,
+    )
+
+
+def registrar_alerta_cierre_caja_inmediata(caja_id: int) -> dict:
+    """
+    Disparo al confirmar cerrar caja (mismo criterio que el scan, sin esperar cron).
+    No lanza excepción al caller; el cierre de caja no debe fallar por esto.
+    """
+    from app import Caja
+
+    if not asegurar_tabla():
+        return {'ok': False, 'motivo': 'tabla_agente_ejecuciones_no_disponible'}
+    c = Caja.query.get(int(caja_id))
+    if not c:
+        return {'ok': False, 'motivo': 'caja_no_encontrada'}
+    if (c.estado or '').strip() != 'Cerrada':
+        return {'ok': False, 'motivo': 'caja_no_cerrada'}
+    rid = _registrar_alerta_caja_descuadre(c)
+    return {
+        'ok': True,
+        'creada': rid is not None,
+        'registro_id': rid,
+        'caja_id': c.id,
+        'diferencia_clp': int(round(float(c.diferencia_cierre or 0))),
+    }
+
+
 def escanear_y_registrar_alertas() -> dict:
     """
     Ejecuta reglas de solo lectura sobre ventas/cajas (v0.1).
@@ -69,14 +139,11 @@ def escanear_y_registrar_alertas() -> dict:
     """
     from app import Caja, Venta
 
-    from services.agente_ejecuciones_service import asegurar_tabla
-
     if not asegurar_tabla():
         return {'ok': False, 'motivo': 'tabla_agente_ejecuciones_no_disponible'}
 
     ahora = datetime.now()
     umbral_h = _umbral_vale_horas()
-    umbral_clp = _umbral_descuadre_clp()
     creadas = 0
     omitidas = 0
     detalle: list[str] = []
@@ -140,49 +207,10 @@ def escanear_y_registrar_alertas() -> dict:
         .all()
     )
     for c in cajas:
-        diff = int(round(float(c.diferencia_cierre or 0)))
-        if abs(diff) < max(1, umbral_clp):
-            continue
-        dedupe = f'operador:caja_descuadre:{c.id}'
-        if existe_dedupe_abierta(dedupe):
-            omitidas += 1
-            continue
-        modo_cierre = (getattr(c, 'modo_cierre_arqueo', None) or '').strip().lower()
-        if modo_cierre not in ('ciego', 'visible'):
-            from services.cierre_caja_config_service import obtener_modo_cierre_caja
-
-            modo_cierre = obtener_modo_cierre_caja()
-        if modo_cierre == 'visible':
-            sev = 'critical'
-        else:
-            sev = 'critical' if diff < 0 else 'warning'
-        titulo = f'Caja #{c.id} descuadre {_fmt_clp(diff)} CLP'
-        etiqueta_modo = 'ciego' if modo_cierre == 'ciego' else 'visible'
-        cuerpo = (
-            f'Cierre {c.fecha_cierre.strftime("%d-%m-%Y %H:%M") if c.fecha_cierre else "—"}. '
-            f'Apertura: {c.usuario_apertura or "—"}. '
-            f'Modo arqueo: {etiqueta_modo}. Diferencia arqueo.'
-        )
-        rid = crear_registro(
-            agente_nombre='operador',
-            tipo=TIPO_ALERTA,
-            estado=EST_ALERTA_ABIERTA,
-            titulo=titulo[:255],
-            cuerpo=cuerpo,
-            severidad=sev,
-            codigo='caja_descuadre',
-            dedupe_key=dedupe,
-            payload=_payload_operador({
-                'caja_id': c.id,
-                'diferencia_clp': diff,
-                'modo_cierre': modo_cierre,
-                'cuerpo_base_v01': cuerpo,
-            }),
-            caja_id=c.id,
-        )
+        rid = _registrar_alerta_caja_descuadre(c)
         if rid:
             creadas += 1
-            detalle.append(titulo)
+            detalle.append(f'Caja #{c.id} descuadre {_fmt_clp(int(round(float(c.diferencia_cierre or 0))))} CLP')
         else:
             omitidas += 1
 

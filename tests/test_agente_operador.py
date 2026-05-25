@@ -12,7 +12,10 @@ from services.agente_ejecuciones_service import (
     existe_dedupe_abierta,
     transicion_alerta,
 )
-from services.agente_operador_service import escanear_y_registrar_alertas
+from services.agente_operador_service import (
+    escanear_y_registrar_alertas,
+    registrar_alerta_cierre_caja_inmediata,
+)
 
 db = m.db
 
@@ -106,3 +109,26 @@ def test_control_center_con_tabla(app_client, tabla_agente):
 def test_escanear_post(app_client, tabla_agente):
     r = app_client.post('/admin/agente-operador/escanear', follow_redirects=True)
     assert r.status_code == 200
+
+
+def test_registrar_alerta_cierre_caja_inmediata(tabla_agente, caja_abierta):
+    caja = caja_abierta
+    caja.estado = 'Cerrada'
+    caja.fecha_cierre = datetime.now()
+    caja.diferencia_cierre = 12500
+    caja.monto_teorico_cierre = 100000
+    caja.monto_contado_cierre = 112500
+    db.session.commit()
+
+    res = registrar_alerta_cierre_caja_inmediata(caja.id)
+    assert res.get('ok') is True
+    assert res.get('creada') is True
+
+    alerta = m.AgenteEjecucion.query.filter_by(
+        dedupe_key=f'operador:caja_descuadre:{caja.id}',
+    ).first()
+    assert alerta is not None
+    assert alerta.codigo == 'caja_descuadre'
+
+    res2 = registrar_alerta_cierre_caja_inmediata(caja.id)
+    assert res2.get('creada') is False
