@@ -123,3 +123,41 @@ def test_ia_factura_analizar_imagen_mock_openai(app_client, proveedor_test, monk
                     os.remove(os.path.join(_carpeta_docs_recepcion(), nom))
                 except OSError:
                     pass
+
+
+@pytest.mark.smoke
+def test_ia_factura_aplicar_rechaza_nombre_parcial(app_client, proveedor_test, productos_con_stock):
+    from app import db
+
+    prod = productos_con_stock[0]
+    rec = RecepcionCompra(
+        proveedor_id=proveedor_test.id,
+        documento_tipo='Factura',
+        documento_numero='TEST-IA-NO-PARCIAL',
+        usuario_bodega='QA',
+        estado='Pendiente',
+    )
+    db.session.add(rec)
+    db.session.commit()
+    r = app_client.post(
+        f'/recepciones/{rec.id}/ia-factura/aplicar',
+        json={
+            'items': [
+                {
+                    'aplicar': True,
+                    'producto_id': prod.id,
+                    'descripcion_factura': 'Alambre galvanizado',
+                    'cantidad_documento': 10,
+                    'cantidad_recibida': 10,
+                    'match': 'nombre_parcial',
+                    'confirmado_manual': False,
+                }
+            ]
+        },
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get('ok') is True
+    assert data.get('aplicados', 0) == 0
+    assert data.get('errores')
+    assert 'nombre' in (data['errores'][0].get('error') or '').lower()

@@ -9,10 +9,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts._agente_env import cargar_env_local, resolver_database_url  # noqa: E402
+
 import app as m  # noqa: E402
 
 
 def main() -> None:
+    cargar_env_local()
+    if not resolver_database_url():
+        print('Falta DATABASE_URL o NEON_DATABASE_URL en .env.local', file=sys.stderr)
+        raise SystemExit(1)
+
     with m.app.app_context():
         m._asegurar_tabla_agente_ejecuciones()
         from services.agente_operador_service import escanear_y_registrar_alertas

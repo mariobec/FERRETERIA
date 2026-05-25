@@ -1,8 +1,17 @@
 # LhexIA Operador — instalación Ollama en PC Santo Domingo (Windows)
 # Ejecutar en PowerShell como usuario normal (no requiere admin salvo firewall).
+# PC i3 16GB: usar -ModelLite (modelo 3B, más liviano).
+
+param(
+    [switch]$ModelLite
+)
 
 $ErrorActionPreference = "Stop"
-$Model = "qwen2.5:7b-instruct-q4_K_M"
+if ($ModelLite) {
+    $Model = "qwen2.5:3b-instruct-q4_K_M"
+} else {
+    $Model = "qwen2.5:7b-instruct-q4_K_M"
+}
 
 Write-Host "=== LhexIA Operador — setup Ollama ===" -ForegroundColor Cyan
 
@@ -29,9 +38,11 @@ $EnvLocal = Join-Path $Root ".env.local"
 $Lines = @(
     "",
     "# LhexIA Operador v0.2 (generado setup_ollama_sd.ps1)",
+    "AGENTE_OPERADOR_USE_NEON=1",
     "AGENTE_OLLAMA_ENABLED=1",
     "OLLAMA_BASE_URL=http://127.0.0.1:11434",
-    "OLLAMA_MODEL=$Model"
+    "OLLAMA_MODEL=$Model",
+    "OLLAMA_TIMEOUT_SEC=120"
 )
 if (Test-Path $EnvLocal) {
     $content = Get-Content $EnvLocal -Raw
@@ -47,8 +58,14 @@ if (Test-Path $EnvLocal) {
 }
 
 Write-Host ""
-Write-Host "Prueba manual:" -ForegroundColor Cyan
+Write-Host "En .env.local debe existir NEON_DATABASE_URL (misma Neon que Render)." -ForegroundColor Yellow
+Write-Host "AGENTE_OPERADOR_USE_NEON=1 hace que el worker use Neon, no Postgres local." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Diagnóstico:" -ForegroundColor Cyan
 Write-Host "  cd `"$Root`""
+Write-Host "  python scripts/verificar_operador_ollama.py"
+Write-Host ""
+Write-Host "Ciclo completo (scan + enrich):" -ForegroundColor Cyan
 Write-Host "  python scripts/agente_operador_ciclo.py"
 Write-Host ""
 Write-Host "Tarea programada (cada 10 min):" -ForegroundColor Cyan

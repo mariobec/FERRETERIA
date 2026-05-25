@@ -20,26 +20,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
-def _cargar_env():
-    for name in ('.env.local', '.env'):
-        p = ROOT / name
-        if not p.is_file():
-            continue
-        for line in p.read_text(encoding='utf-8').splitlines():
-            line = line.strip()
-            if not line or line.startswith('#') or '=' not in line:
-                continue
-            k, _, v = line.partition('=')
-            k, v = k.strip(), v.strip().strip('"').strip("'")
-            if k and k not in os.environ:
-                os.environ[k] = v
+from scripts._agente_env import cargar_env_local, resolver_database_url  # noqa: E402
 
 
 def main() -> None:
-    _cargar_env()
-    if not os.environ.get('DATABASE_URL') and os.environ.get('NEON_DATABASE_URL'):
-        os.environ['DATABASE_URL'] = os.environ['NEON_DATABASE_URL']
+    cargar_env_local()
+    if not resolver_database_url():
+        print('Falta DATABASE_URL o NEON_DATABASE_URL en .env.local', file=sys.stderr)
+        raise SystemExit(1)
     os.environ.setdefault('AGENTE_OLLAMA_ENABLED', '1')
 
     import app as m  # noqa: E402

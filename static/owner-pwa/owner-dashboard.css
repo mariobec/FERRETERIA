@@ -1032,6 +1032,54 @@ body.owner-guardian-shell .toast.text-bg-primary {
   background: rgba(244, 63, 94, 0.08);
 }
 
+.owner-guardian-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fecdd3;
+  background: linear-gradient(90deg, rgba(244, 63, 94, 0.28), rgba(251, 146, 60, 0.12));
+  border: 2px solid rgba(244, 63, 94, 0.65);
+  box-shadow: 0 0 20px rgba(244, 63, 94, 0.25);
+}
+
+.owner-guardian-alert-banner--pulse {
+  animation: owner-guardian-banner-pulse 1.1s ease-in-out 5;
+}
+
+.owner-guardian-alert-banner-icon {
+  font-size: 1.15rem;
+  color: #fb7185;
+}
+
+.owner-guardian-ia--flash {
+  animation: owner-guardian-ia-flash 0.55s ease-in-out 6;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.55);
+}
+
+.owner-guardian-status-ring--pulse {
+  animation: owner-guardian-ring-pulse 1s ease-in-out 8;
+}
+
+@keyframes owner-guardian-banner-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.88; transform: scale(1.02); }
+}
+
+@keyframes owner-guardian-ia-flash {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.35); }
+}
+
+@keyframes owner-guardian-ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.5); }
+  50% { box-shadow: 0 0 0 12px rgba(244, 63, 94, 0); }
+}
+
 .owner-guardian-ia-icon {
   color: #818cf8;
   font-size: 1.1rem;

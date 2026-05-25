@@ -76,6 +76,19 @@ def _sucursal_label_default() -> str:
     ).strip()
 
 
+def guardian_suprimir_alertas_stock() -> bool:
+    """
+    Piloto / demo: oculta semáforo INV y mensajes de quiebre por catálogo masivo en Neon.
+    No afecta alertas Operador (caja/vales) en agente_ejecuciones.
+    """
+    return (os.getenv('OWNER_GUARDIAN_DEMO_LIMPIO') or '').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+        'on',
+    )
+
+
 def _caja_pertenece_sucursal(caja, sucursal_label: str) -> bool:
     """Heurística sucursal hasta modelo multi-sucursal en Caja."""
     label = (sucursal_label or '').strip().upper()
@@ -380,6 +393,18 @@ def _tarjeta_caja(
 
 def _tarjeta_inventario(*, perfil: PerfilGuardian) -> dict[str, Any]:
     from app import Producto
+
+    if guardian_suprimir_alertas_stock():
+        sucursal = perfil.sucursal_label or _sucursal_label_default()
+        return {
+            'estado': 'verde',
+            'titulo': 'Inventario: OK',
+            'mensaje': f'Vista piloto sin alertas de stock ({sucursal}).',
+            'timestamp': 'Ahora',
+            'accion_requerida': False,
+            'tipo_accion': None,
+            'skus_bajo_minimo': 0,
+        }
 
     bajo = Producto.query.filter(Producto.stock < 5, Producto.activo.is_(True)).count()
     if bajo >= 15:
@@ -720,6 +745,14 @@ def _consolidado_financiero(
     }
 
 
+def _texto_copiloto_enriquecido(feed_preview: list[dict[str, Any]] | None) -> str:
+    """Un solo bloque Ollama (evita repetir caja + feed + consolidado)."""
+    for item in feed_preview or []:
+        if item.get('enriquecido') and (item.get('mensaje') or '').strip():
+            return (item['mensaje'] or '').strip()[:480]
+    return ''
+
+
 def _mensaje_ia(
     *,
     perfil: PerfilGuardian,
@@ -732,11 +765,10 @@ def _mensaje_ia(
     if perfil.codigo == 'mock_dueno':
         partes.append('Modo demostración Guardián.')
 
-    # Priorizar texto enriquecido del Operador (Ollama local) si existe en el feed.
-    for item in feed_preview or []:
-        if item.get('enriquecido') and (item.get('mensaje') or '').strip():
-            partes.append((item['mensaje'] or '').strip()[:400])
-            break
+    enrich = _texto_copiloto_enriquecido(feed_preview)
+    if enrich:
+        partes.append(enrich)
+        return ' '.join(p.strip() for p in partes if p).strip()[:600]
 
     est_caja = tarjeta_caja.get('estado', 'verde')
     if est_caja == 'rojo':
@@ -752,17 +784,20 @@ def _mensaje_ia(
                     f"Prioridad: revisar desfalco consolidado de "
                     f"{consolidado['descuadre_acumulado_fmt']} en la red."
                 )
-        partes.append(tarjeta_caja.get('mensaje') or 'Alerta crítica de caja.')
+        msg_caja = (tarjeta_caja.get('mensaje') or 'Alerta crítica de caja.').strip()
+        if msg_caja and msg_caja not in ' '.join(partes):
+            partes.append(msg_caja)
     elif est_caja == 'amarillo':
         partes.append(tarjeta_caja.get('mensaje') or 'Caja requiere supervisión.')
     else:
         partes.append('Caja estable.')
 
     est_inv = tarjeta_inventario.get('estado', 'verde')
-    if est_inv == 'rojo':
-        partes.append(tarjeta_inventario.get('mensaje') or 'Inventario crítico.')
-    elif est_inv == 'amarillo':
-        partes.append('Inventario con SKUs bajo mínimo.')
+    if not guardian_suprimir_alertas_stock():
+        if est_inv == 'rojo':
+            partes.append(tarjeta_inventario.get('mensaje') or 'Inventario crítico.')
+        elif est_inv == 'amarillo':
+            partes.append('Inventario con SKUs bajo mínimo.')
     elif perfil.alcance == 'sucursal' and perfil.sucursal_label:
         partes.append(f"Vigilancia acotada a {perfil.sucursal_label}.")
 
@@ -824,7 +859,9 @@ def construir_owner_dashboard(
         feed_preview=feed,
     )
     if t_cred['estado'] in ('rojo', 'amarillo'):
-        mensaje_ia = (mensaje_ia + ' ' + (t_cred.get('mensaje') or '')).strip()[:600]
+        cred_msg = (t_cred.get('mensaje') or '').strip()
+        if cred_msg and cred_msg not in mensaje_ia:
+            mensaje_ia = (mensaje_ia + ' ' + cred_msg).strip()[:600]
 
     return {
         'version': 'guardian_v3',

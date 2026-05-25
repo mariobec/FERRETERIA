@@ -9,9 +9,16 @@ import requests
 
 _log = logging.getLogger(__name__)
 
-OLLAMA_TIMEOUT_SEC = 30
+def _ollama_timeout_sec() -> int:
+    try:
+        return max(30, min(int((os.getenv('OLLAMA_TIMEOUT_SEC') or '120').strip() or '120'), 300))
+    except ValueError:
+        return 120
+
+
+OLLAMA_TIMEOUT_SEC = 120
 DEFAULT_BASE_URL = 'http://127.0.0.1:11434'
-DEFAULT_MODEL = 'qwen2.5:7b'
+DEFAULT_MODEL = 'qwen2.5:7b-instruct-q4_K_M'
 
 
 def ollama_habilitado() -> bool:
@@ -27,13 +34,26 @@ def ollama_model() -> str:
     return (os.getenv('OLLAMA_MODEL') or DEFAULT_MODEL).strip() or DEFAULT_MODEL
 
 
-def ollama_disponible() -> bool:
-    """Ping liviano; no lanza excepciones."""
+def ollama_disponible(*, requiere_modelo: bool = True) -> bool:
+    """Ping liviano; opcionalmente exige que el modelo configurado esté descargado."""
     if not ollama_habilitado():
         return False
     try:
         r = requests.get(f'{ollama_base_url()}/api/tags', timeout=5)
-        return r.status_code == 200
+        if r.status_code != 200:
+            return False
+        if not requiere_modelo:
+            return True
+        data = r.json()
+        want = ollama_model().lower()
+        names = []
+        for m in data.get('models') or []:
+            n = (m.get('name') or '').strip().lower()
+            if n:
+                names.append(n)
+        if not names:
+            return False
+        return any(n == want or n.startswith(want + ':') or want.startswith(n.split(':')[0]) for n in names)
     except Exception as ex:
         _log.debug('Ollama no disponible: %s', ex)
         return False
@@ -44,7 +64,7 @@ def generar_chat(
     system: str,
     user: str,
     model: str | None = None,
-    timeout: int = OLLAMA_TIMEOUT_SEC,
+    timeout: int | None = None,
 ) -> dict[str, Any]:
     """
     POST /api/chat. Retorna siempre dict:
@@ -54,6 +74,8 @@ def generar_chat(
         return {'ok': False, 'texto': '', 'tokens_total': 0, 'error': 'ollama_disabled', 'modelo': ''}
 
     modelo = (model or ollama_model()).strip()
+    if timeout is None:
+        timeout = _ollama_timeout_sec()
     url = f'{ollama_base_url()}/api/chat'
     payload = {
         'model': modelo,

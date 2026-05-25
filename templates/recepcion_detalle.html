@@ -154,7 +154,9 @@
       {% else %}
       <p class="small text-muted mb-3">
         Usa OpenAI (<code>gpt-4o-mini</code>, visión) sobre el PDF o imagen adjunto (factura o guía de despacho).
-        Revise el emparejamiento con su catálogo antes de aplicar. PDF: <code>PyMuPDF</code> en el servidor (incluido en <code>requirements.txt</code>).
+        Revise cada línea antes de aplicar. Solo se aplican en automático las filas con match por <strong>código</strong>.
+        Si dice <span class="badge bg-warning text-dark">nombre_parcial</span>, use <strong>Buscar</strong> por descripción y confirme el producto.
+        PDF: <code>PyMuPDF</code> en el servidor (incluido en <code>requirements.txt</code>).
         En Render, el archivo queda en disco del servicio: tras un redeploy sin disco persistente puede faltar el adjunto — vuelva a subir el documento si el análisis dice «no encontrado».
       </p>
       <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -179,6 +181,7 @@
               <th class="text-end" style="width:5rem">Cant. doc.</th>
               <th class="text-end" style="width:5rem">Cant. rec.</th>
               <th class="text-end" style="width:7rem">Costo u.</th>
+              <th class="text-center" style="min-width:7rem">Acción</th>
             </tr>
           </thead>
           <tbody id="iaFacturaTbody"></tbody>
@@ -253,6 +256,29 @@
 </div>
 
 {% if recepcion.estado in ('Pendiente', 'Pendiente de Items', 'Incompleta') %}
+<div class="modal fade" id="modalIaBuscarProd" tabindex="-1" aria-labelledby="modalIaBuscarProdLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalIaBuscarProdLabel"><i class="fas fa-search me-2"></i>Buscar producto por descripción</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-2">Texto en el documento:</p>
+        <p class="small fw-semibold border rounded p-2 bg-light mb-3" id="modalIaBuscarDesc"></p>
+        <label class="form-label fw-bold" for="modalIaBuscarSelect">Producto en catálogo</label>
+        <select id="modalIaBuscarSelect" class="form-select" style="width:100%"></select>
+        <p class="small text-muted mt-2 mb-0">Escriba al menos 2 caracteres del nombre o código (barras, interno, ref.).</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnIaBuscarConfirmar">
+          <i class="fas fa-check me-1"></i> Usar este producto
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal fade" id="modalBarrasRecep" tabindex="-1" aria-labelledby="modalBarrasRecepLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -319,15 +345,160 @@
   (function () {
     var analizarUrl = "{{ url_for('api_ia_factura_analizar', rid=recepcion.id) }}";
     var aplicarUrl = "{{ url_for('api_ia_factura_aplicar', rid=recepcion.id) }}";
+    var buscarUrl = "{{ url_for('buscar_producto') }}";
     var $btnA = $("#btnIaAnalizarFactura");
     var $btnP = $("#btnIaAplicarSeleccion");
     if (!$btnA.length) return;
 
     var ultimosItems = [];
+    var iaBuscarIdx = null;
+    var modalIaBuscarBs = null;
+
+    function matchSeguro(m) {
+      return m === "codigo" || m === "codigo_chilemat" || m === "codigo_interno";
+    }
+
+    function badgeMatchClass(m) {
+      if (matchSeguro(m)) return "bg-success";
+      if (m === "nombre_parcial" || m === "nombre") return "bg-warning text-dark";
+      return "bg-secondary";
+    }
 
     function setStatus(html, cls) {
-      $("#iaFacturaStatus").removeClass("text-danger text-success text-muted").addClass(cls || "text-muted").html(html || "");
+      $("#iaFacturaStatus").removeClass("text-danger text-success text-muted text-warning").addClass(cls || "text-muted").html(html || "");
     }
+
+    function htmlProductoCelda(row) {
+      if (!row.producto_id) return '<span class="text-danger">Sin match</span>';
+      var nom = row.producto_nombre || ("#" + row.producto_id);
+      var cod = row.producto_codigo || "";
+      var manual = row.confirmado_manual ? ' <span class="badge bg-info text-dark">manual</span>' : "";
+      return nom + " <small class='text-muted'>(" + cod + ")</small>" + manual;
+    }
+
+    function htmlCheckbox(row, idx) {
+      if (!row.producto_id) {
+        return '<input type="checkbox" class="form-check-input" disabled title="Sin producto">';
+      }
+      var seguro = matchSeguro(row.match) || row.confirmado_manual;
+      var attrs = ' class="form-check-input ia-row-chk" data-idx="' + idx + '"';
+      if (!seguro) {
+        return '<input type="checkbox"' + attrs + ' disabled title="Use Buscar y confirme el producto">';
+      }
+      return '<input type="checkbox"' + attrs + ' checked>';
+    }
+
+    function costoTitle(row) {
+      if (row.costo_origen === "factura") return "Precio leído del documento";
+      if (row.costo_origen === "catalogo") return "Costo actual del producto (factura sin precio)";
+      if (row.costo_origen === "historial") return "Último costo en bitácora de compras";
+      return "Sin precio en documento ni en catálogo";
+    }
+
+    function pintarFilaIa(row, idx) {
+      var cost = row.precio_unitario != null ? row.precio_unitario : "";
+      var match = row.match || "—";
+      var tr = $("<tr>").attr("data-idx", idx);
+      tr.append($("<td>").html(htmlCheckbox(row, idx)));
+      tr.append($("<td>").text(row.descripcion_factura || ""));
+      tr.append($("<td>").text(row.codigo_factura || "—"));
+      tr.append($("<td>").append($("<span class='badge'>").addClass(badgeMatchClass(row.match)).text(match)));
+      tr.append($("<td class='ia-col-producto'>").html(htmlProductoCelda(row)));
+      tr.append($("<td class='text-end'>").html('<input type="number" min="0" class="form-control form-control-sm ia-cdoc text-end" data-idx="' + idx + '" value="' + (row.cantidad_documento || 0) + '">'));
+      tr.append($("<td class='text-end'>").html('<input type="number" min="1" class="form-control form-control-sm ia-cfis text-end" data-idx="' + idx + '" value="' + (row.cantidad_recibida || 1) + '">'));
+      tr.append($("<td class='text-end'>").html(
+        '<input type="number" step="0.01" min="0" class="form-control form-control-sm ia-costo text-end" data-idx="' + idx +
+        '" value="' + cost + '" placeholder="—" title="' + costoTitle(row) + '">'
+      ));
+      tr.append($("<td class='text-center'>").html(
+        '<button type="button" class="btn btn-sm btn-outline-primary btn-ia-buscar" data-idx="' + idx + '" title="Buscar en catálogo">' +
+        '<i class="fas fa-search"></i> Buscar</button>'
+      ));
+      return tr;
+    }
+
+    function refrescarFilaIa(idx) {
+      var row = ultimosItems[idx];
+      if (!row) return;
+      var $tr = $('#iaFacturaTbody tr[data-idx="' + idx + '"]');
+      if (!$tr.length) return;
+      $tr.find("td").eq(0).html(htmlCheckbox(row, idx));
+      $tr.find(".ia-col-producto").html(htmlProductoCelda(row));
+      $tr.find("td").eq(3).empty().append($("<span class='badge'>").addClass(badgeMatchClass(row.match)).text(row.match || "—"));
+    }
+
+    function initModalIaBuscar() {
+      var $sel = $("#modalIaBuscarSelect");
+      if ($sel.data("select2")) return;
+      $sel.select2({
+        theme: "bootstrap-5",
+        dropdownParent: $("#modalIaBuscarProd"),
+        placeholder: "Buscar por nombre o código…",
+        allowClear: true,
+        minimumInputLength: 2,
+        width: "100%",
+        ajax: {
+          url: buscarUrl,
+          dataType: "json",
+          delay: 300,
+          data: function (params) {
+            return { q: params.term, solo_vendibles: "0", origen: "recepcion" };
+          },
+          processResults: function (data) {
+            return {
+              results: (data.results || []).map(function (r) {
+                return { id: r.producto_id, text: r.text };
+              })
+            };
+          }
+        }
+      });
+    }
+
+    $(document).on("click", ".btn-ia-buscar", function () {
+      iaBuscarIdx = parseInt($(this).data("idx"), 10);
+      if (isNaN(iaBuscarIdx) || !ultimosItems[iaBuscarIdx]) return;
+      var row = ultimosItems[iaBuscarIdx];
+      $("#modalIaBuscarDesc").text(row.descripcion_factura || row.codigo_factura || "—");
+      initModalIaBuscar();
+      var $sel = $("#modalIaBuscarSelect");
+      $sel.val(null).trigger("change");
+      var q = (row.descripcion_factura || row.codigo_factura || "").trim();
+      if (q.length >= 2) {
+        $.getJSON(buscarUrl, { q: q, solo_vendibles: "0", origen: "recepcion" })
+          .done(function (data) {
+            var results = data.results || [];
+            if (!results.length) return;
+            var r0 = results[0];
+            var opt = new Option(r0.text, r0.producto_id, true, true);
+            $sel.append(opt).trigger("change");
+          });
+      }
+      if (!modalIaBuscarBs) {
+        modalIaBuscarBs = new bootstrap.Modal(document.getElementById("modalIaBuscarProd"));
+      }
+      modalIaBuscarBs.show();
+    });
+
+    $("#btnIaBuscarConfirmar").on("click", function () {
+      if (iaBuscarIdx == null || !ultimosItems[iaBuscarIdx]) return;
+      var sel = $("#modalIaBuscarSelect").select2("data");
+      if (!sel || !sel.length || !sel[0].id) {
+        setStatus("Seleccione un producto del catálogo.", "text-danger");
+        return;
+      }
+      var pid = parseInt(sel[0].id, 10);
+      var texto = sel[0].text || "";
+      var m = texto.match(/\(([^)]+)\)\s*$/);
+      ultimosItems[iaBuscarIdx].producto_id = pid;
+      ultimosItems[iaBuscarIdx].producto_nombre = texto.replace(/\s*\([^)]+\)\s*$/, "").trim();
+      ultimosItems[iaBuscarIdx].producto_codigo = m ? m[1] : "";
+      ultimosItems[iaBuscarIdx].match = "manual";
+      ultimosItems[iaBuscarIdx].confirmado_manual = true;
+      refrescarFilaIa(iaBuscarIdx);
+      if (modalIaBuscarBs) modalIaBuscarBs.hide();
+      setStatus("Producto confirmado en fila " + (iaBuscarIdx + 1) + ". Puede marcar y aplicar.", "text-success");
+    });
 
     $btnA.on("click", function () {
       setStatus('<i class="fas fa-spinner fa-spin me-1"></i> Analizando… puede tardar hasta 1–2 min.', "text-muted");
@@ -348,31 +519,15 @@
             setStatus("La IA no devolvió líneas de producto. Pruebe otra foto, más nitidez o más páginas del PDF.", "text-warning");
             return;
           }
-          setStatus("Se encontraron " + ultimosItems.length + " línea(s). Revise el emparejamiento y cantidades antes de aplicar.", "text-success");
+          var dudosas = ultimosItems.filter(function (r) {
+            return r.producto_id && !matchSeguro(r.match);
+          }).length;
+          var msg = "Se encontraron " + ultimosItems.length + " línea(s). Solo se marcan automáticamente las filas con match por código.";
+          if (dudosas) msg += " <strong>" + dudosas + "</strong> requieren «Buscar» antes de aplicar.";
+          setStatus(msg, "text-success");
           var $tb = $("#iaFacturaTbody").empty();
           ultimosItems.forEach(function (row, idx) {
-            var pid = row.producto_id;
-            var chk = pid ? '<input type="checkbox" class="form-check-input ia-row-chk" data-idx="' + idx + '"' + (pid ? " checked" : " disabled") + ">" : '<input type="checkbox" class="form-check-input" disabled>';
-            var match = row.match || "—";
-            var pn = row.producto_nombre ? (row.producto_nombre + " <small class='text-muted'>(" + (row.producto_codigo || "") + ")</small>") : '<span class="text-danger">Sin match</span>';
-            var cost = row.precio_unitario != null ? row.precio_unitario : "";
-            var costTitle = "Sin precio en documento ni en catálogo";
-            if (row.costo_origen === "factura") costTitle = "Precio leído del documento";
-            else if (row.costo_origen === "catalogo") costTitle = "Costo actual del producto (factura sin precio)";
-            else if (row.costo_origen === "historial") costTitle = "Último costo en bitácora de compras";
-            var tr = $("<tr>").attr("data-idx", idx);
-            tr.append($("<td>").html(chk));
-            tr.append($("<td>").text(row.descripcion_factura || ""));
-            tr.append($("<td>").text(row.codigo_factura || "—"));
-            tr.append($("<td>").append($("<span class='badge bg-secondary'>").text(match)));
-            tr.append($("<td>").html(pn));
-            tr.append($("<td class='text-end'>").html('<input type="number" min="0" class="form-control form-control-sm ia-cdoc text-end" data-idx="' + idx + '" value="' + (row.cantidad_documento || 0) + '">'));
-            tr.append($("<td class='text-end'>").html('<input type="number" min="1" class="form-control form-control-sm ia-cfis text-end" data-idx="' + idx + '" value="' + (row.cantidad_recibida || 1) + '">'));
-            tr.append($("<td class='text-end'>").html(
-              '<input type="number" step="0.01" min="0" class="form-control form-control-sm ia-costo text-end" data-idx="' + idx +
-              '" value="' + cost + '" placeholder="—" title="' + costTitle + '">'
-            ));
-            $tb.append(tr);
+            $tb.append(pintarFilaIa(row, idx));
           });
           $("#iaFacturaTablaWrap").removeClass("d-none");
         })
@@ -393,22 +548,26 @@
       var payload = { autorizar_margen_bajo: $("#iaAutorizarMargen").prop("checked"), items: [] };
       $(".ia-row-chk:checked").each(function () {
         var idx = parseInt($(this).data("idx"), 10);
-        if (isNaN(idx) || !ultimosItems[idx] || !ultimosItems[idx].producto_id) return;
+        var it = ultimosItems[idx];
+        if (isNaN(idx) || !it || !it.producto_id) return;
+        if (!matchSeguro(it.match) && !it.confirmado_manual) return;
         var cdoc = parseInt($('.ia-cdoc[data-idx="' + idx + '"]').val(), 10) || 0;
         var cfis = parseInt($('.ia-cfis[data-idx="' + idx + '"]').val(), 10) || 0;
         var costRaw = $('.ia-costo[data-idx="' + idx + '"]').val();
         var cost = costRaw === "" || costRaw == null ? null : parseFloat(costRaw);
         payload.items.push({
           aplicar: true,
-          producto_id: ultimosItems[idx].producto_id,
-          descripcion_factura: ultimosItems[idx].descripcion_factura,
+          producto_id: it.producto_id,
+          descripcion_factura: it.descripcion_factura,
           cantidad_documento: cdoc,
           cantidad_recibida: cfis,
-          costo_unitario: cost
+          costo_unitario: cost,
+          match: it.match,
+          confirmado_manual: !!it.confirmado_manual
         });
       });
       if (!payload.items.length) {
-        setStatus("Marque al menos una línea con producto encontrado.", "text-danger");
+        setStatus("Marque líneas con match por código o confirme con «Buscar».", "text-danger");
         return;
       }
       setStatus('<i class="fas fa-spinner fa-spin me-1"></i> Aplicando ' + payload.items.length + " línea(s)…", "text-muted");

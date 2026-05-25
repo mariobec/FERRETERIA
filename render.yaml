@@ -49,6 +49,9 @@ services:
       # Enriquecimiento Ollama solo PC sucursal (AGENTE_OLLAMA_ENABLED=0 en Render).
       - key: AGENTE_OLLAMA_ENABLED
         value: "0"
+      # Piloto SD: ocultar miles de SKUs bajo mínimo en Guardián (catálogo demo Neon).
+      - key: OWNER_GUARDIAN_DEMO_LIMPIO
+        value: "1"
       # IA Compras / facturas / foto POS (piloto SD). Créditos prepago en platform.openai.com
       - key: OPENAI_API_KEY
         sync: false

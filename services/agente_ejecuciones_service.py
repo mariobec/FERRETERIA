@@ -234,6 +234,62 @@ def obtener_por_id(registro_id: int):
     return AgenteEjecucion.query.get(registro_id)
 
 
+def limpiar_alertas_operativas(
+    *,
+    modo: str = 'cerrar',
+    solo_agente: str | None = None,
+    usuario: str = 'admin_limpieza',
+) -> dict[str, int]:
+    """
+    Vacía el feed Guardián: cierra o borra filas tipo alerta_operativa (abierta/reconocida).
+    modo: 'cerrar' | 'borrar'
+    """
+    AgenteEjecucion = _model()
+    db = _db()
+    if not asegurar_tabla():
+        return {'ok': False, 'cerradas': 0, 'borradas': 0, 'antes_abiertas': 0}
+
+    q = AgenteEjecucion.query.filter(
+        AgenteEjecucion.tipo == TIPO_ALERTA,
+        AgenteEjecucion.estado.in_((EST_ALERTA_ABIERTA, EST_ALERTA_RECONOCIDA)),
+    )
+    if solo_agente:
+        q = q.filter(AgenteEjecucion.agente_nombre == solo_agente[:40])
+
+    filas = q.all()
+    antes_abiertas = contar_alertas_abiertas()
+    cerradas = 0
+    borradas = 0
+    modo = (modo or 'cerrar').strip().lower()
+
+    if modo == 'borrar':
+        for row in filas:
+            db.session.delete(row)
+            borradas += 1
+    else:
+        ahora = datetime.now()
+        for row in filas:
+            row.estado = EST_ALERTA_CERRADA
+            row.updated_at = ahora
+            row.reconocido_por = (usuario or '')[:120]
+            row.fecha_reconocido = ahora
+            cerradas += 1
+
+    try:
+        db.session.commit()
+        return {
+            'ok': True,
+            'modo': modo,
+            'cerradas': cerradas,
+            'borradas': borradas,
+            'antes_abiertas': antes_abiertas,
+            'restantes_abiertas': contar_alertas_abiertas(),
+        }
+    except Exception:
+        db.session.rollback()
+        return {'ok': False, 'cerradas': 0, 'borradas': 0, 'antes_abiertas': antes_abiertas}
+
+
 def transicion_alerta(registro_id: int, nuevo_estado: str, usuario: str) -> bool:
     row = obtener_por_id(registro_id)
     if not row or row.tipo != TIPO_ALERTA:

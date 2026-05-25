@@ -17,7 +17,7 @@ from services.agente_ejecuciones_service import (
     obtener_por_id,
     parse_payload_json,
 )
-from services.ollama_client import OLLAMA_TIMEOUT_SEC, generar_chat, ollama_disponible, ollama_model
+from services.ollama_client import generar_chat, ollama_disponible, ollama_model
 
 _log = logging.getLogger(__name__)
 
@@ -231,7 +231,7 @@ def enriquecer_alerta_operativa(registro_id: int) -> dict[str, Any]:
     try:
         contexto = empaquetar_contexto_alerta(row)
         system, user = construir_prompt_enriquecimiento(row, contexto)
-        chat = generar_chat(system=system, user=user, timeout=OLLAMA_TIMEOUT_SEC)
+        chat = generar_chat(system=system, user=user)
         if not chat.get('ok'):
             return {
                 'ok': False,

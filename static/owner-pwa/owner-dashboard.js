@@ -61,6 +61,151 @@
   var pollTimer = null;
   var lastMeta = {};
   var boundSlots = {};
+  var lastAlertCount = null;
+  var lastFeedSig = '';
+  var audioCtx = null;
+  var audioUnlocked = false;
+  var alertBanner = document.getElementById('ownerGuardianAlertBanner');
+  var alertBannerText = document.getElementById('ownerGuardianAlertBannerText');
+
+  function unlockAlertAudio() {
+    audioUnlocked = true;
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        return audioCtx.resume();
+      }
+      return Promise.resolve();
+    } catch (e) {
+      return Promise.resolve();
+    }
+  }
+
+  function beepOnce(freq, durationSec, gainVal, delaySec) {
+    if (!audioCtx) return;
+    var t0 = audioCtx.currentTime + (delaySec || 0);
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = 'square';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gainVal, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + durationSec);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start(t0);
+    o.stop(t0 + durationSec + 0.05);
+  }
+
+  /** Beep audible + vibración (iOS: primer toque en pantalla desbloquea audio). */
+  function playAlertSound(critical) {
+    unlockAlertAudio().then(function () {
+      try {
+        if (audioCtx) {
+          var g = critical ? 0.32 : 0.22;
+          beepOnce(critical ? 880 : 740, 0.18, g, 0);
+          if (critical) {
+            beepOnce(1046, 0.2, g * 0.9, 0.22);
+            beepOnce(880, 0.15, g * 0.75, 0.48);
+          }
+        }
+      } catch (e2) { /* ignore */ }
+    });
+    if (navigator.vibrate) {
+      try {
+        navigator.vibrate(
+          critical ? [380, 100, 380, 100, 420, 80, 300] : [200, 80, 200]
+        );
+      } catch (e3) { /* ignore */ }
+    }
+  }
+
+  function showVisualAlert(data) {
+    var ab = data.meta && typeof data.meta.alertas_abiertas === 'number'
+      ? data.meta.alertas_abiertas
+      : 0;
+    var critico = data.status_global === 'red' || data.status_caja === 'red';
+    var activo = critico || ab > 0;
+
+    if (alertBanner) {
+      if (activo) {
+        alertBanner.classList.remove('d-none');
+        alertBanner.classList.add('owner-guardian-alert-banner--pulse');
+        if (alertBannerText) {
+          alertBannerText.textContent =
+            (ab > 0 ? ab + ' alerta(s) operador — ' : '') + 'Toque Pulso operativo abajo';
+        }
+      } else {
+        alertBanner.classList.add('d-none');
+        alertBanner.classList.remove('owner-guardian-alert-banner--pulse');
+      }
+    }
+
+    if (activo) {
+      if (iaBox) {
+        iaBox.classList.add('owner-guardian-ia--flash');
+        window.setTimeout(function () {
+          iaBox.classList.remove('owner-guardian-ia--flash');
+        }, 7000);
+      }
+      if (statusRing && critico) {
+        statusRing.classList.add('owner-guardian-status-ring--pulse');
+        window.setTimeout(function () {
+          statusRing.classList.remove('owner-guardian-status-ring--pulse');
+        }, 7000);
+      }
+    }
+  }
+
+  function feedSignature(items) {
+    if (!items || !items.length) return '';
+    return items.map(function (it) {
+      return (it.id || '') + ':' + (it.codigo || '') + ':' + (it.titulo || '').slice(0, 40);
+    }).join('|');
+  }
+
+  function triggerAlertFeedback(data, playSound) {
+    var ab = data.meta && typeof data.meta.alertas_abiertas === 'number'
+      ? data.meta.alertas_abiertas
+      : 0;
+    showVisualAlert(data);
+    if (playSound && (ab > 0 || data.status_global === 'red' || data.status_caja === 'red')) {
+      playAlertSound(data.status_global === 'red' || data.status_caja === 'red');
+    }
+  }
+
+  function maybeNotifyNewAlerts(data) {
+    var ab = data.meta && typeof data.meta.alertas_abiertas === 'number'
+      ? data.meta.alertas_abiertas
+      : 0;
+    var sig = feedSignature(data.feed_preview || []);
+    var critico = data.status_global === 'red' || data.status_caja === 'red';
+    var feedTieneCritico = (data.feed_preview || []).some(function (it) {
+      return (it.severidad || '').toLowerCase() === 'critical';
+    });
+    var nuevo = false;
+    if (lastAlertCount === null && ab > 0) nuevo = true;
+    if (lastAlertCount !== null && ab > lastAlertCount) nuevo = true;
+    if (lastFeedSig && sig && sig !== lastFeedSig && (critico || feedTieneCritico)) nuevo = true;
+    lastAlertCount = ab;
+    lastFeedSig = sig;
+    triggerAlertFeedback(data, nuevo && audioUnlocked);
+  }
+
+  if (root) {
+    root.addEventListener(
+      'touchstart',
+      function () { unlockAlertAudio(); },
+      { passive: true, capture: true }
+    );
+    root.addEventListener(
+      'click',
+      function () { unlockAlertAudio(); },
+      { passive: true, capture: true }
+    );
+  }
 
   function bootstrapHeroFromSsr() {
     var fmt = (root.getAttribute('data-ventas-fmt') || '').trim();
@@ -388,6 +533,7 @@
     setLiveStatus(data.status_global !== 'red', liveTxt);
 
     document.title = 'Guardián · ' + (data.status_global === 'red' ? 'Alerta' : 'LhexIA');
+    showVisualAlert(data);
   }
 
   function fetchDashboard() {
@@ -413,6 +559,7 @@
         renderMiniSemaforos(data);
         lastMeta = data.meta || {};
         applyGuardianPayload(data);
+        maybeNotifyNewAlerts(data);
       })
       .catch(function () {
         setLiveStatus(false, 'Error al cargar');
@@ -421,7 +568,14 @@
 
   function onRefreshClick(e) {
     if (e) e.preventDefault();
-    fetchDashboard();
+    unlockAlertAudio().then(function () {
+      fetchDashboard().then(function () {
+        var ab = lastMeta && lastMeta.alertas_abiertas;
+        if (audioUnlocked && ab > 0) {
+          playAlertSound(true);
+        }
+      });
+    });
   }
 
   if (btnRefresh) btnRefresh.addEventListener('click', onRefreshClick);

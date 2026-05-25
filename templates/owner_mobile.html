@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-2">
+<link rel="stylesheet" href="{{ url_for('static', filename='owner-pwa/owner-dashboard.css') }}?v=guardian-mobile-4">
 {% endblock %}
 
 {% block content %}
@@ -103,6 +103,10 @@
         <div id="ownerGuardianConsolidadoMonto" class="owner-guardian-consolidado-monto">—</div>
         <div id="ownerGuardianConsolidadoDetalle" class="owner-guardian-consolidado-detalle"></div>
       </div>
+    </div>
+    <div id="ownerGuardianAlertBanner" class="owner-guardian-alert-banner d-none" role="alert" aria-live="assertive">
+      <i class="fas fa-bell owner-guardian-alert-banner-icon" aria-hidden="true"></i>
+      <span id="ownerGuardianAlertBannerText">Alerta operativa — revise Pulso operativo</span>
     </div>
     <div id="ownerGuardianIa" class="owner-guardian-ia d-none" role="status" aria-live="polite">
       <div class="owner-guardian-ia-head">
@@ -262,5 +266,5 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='owner-pwa/owner-install.js') }}?v=owner-pwa-5"></script>
-<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-mobile-2"></script>
+<script src="{{ url_for('static', filename='owner-pwa/owner-dashboard.js') }}?v=guardian-mobile-4"></script>
 {% endblock %}

@@ -6910,73 +6910,78 @@ def owner_mobile():
     ventas_hoy = kpis['ventas_hoy_clp']
     transacciones_hoy = kpis['transacciones_hoy']
     var_ventas_hoy = kpis.get('var_vs_ayer_pct')
-    bajo_stock = Producto.query.filter(Producto.stock < 5, Producto.activo == True).count()
+    from services.owner_dashboard_service import guardian_suprimir_alertas_stock
+
+    bajo_stock = 0
     dinero_credito = db.session.query(db.func.sum(Cliente.saldo_deudor)).scalar() or 0
     oc_pendientes = 0
     if _tablas_orden_compra_existen():
         oc_estados_pend = ('Borrador', 'Enviada', 'Parcial')
         oc_pendientes = OrdenCompra.query.filter(OrdenCompra.estado.in_(oc_estados_pend)).count()
 
-    # Predicción simple de quiebre (igual lógica del inicio)
-    d30_inicio = datetime.combine(hoy - timedelta(days=30), datetime.min.time())
-    d7_inicio = datetime.combine(hoy - timedelta(days=7), datetime.min.time())
-    ahora = datetime.combine(hoy + timedelta(days=1), datetime.min.time())
-    mes_actual = hoy.month
-
-    consumo_30 = dict(
-        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
-        .join(Venta, Venta.id == DetalleVenta.id_venta)
-        .filter(Venta.fecha >= d30_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
-        .group_by(DetalleVenta.id_producto)
-        .all()
-    )
-    consumo_7 = dict(
-        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
-        .join(Venta, Venta.id == DetalleVenta.id_venta)
-        .filter(Venta.fecha >= d7_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
-        .group_by(DetalleVenta.id_producto)
-        .all()
-    )
-    d90_inicio = datetime.combine(hoy - timedelta(days=90), datetime.min.time())
-    consumo_90 = dict(
-        db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
-        .join(Venta, Venta.id == DetalleVenta.id_venta)
-        .filter(Venta.fecha >= d90_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
-        .group_by(DetalleVenta.id_producto)
-        .all()
-    )
-
     quiebre_7 = 0
     quiebre_14 = 0
     riesgo_mixto = 0
     compra_sugerida_total = 0
     top_quiebre = []
-    for p in Producto.query.filter(Producto.activo == True).all():
-        c30 = float(consumo_30.get(p.id, 0) or 0)
-        c7 = float(consumo_7.get(p.id, 0) or 0)
-        c90 = float(consumo_90.get(p.id, 0) or 0)
-        base_dia = c30 / 30.0
-        t30 = c30 / 30.0
-        t7 = c7 / 7.0
-        ratio_tend = max(0.70, min(1.35, (t7 / t30))) if t30 > 0 else 1.0
-        factor_est = _factor_estacional_categoria(p.categoria, mes_actual)
-        demanda_dia = base_dia * ratio_tend * factor_est
-        stock_actual = float(p.stock or 0)
-        cobertura = (stock_actual / demanda_dia) if demanda_dia > 0 else 9999
-        sugerido = max(0, int(round((demanda_dia * 30.0) - stock_actual)))
-        compra_sugerida_total += sugerido
-        if demanda_dia <= 0:
-            continue
-        if cobertura <= 7:
-            quiebre_7 += 1
-            top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1), "sugerido": sugerido, "nivel": "CRITICO", "motivo": "Quiebre <= 7 días"})
-        elif cobertura <= 14:
-            quiebre_14 += 1
-            top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1), "sugerido": sugerido, "nivel": "MEDIO", "motivo": "Quiebre 8-14 días"})
-        elif stock_actual < 5 and c90 > 0:
-            riesgo_mixto += 1
-            top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1) if cobertura < 9999 else 9999, "sugerido": sugerido, "nivel": "MIXTO", "motivo": "Stock crítico + rotación reciente"})
-    top_quiebre.sort(key=lambda x: x["cobertura"])
+
+    if not guardian_suprimir_alertas_stock():
+        bajo_stock = Producto.query.filter(Producto.stock < 5, Producto.activo == True).count()
+        # Predicción simple de quiebre (igual lógica del inicio)
+        d30_inicio = datetime.combine(hoy - timedelta(days=30), datetime.min.time())
+        d7_inicio = datetime.combine(hoy - timedelta(days=7), datetime.min.time())
+        ahora = datetime.combine(hoy + timedelta(days=1), datetime.min.time())
+        mes_actual = hoy.month
+
+        consumo_30 = dict(
+            db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+            .join(Venta, Venta.id == DetalleVenta.id_venta)
+            .filter(Venta.fecha >= d30_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+            .group_by(DetalleVenta.id_producto)
+            .all()
+        )
+        consumo_7 = dict(
+            db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+            .join(Venta, Venta.id == DetalleVenta.id_venta)
+            .filter(Venta.fecha >= d7_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+            .group_by(DetalleVenta.id_producto)
+            .all()
+        )
+        d90_inicio = datetime.combine(hoy - timedelta(days=90), datetime.min.time())
+        consumo_90 = dict(
+            db.session.query(DetalleVenta.id_producto, db.func.sum(DetalleVenta.cantidad))
+            .join(Venta, Venta.id == DetalleVenta.id_venta)
+            .filter(Venta.fecha >= d90_inicio, Venta.fecha < ahora, Venta.estado != "Abierta")
+            .group_by(DetalleVenta.id_producto)
+            .all()
+        )
+
+        for p in Producto.query.filter(Producto.activo == True).all():
+            c30 = float(consumo_30.get(p.id, 0) or 0)
+            c7 = float(consumo_7.get(p.id, 0) or 0)
+            c90 = float(consumo_90.get(p.id, 0) or 0)
+            base_dia = c30 / 30.0
+            t30 = c30 / 30.0
+            t7 = c7 / 7.0
+            ratio_tend = max(0.70, min(1.35, (t7 / t30))) if t30 > 0 else 1.0
+            factor_est = _factor_estacional_categoria(p.categoria, mes_actual)
+            demanda_dia = base_dia * ratio_tend * factor_est
+            stock_actual = float(p.stock or 0)
+            cobertura = (stock_actual / demanda_dia) if demanda_dia > 0 else 9999
+            sugerido = max(0, int(round((demanda_dia * 30.0) - stock_actual)))
+            compra_sugerida_total += sugerido
+            if demanda_dia <= 0:
+                continue
+            if cobertura <= 7:
+                quiebre_7 += 1
+                top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1), "sugerido": sugerido, "nivel": "CRITICO", "motivo": "Quiebre <= 7 días"})
+            elif cobertura <= 14:
+                quiebre_14 += 1
+                top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1), "sugerido": sugerido, "nivel": "MEDIO", "motivo": "Quiebre 8-14 días"})
+            elif stock_actual < 5 and c90 > 0:
+                riesgo_mixto += 1
+                top_quiebre.append({"producto": p.nombre, "cobertura": round(cobertura, 1) if cobertura < 9999 else 9999, "sugerido": sugerido, "nivel": "MIXTO", "motivo": "Stock crítico + rotación reciente"})
+        top_quiebre.sort(key=lambda x: x["cobertura"])
 
     return render_template(
         'owner_mobile.html',
@@ -19132,6 +19137,13 @@ def _costo_sugerido_linea_factura(producto, proveedor_id, precio_ia):
     return None, None
 
 
+_MATCH_IA_FACTURA_CODIGO = frozenset({'codigo', 'codigo_chilemat', 'codigo_interno'})
+
+
+def _match_ia_factura_es_seguro(match: str | None) -> bool:
+    return (match or '').strip() in _MATCH_IA_FACTURA_CODIGO
+
+
 def _matchear_producto_linea_factura(codigo_factura, descripcion):
     """Empareja una línea de factura con Producto (código de barra / nombre)."""
     cod = _codigo_linea_factura(codigo_factura, descripcion)
@@ -21413,6 +21425,19 @@ def api_ia_factura_aplicar(rid):
         if not isinstance(it, dict):
             continue
         if not it.get('aplicar'):
+            continue
+        match_t = (it.get('match') or '').strip()
+        if not _match_ia_factura_es_seguro(match_t) and not it.get('confirmado_manual'):
+            errores.append(
+                {
+                    'error': (
+                        'Emparejamiento por nombre no permitido. '
+                        'Use «Buscar por descripción» y confirme el producto.'
+                    ),
+                    'descripcion_factura': it.get('descripcion_factura'),
+                    'match': match_t,
+                }
+            )
             continue
         try:
             pid = int(it.get('producto_id'))
