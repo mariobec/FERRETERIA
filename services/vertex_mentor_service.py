@@ -31,6 +31,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Pulsar Emitir vale — el cobro lo hace caja.',
         ],
         'ancla_ayuda': '/academy#academy-pos',
+        'practicar_href': '/punto_venta',
     },
     {
         'dedupe_key': 'academy:caja:cobrar_vale',
@@ -43,6 +44,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Entregar vuelto si corresponde.',
         ],
         'ancla_ayuda': '/academy#academy-caja',
+        'practicar_href': '/caja/vales_pendientes',
     },
     {
         'dedupe_key': 'academy:caja:cambios_devoluciones',
@@ -55,6 +57,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Verificar saldo a favor o reintegro en caja.',
         ],
         'ancla_ayuda': '/academy#academy-caja',
+        'practicar_href': '/caja/cambios',
     },
     {
         'dedupe_key': 'academy:caja:caja_dia_anterior',
@@ -67,6 +70,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Abrir caja nueva para el turno actual.',
         ],
         'ancla_ayuda': '/academy#academy-caja',
+        'practicar_href': '/cerrar_caja',
     },
     {
         'dedupe_key': 'academy:caja:abrir_cerrar',
@@ -79,6 +83,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Agregar observación si hay descuadre.',
         ],
         'ancla_ayuda': '/academy#academy-caja',
+        'practicar_href': '/abrir_caja',
     },
     {
         'dedupe_key': 'academy:caja:apertura_turno',
@@ -91,6 +96,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Si el POS está bloqueado, verifique que no quede caja del día anterior abierta.',
         ],
         'ancla_ayuda': '/academy#academy-caja',
+        'practicar_href': '/abrir_caja',
     },
     {
         'dedupe_key': 'academy:caja:movimiento_extra',
@@ -103,6 +109,7 @@ ACADEMY_GUIDES: list[dict[str, Any]] = [
             'Guardar y verificar en el historial del turno.',
         ],
         'ancla_ayuda': '/academy#academy-caja',
+        'practicar_href': '/movimiento_caja',
     },
 ]
 
@@ -281,6 +288,7 @@ def listar_guias_biblioteca(contexto: str, *, caja_dia_anterior: bool) -> list[d
                     'titulo': g['titulo'],
                     'pasos': list(g.get('pasos') or []),
                     'ancla_ayuda': g.get('ancla_ayuda'),
+                    'practicar_href': g.get('practicar_href'),
                 }
             )
     if not out:
@@ -290,6 +298,7 @@ def listar_guias_biblioteca(contexto: str, *, caja_dia_anterior: bool) -> list[d
                 'titulo': g['titulo'],
                 'pasos': list(g.get('pasos') or []),
                 'ancla_ayuda': g.get('ancla_ayuda'),
+                'practicar_href': g.get('practicar_href'),
             }
             for g in ACADEMY_GUIDES[:3]
         ]

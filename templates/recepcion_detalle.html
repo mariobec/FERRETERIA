@@ -153,8 +153,9 @@
       </p>
       {% else %}
       <p class="small text-muted mb-3">
-        Usa OpenAI (visión) sobre el PDF o imagen adjunto (factura o guía de despacho). Revise el emparejamiento con su catálogo antes de aplicar.
-        Requiere <code>pip install PyMuPDF</code> para PDF.
+        Usa OpenAI (<code>gpt-4o-mini</code>, visión) sobre el PDF o imagen adjunto (factura o guía de despacho).
+        Revise el emparejamiento con su catálogo antes de aplicar. PDF: <code>PyMuPDF</code> en el servidor (incluido en <code>requirements.txt</code>).
+        En Render, el archivo queda en disco del servicio: tras un redeploy sin disco persistente puede faltar el adjunto — vuelva a subir el documento si el análisis dice «no encontrado».
       </p>
       <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
         <button type="button" class="btn btn-info" id="btnIaAnalizarFactura">
@@ -355,6 +356,10 @@
             var match = row.match || "—";
             var pn = row.producto_nombre ? (row.producto_nombre + " <small class='text-muted'>(" + (row.producto_codigo || "") + ")</small>") : '<span class="text-danger">Sin match</span>';
             var cost = row.precio_unitario != null ? row.precio_unitario : "";
+            var costTitle = "Sin precio en documento ni en catálogo";
+            if (row.costo_origen === "factura") costTitle = "Precio leído del documento";
+            else if (row.costo_origen === "catalogo") costTitle = "Costo actual del producto (factura sin precio)";
+            else if (row.costo_origen === "historial") costTitle = "Último costo en bitácora de compras";
             var tr = $("<tr>").attr("data-idx", idx);
             tr.append($("<td>").html(chk));
             tr.append($("<td>").text(row.descripcion_factura || ""));
@@ -363,7 +368,10 @@
             tr.append($("<td>").html(pn));
             tr.append($("<td class='text-end'>").html('<input type="number" min="0" class="form-control form-control-sm ia-cdoc text-end" data-idx="' + idx + '" value="' + (row.cantidad_documento || 0) + '">'));
             tr.append($("<td class='text-end'>").html('<input type="number" min="1" class="form-control form-control-sm ia-cfis text-end" data-idx="' + idx + '" value="' + (row.cantidad_recibida || 1) + '">'));
-            tr.append($("<td class='text-end'>").html('<input type="number" step="0.01" min="0" class="form-control form-control-sm ia-costo text-end" data-idx="' + idx + '" value="' + cost + '" placeholder="—">'));
+            tr.append($("<td class='text-end'>").html(
+              '<input type="number" step="0.01" min="0" class="form-control form-control-sm ia-costo text-end" data-idx="' + idx +
+              '" value="' + cost + '" placeholder="—" title="' + costTitle + '">'
+            ));
             $tb.append(tr);
           });
           $("#iaFacturaTablaWrap").removeClass("d-none");

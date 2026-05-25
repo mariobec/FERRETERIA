@@ -159,6 +159,9 @@
                     <li>Entregar vuelto — el sistema puede mostrar banner de confirmación.</li>
                   </ol>
                   <p class="mb-0 small">El cobro registra ingreso en caja y descuenta stock. Verifique que el vale no quede en pendiente.</p>
+                  <div class="mt-2">
+                    {% set practice_href = url_for('caja_pendientes') %}{% include 'partials/help_practice_link.html' %}
+                  </div>
                 </div>
               </div>
             </div>
@@ -174,6 +177,9 @@
                     <li>Si supera umbral, un responsable con permiso de supervisor ingresa usuario y clave.</li>
                   </ol>
                   <p class="mb-0 small text-muted">En modo cierre a ciegas no verá totales teóricos hasta después — cuente físicamente antes de confirmar.</p>
+                  <div class="mt-2">
+                    {% set practice_href = url_for('cerrar_caja') %}{% include 'partials/help_practice_link.html' %}
+                  </div>
                 </div>
               </div>
             </div>
@@ -183,6 +189,9 @@
                 <div class="accordion-body">
                   Use <strong>Movimientos</strong> para ingresos o egresos fuera de venta normal.
                   En egresos indique responsable y motivo. Todo queda en historial para auditoría.
+                  <div class="mt-2">
+                    {% set practice_href = url_for('movimiento_caja') %}{% include 'partials/help_practice_link.html' %}
+                  </div>
                 </div>
               </div>
             </div>
@@ -198,6 +207,9 @@
                 <div class="accordion-body">
                   Desde <strong>Cambios</strong> procese devoluciones con trazabilidad.
                   Puede generarse saldo a favor o nota según política del local. Registre siempre el motivo.
+                  <div class="mt-2">
+                    {% set practice_href = url_for('caja_cambios') %}{% include 'partials/help_practice_link.html' %}
+                  </div>
                 </div>
               </div>
             </div>
@@ -234,6 +246,9 @@
                     <li>Identificar cliente (RUT) o usar cliente final genérico.</li>
                     <li><strong>Emitir vale</strong> — el cobro lo hace caja en Vales pendientes.</li>
                   </ol>
+                  <div class="mt-2">
+                    {% set practice_href = url_for('punto_venta') %}{% include 'partials/help_practice_link.html' %}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,0 +1,11 @@
+{# Deep link operativo — practicar en caliente (nueva pestaña).
+   Variables: practice_href (requerido), practice_label (opcional) #}
+{% if practice_href %}
+<a href="{{ practice_href }}"
+   class="btn btn-sm btn-outline-info help-practice-link {{ practice_link_class or '' }}"
+   target="_blank"
+   rel="noopener noreferrer"
+   title="Abrir pantalla operativa para practicar">
+  <i class="fas fa-bolt me-1" aria-hidden="true"></i>{{ practice_label or 'Practicar ahora' }}
+</a>
+{% endif %}

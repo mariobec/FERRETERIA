@@ -4174,7 +4174,7 @@
     var navBtn = nav
       ? '<a class="btn btn-sm btn-outline-info lhexia-mentor-glass-card__nav" href="' +
         nav +
-        '"><i class="fas fa-bolt me-1"></i>Practicar ahora</a>'
+        '" target="_blank" rel="noopener noreferrer"><i class="fas fa-bolt me-1"></i>Practicar ahora</a>'
       : "";
     return (
       '<article class="lhexia-mentor-glass-card' +
@@ -4270,7 +4270,7 @@
     var practicar = guide.practicar_href
       ? '<a class="btn btn-sm btn-outline-info lhexia-mentor-practicar w-100 mt-2" href="' +
         escapeHtml(guide.practicar_href) +
-        '"><i class="fas fa-bolt me-1"></i>Practicar ahora</a>'
+        '" target="_blank" rel="noopener noreferrer"><i class="fas fa-bolt me-1"></i>Practicar ahora</a>'
       : "";
     return (
       '<div class="lhexia-mentor-guide' +

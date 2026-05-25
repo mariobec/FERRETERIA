@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}erp-ops-space {% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-homolog-20260523">
 {% endblock %}
@@ -54,8 +55,8 @@
 
   <div class="card cot-card shadow-sm">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
+      <table class="table table-hover align-middle mb-0 table-ds">
+        <thead>
           <tr>
             <th>Número</th>
             <th>Fecha</th>

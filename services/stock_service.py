@@ -493,9 +493,19 @@ def _punto_retiro_efectivo_linea(venta, detalle):
     return pr or 'Tienda'
 
 
+def _consumo_stock_linea(detalle, producto, factor_venta_stock=None):
+    """Consumo entero en unidades stock base (invariante peso/fricción)."""
+    from services import unidades_service as _us
+
+    return _us.consumo_stock_entero_desde_cantidad(getattr(detalle, 'cantidad', 0), producto)
+
+
 def _consumo_tienda_linea(venta, detalle, factor_venta_stock):
     """Unidades stock base que esa línea exige de TIENDA (misma regla que cobro)."""
-    consumo_stock = int(round((detalle.cantidad or 0) * factor_venta_stock))
+    import app as m
+
+    producto = detalle.producto or m.Producto.query.get(detalle.id_producto)
+    consumo_stock = _consumo_stock_linea(detalle, producto, factor_venta_stock)
     if consumo_stock <= 0:
         return 0
     if _punto_retiro_efectivo_linea(venta, detalle) == 'Bodega':
@@ -581,7 +591,7 @@ def consumo_tienda_agrupado_por_producto(venta):
         if not producto:
             continue
         factor_venta_stock = m._factor_venta_a_stock(producto)
-        consumo_stock = int(round((d.cantidad or 0) * factor_venta_stock))
+        consumo_stock = _consumo_stock_linea(d, producto, factor_venta_stock)
         consumo_tienda = _consumo_tienda_linea(venta, d, factor_venta_stock)
         if consumo_stock <= 0:
             agrupado[producto.id]['invalido'] = True

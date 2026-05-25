@@ -1318,3 +1318,497 @@ body.pos-hud-search-focus .lhexia-mentor-sidebar.is-open .lhexia-mentor-sidebar_
 body.pos-hud-search-focus .lhexia-mentor-fab {
     box-shadow: 0 0 22px var(--lhexia-neon-orange-glow), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
+
+/* ── ERP Ops Space HUD V4 — Glassmorphism + tipografía multicapa + ciberneón ── */
+:root {
+    --lhexia-dark-space: #0b0f19;
+    --bg-main-space: #0f172a;
+    --lhexia-platinum: #e5e7eb;
+    --lhexia-gray-hud: #b0b8c1;
+    --lhexia-neon-orange: #ff5500;
+    --lhexia-neon-orange-glow: rgba(255, 85, 0, 0.45);
+    --lhexia-hud-glass: rgba(0, 0, 0, 0.2);
+    --lhexia-hud-glass-strong: rgba(15, 23, 42, 0.55);
+    --border-card-glass: rgba(255, 255, 255, 0.05);
+    --lhexia-hud-border: rgba(255, 255, 255, 0.08);
+    --lhexia-hud-text: var(--lhexia-gray-hud);
+    --lhexia-hud-muted: #8b95a5;
+    --lhexia-sem-verde: #22ff88;
+    --lhexia-sem-amarillo: #eab308;
+    --lhexia-sem-naranja: #ff5500;
+    --badge-green-neon: #22ff88;
+    --badge-green-neon-glow: rgba(34, 255, 136, 0.35);
+    --badge-orange-neon: #ff5500;
+    --badge-orange-neon-glow: rgba(255, 85, 0, 0.45);
+    --badge-red-neon: #ff3366;
+    --badge-red-neon-glow: rgba(255, 51, 102, 0.4);
+    --lhexia-font-display: "Montserrat", "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+body.erp-ops-space {
+    --bs-body-bg: var(--bg-main-space);
+    --bs-body-color: var(--lhexia-gray-hud);
+    --bs-emphasis-color: var(--lhexia-platinum);
+    --bs-secondary-color: var(--lhexia-hud-muted);
+    --bs-tertiary-color: #7a8494;
+    --bs-border-color: var(--lhexia-hud-border);
+    /* Anula style_index.css body:not(.index-body) { background: #f4f7f6 !important } */
+    background-color: var(--bg-main-space) !important;
+    background: radial-gradient(1200px 600px at 10% -10%, rgba(255, 85, 0, 0.08), transparent 55%),
+        linear-gradient(180deg, var(--lhexia-dark-space) 0%, var(--bg-main-space) 42%, #0b1220 100%) !important;
+    color: var(--lhexia-gray-hud);
+    line-height: 1.6;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+body.erp-ops-space .app-main {
+    background: transparent !important;
+}
+
+body.erp-ops-space .app-main .container-fluid,
+body.erp-ops-space .app-main .container-fluid.px-0 {
+    background: transparent !important;
+}
+
+/* ── Tipografía multicapa ── */
+body.erp-ops-space .page-header,
+body.erp-ops-space .page-title,
+body.erp-ops-space h3,
+body.erp-ops-space h4,
+body.erp-ops-space h5,
+body.erp-ops-space .card-ds > .card-header,
+body.erp-ops-space .card-ds .card-header h6,
+body.erp-ops-space .cot-card .card-header,
+body.erp-ops-space .table thead th {
+    font-family: var(--lhexia-font-display);
+    color: var(--lhexia-platinum) !important;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+body.erp-ops-space .text-white,
+body.erp-ops-space .text-white h4,
+body.erp-ops-space .text-white p,
+body.erp-ops-space .text-white small {
+    color: #fff !important;
+}
+
+body.erp-ops-space .page-subtitle,
+body.erp-ops-space p,
+body.erp-ops-space li,
+body.erp-ops-space .card-body,
+body.erp-ops-space .accordion-body,
+body.erp-ops-space .form-label,
+body.erp-ops-space .small:not(.badge):not(.btn) {
+    color: var(--lhexia-gray-hud);
+}
+
+body.erp-ops-space .text-muted,
+body.erp-ops-space .form-text {
+    color: var(--lhexia-hud-muted) !important;
+}
+
+body.erp-ops-space .text-dark {
+    color: var(--lhexia-platinum) !important;
+}
+
+body.erp-ops-space .text-warning,
+body.erp-ops-space .text-orange-neon,
+body.erp-ops-space .text-highlight-neon {
+    color: var(--badge-orange-neon) !important;
+}
+
+body.erp-ops-space .text-success {
+    color: var(--badge-green-neon) !important;
+}
+
+body.erp-ops-space strong,
+body.erp-ops-space .fw-bold:not(.btn):not(.badge) {
+    color: var(--lhexia-platinum);
+}
+
+body.erp-ops-space .card-indicador strong,
+body.erp-ops-space .card-indicador .fw-bold,
+body.erp-ops-space .card-indicador h4 {
+    color: inherit !important;
+}
+
+/* ── Glassmorphism — solo paneles operativos (no KPIs coloreados) ── */
+body.erp-ops-space .card-ds,
+body.erp-ops-space .cot-card,
+body.erp-ops-space .card.shadow-sm:not(.card-indicador) {
+    background: var(--lhexia-hud-glass-strong) !important;
+    border: 1px solid var(--border-card-glass) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--lhexia-gray-hud);
+}
+
+/* KPIs caja — conservar color semántico con glow neón */
+body.erp-ops-space .card-indicador {
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+body.erp-ops-space .card-indicador h4,
+body.erp-ops-space .card-indicador p,
+body.erp-ops-space .card-indicador small {
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+body.erp-ops-space .card-indicador.bg-primary {
+    background: linear-gradient(145deg, rgba(37, 99, 235, 0.95), rgba(29, 78, 216, 0.82)) !important;
+    box-shadow: 0 0 18px rgba(59, 130, 246, 0.35);
+}
+
+body.erp-ops-space .card-indicador.bg-success {
+    background: linear-gradient(145deg, rgba(22, 163, 74, 0.95), rgba(21, 128, 61, 0.82)) !important;
+    box-shadow: 0 0 18px var(--badge-green-neon-glow);
+}
+
+body.erp-ops-space .card-indicador.bg-warning {
+    background: linear-gradient(145deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.85)) !important;
+    box-shadow: 0 0 18px var(--badge-orange-neon-glow);
+}
+
+body.erp-ops-space .card-indicador.bg-danger {
+    background: linear-gradient(145deg, rgba(220, 38, 38, 0.95), rgba(185, 28, 28, 0.85)) !important;
+    box-shadow: 0 0 18px var(--badge-red-neon-glow);
+}
+
+body.erp-ops-space .card-indicador.bg-info {
+    background: linear-gradient(145deg, rgba(14, 165, 233, 0.95), rgba(2, 132, 199, 0.85)) !important;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+body.erp-ops-space .card-indicador.text-white h4,
+body.erp-ops-space .card-indicador.text-white p,
+body.erp-ops-space .card-indicador.text-white small {
+    color: #fff !important;
+}
+
+body.erp-ops-space .card-indicador.text-dark h4,
+body.erp-ops-space .card-indicador.text-dark p,
+body.erp-ops-space .card-indicador.text-dark small {
+    color: #1e293b !important;
+}
+
+body.erp-ops-space .card-ds > .card-header,
+body.erp-ops-space .cot-card .card-header,
+body.erp-ops-space .card > .card-header:not(.bg-primary):not(.bg-success):not(.bg-danger):not(.bg-dark) {
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-bottom: 1px solid var(--border-card-glass) !important;
+    color: var(--lhexia-platinum) !important;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+}
+
+body.erp-ops-space .card-body {
+    background: transparent !important;
+    color: var(--lhexia-gray-hud);
+}
+
+body.erp-ops-space .bg-white,
+body.erp-ops-space .bg-body-tertiary,
+body.erp-ops-space .bg-light {
+    background: rgba(0, 0, 0, 0.18) !important;
+    color: var(--lhexia-gray-hud) !important;
+}
+
+/* ── Tablas — contraste y espaciado ── */
+body.erp-ops-space .table,
+body.erp-ops-space .table-ds,
+body.erp-ops-space .table.table-ds,
+body.erp-ops-space .cot-card .table {
+    color: var(--lhexia-gray-hud);
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--lhexia-gray-hud);
+    --bs-table-border-color: var(--lhexia-hud-border);
+    --bs-table-hover-bg: rgba(255, 85, 0, 0.08);
+    --bs-table-hover-color: var(--lhexia-platinum);
+    --bs-table-striped-bg: rgba(0, 0, 0, 0.15);
+    --bs-table-striped-color: var(--lhexia-gray-hud);
+    margin-bottom: 0;
+}
+
+body.erp-ops-space .table > :not(caption) > * > * {
+    background-color: rgba(15, 23, 42, 0.35) !important;
+    box-shadow: none !important;
+    --bs-table-bg-type: initial;
+    --bs-table-bg-state: initial;
+    color: var(--lhexia-gray-hud) !important;
+    border-color: var(--lhexia-hud-border) !important;
+    padding: 0.85rem 1rem !important;
+    line-height: 1.6;
+    vertical-align: middle;
+}
+
+body.erp-ops-space .table-hover > tbody > tr:hover > * {
+    background-color: rgba(255, 85, 0, 0.1) !important;
+    box-shadow: none !important;
+    color: var(--lhexia-platinum) !important;
+}
+
+body.erp-ops-space .table tbody td,
+body.erp-ops-space .table tbody th {
+    color: var(--lhexia-gray-hud) !important;
+}
+
+body.erp-ops-space .table thead th,
+body.erp-ops-space .table-ds thead th,
+body.erp-ops-space .table thead.table-light th {
+    background: rgba(0, 0, 0, 0.45) !important;
+    background-color: rgba(0, 0, 0, 0.45) !important;
+    box-shadow: none !important;
+    color: var(--lhexia-platinum) !important;
+    border-color: var(--lhexia-hud-border) !important;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+body.erp-ops-space .lhexia-stock-alerta {
+    display: block;
+    margin-top: 0.35rem;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: #fecaca !important;
+    background: rgba(255, 51, 102, 0.1);
+    border-left: 3px solid var(--badge-red-neon);
+    border-radius: 0 6px 6px 0;
+}
+
+body.erp-ops-space .card-ds .card-header .small.text-muted {
+    color: var(--lhexia-hud-muted) !important;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+body.erp-ops-space .card-ds .card-header strong {
+    color: var(--lhexia-platinum) !important;
+}
+
+/* ── Formularios ── */
+body.erp-ops-space .form-control,
+body.erp-ops-space .form-select,
+body.erp-ops-space .input-group-text {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-card-glass);
+    color: var(--lhexia-platinum);
+    border-radius: 10px;
+}
+
+body.erp-ops-space .form-control::placeholder {
+    color: var(--lhexia-hud-muted);
+}
+
+body.erp-ops-space .form-control:focus,
+body.erp-ops-space .form-select:focus {
+    border-color: rgba(255, 85, 0, 0.45);
+    box-shadow: 0 0 0 2px var(--badge-orange-neon-glow);
+    color: var(--lhexia-platinum);
+}
+
+/* ── Botones ciberneón ── */
+body.erp-ops-space .btn-ds-primary,
+body.erp-ops-space .btn-primary,
+body.erp-ops-space .cot-btn-primary,
+body.erp-ops-space .btn-neon-cobrar {
+    background: rgba(255, 85, 0, 0.12) !important;
+    border: 1px solid var(--badge-orange-neon) !important;
+    color: var(--badge-orange-neon) !important;
+    font-weight: 600;
+    border-radius: 999px;
+    box-shadow: 0 0 14px var(--badge-orange-neon-glow);
+    transition: box-shadow 0.2s ease, background 0.2s ease;
+}
+
+body.erp-ops-space .btn-neon-cobrar:hover,
+body.erp-ops-space .btn-ds-primary:hover,
+body.erp-ops-space .btn-primary:hover {
+    background: rgba(255, 85, 0, 0.22) !important;
+    color: #ffb380 !important;
+    box-shadow: 0 0 22px var(--badge-orange-neon-glow);
+}
+
+body.erp-ops-space .btn-neon-anular,
+body.erp-ops-space .btn-outline-danger.lhexia-neon-danger {
+    background: rgba(255, 51, 102, 0.1) !important;
+    border: 1px solid var(--badge-red-neon) !important;
+    color: var(--badge-red-neon) !important;
+    font-weight: 600;
+    border-radius: 999px;
+    box-shadow: 0 0 12px var(--badge-red-neon-glow);
+}
+
+body.erp-ops-space .btn-neon-anular:hover {
+    background: rgba(255, 51, 102, 0.2) !important;
+    color: #ff8fab !important;
+    box-shadow: 0 0 20px var(--badge-red-neon-glow);
+}
+
+body.erp-ops-space .btn-success:not(.btn-neon-cobrar) {
+    background: rgba(34, 255, 136, 0.1) !important;
+    border: 1px solid var(--badge-green-neon) !important;
+    color: var(--badge-green-neon) !important;
+    box-shadow: 0 0 12px var(--badge-green-neon-glow);
+}
+
+body.erp-ops-space .btn-outline-primary {
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #7dd3fc;
+    background: transparent;
+}
+
+body.erp-ops-space .btn-light,
+body.erp-ops-space .btn-secondary:not(:disabled) {
+    background: rgba(0, 0, 0, 0.22) !important;
+    border: 1px solid var(--border-card-glass) !important;
+    color: var(--lhexia-platinum) !important;
+}
+
+body.erp-ops-space .btn-outline-secondary {
+    border-color: var(--lhexia-hud-border);
+    color: var(--lhexia-gray-hud);
+}
+
+/* ── Badges semáforo ciberneón ── */
+body.erp-ops-space .lhexia-neon-badge-green,
+body.erp-ops-space .badge-stock-verde,
+body.erp-ops-space .badge.bg-success {
+    background: rgba(34, 255, 136, 0.12) !important;
+    color: var(--badge-green-neon) !important;
+    border: 1px solid rgba(34, 255, 136, 0.45) !important;
+    box-shadow: 0 0 10px var(--badge-green-neon-glow);
+    font-weight: 600;
+}
+
+body.erp-ops-space .lhexia-neon-badge-orange,
+body.erp-ops-space .badge-stock-amarillo,
+body.erp-ops-space .badge.bg-warning.text-dark {
+    background: rgba(255, 85, 0, 0.12) !important;
+    color: var(--badge-orange-neon) !important;
+    border: 1px solid rgba(255, 85, 0, 0.45) !important;
+    box-shadow: 0 0 10px var(--badge-orange-neon-glow);
+    font-weight: 600;
+}
+
+body.erp-ops-space .lhexia-neon-badge-red,
+body.erp-ops-space .badge-stock-rojo,
+body.erp-ops-space .badge.bg-danger,
+body.erp-ops-space .badge.bg-danger-subtle.text-danger {
+    background: rgba(255, 51, 102, 0.12) !important;
+    color: var(--badge-red-neon) !important;
+    border: 1px solid rgba(255, 51, 102, 0.45) !important;
+    box-shadow: 0 0 10px var(--badge-red-neon-glow);
+    font-weight: 600;
+}
+
+body.erp-ops-space .badge.bg-light,
+body.erp-ops-space .badge.text-bg-light {
+    background: rgba(0, 0, 0, 0.3) !important;
+    color: var(--lhexia-platinum) !important;
+    border: 1px solid var(--border-card-glass) !important;
+}
+
+body.erp-ops-space .badge-a-pedido,
+body.erp-ops-space .badge.bg-info.text-dark {
+    background: rgba(255, 85, 0, 0.12) !important;
+    color: #ffb380 !important;
+    border: 1px solid var(--badge-orange-neon-glow);
+}
+
+/* ── Alertas legibles ── */
+body.erp-ops-space .alert-warning {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+    border: 1px solid #f59e0b !important;
+    color: #78350f !important;
+    border-radius: 12px;
+}
+
+body.erp-ops-space .alert-warning strong,
+body.erp-ops-space .alert-warning em,
+body.erp-ops-space .alert-warning .form-check-label,
+body.erp-ops-space .alert-warning .small {
+    color: #451a03 !important;
+}
+
+body.erp-ops-space .alert-warning .form-control {
+    background: #fffbeb !important;
+    border-color: #fbbf24 !important;
+    color: #78350f !important;
+}
+
+body.erp-ops-space .alert-info {
+    background: rgba(56, 189, 248, 0.1) !important;
+    border: 1px solid rgba(56, 189, 248, 0.3) !important;
+    color: #bae6fd !important;
+}
+
+/* Paneles claros intencionales (vuelto, modales claros) */
+body.erp-ops-space .vuelto-banner,
+body.erp-ops-space .vuelto-banner .text-dark,
+body.erp-ops-space .modal-content:not(.modal-dark) {
+    color: #1e293b;
+}
+
+body.erp-ops-space .vuelto-banner .text-muted {
+    color: #64748b !important;
+}
+
+body.erp-ops-space .lhexia-mentor-practicar,
+body.erp-ops-space .help-practice-link {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #7dd3fc;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+body.erp-ops-space .cot-page-header {
+    background: linear-gradient(135deg, rgba(255, 85, 0, 0.12), rgba(0, 0, 0, 0.25));
+    border: 1px solid var(--border-card-glass);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+body.erp-ops-space .cot-page-header h3 {
+    color: var(--lhexia-platinum);
+}
+
+body.erp-ops-space .cot-lista-kpi .card {
+    background: var(--lhexia-hud-glass);
+    border-color: var(--border-card-glass);
+    color: var(--lhexia-gray-hud);
+}
+
+body.erp-ops-space .cot-lista-kpi .fs-4.text-dark {
+    color: var(--lhexia-platinum) !important;
+}
+
+body.erp-ops-space .modal-content {
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid var(--border-card-glass);
+    backdrop-filter: blur(12px);
+    color: var(--lhexia-gray-hud);
+    border-radius: 16px;
+}
+
+body.erp-ops-space .modal-header {
+    border-bottom-color: var(--border-card-glass);
+    color: var(--lhexia-platinum);
+}
+
+body.erp-ops-space .modal-footer {
+    border-top-color: var(--border-card-glass);
+}

@@ -5750,6 +5750,13 @@ def healthz():
         payload['render_git_commit_short'] = gc[:12] if len(gc) >= 12 else gc
     if os.environ.get('RENDER', '').strip().lower() in ('1', 'true', 'yes'):
         payload['render'] = True
+    payload['ia_factura_openai'] = bool((os.getenv('OPENAI_API_KEY') or '').strip())
+    try:
+        import fitz  # noqa: F401
+
+        payload['ia_factura_pdf'] = True
+    except ImportError:
+        payload['ia_factura_pdf'] = False
     return jsonify(payload), 200
 
 
@@ -18710,8 +18717,10 @@ def _openai_extraer_items_factura(data_urls_jpeg, api_key):
         'Responde con un JSON válido (sin markdown) con esta forma exacta:\n'
         '{"items":[{"codigo_proveedor": string o null, "descripcion": string, "cantidad": number, '
         '"precio_unitario": number o null}]}\n'
-        'cantidad = unidades facturadas (entero o decimal que redondearemos). precio_unitario = precio neto '
-        'por unidad si aparece; si solo hay subtotal de línea, calcula precio_unitario = subtotal/cantidad.'
+        'cantidad = unidades facturadas (entero o decimal que redondearemos). '
+        'precio_unitario = precio NETO unitario en pesos chilenos (sin IVA): lee columnas P.Unit, Precio, '
+        'Valor unit., Neto unit. o calcula subtotal_linea/cantidad. Si la guía no trae precios, usa null. '
+        'No uses puntos de miles en JSON (ej. 1990.5 no "1.990").'
     )
     content = [{'type': 'text', 'text': instrucciones}]
     for url in data_urls_jpeg:
@@ -19022,6 +19031,64 @@ def _armar_top3_identificacion_foto(frase):
         for p in q.order_by(Producto.stock.desc()).limit(3 - len(out)).all():
             out.append((p, 0.01))
     return out[:3], estrategia, unclear
+
+
+def _parse_precio_clp_ia(val):
+    """Convierte precio devuelto por IA (número o string CLP) a float o None."""
+    if val is None or val == '':
+        return None
+    if isinstance(val, (int, float)):
+        f = float(val)
+        return f if f > 0 else None
+    s = str(val).strip().replace('$', '').replace(' ', '')
+    if not s:
+        return None
+    if ',' in s and '.' in s:
+        if s.rfind(',') > s.rfind('.'):
+            s = s.replace('.', '').replace(',', '.')
+        else:
+            s = s.replace(',', '')
+    elif ',' in s:
+        parts = s.split(',')
+        if len(parts) == 2 and len(parts[1]) <= 2:
+            s = parts[0].replace('.', '') + '.' + parts[1]
+        else:
+            s = s.replace(',', '')
+    elif s.count('.') == 1:
+        ent, dec = s.split('.', 1)
+        if dec.isdigit() and len(dec) == 3 and ent.isdigit():
+            s = ent + dec
+    elif s.count('.') > 1:
+        s = s.replace('.', '')
+    try:
+        f = float(s)
+        return f if f > 0 else None
+    except ValueError:
+        return None
+
+
+def _costo_sugerido_linea_factura(producto, proveedor_id, precio_ia):
+    """Costo unitario para UI recepción: factura > catálogo > última bitácora compra."""
+    if precio_ia is not None and precio_ia > 0:
+        return precio_ia, 'factura'
+    if not producto:
+        return None, None
+    pc = float(producto.precio_compra or 0)
+    if pc > 0:
+        return pc, 'catalogo'
+    if _bitacora_costos_disponible():
+        q = BitacoraCostoCompra.query.filter_by(producto_id=producto.id)
+        if proveedor_id:
+            q = q.filter(
+                db.or_(
+                    BitacoraCostoCompra.proveedor_id == proveedor_id,
+                    BitacoraCostoCompra.proveedor_id.is_(None),
+                )
+            )
+        row = q.order_by(BitacoraCostoCompra.fecha.desc()).first()
+        if row and float(row.costo_nuevo or 0) > 0:
+            return float(row.costo_nuevo), 'historial'
+    return None, None
 
 
 def _matchear_producto_linea_factura(codigo_factura, descripcion):
@@ -21227,6 +21294,8 @@ def api_ia_factura_analizar(rid):
         jpegs, err = _pdf_factura_a_imagenes_jpeg(path, max_pages=int(os.getenv('IA_FACTURA_PDF_PAGINAS', '2')))
         if err:
             return jsonify(ok=False, message=err), 400
+        if not jpegs:
+            return jsonify(ok=False, message='El PDF no tiene páginas legibles para IA.'), 400
         for jb in jpegs:
             b64 = base64.b64encode(jb).decode('ascii')
             data_urls.append(f'data:image/jpeg;base64,{b64}')
@@ -21241,9 +21310,11 @@ def api_ia_factura_analizar(rid):
             return jsonify(ok=False, message=str(ex)), 400
     else:
         return jsonify(ok=False, message='Formato no soportado para IA (PDF, JPG, PNG, WEBP).'), 400
+    modelo = (os.getenv('OPENAI_VISION_MODEL') or 'gpt-4o-mini').strip()
     try:
         lineas = _openai_extraer_items_factura(data_urls, api_key)
     except Exception as ex:
+        app.logger.exception('api_ia_factura_analizar rid=%s', rid)
         return jsonify(ok=False, message=str(ex)), 502
     out = []
     for row in lineas:
@@ -21256,28 +21327,32 @@ def api_ia_factura_analizar(rid):
         cant_i = int(round(cant))
         if cant_i <= 0:
             continue
-        precio = row.get('precio_unitario')
-        try:
-            precio_f = float(precio) if precio not in (None, '') else None
-        except (TypeError, ValueError):
-            precio_f = None
-        if precio_f is not None and precio_f <= 0:
-            precio_f = None
+        precio_f = _parse_precio_clp_ia(row.get('precio_unitario'))
         p, how = _matchear_producto_linea_factura(cod, desc)
+        costo_u, costo_origen = _costo_sugerido_linea_factura(
+            p, rec.proveedor_id, precio_f
+        )
         out.append(
             {
                 'descripcion_factura': desc,
                 'codigo_factura': cod,
                 'cantidad_documento': cant_i,
                 'cantidad_recibida': cant_i,
-                'precio_unitario': precio_f,
+                'precio_unitario': costo_u,
+                'costo_origen': costo_origen,
                 'producto_id': p.id if p else None,
                 'producto_nombre': p.nombre if p else None,
                 'producto_codigo': (p.codigo_barra or '').strip() if p else None,
                 'match': how,
             }
         )
-    return jsonify(ok=True, items=out, total=len(out))
+    return jsonify(
+        ok=True,
+        items=out,
+        total=len(out),
+        modelo=modelo,
+        paginas_imagen=len(data_urls),
+    )
 
 
 @app.route('/recepciones/<int:rid>/ia-factura/aplicar', methods=['POST'])

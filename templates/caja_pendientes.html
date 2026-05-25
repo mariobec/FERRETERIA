@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}erp-ops-space {% endblock %}
 
 {% block extra_css %}
 <style>
@@ -64,11 +65,146 @@
         border-radius: 14px;
         box-shadow: 0 6px 18px rgba(245, 158, 11, .25);
     }
+    /* ── Paleta HUD caja (solo esta pantalla) ── */
+    .caja-pendientes-hud {
+        --caja-platinum: #e5e7eb;
+        --caja-gray-hud: #b0b8c1;
+        --caja-muted: #94a3b8;
+        --caja-neon-green: #4ade80;
+        --caja-neon-orange: #fb923c;
+        --caja-neon-red: #f87171;
+    }
+    .caja-pendientes-hud .card-ds .card-header h6 {
+        color: var(--caja-platinum) !important;
+    }
+    .caja-pendientes-hud .caja-card-icon {
+        color: var(--caja-muted) !important;
+    }
+    body.erp-ops-space .caja-pendientes-hud .table > :not(caption) > * > * {
+        background-color: rgba(15, 23, 42, 0.55) !important;
+        box-shadow: none !important;
+        color: var(--caja-gray-hud) !important;
+        border-color: rgba(255, 255, 255, 0.06) !important;
+    }
+    body.erp-ops-space .caja-pendientes-hud .table thead th {
+        background-color: rgba(0, 0, 0, 0.45) !important;
+        box-shadow: none !important;
+        color: var(--caja-platinum) !important;
+    }
+    body.erp-ops-space .caja-pendientes-hud .table-hover > tbody > tr:hover > * {
+        background-color: rgba(255, 85, 0, 0.08) !important;
+        color: var(--caja-platinum) !important;
+    }
+    .caja-pendientes-hud .caja-monto {
+        color: var(--caja-neon-green) !important;
+        font-weight: 600;
+    }
+    .caja-pendientes-hud .btn-caja-outline {
+        color: var(--caja-gray-hud) !important;
+        border: 1px solid rgba(148, 163, 184, 0.35) !important;
+        background: transparent !important;
+    }
+    .caja-pendientes-hud .btn-caja-outline:hover {
+        color: var(--caja-platinum) !important;
+        border-color: rgba(148, 163, 184, 0.55) !important;
+        background: rgba(148, 163, 184, 0.08) !important;
+    }
+    .caja-pendientes-hud .btn-caja-cobrar {
+        color: var(--caja-neon-orange) !important;
+        border: 1px solid rgba(251, 146, 60, 0.45) !important;
+        background: rgba(251, 146, 60, 0.1) !important;
+        font-weight: 600;
+    }
+    .caja-pendientes-hud .btn-caja-cobrar:hover {
+        background: rgba(251, 146, 60, 0.18) !important;
+        color: #fdba74 !important;
+    }
+    .caja-pendientes-hud .btn-caja-anular-lote,
+    .caja-pendientes-hud .btn-caja-anular-fila {
+        color: var(--caja-neon-red) !important;
+        border: 1px solid rgba(248, 113, 113, 0.4) !important;
+        background: rgba(248, 113, 113, 0.08) !important;
+        font-weight: 600;
+    }
+    .caja-pendientes-hud .btn-caja-anular-lote:hover,
+    .caja-pendientes-hud .btn-caja-anular-fila:hover {
+        background: rgba(248, 113, 113, 0.15) !important;
+    }
+    .caja-pendientes-hud .btn-caja-ghost {
+        color: var(--caja-muted) !important;
+        border: 1px solid rgba(148, 163, 184, 0.22) !important;
+        background: transparent !important;
+    }
+    .caja-pendientes-hud .btn-caja-ghost:hover {
+        color: var(--caja-platinum) !important;
+        border-color: rgba(148, 163, 184, 0.4) !important;
+    }
+    .caja-pendientes-hud .caja-badge-sin-stock {
+        color: var(--caja-muted) !important;
+        background: rgba(148, 163, 184, 0.12) !important;
+        border: 1px solid rgba(148, 163, 184, 0.28) !important;
+        font-size: 0.78rem;
+        font-weight: 500;
+    }
+    .caja-pendientes-hud .caja-toolbar-anular {
+        background: rgba(0, 0, 0, 0.2) !important;
+        border-color: rgba(255, 255, 255, 0.06) !important;
+    }
+    .caja-pendientes-hud .caja-toolbar-anular .form-label,
+    .caja-pendientes-hud .caja-toolbar-anular .text-muted {
+        color: var(--caja-muted) !important;
+    }
+    .caja-cola-acciones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        justify-content: center;
+        align-items: center;
+    }
+    /* Anula design-system: body .card.card-ds > .card-header { background: #f8fafc } */
+    body.erp-ops-space .caja-pendientes-hud .card.card-ds > .card-header {
+        background: rgba(0, 0, 0, 0.35) !important;
+        color: var(--caja-platinum) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+    body.erp-ops-space .caja-pendientes-hud .card.card-ds > .card-body {
+        background: rgba(15, 23, 42, 0.35) !important;
+    }
+    body.erp-ops-space .caja-pendientes-hud .table tbody td {
+        color: #d1d5db !important;
+        background-color: rgba(15, 23, 42, 0.45) !important;
+    }
+    body.erp-ops-space .caja-pendientes-hud .table tbody tr:nth-child(even) td {
+        background-color: rgba(15, 23, 42, 0.62) !important;
+    }
+    .caja-pendientes-hud .caja-celda-principal {
+        color: var(--caja-platinum) !important;
+    }
+    .caja-pendientes-hud .caja-cola-info-badge {
+        color: #cbd5e1 !important;
+        font-size: 0.85rem;
+        font-weight: 500;
+        background: rgba(15, 23, 42, 0.55) !important;
+        border: 1px solid rgba(251, 146, 60, 0.35) !important;
+    }
+    .caja-pendientes-hud .caja-cola-info-link {
+        color: #cbd5e1 !important;
+        font-size: 0.85rem;
+        text-decoration: none;
+    }
+    .caja-pendientes-hud .caja-cola-info-link:hover {
+        color: var(--caja-platinum) !important;
+    }
+    .caja-cola-table th,
+    .caja-cola-table td {
+        padding: 12px 16px !important;
+        vertical-align: middle;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-0">
+<div class="container-fluid px-0 caja-pendientes-hud">
     {% set vuelto_ultima = (request.args.get('vuelto') or '0')|replace(',', '.')|float %}
     
     <!-- 1. ENCABEZADO -->
@@ -160,29 +296,29 @@
         <div class="col-md"><div class="card card-indicador bg-info text-white p-3"><h4>$ {{ "{:,.0f}".format(vuelto_entregado).replace(",", ".") }}</h4><p class="mb-0">Vueltos hoy</p><small class="opacity-75">Pagado · esta caja</small></div></div>
     </div>
 
-    <div class="card card-ds mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold"><i class="fas fa-file-invoice-dollar me-2 text-warning"></i>Créditos registrados hoy</h6>
-            <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-outline-warning">Registrar abono</a>
+    <div class="card card-ds mb-4" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important;">
+        <div class="card-header d-flex justify-content-between align-items-center" style="background: #22252a !important; color: #ffffff !important;">
+            <h6 class="mb-0 fw-bold" style="color: #ffffff !important;"><i class="fas fa-file-invoice-dollar me-2 caja-card-icon" style="color: #fb923c !important; opacity: 1 !important;"></i>Créditos registrados hoy</h6>
+            <a href="{{ url_for('modulo_creditos') }}" class="btn btn-sm btn-caja-outline" style="color: #ffffff !important; background-color: transparent !important; border: 1px solid rgba(59, 130, 246, 0.65) !important; opacity: 1 !important; filter: none !important;">Registrar abono</a>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-0" style="background-color: rgba(15, 23, 42, 0.35) !important;">
             <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0 table-ds">
+                <table class="table table-sm table-hover mb-0 table-ds caja-cola-table" style="background-color: rgba(15, 23, 42, 0.45) !important; --bs-table-bg: transparent !important;">
                     <thead>
                         <tr>
-                            <th class="ps-3">Vale</th>
-                            <th>Cliente</th>
-                            <th>Hora</th>
-                            <th>Monto</th>
+                            <th class="ps-3" style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">Vale</th>
+                            <th style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">Cliente</th>
+                            <th style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">Hora</th>
+                            <th style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">Monto</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for c in creditos_hoy %}
                         <tr>
-                            <td class="ps-3">#{{ c.id }}</td>
-                            <td>{{ c.cliente.nombre if c.cliente else 'Sin cliente' }}</td>
-                            <td>{{ c.fecha.strftime('%H:%M') }}</td>
-                            <td class="fw-bold text-warning">$ {{ "{:,.0f}".format(c.monto_total).replace(",", ".") }}</td>
+                            <td class="ps-3 caja-celda-principal" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">#{{ c.id }}</td>
+                            <td class="caja-celda-principal" style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ c.cliente.nombre if c.cliente else 'Sin cliente' }}</td>
+                            <td style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ c.fecha.strftime('%H:%M') }}</td>
+                            <td class="caja-monto" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">$ {{ "{:,.0f}".format(c.monto_total).replace(",", ".") }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -195,42 +331,31 @@
         </div>
     </div>
 
-    {% if usuario_tiene_permiso('gestionar_usuarios') and bloquean_cierre_total %}
-    <div class="alert alert-warning border-warning d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div class="small mb-0">
-            <strong>Administrador:</strong> hay <strong>{{ bloquean_cierre_total }}</strong> documento(s) de <em>esta caja abierta</em> que bloquean el cierre de caja (pendientes sin método + borradores POS).
-            La cola de abajo puede listar también vales de otras cajas; este botón solo anula los que bloquean <strong>el cierre del turno actual</strong>.
-        </div>
-        <form method="post" action="{{ url_for('limpiar_cola_cierre_caja') }}" class="d-flex flex-wrap align-items-center gap-2"
-              onsubmit="return confirm('¿Anular {{ bloquean_cierre_total }} documento(s) que bloquean el cierre de ESTA caja? Solo descartes / no cobrados.');">
-            <input type="hidden" name="return_to" value="pendientes">
-            <div class="form-check mb-0">
-                <input class="form-check-input" type="checkbox" name="confirmar" value="1" id="chkLimpiarColaDesdePendientes" required>
-                <label class="form-check-label small" for="chkLimpiarColaDesdePendientes">Confirmo descartes</label>
-            </div>
-            <input type="text" name="motivo" class="form-control form-control-sm" style="min-width:200px;max-width:280px;"
-                   maxlength="500" value="Limpieza cola cierre — descartes / no cobrados">
-            <button type="submit" class="btn btn-sm btn-dark fw-bold text-nowrap">
-                <i class="fas fa-broom me-1"></i>Anular los que bloquean cierre ({{ bloquean_cierre_total }})
-            </button>
-        </form>
-    </div>
-    {% endif %}
-
-    <!-- 4. TABLA -->
+    <!-- 4. COLA DE COBRO -->
     {% set puede_lote_anular = usuario_tiene_permiso('anular_vale_caja') %}
-    <div class="card card-ds">
-        <div class="card-header py-2">
-            <h6 class="mb-0 fw-bold"><i class="fas fa-list me-2 text-success"></i>Cola de cobro</h6>
-            <p class="small text-muted mb-0 mt-1">Borradores POS (<span class="text-warning">Abierta</span>) de <strong>esta caja</strong> y vales <strong>Pendiente</strong> sin método de pago (pueden incluir otras cajas / turnos).</p>
+    <div class="card card-ds" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important;">
+        <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: #22252a !important; color: #ffffff !important;">
+            <h6 class="mb-0 fw-bold" style="color: #ffffff !important;"><i class="fas fa-list me-2 caja-card-icon" style="color: #4ade80 !important; opacity: 1 !important;"></i>Cola de cobro</h6>
+            {% if usuario_tiene_permiso('gestionar_usuarios') and bloquean_cierre_total %}
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge rounded-pill caja-cola-info-badge" style="color: #ffffff !important; background-color: rgba(251, 146, 60, 0.12) !important; border: 1px solid rgba(251, 146, 60, 0.65) !important; opacity: 1 !important; filter: none !important;">{{ bloquean_cierre_total }} bloquean cierre · esta caja</span>
+                <form method="post" action="{{ url_for('limpiar_cola_cierre_caja') }}" class="mb-0 d-inline"
+                      onsubmit="return confirm('¿Anular {{ bloquean_cierre_total }} documento(s) que bloquean el cierre de ESTA caja? Solo descartes / no cobrados.');">
+                    <input type="hidden" name="return_to" value="pendientes">
+                    <input type="hidden" name="confirmar" value="1">
+                    <input type="hidden" name="motivo" value="Limpieza cola cierre — descartes / no cobrados">
+                    <button type="submit" class="btn btn-link btn-sm p-0 caja-cola-info-link" style="color: #4ade80 !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #4ade80 !important;">Limpiar cola</button>
+                </form>
+            </div>
+            {% endif %}
         </div>
         {% if puede_lote_anular %}
         <form method="post" action="{{ url_for('anular_vales_caja_lote') }}" id="formAnularLoteCaja" onsubmit="return window._cajaPendientesConfirmarAnularLote(event);">
-        <div class="card-body border-bottom py-2 bg-body-tertiary">
+        <div class="card-body border-bottom py-2 caja-toolbar-anular" style="background-color: #22252a !important; border-color: rgba(255, 255, 255, 0.08) !important;">
             <div class="row g-2 align-items-end">
                 <div class="col-md-5 col-lg-4">
-                    <label class="form-label small mb-0 fw-semibold" for="motivoAnularLote">Motivo (todos los seleccionados)</label>
-                    <select name="motivo" id="motivoAnularLote" class="form-select form-select-sm" required>
+                    <label class="form-label small mb-0 fw-semibold" for="motivoAnularLote" style="color: #cbd5e1 !important; opacity: 1 !important; -webkit-text-fill-color: #cbd5e1 !important;">Motivo (todos los seleccionados)</label>
+                    <select name="motivo" id="motivoAnularLote" class="form-select form-select-sm" required style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.85) !important; border: 1px solid rgba(148, 163, 184, 0.35) !important; opacity: 1 !important;">
                         <option value="" disabled selected>Seleccione…</option>
                         <option value="Cliente no retorna a pagar / se fue">Cliente no retorna a pagar / se fue</option>
                         <option value="Cliente se arrepiente del pedido">Cliente se arrepiente del pedido</option>
@@ -241,31 +366,30 @@
                     </select>
                 </div>
                 <div class="col-md-5 col-lg-4 d-flex flex-wrap gap-2 align-items-center">
-                    <button type="submit" class="btn btn-sm btn-danger fw-bold">
-                        <i class="fas fa-ban me-1"></i>Anular seleccionados
+                    <button type="submit" class="btn btn-sm btn-caja-anular-lote" style="color: #ffffff !important; background-color: rgba(220, 38, 38, 0.35) !important; border: 1px solid rgba(248, 113, 113, 0.75) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #ffffff !important;">
+                        <i class="fas fa-ban me-1" style="color: #ffffff !important; opacity: 1 !important;"></i>Anular seleccionados
                     </button>
-                    <span class="small text-muted" id="lblAnularLoteCount">0 seleccionados</span>
+                    <span class="small text-muted" id="lblAnularLoteCount" style="color: #cbd5e1 !important; opacity: 1 !important; -webkit-text-fill-color: #cbd5e1 !important;">0 seleccionados</span>
                 </div>
             </div>
-            <p class="small text-muted mb-0 mt-2">Solo se anulan filas elegibles (mismo criterio que el botón Anular por fila). Vales con despacho en bodega requieren permiso adicional.</p>
         </div>
         </form>
         {% endif %}
-        <div class="card-body p-0">
+        <div class="card-body p-0" style="background-color: rgba(15, 23, 42, 0.35) !important;">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0 table-ds">
+                <table class="table table-hover align-middle mb-0 table-ds caja-cola-table" style="background-color: rgba(15, 23, 42, 0.45) !important; --bs-table-bg: transparent !important;">
                     <thead>
                         <tr>
                             {% if puede_lote_anular %}
-                            <th class="ps-3 py-3 text-center" style="width:2.5rem" title="Seleccionar para anular en lote">
-                                <input type="checkbox" class="form-check-input" id="chkAnularLoteTodos" aria-label="Seleccionar todos">
+                            <th class="ps-3 py-3 text-center" style="width:2.5rem; color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;" title="Seleccionar para anular en lote">
+                                <input type="checkbox" class="form-check-input" id="chkAnularLoteTodos" aria-label="Seleccionar todos" style="background-color: rgba(15, 23, 42, 0.85) !important; border-color: #94a3b8 !important; opacity: 1 !important; filter: none !important;">
                             </th>
                             {% endif %}
-                            <th class="ps-4 py-3">N° VALE</th>
-                            <th>HORA</th>
-                            <th>VENDEDOR</th>
-                            <th>TOTAL</th>
-                            <th class="text-center">ACCIÓN</th>
+                            <th class="ps-4 py-3" style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">N° VALE</th>
+                            <th style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">HORA</th>
+                            <th style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">VENDEDOR</th>
+                            <th style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">TOTAL</th>
+                            <th class="text-center" style="color: #ffffff !important; background-color: rgba(0, 0, 0, 0.5) !important;">ACCIÓN</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -273,58 +397,43 @@
                         <tr>
                             {% if puede_lote_anular %}
                             {% set puede_anular_dsp_chk = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
-                            <td class="ps-3 text-center">
+                            <td class="ps-3 text-center" style="background-color: rgba(15, 23, 42, 0.72) !important;">
                                 {% if puede_anular_dsp_chk %}
-                                <input type="checkbox" name="venta_ids" value="{{ v.id }}" class="form-check-input chk-anular-vale-lote" form="formAnularLoteCaja">
+                                <input type="checkbox" name="venta_ids" value="{{ v.id }}" class="form-check-input chk-anular-vale-lote" form="formAnularLoteCaja" style="background-color: rgba(15, 23, 42, 0.85) !important; border-color: #94a3b8 !important; opacity: 1 !important; filter: none !important;">
                                 {% else %}
                                 <span class="text-muted small" title="Requiere permiso anular vale con despacho bodega">—</span>
                                 {% endif %}
                             </td>
                             {% endif %}
-                            <td class="ps-4">
-                                <span class="badge bg-light text-dark border">#{{ v.id }}</span>
-                                {% if v.cola_es_borrador %}
-                                <span class="badge bg-warning text-dark ms-1">Borrador POS</span>
-                                {% endif %}
-                                {% if v.tiene_despacho_bodega %}
-                                <span class="badge bg-info text-dark ms-1 border border-dark border-opacity-25"
-                                    data-bs-toggle="tooltip"
-                                    title="Material ya salió de bodega (comando por voz). Anular sin cobro requiere permiso especial y revierte stock de bodega.">Despachado en Bodega</span>
-                                {% endif %}
-                                {% if v.cotizacion_origen_id %}
-                                {% set cot_ref = cotizaciones_map.get(v.cotizacion_origen_id) if cotizaciones_map else none %}
-                                <div class="small text-warning fw-semibold mt-1">
-                                    <i class="fas fa-file-invoice-dollar me-1"></i>{{ cot_ref.numero if cot_ref else ('Cot. #' ~ v.cotizacion_origen_id) }}
-                                </div>
-                                {% endif %}
+                            <td class="ps-4 caja-celda-principal" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">
+                                <span style="color: #f1f5f9 !important; -webkit-text-fill-color: #f1f5f9 !important;" title="{% if v.cola_es_borrador %}Borrador POS{% endif %}{% if v.tiene_despacho_bodega %}{% if v.cola_es_borrador %} · {% endif %}Despachado bodega{% endif %}{% if v.cotizacion_origen_id %}{% if v.cola_es_borrador or v.tiene_despacho_bodega %} · {% endif %}Cotización{% endif %}">#{{ v.id }}</span>
                             </td>
-                            <td>{{ v.fecha.strftime('%H:%M') }}</td>
-                            <td>
-                                <div>{{ v.usuario }}</div>
-                                <small class="text-muted">Retiro: {{ v.punto_retiro or 'Bodega' }}</small>
-                            </td>
-                            <td><h5 class="fw-bold text-success mb-0">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h5></td>
-                            <td class="text-center">
-                                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                            <td style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ v.fecha.strftime('%H:%M') }}</td>
+                            <td class="caja-celda-principal" style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ v.usuario }}</td>
+                            <td class="caja-monto" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</td>
+                            <td class="text-center" style="background-color: rgba(15, 23, 42, 0.72) !important;">
+                                <div class="caja-cola-acciones">
                                     {% if v.stock_cobrable %}
-                                    <button type="button" class="btn btn-success fw-bold px-3 rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
-                                        COBRAR
+                                    <button type="button" class="btn btn-caja-cobrar btn-sm px-3 rounded-pill" style="color: #fb923c !important; background-color: rgba(251, 146, 60, 0.18) !important; border: 1px solid rgba(251, 146, 60, 0.65) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #fb923c !important;" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}">
+                                        Cobrar
                                     </button>
                                     {% else %}
-                                    <button type="button" class="btn btn-secondary fw-bold px-3 rounded-pill" disabled title="{{ v.stock_alerta }}">
-                                        SIN STOCK
-                                    </button>
+                                    <span class="badge rounded-pill caja-badge-sin-stock px-2 py-1"
+                                          style="color: #ffffff !important; background-color: rgba(127, 29, 29, 0.85) !important; border: 1px solid #f87171 !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #ffffff !important;"
+                                          data-bs-toggle="tooltip" data-bs-placement="top" title="{{ v.stock_alerta }}">
+                                        Sin stock
+                                    </span>
                                     {% endif %}
                                     {% set puede_reimprimir_ticket = usuario_tiene_permiso('caja_cobrar_vale') or usuario_tiene_permiso('pos_emitir_vale') or usuario_tiene_permiso('gestionar_usuarios') %}
                                     {% if puede_reimprimir_ticket %}
-                                    <a href="{{ url_for('pos_ticket_vale', venta_id=v.id) }}" class="btn btn-outline-secondary btn-sm rounded-pill" title="Vista del vale (mismo formato que al emitir); use Imprimir o Ctrl+P">
-                                        <i class="fas fa-receipt me-1"></i>Ticket vale
+                                    <a href="{{ url_for('pos_ticket_vale', venta_id=v.id) }}" class="btn btn-caja-ghost btn-sm rounded-pill" style="color: #ffffff !important; background-color: rgba(59, 130, 246, 0.2) !important; border: 1px solid rgba(96, 165, 250, 0.65) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #ffffff !important;" title="Imprimir ticket vale">
+                                        <i class="fas fa-receipt me-1" style="color: #ffffff !important; opacity: 1 !important;"></i>Ticket
                                     </a>
                                     {% endif %}
                                     {% if usuario_tiene_permiso('anular_vale_caja') %}
                                     {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
                                     {% if puede_anular_dsp %}
-                                    <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" data-bs-toggle="modal" data-bs-target="#modalAnular{{ v.id }}" title="Cliente no retorna{% if v.tiene_despacho_bodega %} — con reversión de bodega{% endif %}">
+                                    <button type="button" class="btn btn-caja-anular-fila btn-sm rounded-pill" style="color: #ffffff !important; background-color: rgba(220, 38, 38, 0.25) !important; border: 1px solid rgba(248, 113, 113, 0.65) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #ffffff !important;" data-bs-toggle="modal" data-bs-target="#modalAnular{{ v.id }}" title="Cliente no retorna{% if v.tiene_despacho_bodega %} — con reversión de bodega{% endif %}">
                                         Anular
                                     </button>
                                     {% else %}
@@ -335,152 +444,149 @@
                                     {% endif %}
                                     {% endif %}
                                 </div>
-                                {% if not v.stock_cobrable %}
-                                <div class="small text-danger mt-1">{{ v.stock_alerta }}</div>
-                                {% endif %}
                             </td>
                         </tr>
-
-                        <!-- MODAL -->
-                        {% set saldo_disp = v.saldo_favor_disponible or 0 %}
-                        {% set saldo_sugerido = saldo_disp if saldo_disp < (v.monto_total or 0) else (v.monto_total or 0) %}
-                        {% set total_sugerido = (v.monto_total or 0) - saldo_sugerido %}
-                        <div class="modal fade modal-premium" id="modalCobro{{ v.id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content shadow-lg">
-                                    <form action="{{ url_for('procesar_cobro_caja', id=v.id) }}" method="POST" onsubmit="return manejarEnvioSeguro(this)">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title fw-bold">{% if v.cola_es_borrador %}Cobrar borrador #{% else %}Cobrar vale #{% endif %}{{ v.id }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body p-4">
-                                            <div class="text-center mb-4">
-                                                <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h1>
-                                            </div>
-                                            {% if v.cliente %}
-                                            <div class="alert {% if (v.cliente.saldo_deudor or 0) > 0 %}alert-warning{% else %}alert-light{% endif %} py-2 mb-3">
-                                                <div class="small">
-                                                    <strong>Cliente:</strong> {{ v.cliente.nombre }}
-                                                    <span class="mx-2">|</span>
-                                                    <strong>Deuda pendiente actual:</strong>
-                                                    $ {{ "{:,.0f}".format(v.cliente.saldo_deudor or 0).replace(",", ".") }}
-                                                </div>
-                                            </div>
-                                            {% if saldo_disp > 0 %}
-                                            <div class="alert alert-warning py-2 mb-3">
-                                                <div class="fw-bold"><i class="fas fa-wallet me-1"></i>Este cliente tiene saldo a favor.</div>
-                                                <div class="small">
-                                                    Disponible: <strong>$ {{ "{:,.0f}".format(saldo_disp).replace(",", ".") }}</strong>.
-                                                    Se sugiere usar <strong>$ {{ "{:,.0f}".format(saldo_sugerido).replace(",", ".") }}</strong>
-                                                    para dejar el pago en <strong>$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</strong>.
-                                                </div>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Usar saldo a favor</label>
-                                                <div class="input-group">
-                                                    <span class="input-group-text">$</span>
-                                                    <input type="number" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" class="form-control" value="{{ saldo_sugerido|round(0)|int }}" min="0" max="{{ saldo_sugerido|round(0)|int }}" step="any" data-disponible="{{ saldo_disp }}" data-total="{{ v.monto_total }}" oninput="actualizarSaldoFavorCobro({{ v.id }})">
-                                                    <button class="btn btn-outline-warning" type="button" onclick="usarMaximoSaldoFavor({{ v.id }})">Usar máximo</button>
-                                                </div>
-                                                <div class="form-text">Puedes cambiarlo a 0 si el cliente prefiere no usar su saldo ahora.</div>
-                                            </div>
-                                            <div class="alert alert-light border py-2 mb-3">
-                                                <strong>Total a pagar ahora:</strong>
-                                                <span id="total_a_pagar_{{ v.id }}">$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</span>
-                                            </div>
-                                            {% else %}
-                                            <input type="hidden" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" value="0" data-disponible="0" data-total="{{ v.monto_total }}">
-                                            {% endif %}
-                                            {% endif %}
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Documento</label>
-                                                <select name="tipo_documento" class="form-select" required>
-                                                    <option value="Boleta" selected>Boleta</option>
-                                                    <option value="Factura">Factura</option>
-                                                </select>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Pago</label>
-                                                <select name="metodo_pago" class="form-select" required id="metodo_pago_{{ v.id }}" onchange="verificarCredito({{ v.id }})">
-                                                    <option value="Efectivo" selected>Efectivo</option>
-                                                    <option value="Debito">Débito / prepago</option>
-                                                    <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
-                                                    <option value="Credito">Crédito tienda (cartera)</option>
-                                                </select>
-                                            </div>
-                                            {% if v.cliente %}
-                                            <div class="mb-3 d-none border rounded p-3 bg-light" id="credito_cuotas_wrap_{{ v.id }}">
-                                                <label class="form-label fw-bold text-dark">Crédito en cuotas <span class="text-muted fw-normal small">(fechas de pago)</span></label>
-                                                <select name="credito_plan_cuotas" id="credito_plan_cuotas_{{ v.id }}" class="form-select">
-                                                    {% for val, label in planes_cuotas_credito %}
-                                                    <option value="{{ val }}" {% if val == '' %}selected{% endif %}>{{ label }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                                <div class="form-text text-dark">Cada plan reparte el <strong>total del vale</strong> en cuotas iguales; los días son desde el cobro en caja. Sin plan = crédito simple (una sola deuda en cuenta).</div>
-                                            </div>
-                                            {% endif %}
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Monto Recibido</label>
-                                                <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
-                                                <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.</div>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="submit" class="btn btn-primary fw-bold px-4">FINALIZAR</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        {% if usuario_tiene_permiso('anular_vale_caja') %}
-                        {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
-                        {% if puede_anular_dsp %}
-                        <div class="modal fade modal-premium" id="modalAnular{{ v.id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content shadow-lg border-danger border-opacity-25">
-                                    <form action="{{ url_for('anular_vale_caja', id=v.id) }}" method="POST">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title fw-bold text-danger"><i class="fas fa-ban me-2"></i>{% if v.cola_es_borrador %}Anular borrador #{% else %}Anular vale #{% endif %}{{ v.id }}</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body p-4">
-                                            {% if v.tiene_despacho_bodega %}
-                                            <div class="alert alert-warning border-warning mb-3">
-                                                <strong><i class="fas fa-warehouse me-1"></i>Atención — riesgo de inventario</strong>
-                                                <p class="small mb-0 mt-2">Este vale tiene salidas ya registradas en <strong>bodega</strong> (despacho por voz). Si confirma la anulación, el sistema <strong>devolverá el stock a bodega</strong> y dejará trazas en auditoría y kardex, en una sola transacción.</p>
-                                            </div>
-                                            {% endif %}
-                                            <p class="small text-muted mb-2">{% if v.cola_es_borrador %}Descartar venta en curso en el POS. El stock no se había descontado aún.{% elif v.tiene_despacho_bodega %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. La tienda no había cobrado; se revierte lo despachado en bodega.{% else %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock de tienda no se había descontado aún.{% endif %}</p>
-                                            <label class="form-label fw-bold" for="motivo_anular_{{ v.id }}">Motivo</label>
-                                            <select name="motivo" id="motivo_anular_{{ v.id }}" class="form-select" required>
-                                                <option value="" disabled selected>Seleccione una opción…</option>
-                                                <option value="Cliente no retorna a pagar / se fue">Cliente no retorna a pagar / se fue</option>
-                                                <option value="Cliente se arrepiente del pedido">Cliente se arrepiente del pedido</option>
-                                                <option value="Error en productos o montos del vale">Error en productos o montos del vale</option>
-                                                <option value="Vale duplicado o emitido por error">Vale duplicado o emitido por error</option>
-                                                <option value="Cliente pagará con otro medio (reemitir vale)">Cliente pagará con otro medio (reemitir vale)</option>
-                                                <option value="Prueba o capacitación">Prueba o capacitación</option>
-                                                <option value="Otro (detalle en caja)">Otro (detalle en caja)</option>
-                                            </select>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                                            <button type="submit" class="btn btn-danger fw-bold">Confirmar anulación</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
-                        {% endif %}
                         {% else %}
                         <tr><td colspan="{% if puede_lote_anular %}6{% else %}5{% endif %}" class="text-center py-5 text-muted">No hay documentos en cola de cobro.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% for v in cola_combined %}
+            {% set saldo_disp = v.saldo_favor_disponible or 0 %}
+            {% set saldo_sugerido = saldo_disp if saldo_disp < (v.monto_total or 0) else (v.monto_total or 0) %}
+            {% set total_sugerido = (v.monto_total or 0) - saldo_sugerido %}
+            <div class="modal fade modal-premium" id="modalCobro{{ v.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content shadow-lg">
+                        <form action="{{ url_for('procesar_cobro_caja', id=v.id) }}" method="POST" onsubmit="return manejarEnvioSeguro(this)">
+                            <div class="modal-header">
+                                <h5 class="modal-title fw-bold">{% if v.cola_es_borrador %}Cobrar borrador #{% else %}Cobrar vale #{% endif %}{{ v.id }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                <div class="text-center mb-4">
+                                    <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(v.monto_total).replace(",", ".") }}</h1>
+                                </div>
+                                {% if v.cliente %}
+                                <div class="alert {% if (v.cliente.saldo_deudor or 0) > 0 %}alert-warning{% else %}alert-light{% endif %} py-2 mb-3">
+                                    <div class="small">
+                                        <strong>Cliente:</strong> {{ v.cliente.nombre }}
+                                        <span class="mx-2">|</span>
+                                        <strong>Deuda pendiente actual:</strong>
+                                        $ {{ "{:,.0f}".format(v.cliente.saldo_deudor or 0).replace(",", ".") }}
+                                    </div>
+                                </div>
+                                {% if saldo_disp > 0 %}
+                                <div class="alert alert-warning py-2 mb-3">
+                                    <div class="fw-bold"><i class="fas fa-wallet me-1"></i>Este cliente tiene saldo a favor.</div>
+                                    <div class="small">
+                                        Disponible: <strong>$ {{ "{:,.0f}".format(saldo_disp).replace(",", ".") }}</strong>.
+                                        Se sugiere usar <strong>$ {{ "{:,.0f}".format(saldo_sugerido).replace(",", ".") }}</strong>
+                                        para dejar el pago en <strong>$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</strong>.
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Usar saldo a favor</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" class="form-control" value="{{ saldo_sugerido|round(0)|int }}" min="0" max="{{ saldo_sugerido|round(0)|int }}" step="any" data-disponible="{{ saldo_disp }}" data-total="{{ v.monto_total }}" oninput="actualizarSaldoFavorCobro({{ v.id }})">
+                                        <button class="btn btn-outline-warning" type="button" onclick="usarMaximoSaldoFavor({{ v.id }})">Usar máximo</button>
+                                    </div>
+                                    <div class="form-text">Puedes cambiarlo a 0 si el cliente prefiere no usar su saldo ahora.</div>
+                                </div>
+                                <div class="alert alert-light border py-2 mb-3">
+                                    <strong>Total a pagar ahora:</strong>
+                                    <span id="total_a_pagar_{{ v.id }}">$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</span>
+                                </div>
+                                {% else %}
+                                <input type="hidden" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" value="0" data-disponible="0" data-total="{{ v.monto_total }}">
+                                {% endif %}
+                                {% endif %}
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Documento</label>
+                                    <select name="tipo_documento" class="form-select" required>
+                                        <option value="Boleta" selected>Boleta</option>
+                                        <option value="Factura">Factura</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Pago</label>
+                                    <select name="metodo_pago" class="form-select" required id="metodo_pago_{{ v.id }}" onchange="verificarCredito({{ v.id }})">
+                                        <option value="Efectivo" selected>Efectivo</option>
+                                        <option value="Debito">Débito / prepago</option>
+                                        <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
+                                        <option value="Credito">Crédito tienda (cartera)</option>
+                                    </select>
+                                </div>
+                                {% if v.cliente %}
+                                <div class="mb-3 d-none border rounded p-3 bg-light" id="credito_cuotas_wrap_{{ v.id }}">
+                                    <label class="form-label fw-bold text-dark">Crédito en cuotas <span class="text-muted fw-normal small">(fechas de pago)</span></label>
+                                    <select name="credito_plan_cuotas" id="credito_plan_cuotas_{{ v.id }}" class="form-select">
+                                        {% for val, label in planes_cuotas_credito %}
+                                        <option value="{{ val }}" {% if val == '' %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text text-dark">Cada plan reparte el <strong>total del vale</strong> en cuotas iguales; los días son desde el cobro en caja. Sin plan = crédito simple (una sola deuda en cuenta).</div>
+                                </div>
+                                {% endif %}
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Monto Recibido</label>
+                                    <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ v.monto_total }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
+                                    <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary fw-bold px-4">FINALIZAR</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            {% if usuario_tiene_permiso('anular_vale_caja') %}
+            {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
+            {% if puede_anular_dsp %}
+            <div class="modal fade modal-premium" id="modalAnular{{ v.id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content shadow-lg border-danger border-opacity-25">
+                        <form action="{{ url_for('anular_vale_caja', id=v.id) }}" method="POST">
+                            <div class="modal-header">
+                                <h5 class="modal-title fw-bold text-danger"><i class="fas fa-ban me-2"></i>{% if v.cola_es_borrador %}Anular borrador #{% else %}Anular vale #{% endif %}{{ v.id }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                {% if v.tiene_despacho_bodega %}
+                                <div class="alert alert-warning border-warning mb-3">
+                                    <strong><i class="fas fa-warehouse me-1"></i>Atención — riesgo de inventario</strong>
+                                    <p class="small mb-0 mt-2">Este vale tiene salidas ya registradas en <strong>bodega</strong> (despacho por voz). Si confirma la anulación, el sistema <strong>devolverá el stock a bodega</strong> y dejará trazas en auditoría y kardex, en una sola transacción.</p>
+                                </div>
+                                {% endif %}
+                                <p class="small text-muted mb-2">{% if v.cola_es_borrador %}Descartar venta en curso en el POS. El stock no se había descontado aún.{% elif v.tiene_despacho_bodega %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. La tienda no había cobrado; se revierte lo despachado en bodega.{% else %}Usar cuando el cliente <strong>no vuelve a pagar</strong>. El stock de tienda no se había descontado aún.{% endif %}</p>
+                                <label class="form-label fw-bold" for="motivo_anular_{{ v.id }}">Motivo</label>
+                                <select name="motivo" id="motivo_anular_{{ v.id }}" class="form-select" required>
+                                    <option value="" disabled selected>Seleccione una opción…</option>
+                                    <option value="Cliente no retorna a pagar / se fue">Cliente no retorna a pagar / se fue</option>
+                                    <option value="Cliente se arrepiente del pedido">Cliente se arrepiente del pedido</option>
+                                    <option value="Error en productos o montos del vale">Error en productos o montos del vale</option>
+                                    <option value="Vale duplicado o emitido por error">Vale duplicado o emitido por error</option>
+                                    <option value="Cliente pagará con otro medio (reemitir vale)">Cliente pagará con otro medio (reemitir vale)</option>
+                                    <option value="Prueba o capacitación">Prueba o capacitación</option>
+                                    <option value="Otro (detalle en caja)">Otro (detalle en caja)</option>
+                                </select>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                <button type="submit" class="btn btn-neon-anular fw-bold">Confirmar anulación</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+            {% endfor %}
         </div>
     </div>
 </div>

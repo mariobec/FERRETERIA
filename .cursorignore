@@ -1,0 +1,8 @@
+*.pdf
+*.csv
+*.sql
+*.pdf.pdf
+__pycache__/
+lhexia-core-hq/
+docs/
+backups/

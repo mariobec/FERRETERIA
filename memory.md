@@ -426,6 +426,17 @@ Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador**
 - Helper **`cuerpo_alerta_para_ui()`** — oculta bloque `[Base operativa]` en móvil.
 - Scripts: `agente_operador_ciclo.py`, `setup_ollama_sd.ps1`, `registrar_tarea_operador_windows.ps1`, `smoke_agente_operador_cron.py`.
 - Tests: `tests/test_agente_operador_cron.py`.
+- **Prod:** push `16a2dfe` → Render auto-deploy. Tag `checkpoint/ia-operador-prod-2026-05-24`.
+- **Perf:** schema ensure al arrancar incluye agente+academy; `before_request` short-circuit ampliado; `render.yaml` `AGENTE_OLLAMA_ENABLED=0`.
+
+### Post-deploy Render (manual dashboard)
+
+- [ ] Confirmar deploy verde (~3–5 min tras push).
+- [ ] `DATABASE_URL` usa host **pooler** Neon (`-pooler` en hostname).
+- [ ] **No** definir `AGENTE_OPERADOR_SCAN_ON_LOAD=1` en Render.
+- [ ] Cron cada 10 min: `POST /api/agente/operador/dispatch-scan` + Bearer (`COBRANZA_DISPATCH_CRON_SECRET` o dedicado).
+- [ ] Ctrl+F5 en `/punto_venta` y `/owner-mobile` tras deploy.
+- [ ] Neon: si cold start molesta → plan sin auto-suspend (Launch).
 
 ### Checklist noche (Mario — Ollama)
 
@@ -522,4 +533,4 @@ Detalle: `docs/memory.md` § «Live Wall / Experience Wall». Commit `4ae0292`. 
 
 ---
 
-*Última actualización: 2026-05-24 — Piloto IA Operador+Guardián+Ollama; FE Maullín en código; SD-1 POS/inventario.*
+*Última actualización: 2026-05-24 — **Deploy prod** commit `16a2dfe` (Operador IA, Guardián, Academy, perf schema). Tag `checkpoint/ia-operador-prod-2026-05-24`.*

@@ -1,6 +1,10 @@
 """Catálogo unidades de medida (detección de tabla, seed base, factores compra/venta → stock)."""
 
+from decimal import Decimal, ROUND_HALF_UP
+
 from sqlalchemy import text
+
+_UNIDADES_PESO = frozenset({'KG', 'KILO', 'KILOGRAMO', 'GR', 'G', 'GRAMO', 'GRAMOS'})
 
 
 def unidades_disponibles():
@@ -127,3 +131,39 @@ def factor_venta_a_stock(producto):
         except Exception:
             pass
     return 1.0
+
+
+def _codigo_unidad_producto(producto, campo: str = 'venta') -> str:
+    if not producto:
+        return ''
+    if campo == 'compra':
+        raw = producto.unidad_compra or producto.unidad or ''
+    else:
+        raw = producto.unidad_venta or producto.unidad or ''
+    return (raw or '').strip().upper()
+
+
+def es_unidad_peso_producto(producto) -> bool:
+    """True si la unidad de venta es peso (pernería, clavos por kg, alambre)."""
+    uv = _codigo_unidad_producto(producto, 'venta')
+    if uv in _UNIDADES_PESO:
+        return True
+    return uv.startswith('KG') or uv.startswith('GR')
+
+
+def consumo_stock_entero_desde_cantidad(cantidad, producto) -> int:
+    """
+    Invariante LhexIA: consumo de stock en enteros (gramos/unidades puras).
+    Evita mermas fantasma por float en productos fraccionables por peso.
+    """
+    qty = Decimal(str(cantidad or 0))
+    if qty <= 0:
+        return 0
+    factor = Decimal(str(factor_venta_a_stock(producto)))
+    consumo = qty * factor
+    if es_unidad_peso_producto(producto):
+        uv = _codigo_unidad_producto(producto, 'venta')
+        if uv in ('KG', 'KILO', 'KILOGRAMO'):
+            consumo = qty * Decimal('1000') * factor
+        return max(0, int(consumo.to_integral_value(rounding=ROUND_HALF_UP)))
+    return max(0, int(consumo.to_integral_value(rounding=ROUND_HALF_UP)))

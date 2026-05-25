@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block body_class %}erp-ops-space {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
@@ -19,7 +20,7 @@
   </div>
 
   <div class="card card-ds mb-4">
-    <div class="card-header bg-white fw-bold">Registrar Movimiento</div>
+    <div class="card-header fw-bold">Registrar Movimiento</div>
     <div class="card-body">
       <form method="POST" action="{{ url_for('movimiento_caja') }}" class="row g-3">
         {% if q_redirect and q_redirect.get('tipo') %}
@@ -58,7 +59,7 @@
           <div class="form-text small">Pesos chilenos; miles con punto.</div>
         </div>
         <div class="col-12 text-end">
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn btn-ds-primary">
             <i class="fas fa-save me-1"></i> Guardar Movimiento
           </button>
         </div>
