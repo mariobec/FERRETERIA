@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-pedidos-apedido-20260520">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-sin-sesion-20260525">
 {% if pos_layout_fullwidth %}
 <style>
 body.pos-pantalla-vendedora .app-sidebar,
@@ -452,7 +452,65 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   }
 
   .pos-identify-card .card-body {
-    padding: 0.85rem 1rem;
+    padding: 0.5rem 0.7rem;
+  }
+  .pos-identify-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.32rem;
+  }
+  .pos-identify-row-top {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 5px !important;
+    min-height: 2rem;
+  }
+  .pos-identify-row-bottom {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    flex-wrap: nowrap !important;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  #posIdentRutQuick {
+    max-width: 10rem !important;
+    min-width: 8.75rem;
+  }
+  .pos-identify-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+  }
+  .pos-identify-actions .btn {
+    min-height: 30px;
+    padding: 0.2rem 0.42rem;
+    line-height: 1;
+  }
+  #posTvClienteBadge {
+    display: inline-flex;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow: hidden;
+    gap: 0.2rem !important;
+  }
+  #posCreditoStrip {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    width: auto;
+    margin-top: 0 !important;
+  }
+  #posCreditoStrip.d-none {
+    display: none !important;
   }
   .pos-rut-toggle-btn.is-on {
     background: linear-gradient(135deg, #1e3a8a, #2563eb);
@@ -467,7 +525,11 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   .pos-rut-hint {
     font-size: 0.75rem;
     color: #64748b;
-    max-width: 14rem;
+    max-width: 13rem;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .pos-toolbar-actions .btn {
     white-space: nowrap;
@@ -478,39 +540,33 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
 {% block content %}
 <div class="container-fluid px-0{% if pos_layout_fullwidth %} pos-vendedor-page{% endif %}">
   {% if pos_layout_fullwidth %}
-  <header class="pos-vendedor-chrome" aria-label="Pantalla vendedora">
-    <div class="pos-vendedor-chrome__brand">
-      <img src="{{ lhexia_icon_src }}" alt="" class="pos-vendedor-chrome__logo" width="32" height="32">
-      <div>
-        <h1 class="h6 mb-0 fw-bold">Punto de venta</h1>
-        <p class="mb-0 small text-muted">{{ empresa_cfg.nombre_comercial }}</p>
+  <header class="pos-hdr-premium" aria-label="Pantalla vendedora">
+    <div class="pos-hdr-premium__brand">
+      <img src="{{ lhexia_icon_src }}" alt="" class="pos-hdr-premium__logo" width="36" height="36">
+      <div class="pos-hdr-premium__brand-text">
+        <span class="pos-hdr-premium__eyebrow"><i class="fas fa-cash-register" aria-hidden="true"></i> Punto de venta</span>
+        <h1 class="pos-hdr-premium__title">{{ empresa_cfg.nombre_comercial }}</h1>
+        <p class="pos-hdr-premium__meta mb-0">Vendedor: <strong>{{ current_user.nombre }}</strong></p>
       </div>
     </div>
-    <div class="pos-vendedor-chrome__session">
-      <span class="pos-vendedor-chrome__user"><i class="fas fa-user-circle me-1"></i>{{ current_user.nombre }}</span>
-      {% if session_login_ms %}
-      <span class="pos-vendedor-chrome__uptime" data-login-ms="{{ session_login_ms }}" title="Tiempo en sesión"><i class="fas fa-clock me-1"></i><span id="appUptimeText">--m</span></span>
-      {% endif %}
-    </div>
-    <nav class="pos-vendedor-chrome__nav" aria-label="Accesos POS">
+    <nav class="pos-nav-dock" aria-label="Accesos POS">
       {% if puede_ver_creditos %}
-      <a href="{{ pos_credito_urls.modulo_creditos }}" class="btn btn-sm btn-outline-light" title="Créditos y cartera"><i class="fas fa-hand-holding-usd"></i><span class="d-none d-lg-inline ms-1">Créditos</span></a>
-      <a href="#" id="posBtnCartola" class="btn btn-sm btn-outline-warning disabled" target="_blank" rel="noopener" title="Estado de cuenta del cliente identificado" aria-disabled="true"><i class="fas fa-file-invoice"></i><span class="d-none d-lg-inline ms-1">Cartola</span></a>
-      <a href="#" id="posBtnBoucher" class="btn btn-sm btn-outline-warning disabled" target="_blank" rel="noopener" title="Boucher con cargos y abonos" aria-disabled="true"><i class="fas fa-receipt"></i><span class="d-none d-lg-inline ms-1">Boucher</span></a>
+      <a href="{{ pos_credito_urls.modulo_creditos }}" class="pos-nav-dock__link" title="Créditos y cartera"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i><span>Créditos</span></a>
+      <a href="#" id="posBtnCartola" class="pos-nav-dock__link pos-nav-dock__link--accent-amber disabled" target="_blank" rel="noopener" title="Estado de cuenta del cliente identificado" aria-disabled="true"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>Cartola</span></a>
+      <a href="#" id="posBtnBoucher" class="pos-nav-dock__link pos-nav-dock__link--accent-amber disabled" target="_blank" rel="noopener" title="Boucher con cargos y abonos" aria-disabled="true"><i class="fas fa-receipt" aria-hidden="true"></i><span>Boucher</span></a>
       {% endif %}
-      <button type="button" class="btn btn-sm btn-outline-light" id="posBtnNuevaVentaChrome" title="Descartar borrador e iniciar venta vacía">
-        <i class="fas fa-file-circle-plus"></i><span class="d-none d-md-inline ms-1">Nueva venta</span>
+      <button type="button" class="pos-nav-dock__link" id="posBtnNuevaVentaChrome" title="Descartar borrador e iniciar venta vacía">
+        <i class="fas fa-file-circle-plus" aria-hidden="true"></i><span>Nueva venta</span>
       </button>
-      {% include 'pos/includes/premium_pedidos_apedido_btn.html' %}
-      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-sm btn-success" title="Ir a caja"><i class="fas fa-cash-register"></i><span class="d-none d-md-inline ms-1">Caja</span></a>
-      {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'btn-outline-light' %}{% include 'partials/help_screen_link.html' %}
+      <a href="{{ url_for('caja_pendientes') }}" class="pos-nav-dock__link pos-nav-dock__link--primary" title="Ir a caja"><i class="fas fa-cash-register" aria-hidden="true"></i><span>Caja</span></a>
+      {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'pos-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
       {% if experience_wall_url %}
-      <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="TV cliente"><i class="fas fa-tv"></i><span class="d-none d-md-inline ms-1">TV</span></a>
+      <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-sky" title="TV cliente"><i class="fas fa-tv" aria-hidden="true"></i><span>TV</span></a>
       {% endif %}
-      <button type="button" class="btn btn-sm pos-switch-btn {% if pos_cross_sell_enabled %}is-on{% else %}is-off{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}" title="Sugerencias de venta">
-        <i class="fas fa-wand-magic-sparkles"></i><span class="d-none d-lg-inline ms-1" id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias{% else %}Sugerencias off{% endif %}</span>
+      <button type="button" class="pos-nav-dock__link pos-nav-dock__link--suggest {% if pos_cross_sell_enabled %}is-on{% else %}is-off{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}" title="Sugerencias de venta">
+        <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias{% else %}Sugerencias off{% endif %}</span>
       </button>
-      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-danger" title="Cerrar sesión"><i class="fas fa-sign-out-alt"></i><span class="d-none d-md-inline ms-1">Salir</span></a>
+      <a href="{{ url_for('logout') }}" class="pos-nav-dock__link pos-nav-dock__link--danger" title="Cerrar sesión"><i class="fas fa-sign-out-alt" aria-hidden="true"></i><span>Salir</span></a>
     </nav>
   </header>
   {% else %}
@@ -565,24 +621,27 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
     <div class="pos-premium-grid">
       <div class="pos-premium-col pos-premium-col--tools">
 
-  <div class="card card-ds mb-3 border-info border-opacity-25 pos-identify-card">
+  <div class="card card-ds mb-2 border-info border-opacity-25 pos-identify-card">
     <div class="card-body">
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <button type="button" class="btn btn-sm pos-rut-toggle-btn fw-bold {% if pos_rut_obligatorio %}is-on{% else %}is-off{% endif %}" id="posToggleRutObligatorioBtn" data-obligatorio="{{ 1 if pos_rut_obligatorio else 0 }}" title="Fidelización: pedir RUT al cliente">
-          <i class="fas fa-id-card me-1"></i><span id="posToggleRutObligatorioText">{% if pos_rut_obligatorio %}RUT obligatorio{% else %}Sin RUT{% endif %}</span>
-        </button>
-        <span class="small fw-bold text-nowrap"><i class="fas fa-tv text-info me-1"></i>TV</span>
-        <input type="text" class="form-control form-control-sm" style="max-width:11rem" id="posIdentRutQuick" placeholder="{% if pos_rut_obligatorio %}RUT cliente{% else %}RUT si lo entrega{% endif %}"
-               value="{{ cliente.rut if cliente else '' }}">
-        <div id="posTvClienteBadge" class="d-flex flex-wrap gap-1"></div>
-        <span class="pos-rut-hint d-none d-lg-inline" id="posRutHintText">{% if pos_rut_obligatorio %}Fidelización activa: identifique al cliente.{% else %}Cliente no quiso RUT — vale sin datos.{% endif %}</span>
-        <div class="d-flex flex-wrap gap-1 ms-md-auto">
-          <button type="button" class="btn btn-sm btn-info text-white" id="posBtnIdentificarTv" title="Identificar en TV"><i class="fas fa-user-check"></i></button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnClienteFinalTv" title="Cliente final"><i class="fas fa-user"></i></button>
-          <button type="button" class="btn btn-sm btn-outline-danger" id="posBtnQuitarClienteTv" title="Quitar TV"><i class="fas fa-times"></i></button>
+      <div class="pos-identify-grid">
+        <div class="pos-identify-row-top">
+          <button type="button" class="btn btn-sm pos-rut-toggle-btn fw-bold {% if pos_rut_obligatorio %}is-on{% else %}is-off{% endif %}" id="posToggleRutObligatorioBtn" data-obligatorio="{{ 1 if pos_rut_obligatorio else 0 }}" title="Fidelización: pedir RUT al cliente">
+            <i class="fas fa-id-card me-1"></i><span id="posToggleRutObligatorioText">{% if pos_rut_obligatorio %}RUT obligatorio{% else %}Sin RUT{% endif %}</span>
+          </button>
+          <input type="text" class="form-control form-control-sm" style="max-width:11rem" id="posIdentRutQuick" placeholder="{% if pos_rut_obligatorio %}RUT cliente{% else %}RUT si lo entrega{% endif %}"
+                 value="{{ cliente.rut if cliente else '' }}">
+          <div class="pos-identify-actions">
+            <button type="button" class="btn btn-sm btn-info text-white" id="posBtnIdentificarTv" title="Identificar en TV"><i class="fas fa-user-check"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnClienteFinalTv" title="Cliente final"><i class="fas fa-user"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="posBtnQuitarClienteTv" title="Quitar TV"><i class="fas fa-times"></i></button>
+          </div>
+        </div>
+        <div class="pos-identify-row-bottom">
+          <div id="posTvClienteBadge" class="d-flex flex-wrap gap-1"></div>
+          <div id="posCreditoStrip" class="pos-credito-strip-wrap d-none" aria-live="polite"></div>
+          <span class="pos-rut-hint d-none d-lg-inline" id="posRutHintText">{% if pos_rut_obligatorio %}Fidelización activa: identifique al cliente.{% else %}Cliente no quiso RUT — vale sin datos.{% endif %}</span>
         </div>
       </div>
-      <div id="posCreditoStrip" class="pos-credito-strip-wrap d-none w-100 mt-2" aria-live="polite"></div>
     </div>
   </div>
 
@@ -643,7 +702,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   {% endif %}
 
       {% if pos_layout_fullwidth %}
-      <details class="pos-historial-details mb-3">
+      <details class="pos-historial-details mb-3" style="padding-top: 50px !important;">
         <summary class="pos-historial-details__summary"><i class="fas fa-clock-rotate-left me-1"></i>Vales de hoy</summary>
         {% include 'pos/includes/premium_historial_hoy.html' %}
       </details>
@@ -1192,7 +1251,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-hud-focus-20260525"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-dock-credito-20260525"></script>
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

@@ -8,7 +8,7 @@ body.pos-pantalla-vendedora {
   --pos-ferre-amarillo-text: #0c2340;
   --pos-lhexia-naranja: #f37021;
   --pos-dock-height: 8.75rem;
-  --pos-chrome-height: 3.35rem;
+  --pos-chrome-height: 5.5rem;
   scrollbar-gutter: stable;
 }
 
@@ -130,80 +130,231 @@ body.pos-layout-fullwidth .pos-vendedor-page {
   margin-inline: auto;
 }
 
-/* Chrome único: reemplaza sidebar + topbar ERP */
+/* Chrome único: reemplaza sidebar + topbar ERP (misma línea que panel de cobranza) */
+.pos-hdr-premium,
 .pos-vendedor-chrome {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.5rem 0.85rem;
-  padding: 0.45rem 0.75rem;
-  margin-bottom: 0.65rem;
-  border-radius: 12px;
-  background: linear-gradient(180deg, var(--pos-navy) 0%, var(--pos-navy-mid) 100%);
-  color: #e8eef5;
-  box-shadow: 0 8px 24px rgba(12, 35, 64, 0.28);
-  border-bottom: 3px solid var(--pos-ferre-amarillo);
+  gap: 1rem 1.35rem;
+  padding: 1rem 1.2rem;
+  margin-bottom: 0.75rem;
+  color: #f8fafc;
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    var(--pos-navy, #0c2340) 0%,
+    var(--pos-navy-mid, #163a5f) 52%,
+    #0f2844 100%
+  );
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-bottom: 3px solid var(--pos-ferre-amarillo, #f5c400);
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.pos-vendedor-chrome__brand {
+.pos-hdr-premium__brand {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.65rem;
   min-width: 0;
 }
 
-.pos-vendedor-chrome__logo {
-  border-radius: 8px;
+.pos-hdr-premium__logo {
+  border-radius: 10px;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-.pos-vendedor-chrome__brand h1 {
-  line-height: 1.15;
-  color: #f8fafc;
+.pos-hdr-premium__brand-text {
+  flex: 1;
+  min-width: 0;
 }
 
-.pos-vendedor-chrome__brand p {
-  color: #94a3b8 !important;
-  white-space: nowrap;
+.pos-hdr-premium__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(251, 191, 36, 0.9);
+}
+
+.pos-hdr-premium__title {
+  margin: 0 0 0.15rem;
+  font-size: clamp(1.05rem, 1.35vw, 1.28rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 22ch;
+  max-width: 100%;
 }
 
-.pos-vendedor-chrome__session {
+.pos-hdr-premium__meta {
+  font-size: 0.8125rem;
+  color: rgba(226, 232, 240, 0.82);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.pos-hdr-premium__meta strong {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Ajuste de recuperación: header sin altura fija ni recorte de textos */
+body.pos-pantalla-vendedora .pos-hdr-premium {
+  height: auto !important;
+  min-height: unset !important;
+}
+
+body.pos-pantalla-vendedora .pos-hdr-premium__brand {
+  min-width: 14rem;
+}
+
+body.pos-pantalla-vendedora .pos-hdr-premium__title,
+body.pos-pantalla-vendedora .pos-hdr-premium__meta {
+  overflow: visible !important;
+  text-overflow: unset !important;
+  white-space: normal !important;
+  max-width: none !important;
+}
+
+.pos-nav-dock {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.35rem 0.65rem;
-  font-size: 0.8rem;
-  color: #cbd5e1;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px;
+  max-width: min(100%, 78vw);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
 }
 
-.pos-vendedor-chrome__user {
+body.pos-pantalla-vendedora .pos-nav-dock {
+  flex-wrap: nowrap !important;
+  gap: 4px;
+  padding: 5px;
+}
+
+.pos-nav-dock::-webkit-scrollbar {
+  height: 4px;
+}
+
+.pos-nav-dock::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+.pos-nav-dock__link,
+.pos-nav-dock .help-screen-link,
+.pos-nav-dock button.pos-nav-dock__link {
+  flex: 0 0 auto;
+}
+
+.pos-nav-dock__link,
+.pos-nav-dock .help-screen-link,
+.pos-nav-dock button.pos-nav-dock__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  box-sizing: border-box;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 0.85rem;
+  margin: 0;
+  font-size: 0.8125rem;
   font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
+  text-decoration: none;
+  color: rgba(248, 250, 252, 0.92);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.12s ease;
 }
 
-.pos-vendedor-chrome__uptime {
-  opacity: 0.85;
+body.pos-pantalla-vendedora .pos-nav-dock__link,
+body.pos-pantalla-vendedora .pos-nav-dock .help-screen-link,
+body.pos-pantalla-vendedora .pos-nav-dock button.pos-nav-dock__link {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 0.72rem;
 }
 
-.pos-vendedor-chrome__nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.3rem;
+.pos-nav-dock__link:hover:not(.disabled):not(:disabled),
+.pos-nav-dock .help-screen-link:hover,
+.pos-nav-dock button.pos-nav-dock__link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
 }
 
-.pos-vendedor-chrome__nav .pos-switch-btn {
-  min-height: 31px;
-  font-size: 0.78rem;
+.pos-nav-dock__link--primary {
+  color: var(--pos-navy, #0c2340);
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
 }
 
-.pos-vendedor-chrome__nav a.disabled {
+.pos-nav-dock__link--primary:hover {
+  color: #052e16;
+  background: #fff;
+}
+
+.pos-nav-dock__link--accent-amber i {
+  color: #fbbf24;
+}
+
+.pos-nav-dock__link--accent-sky i {
+  color: #38bdf8;
+}
+
+.pos-nav-dock__link--danger {
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+.pos-nav-dock__link--danger i {
+  color: #f87171;
+}
+
+.pos-nav-dock__link--suggest.is-on {
+  color: #14532d;
+  background: linear-gradient(180deg, #bbf7d0 0%, #86efac 100%);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
+.pos-nav-dock__link--suggest.is-off {
+  opacity: 0.88;
+}
+
+.pos-nav-dock__link.disabled,
+.pos-nav-dock__link:disabled {
   pointer-events: none;
-  opacity: 0.45;
+  opacity: 0.42;
 }
 
 .pos-credito-strip-wrap:not(.d-none) {
@@ -262,6 +413,71 @@ body.pos-layout-fullwidth .pos-vendedor-page {
   color: #15803d;
 }
 
+/* Crédito en dock oscuro — chips alineados (estilo panel caja) */
+.pos-credito-bar--dock {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  padding: 0.55rem 0.7rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.pos-credito-bar--dock.pos-credito-bar--bajo {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(69, 45, 12, 0.35);
+}
+
+.pos-credito-bar--dock.pos-credito-bar--bloqueado {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(69, 20, 20, 0.35);
+}
+
+.pos-credito-bar__head {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.pos-credito-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(5.5rem, 1fr));
+  gap: 0.45rem 0.65rem;
+  width: 100%;
+}
+
+.pos-credito-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.pos-credito-chip__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.pos-credito-chip__value {
+  font-size: 0.92rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f1f5f9;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.pos-credito-chip--disp .pos-credito-chip__value {
+  color: #4ade80;
+}
+
 .pos-dock-cliente .pos-credito-bar {
   margin-top: 0.35rem;
   font-size: 0.72rem;
@@ -316,6 +532,7 @@ body.pos-pantalla-vendedora .pos-vendedor-page {
   margin-inline: 0;
 }
 
+body.pos-pantalla-vendedora .pos-hdr-premium,
 body.pos-pantalla-vendedora .pos-vendedor-chrome {
   flex-shrink: 0;
 }
@@ -372,14 +589,14 @@ body.pos-pantalla-vendedora .pos-premium-shell {
     flex: 1;
     min-height: 0;
     height: 100%;
-    overflow: hidden;
+    overflow: visible !important;
     align-items: stretch;
   }
 
   body.pos-pantalla-vendedora .pos-premium-col--tools {
-    overflow-y: auto;
+    overflow-y: visible !important;
     min-height: 0;
-    max-height: 100%;
+    max-height: none;
     scrollbar-gutter: stable;
   }
 
@@ -546,6 +763,11 @@ body.pos-pantalla-vendedora .pos-unified-search-hero {
   box-shadow: 0 4px 20px rgba(12, 35, 64, 0.08);
   padding: 1.25rem 1.15rem 1.1rem;
   border: 1px solid rgba(12, 35, 64, 0.1);
+}
+
+/* Paso 3: buscador operativo con separación limpia */
+body.pos-pantalla-vendedora .pos-unified-search-card {
+  margin-bottom: 25px !important;
 }
 
 body.pos-pantalla-vendedora .pos-search-hero__inner {
@@ -1445,34 +1667,41 @@ body.pos-layout-fullwidth .pos-dock-actions .btn-ds-primary {
   }
 }
 
-@media (max-width: 991px) {
+@media (max-width: 1199.98px) {
+  .pos-hdr-premium,
   .pos-vendedor-chrome {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "brand nav"
-      "session session";
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 
-  .pos-vendedor-chrome__brand {
-    grid-area: brand;
-  }
-
-  .pos-vendedor-chrome__session {
-    grid-area: session;
-  }
-
-  .pos-vendedor-chrome__nav {
-    grid-area: nav;
+  .pos-nav-dock {
+    justify-content: flex-start;
+    max-width: 100%;
+    width: 100%;
   }
 }
 
-@media (max-width: 575px) {
-  .pos-vendedor-chrome__brand p {
+@media (max-width: 991.98px) {
+  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap .pos-credito-bar--dock {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .pos-hdr-premium__meta {
     display: none;
   }
 
-  .pos-vendedor-chrome__session {
-    font-size: 0.72rem;
+  .pos-nav-dock__link span,
+  .pos-nav-dock .help-screen-link span {
+    display: none;
+  }
+
+  .pos-nav-dock__link,
+  .pos-nav-dock .help-screen-link,
+  .pos-nav-dock button.pos-nav-dock__link {
+    min-width: 38px;
+    padding: 0 0.55rem;
   }
 }
 
@@ -1726,18 +1955,25 @@ body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-identity {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 0.4rem;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.5rem;
 }
 
 body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right .pos-dock-cliente {
   width: 100%;
   min-width: 0;
+  flex: 0 0 auto;
+  margin-top: -0.2rem;
+  padding-top: 0.05rem;
 }
 
 body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap {
   width: 100%;
   min-width: 0;
+  flex: 0 0 auto;
+  margin-top: 0.45rem;
+  padding-top: 0.1rem;
 }
 
 body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-checkout {
@@ -1784,8 +2020,8 @@ body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right .pos
 
 body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-cliente-nombre,
 body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right #posClienteKnownNombre {
-  font-size: 1.12rem !important;
-  line-height: 1.2;
+  font-size: 1.15rem !important;
+  line-height: 1.1;
   font-weight: 800 !important;
   color: #fff !important;
   white-space: nowrap;
@@ -1793,6 +2029,9 @@ body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-zone-right #pos
   text-overflow: ellipsis;
   display: block;
   max-width: 100%;
+  margin-bottom: 0.12rem;
+  position: relative;
+  z-index: 2;
 }
 
 body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-cliente-rut,
@@ -1807,10 +2046,17 @@ body.pos-pantalla-vendedora.pos-dock-relayout-busqueda #posClienteKnownExtras .p
   display: none !important;
 }
 
-body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap .pos-credito-bar {
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap .pos-credito-bar--dock {
   margin: 0;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.78rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 22rem;
+  position: relative;
+  z-index: 1;
+}
+
+body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-dock-credito-wrap .pos-credito-bar__tag {
+  display: none;
 }
 
 
@@ -1829,14 +2075,6 @@ body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-search-suggestions--
   body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-premium-grid {
     height: calc(100vh - 11.5rem) !important;
     align-items: stretch;
-  }
-
-  body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-premium-col--tools {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
   }
 
   body.pos-pantalla-vendedora.pos-dock-relayout-busqueda .pos-premium-col--cart #contenedor-carrito.pos-cart-list {
