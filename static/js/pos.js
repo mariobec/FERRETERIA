@@ -2827,17 +2827,18 @@
     let html =
       '<div class="' +
       cls +
-      '">' +
-      '<span class="pos-credito-bar__tag"><i class="fas fa-credit-card me-1"></i>Crédito</span>' +
-      '<span class="pos-credito-metric"><span class="pos-credito-metric__label">Cupo</span><strong>' +
+      ' pos-credito-bar--dock">' +
+      '<div class="pos-credito-bar__head"><i class="fas fa-credit-card" aria-hidden="true"></i> Crédito</div>' +
+      '<div class="pos-credito-metrics">' +
+      '<div class="pos-credito-chip"><span class="pos-credito-chip__label">Cupo</span><span class="pos-credito-chip__value">' +
       escapeHtmlPosJs(formatoCLP(cupo)) +
-      "</strong></span>" +
-      '<span class="pos-credito-metric"><span class="pos-credito-metric__label">Deuda</span><strong>' +
+      "</span></div>" +
+      '<div class="pos-credito-chip"><span class="pos-credito-chip__label">Deuda</span><span class="pos-credito-chip__value">' +
       escapeHtmlPosJs(formatoCLP(deuda)) +
-      "</strong></span>" +
-      '<span class="pos-credito-metric pos-credito-metric--disp"><span class="pos-credito-metric__label">Disponible</span><strong>' +
+      "</span></div>" +
+      '<div class="pos-credito-chip pos-credito-chip--disp"><span class="pos-credito-chip__label">Disponible</span><span class="pos-credito-chip__value">' +
       escapeHtmlPosJs(formatoCLP(disp)) +
-      "</strong></span>";
+      "</span></div></div>";
     if (bloqueado) {
       html +=
         '<span class="badge rounded-pill text-bg-danger ms-1">Crédito suspendido</span>';

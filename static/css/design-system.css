@@ -1290,6 +1290,7 @@ body .card.card-ds > .card-header {
 }
 
 /* POS — glow-focus HUD al enfocar buscador único */
+body.pos-hud-search-focus .pos-hdr-premium,
 body.pos-hud-search-focus .pos-vendedor-chrome,
 body.pos-hud-search-focus .pos-identify-card,
 body.pos-hud-search-focus .pos-premium-col--cart,

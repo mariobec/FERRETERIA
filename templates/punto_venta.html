@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-sin-sesion-20260525">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-vendedor-top-20260526">
 {% if pos_layout_fullwidth %}
 <style>
 body.pos-pantalla-vendedora .app-sidebar,
@@ -544,9 +544,10 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
     <div class="pos-hdr-premium__brand">
       <img src="{{ lhexia_icon_src }}" alt="" class="pos-hdr-premium__logo" width="36" height="36">
       <div class="pos-hdr-premium__brand-text">
-        <span class="pos-hdr-premium__eyebrow"><i class="fas fa-cash-register" aria-hidden="true"></i> Punto de venta</span>
+        <div class="pos-hdr-premium__brand-top">
+          <span class="pos-hdr-premium__eyebrow"><i class="fas fa-cash-register" aria-hidden="true"></i> Punto de venta</span>
+        </div>
         <h1 class="pos-hdr-premium__title">{{ empresa_cfg.nombre_comercial }}</h1>
-        <p class="pos-hdr-premium__meta mb-0">Vendedor: <strong>{{ current_user.nombre }}</strong></p>
       </div>
     </div>
     <nav class="pos-nav-dock" aria-label="Accesos POS">
