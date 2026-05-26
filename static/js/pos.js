@@ -2789,17 +2789,13 @@
   }
 
   function posSyncCreditoChrome(resumen) {
-    const cartola = document.getElementById("posBtnCartola");
     const boucher = document.getElementById("posBtnBoucher");
-    if (!cartola && !boucher) return;
+    if (!boucher) return;
     const id =
       resumen &&
       (resumen.cliente_id || (resumen.credito && resumen.credito.cliente_id));
     const puede = posPuedeVerCreditos();
-    const btns = [
-      { el: cartola, tipo: "cartola" },
-      { el: boucher, tipo: "boucher" },
-    ];
+    const btns = [{ el: boucher, tipo: "boucher" }];
     btns.forEach(function (b) {
       if (!b.el) return;
       const url = puede && id ? posCreditoUrl(b.tipo, id) : null;
@@ -2870,6 +2866,82 @@
     });
     posSyncCreditoChrome(resumen || null);
   }
+
+  function posCreditoResumenFromCfg(cfg) {
+    const ui = cfg && cfg.cliente_ui;
+    if (ui && ui.estado === "known" && ui.resumen) return ui.resumen;
+    return null;
+  }
+
+  function posHandleNuevaVentaChrome(urls) {
+    const cfgNav = readPosConfig();
+    const u = urls || (cfgNav && cfgNav.urls);
+    if (!u || !u.nueva_venta) {
+      mostrarPosToast("Nueva venta no disponible.", { variant: "danger" });
+      return;
+    }
+    if (posContarItemsVale() <= 0) {
+      mostrarPosToast("El carrito ya está vacío.", { variant: "info" });
+      return;
+    }
+    if (
+      !window.confirm(
+        "¿Iniciar una venta nueva? El borrador actual (sin emitir) se descartará."
+      )
+    ) {
+      return;
+    }
+    const btn = document.getElementById("posBtnNuevaVentaChrome");
+    if (btn) btn.disabled = true;
+    posIniciarNuevaVenta(u.nueva_venta).finally(function () {
+      if (btn) btn.disabled = false;
+    });
+  }
+
+  /** Menú header POS: enlazar siempre (antes de init pesado / early return). */
+  function bindPosHeaderNavDock(cfg) {
+    if (!document.body.classList.contains("pos-pantalla-vendedora")) return;
+
+    const nav = document.querySelector(".pos-nav-dock");
+    if (nav && nav.dataset.posNavDockBound !== "1") {
+      nav.dataset.posNavDockBound = "1";
+      nav.addEventListener(
+        "click",
+        function (e) {
+          const cred = e.target.closest("#posBtnBoucher");
+          if (!cred) return;
+          const href = (cred.getAttribute("href") || "").trim();
+          const off =
+            cred.classList.contains("disabled") ||
+            cred.getAttribute("aria-disabled") === "true" ||
+            !href ||
+            href === "#";
+          if (off) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            mostrarPosToast(
+              "Identifica un cliente con crédito para habilitar Boucher.",
+              { variant: "info", delay: 2800 }
+            );
+          }
+        },
+        true
+      );
+    }
+
+    const btnNueva = document.getElementById("posBtnNuevaVentaChrome");
+    if (btnNueva && btnNueva.dataset.posNavDockBound !== "1") {
+      btnNueva.dataset.posNavDockBound = "1";
+      btnNueva.addEventListener("click", function () {
+        posHandleNuevaVentaChrome(cfg && cfg.urls);
+      });
+    }
+
+    posSyncCreditoChrome(posCreditoResumenFromCfg(cfg));
+  }
+
+  window.posSyncCreditoChrome = posSyncCreditoChrome;
+  window.bindPosHeaderNavDock = bindPosHeaderNavDock;
 
   async function vincularClienteEnVale(payload) {
     const cfg = readPosConfig();
@@ -3047,6 +3119,7 @@
     posScrollRestaurar();
     posAbsorbServerFlashMessages();
     const cfg = readPosConfig();
+    bindPosHeaderNavDock(cfg);
     if (!cfg || !cfg.urls) {
       return;
     }
@@ -3814,31 +3887,6 @@
 
     wirePosFiltroBusquedaBotones(posManualSearchApi);
     wirePosValeResumePrompt(cfg);
-
-    const btnNuevaChrome = document.getElementById("posBtnNuevaVentaChrome");
-    if (btnNuevaChrome) {
-      btnNuevaChrome.addEventListener("click", function () {
-        if (!u.nueva_venta) {
-          mostrarPosToast("Nueva venta no disponible.", { variant: "danger" });
-          return;
-        }
-        if (posContarItemsVale() <= 0) {
-          mostrarPosToast("El carrito ya está vacío.", { variant: "info" });
-          return;
-        }
-        if (
-          !window.confirm(
-            "¿Iniciar una venta nueva? El borrador actual (sin emitir) se descartará."
-          )
-        ) {
-          return;
-        }
-        btnNuevaChrome.disabled = true;
-        posIniciarNuevaVenta(u.nueva_venta).finally(function () {
-          btnNuevaChrome.disabled = false;
-        });
-      });
-    }
 
     if ($("#buscarProducto").length && u.buscar_producto) {
       $("#buscarProducto").select2({

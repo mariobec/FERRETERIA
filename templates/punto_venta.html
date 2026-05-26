@@ -5,12 +5,29 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-vendedor-top-20260526">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-reloj-20260526">
 {% if pos_layout_fullwidth %}
-<style>
+<style id="pos-hdr-nav-fix-inline">
 body.pos-pantalla-vendedora .app-sidebar,
 body.pos-pantalla-vendedora .app-topbar { display: none !important; }
 body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 100%; }
+/* Columna izquierda no debe tapar el menú del header (clics interceptados) */
+body.pos-pantalla-vendedora #lhexiaAppSplash { display: none !important; pointer-events: none !important; }
+body.pos-pantalla-vendedora .pos-hdr-premium {
+  position: fixed !important;
+  top: 0.35rem !important;
+  left: 0.65rem !important;
+  right: 0.65rem !important;
+  z-index: 300 !important;
+  isolation: isolate;
+  width: auto !important;
+  margin-bottom: 0 !important;
+}
+body.pos-pantalla-vendedora .pos-vendedor-page { padding-top: 6.75rem !important; box-sizing: border-box; }
+body.pos-pantalla-vendedora .pos-vendedor-body { position: relative !important; z-index: 1 !important; }
+body.pos-pantalla-vendedora .pos-nav-dock { position: relative; z-index: 2; pointer-events: auto !important; }
+body.pos-pantalla-vendedora .pos-premium-col--tools { pointer-events: none !important; }
+body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !important; }
 </style>
 {% endif %}
 <style>
@@ -553,7 +570,6 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
     <nav class="pos-nav-dock" aria-label="Accesos POS">
       {% if puede_ver_creditos %}
       <a href="{{ pos_credito_urls.modulo_creditos }}" class="pos-nav-dock__link" title="Créditos y cartera"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i><span>Créditos</span></a>
-      <a href="#" id="posBtnCartola" class="pos-nav-dock__link pos-nav-dock__link--accent-amber disabled" target="_blank" rel="noopener" title="Estado de cuenta del cliente identificado" aria-disabled="true"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>Cartola</span></a>
       <a href="#" id="posBtnBoucher" class="pos-nav-dock__link pos-nav-dock__link--accent-amber disabled" target="_blank" rel="noopener" title="Boucher con cargos y abonos" aria-disabled="true"><i class="fas fa-receipt" aria-hidden="true"></i><span>Boucher</span></a>
       {% endif %}
       <button type="button" class="pos-nav-dock__link" id="posBtnNuevaVentaChrome" title="Descartar borrador e iniciar venta vacía">
@@ -568,6 +584,9 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
         <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias{% else %}Sugerencias off{% endif %}</span>
       </button>
       <a href="{{ url_for('logout') }}" class="pos-nav-dock__link pos-nav-dock__link--danger" title="Cerrar sesión"><i class="fas fa-sign-out-alt" aria-hidden="true"></i><span>Salir</span></a>
+      <div class="pos-hdr-premium__clock pos-nav-dock__clock" aria-live="polite" title="Hora local">
+        <time id="posHdrReloj" class="pos-hdr-premium__time">--:--:--</time>
+      </div>
     </nav>
   </header>
   {% else %}
@@ -703,7 +722,7 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   {% endif %}
 
       {% if pos_layout_fullwidth %}
-      <details class="pos-historial-details mb-3" style="padding-top: 50px !important;">
+      <details class="pos-historial-details mb-3">
         <summary class="pos-historial-details__summary"><i class="fas fa-clock-rotate-left me-1"></i>Vales de hoy</summary>
         {% include 'pos/includes/premium_historial_hoy.html' %}
       </details>
@@ -1252,7 +1271,20 @@ body.pos-pantalla-vendedora .app-main { flex: 0 0 100%; max-width: 100%; width: 
   'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-dock-credito-20260525"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-hdr-reloj-20260526"></script>
+{% if pos_layout_fullwidth %}
+<script>
+(function () {
+  function tick() {
+    var el = document.getElementById('posHdrReloj');
+    if (!el) return;
+    el.textContent = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+{% endif %}
 {% if pos_cross_sell %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {

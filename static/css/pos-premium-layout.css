@@ -9,6 +9,7 @@ body.pos-pantalla-vendedora {
   --pos-lhexia-naranja: #f37021;
   --pos-dock-height: 8.75rem;
   --pos-chrome-height: 5.5rem;
+  --pos-hdr-fixed-height: 6.75rem;
   scrollbar-gutter: stable;
 }
 
@@ -243,8 +244,53 @@ body.pos-layout-fullwidth .pos-vendedor-page {
 
 /* Ajuste de recuperación: header sin altura fija ni recorte de textos */
 body.pos-pantalla-vendedora .pos-hdr-premium {
+  position: fixed;
+  top: 0.35rem;
+  left: 0.65rem;
+  right: 0.65rem;
+  z-index: 300;
+  isolation: isolate;
+  width: auto;
+  margin-bottom: 0 !important;
   height: auto !important;
   min-height: unset !important;
+  box-sizing: border-box;
+}
+
+body.pos-pantalla-vendedora .pos-nav-dock__clock {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+body.pos-pantalla-vendedora .pos-hdr-premium__time {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+body.pos-pantalla-vendedora .pos-vendedor-page {
+  padding-top: var(--pos-hdr-fixed-height);
+  box-sizing: border-box;
+}
+
+body.pos-pantalla-vendedora .pos-nav-dock {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 
 body.pos-pantalla-vendedora .pos-hdr-premium__brand {
@@ -389,8 +435,13 @@ body.pos-pantalla-vendedora .pos-nav-dock button.pos-nav-dock__link {
 
 .pos-nav-dock__link.disabled,
 .pos-nav-dock__link:disabled {
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: not-allowed;
   opacity: 0.42;
+}
+
+body.pos-pantalla-vendedora #pos-search-suggestions.d-none {
+  pointer-events: none !important;
 }
 
 .pos-credito-strip-wrap:not(.d-none) {
@@ -573,10 +624,18 @@ body.pos-pantalla-vendedora .pos-vendedor-chrome {
   flex-shrink: 0;
 }
 
+/* Splash PWA (Guardián) no debe interceptar clics en POS */
+body.pos-pantalla-vendedora #lhexiaAppSplash {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 body.pos-pantalla-vendedora .pos-vendedor-body {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
-  max-height: calc(100vh - var(--pos-chrome-height) - 0.35rem);
+  max-height: calc(100vh - var(--pos-hdr-fixed-height) - 0.35rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -634,6 +693,12 @@ body.pos-pantalla-vendedora .pos-premium-shell {
     min-height: 0;
     max-height: none;
     scrollbar-gutter: stable;
+    /* No interceptar clics del menú header si el layout se superpone */
+    pointer-events: none;
+  }
+
+  body.pos-pantalla-vendedora .pos-premium-col--tools > * {
+    pointer-events: auto;
   }
 
   body.pos-pantalla-vendedora .pos-premium-col--cart {
@@ -1708,6 +1773,18 @@ body.pos-layout-fullwidth .pos-dock-actions .btn-ds-primary {
   .pos-vendedor-chrome {
     grid-template-columns: 1fr;
     gap: 0.75rem;
+  }
+
+  body.pos-pantalla-vendedora .pos-nav-dock__clock {
+    margin-left: 0;
+    order: 99;
+    width: 100%;
+    justify-content: center;
+    margin-top: 0.15rem;
+  }
+
+  body.pos-pantalla-vendedora .pos-hdr-premium__time {
+    font-size: 1rem;
   }
 
   .pos-nav-dock {

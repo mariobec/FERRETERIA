@@ -23,6 +23,10 @@
 (function () {
   var el = document.getElementById('lhexiaAppSplash');
   if (!el) return;
+  if (document.body && document.body.classList.contains('pos-pantalla-vendedora')) {
+    el.remove();
+    return;
+  }
   function hide() {
     el.classList.add('is-done');
     setTimeout(function () { el.remove(); }, 400);
