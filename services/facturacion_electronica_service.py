@@ -37,6 +37,32 @@ DTE_ESTADO_RECHAZADO = 'RECHAZADO'
 DTE_ESTADO_ERROR_FIRMA = 'ERROR_FIRMA'
 DTE_ESTADO_ERROR_ENVIO = 'ERROR_ENVIO'
 DTE_ESTADO_FALLO_MATEMATICO = 'FALLO_MATEMATICO'
+# Boleta electrónica la emite Multicaja/Klap; el ERP no envía DTE 39 al SII.
+DTE_ESTADO_EXTERNO_BOLETA = 'EXTERNO_MULTICAJA'
+
+
+def fe_solo_factura_en_erp() -> bool:
+    """Política Santo Domingo: LhexIA solo FE factura (33); boletas vía Multicaja."""
+    v = (os.getenv('SII_FE_SOLO_FACTURA') or '1').strip().lower()
+    return v not in ('0', 'false', 'no', 'off')
+
+
+def debe_emitir_fe_en_erp(tipo_documento: Optional[str]) -> bool:
+    if not fe_solo_factura_en_erp():
+        return True
+    return resolver_dte_tipo_por_tipo_documento(tipo_documento) == DTE_TIPO_FACTURA_AFECTA
+
+
+def marcar_venta_boleta_sin_fe_erp(venta_obj: Any) -> None:
+    """Venta cobrada con boleta: sin folio CAF ni cola SII en el ERP."""
+    try:
+        venta_obj.dte_tipo = int(DTE_TIPO_BOLETA_AFECTA)
+        venta_obj.dte_estado = DTE_ESTADO_EXTERNO_BOLETA
+        venta_obj.nro_documento = None
+        venta_obj.caf_id = None
+        venta_obj.dte_track_id = None
+    except Exception:
+        pass
 
 
 def _persist_xml_dte_firmado_safe(
@@ -542,8 +568,16 @@ def post_cobro_emision_fe(
     revierte folio y deja la venta en PENDIENTE_ENVIO sin tocar cobro/stock.
 
     Retorna el `dte_estado` a mostrar al cliente (ENVIADO si SOAP ok con track_id;
-    con stub SOAP suele caer en PENDIENTE_ENVIO).
+    con stub SOAP suele caer en PENDIENTE_ENVIO). Boletas: EXTERNO_MULTICAJA.
     """
+    if not debe_emitir_fe_en_erp(getattr(venta, 'tipo_documento', None)):
+        marcar_venta_boleta_sin_fe_erp(venta)
+        try:
+            db_session.flush()
+        except Exception:
+            pass
+        return DTE_ESTADO_EXTERNO_BOLETA
+
     dte_tipo = resolver_dte_tipo_por_tipo_documento(getattr(venta, 'tipo_documento', None))
     try:
         with db_session.begin_nested():
@@ -808,6 +842,12 @@ def reintentar_emision_fe_venta(
         return {'ok': False, 'motivo': 'venta_no_encontrada'}
     if (getattr(venta, 'dte_estado', None) or '') != DTE_ESTADO_PENDIENTE_ENVIO:
         return {'ok': False, 'motivo': 'estado_no_pendiente', 'dte_estado': getattr(venta, 'dte_estado', None)}
+    if not debe_emitir_fe_en_erp(getattr(venta, 'tipo_documento', None)):
+        return {
+            'ok': False,
+            'motivo': 'boleta_emitida_por_multicaja',
+            'dte_estado': getattr(venta, 'dte_estado', None),
+        }
     dte_tipo = resolver_dte_tipo_por_tipo_documento(getattr(venta, 'tipo_documento', None))
     try:
         with db_session.begin_nested():

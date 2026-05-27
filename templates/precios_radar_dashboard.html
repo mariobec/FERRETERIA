@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .premium-dark {
+    background: radial-gradient(1200px 500px at 15% -10%, rgba(245, 158, 11, .14), transparent 50%),
+                radial-gradient(900px 420px at 110% -20%, rgba(56, 189, 248, .14), transparent 45%),
+                #0f172a;
+    border: 1px solid rgba(148, 163, 184, .25);
+    border-radius: 14px;
+    color: #e2e8f0;
+  }
+  .premium-dark .text-muted { color: #94a3b8 !important; }
+  .widget-critical { border-left: 4px solid #ef4444; }
+  .widget-warning { border-left: 4px solid #f59e0b; }
+  .widget-positive { border-left: 4px solid #10b981; }
+  .widget-info { border-left: 4px solid #38bdf8; }
+  .table-premium thead th { white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1220px;">
+  <div class="page-header mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h3 class="page-title">
+          <i class="fas fa-chart-pie text-warning me-2"></i>Radar Precios — Dashboard Premium
+        </h3>
+        <p class="page-subtitle mb-0">
+          Inteligencia de márgenes en tu catálogo real + historial de escaneos web.
+        </p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-warning btn-sm text-dark fw-bold" href="{{ url_for('precios_radar') }}">
+          <i class="fas fa-satellite-dish me-1"></i> Nuevo escaneo
+        </a>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('revision_precios', solo_alerta='1') }}">
+          Revisión de precios
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="premium-dark p-3 p-md-4 mb-3">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-critical">
+          <small class="text-muted">Dinero en riesgo (muestra)</small>
+          <div class="fs-4 fw-bold">${{ "{:,.0f}".format(dinero_en_riesgo).replace(",", ".") }}</div>
+          <div class="small text-muted">SKUs con margen bajo o precio desactualizado.</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-warning">
+          <small class="text-muted">Alertas de margen</small>
+          <div class="fs-4 fw-bold">{{ alertas_margen }}</div>
+          <div class="small text-muted">De {{ total_productos }} productos activos analizados.</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-positive">
+          <small class="text-muted">Críticos (muestra top)</small>
+          <div class="fs-4 fw-bold">{{ productos_criticos }}</div>
+          <div class="small text-muted">Margen negativo o muy bajo.</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="bg-white bg-opacity-10 rounded-3 p-3 h-100 widget-info">
+          <small class="text-muted">Ollama local</small>
+          <div class="fs-6 fw-bold {% if ollama.disponible %}text-success{% else %}text-danger{% endif %}">
+            {% if ollama.disponible %}● {{ ollama.modelo }}{% elif ollama.habilitado %}○ No conectado{% else %}— Desactivado{% endif %}
+          </div>
+          <div class="small text-muted">{{ sin_costo }} productos sin costo cargado.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-exclamation-triangle text-danger me-1"></i> Top riesgo margen (catálogo ERP)
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0 table-premium">
+            <thead class="table-light">
+              <tr>
+                <th>Producto</th>
+                <th class="text-end">Costo</th>
+                <th class="text-end">Venta</th>
+                <th class="text-end">Margen</th>
+                <th class="text-end">Sugerido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in filas_riesgo %}
+              <tr class="{% if f.estado == 'critico' %}table-danger{% elif f.estado == 'alerta' %}table-warning{% endif %}">
+                <td>
+                  <div class="fw-semibold small">{{ f.producto[:55] }}{% if f.producto|length > 55 %}…{% endif %}</div>
+                  <div class="text-muted font-monospace" style="font-size:.7rem">{{ f.codigo }}</div>
+                </td>
+                <td class="text-end font-monospace small">${{ "{:,.0f}".format(f.costo).replace(",", ".") }}</td>
+                <td class="text-end font-monospace small">${{ "{:,.0f}".format(f.venta).replace(",", ".") }}</td>
+                <td class="text-end font-monospace small {% if f.margen_pct < 0 %}text-danger fw-bold{% elif f.margen_pct < 12 %}text-warning{% else %}text-success{% endif %}">
+                  {{ "{:+.1f}".format(f.margen_pct) }}%
+                </td>
+                <td class="text-end font-monospace small">${{ "{:,.0f}".format(f.sugerido).replace(",", ".") }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted p-4">Sin alertas en la muestra analizada.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card card-ds h-100">
+        <div class="card-header bg-white fw-bold">
+          <i class="fas fa-history text-primary me-1"></i> Últimos escaneos Radar
+        </div>
+        <div class="card-body p-0">
+          <ul class="list-group list-group-flush">
+            {% for h in historial %}
+            <li class="list-group-item">
+              <div class="fw-semibold small">{{ h.titulo or h.url[:50] }}…</div>
+              <div class="small text-muted">
+                {{ h.total }} productos · {{ h.mapeados }} mapeados · {{ h.parser }}
+              </div>
+              <div class="small text-muted">{{ h.finished_at[:19] if h.finished_at else '' }}</div>
+            </li>
+            {% else %}
+            <li class="list-group-item text-muted text-center py-4">
+              Aún no hay escaneos en esta sesión. Use <a href="{{ url_for('precios_radar') }}">Nuevo escaneo</a>.
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% if ultimo_job and ultimo_job.lineas %}
+      <div class="card card-ds mt-3">
+        <div class="card-header bg-white fw-bold small">Último escaneo — resumen</div>
+        <div class="card-body small">
+          <div><strong>URL:</strong> {{ ultimo_job.url_final or ultimo_job.url }}</div>
+          <div><strong>Estado:</strong> {{ ultimo_job.status }}</div>
+          <div><strong>Líneas:</strong> {{ ultimo_job.lineas|length }}</div>
+          <a href="{{ url_for('precios_radar') }}" class="btn btn-sm btn-outline-primary mt-2">Repetir / nuevo link</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

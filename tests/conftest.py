@@ -200,6 +200,13 @@ def _limpiar_datos_qa():
             db.session.execute(sa_text("DELETE FROM stock_por_almacen WHERE id_producto IN :p"), {'p': pt})
             db.session.execute(sa_text("DELETE FROM detalle_recepcion WHERE producto_id IN :p"), {'p': pt})
             db.session.execute(sa_text("DELETE FROM detalle_orden_compra WHERE producto_id IN :p"), {'p': pt})
+            try:
+                db.session.execute(
+                    sa_text("DELETE FROM producto_codigo_proveedor WHERE producto_id IN :p"),
+                    {'p': pt},
+                )
+            except Exception:
+                db.session.rollback()
             db.session.execute(sa_text("DELETE FROM productos WHERE id IN :p"), {'p': pt})
 
         prvs = [r[0] for r in db.session.execute(
@@ -239,6 +246,8 @@ def app_ctx():
             m._asegurar_columnas_caja_cuadratura()
         if hasattr(m, '_asegurar_tabla_agente_ejecuciones'):
             m._asegurar_tabla_agente_ejecuciones()
+        if hasattr(m, '_asegurar_tablas_chilemat_relaciones'):
+            m._asegurar_tablas_chilemat_relaciones()
         db.session.rollback()
         yield m.app
 

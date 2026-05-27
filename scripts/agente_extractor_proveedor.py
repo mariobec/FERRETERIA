@@ -346,18 +346,42 @@ def ejecutar_extraccion(
     if not paso1.get('ok'):
         return {'ok': False, 'fase': 'playwright', 'error': paso1.get('error'), 'productos': []}
 
-    _delay_paso()
-    paso2 = _ollama_estructurar(paso1.get('html') or '')
-    productos = paso2.get('productos') or []
-    if not paso2.get('ok') or not productos:
-        try:
-            from scripts._sodimac_listado_rapido import parse_search_cards
+    html = paso1.get('html') or ''
+    productos: list[dict[str, Any]] = []
+    parser_fuente = ''
+    try:
+        from scripts._sodimac_listado_rapido import parse_next_data_json, parse_search_cards
 
-            productos = parse_search_cards(paso1.get('html') or '')
+        productos = parse_next_data_json(html)
+        if productos:
+            parser_fuente = 'next_data_json'
+        else:
+            productos = parse_search_cards(html)
             if productos:
-                paso2 = {'ok': True, 'productos': productos, 'fallback': 'json_embebido_sodimac'}
-        except Exception as ex:
-            _log.debug('fallback parser sodimac: %s', ex)
+                parser_fuente = 'json_embebido_sodimac'
+    except Exception as ex:
+        _log.debug('parser nativo sodimac: %s', ex)
+
+    if productos:
+        paso2: dict[str, Any] = {
+            'ok': True,
+            'productos': productos,
+            'fallback': parser_fuente,
+        }
+        _log.info('Parser nativo: %d productos (%s), sin Ollama', len(productos), parser_fuente)
+    else:
+        _delay_paso()
+        paso2 = _ollama_estructurar(html)
+        productos = paso2.get('productos') or []
+        if not productos:
+            try:
+                from scripts._sodimac_listado_rapido import parse_search_cards
+
+                productos = parse_search_cards(html)
+                if productos:
+                    paso2 = {'ok': True, 'productos': productos, 'fallback': 'json_embebido_sodimac'}
+            except Exception as ex:
+                _log.debug('fallback parser sodimac tras Ollama: %s', ex)
     if not productos:
         return {
             'ok': False,

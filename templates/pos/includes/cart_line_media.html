@@ -1,0 +1,41 @@
+{# Miniatura + accesos ficha Chilemat (carrito POS) #}
+{% set f = (pos_producto_ficha or {}).get(d.id_producto, {}) %}
+{% set img = (f.imagen_url or '')|trim %}
+{% set vtex = (f.vtex_product_id or '')|trim %}
+{% set ref = (f.product_reference or '')|trim %}
+{% set link = (f.link or '')|trim %}
+<div class="pos-cart-card__media" aria-label="Imagen y ficha del producto">
+  {% if img %}
+  <img src="{{ img }}" alt="" class="pos-cart-thumb" loading="lazy" decoding="async"
+       onerror="this.classList.add('is-broken'); this.removeAttribute('src');">
+  {% else %}
+  <div class="pos-cart-thumb pos-cart-thumb--empty" title="Sin imagen en catálogo">
+    <i class="fas fa-box" aria-hidden="true"></i>
+  </div>
+  {% endif %}
+  <div class="pos-cart-card__ficha-actions">
+    {% if link %}
+    <a href="{{ link }}" target="_blank" rel="noopener noreferrer" class="pos-cart-ficha-btn"
+       onclick="window.open('{{ link }}','_blank','noopener'); return false;"
+       title="Ver en chilemat.com" aria-label="Abrir ficha en Chilemat">
+      <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+    {% if vtex or f.tiene_ficha %}
+    <button type="button" class="pos-cart-ficha-btn btn-pos-ficha-modal"
+            data-producto-id="{{ d.id_producto }}"
+            {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
+            onclick="if(window.ChilematFicha){ {% if vtex %}ChilematFicha.open('{{ vtex }}'){% else %}ChilematFicha.openProducto('{{ d.id_producto }}'){% endif %}; } return false;"
+            title="Ficha técnica e imagen" aria-label="Ver ficha técnica">
+      <i class="fas fa-image" aria-hidden="true"></i>
+    </button>
+    {% endif %}
+  </div>
+  {% if vtex or ref %}
+  <div class="pos-cart-card__chm-ref small text-muted">
+    {% if vtex %}<span>VTEX {{ vtex }}</span>{% endif %}
+    {% if vtex and ref %}<span class="pos-cart-card__meta-sep">·</span>{% endif %}
+    {% if ref %}<span>Ref {{ ref }}</span>{% endif %}
+  </div>
+  {% endif %}
+</div>

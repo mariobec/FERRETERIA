@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  .chm-vinc {
+    --bg: #070b14;
+    --card: rgba(15, 23, 42, 0.85);
+    --border: rgba(148, 163, 184, 0.2);
+    --accent: #f97316;
+    --sky: #38bdf8;
+    --mint: #34d399;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--text);
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .chm-vinc-hero {
+    border-radius: 16px;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    background: linear-gradient(135deg, #0f172a, #070b14);
+  }
+  .chm-vinc-hero h1 {
+    font-size: 1.65rem;
+    font-weight: 800;
+    margin: 0 0 0.35rem;
+    background: linear-gradient(90deg, #fff, #fdba74);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .chm-vinc-kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .chm-vinc-kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.5rem 0.9rem;
+    min-width: 120px;
+  }
+  .chm-vinc-kpi strong { display: block; font-size: 1.25rem; color: var(--sky); }
+  .chm-vinc-kpi span { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; }
+  .chm-vinc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: end;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .chm-vinc-table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: auto;
+    max-height: 68vh;
+    background: var(--card);
+  }
+  .chm-vinc-table {
+    width: 100%;
+    margin: 0;
+    font-size: 0.88rem;
+  }
+  .chm-vinc-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0f172a;
+    color: #fbbf24;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+  }
+  .chm-vinc-table td { border-color: var(--border); vertical-align: middle; }
+  .chm-vinc-ref { font-family: ui-monospace, monospace; font-size: 0.78rem; color: var(--muted); }
+  .chm-vinc-sug {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .chm-vinc-sug .btn {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+  }
+  .chm-vinc-buscar {
+    min-width: 160px;
+    max-width: 220px;
+  }
+  .chm-vinc-pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .chm-vinc-toast {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 1080;
+    min-width: 240px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chm-vinc container-fluid px-0 py-2">
+  <div class="chm-vinc-hero">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <p class="small text-warning mb-1"><i class="fas fa-link me-1"></i> Chilemat · Homologación</p>
+        <h1>Vincular catálogo web ↔ ERP</h1>
+        <p class="text-muted mb-0 small">
+          Una fila Chilemat (VTEX) → un producto en su maestro. Mejora Radar, recepciones y sugerencias POS.
+        </p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('chilemat_catalogo_explorer') }}" class="btn btn-outline-light btn-sm">
+          <i class="fas fa-globe-americas me-1"></i> Universo Chilemat
+        </a>
+        <a href="{{ url_for('precios_radar') }}" class="btn btn-outline-warning btn-sm">
+          <i class="fas fa-satellite-dish me-1"></i> Radar Precios
+        </a>
+      </div>
+    </div>
+    <div class="chm-vinc-kpis" id="chmVincKpis">
+      <div class="chm-vinc-kpi"><strong id="kpiSinVincular">—</strong><span>Sin vincular</span></div>
+      <div class="chm-vinc-kpi"><strong id="kpiVinculados">—</strong><span>Vinculados ERP</span></div>
+      <div class="chm-vinc-kpi"><strong id="kpiTotal">—</strong><span>Catálogo VTEX</span></div>
+    </div>
+  </div>
+
+  <div class="chm-vinc-toolbar">
+    <div>
+      <label class="form-label small text-muted mb-0">Buscar Chilemat</label>
+      <input type="search" id="filtroQ" class="form-control form-control-sm" placeholder="Nombre, ref web, EAN…" style="min-width:200px">
+    </div>
+    <div>
+      <label class="form-label small text-muted mb-0">Rubro</label>
+      <select id="filtroRubro" class="form-select form-select-sm" style="min-width:160px">
+        <option value="">Todos</option>
+        {% for r in filtros.rubros %}
+        <option value="{{ r.id }}">{{ r.nombre }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label small text-muted mb-0">Subcategoría</label>
+      <select id="filtroSub" class="form-select form-select-sm" style="min-width:160px">
+        <option value="">Todas</option>
+      </select>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" id="btnBuscar"><i class="fas fa-search me-1"></i> Buscar</button>
+    <button type="button" class="btn btn-success btn-sm" id="btnAutoVincular" title="Vincula sugerencias con confianza ≥ 70%">
+      <i class="fas fa-bolt me-1"></i> Auto-vincular página
+    </button>
+    <div class="form-check ms-2 align-self-center">
+      <input class="form-check-input" type="checkbox" id="chkCopiarImagen" checked>
+      <label class="form-check-label small" for="chkCopiarImagen">Traer imagen al ERP al vincular</label>
+    </div>
+  </div>
+
+  <div class="chm-vinc-table-wrap">
+    <table class="table table-dark table-hover chm-vinc-table mb-0">
+      <thead>
+        <tr>
+          <th>Chilemat / VTEX</th>
+          <th>Precio lista</th>
+          <th>Sugerencias ERP</th>
+          <th>Buscar y vincular</th>
+        </tr>
+      </thead>
+      <tbody id="chmVincBody">
+        <tr><td colspan="4" class="text-center text-muted py-4">Cargando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="chm-vinc-pager">
+    <span id="chmVincPagerInfo">—</span>
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-outline-secondary" id="btnPrev" disabled>Anterior</button>
+      <button type="button" class="btn btn-outline-secondary" id="btnNext" disabled>Siguiente</button>
+    </div>
+  </div>
+</div>
+
+<div class="chm-vinc-toast alert alert-success d-none" id="chmVincToast" role="alert"></div>
+
+<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}"></script>
+<script>
+(function () {
+  const subPorRubro = {{ filtros.subcategorias_por_rubro | tojson }};
+  const apiLista = '{{ url_for("api_chilemat_vincular_lista") }}';
+  const apiBuscarErp = '{{ url_for("api_chilemat_vincular_buscar_erp") }}';
+  const apiVincular = '{{ url_for("api_chilemat_vincular_guardar") }}';
+  const apiDesvincular = '{{ url_for("api_chilemat_vincular_quitar") }}';
+  const apiAuto = '{{ url_for("api_chilemat_vincular_auto") }}';
+  const apiStats = '{{ url_for("api_chilemat_catalogo_stats") }}';
+
+  let page = 1;
+  let totalPages = 1;
+
+  function fmtClp(n) {
+    return '$' + (Math.round(n || 0)).toLocaleString('es-CL');
+  }
+
+  function toast(msg, ok) {
+    const el = document.getElementById('chmVincToast');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'chm-vinc-toast alert alert-' + (ok ? 'success' : 'danger');
+    el.classList.remove('d-none');
+    setTimeout(function () { el.classList.add('d-none'); }, 3500);
+  }
+
+  function refreshKpis() {
+    fetch(apiStats, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok || !d.stats) return;
+        const s = d.stats;
+        document.getElementById('kpiSinVincular').textContent = String(s.sin_vincular ?? '—');
+        document.getElementById('kpiVinculados').textContent = String(s.vinculados_erp ?? '—');
+        document.getElementById('kpiTotal').textContent = String(s.total_productos ?? '—');
+      })
+      .catch(function () {});
+  }
+
+  function buildQueryParams() {
+    const p = new URLSearchParams();
+    p.set('page', String(page));
+    p.set('per_page', '25');
+    const q = document.getElementById('filtroQ').value.trim();
+    if (q) p.set('q', q);
+    const rub = document.getElementById('filtroRubro').value;
+    if (rub) p.set('rubro_vtex_id', rub);
+    const sub = document.getElementById('filtroSub').value;
+    if (sub) p.set('sub_vtex_id', sub);
+    return p.toString();
+  }
+
+  function renderRow(it) {
+    const tr = document.createElement('tr');
+    tr.dataset.vtexId = it.vtex_id;
+    const precio = fmtClp(it.precio_lista);
+    const link = it.link
+      ? '<a href="' + it.link + '" target="_blank" rel="noopener" class="small ms-1"><i class="fas fa-external-link-alt"></i></a>'
+      : '';
+    let sugHtml = '<span class="text-muted small">Sin sugerencia</span>';
+    if (it.sugerencias && it.sugerencias.length) {
+      sugHtml = '<div class="chm-vinc-sug">';
+      it.sugerencias.forEach(function (s) {
+        const pct = Math.round((s.confianza || 0) * 100);
+        const label = (s.nombre || '').slice(0, 36) + ' (' + pct + '%)';
+        sugHtml += '<button type="button" class="btn btn-outline-success btn-vinc-sug" data-pid="' + s.id + '">' + label + '</button>';
+      });
+      sugHtml += '</div>';
+    }
+    const btnFicha =
+      '<button type="button" class="btn btn-link btn-sm p-0 ms-1 btn-ficha-chm" title="Ver ficha web">' +
+      '<i class="fas fa-image text-info"></i></button>';
+    tr.innerHTML =
+      '<td><div class="fw-semibold">' + (it.nombre || '—') + link + btnFicha + '</div>' +
+      '<div class="chm-vinc-ref">VTEX ' + it.vtex_id + ' · Ref ' + (it.codigo || '—') + '</div>' +
+      '<div class="small text-muted">' + (it.categoria || '') + (it.subcategoria ? ' / ' + it.subcategoria : '') + '</div></td>' +
+      '<td class="text-nowrap">' + precio + '</td>' +
+      '<td>' + sugHtml + '</td>' +
+      '<td><div class="input-group input-group-sm chm-vinc-buscar">' +
+      '<input type="search" class="form-control inp-buscar-erp" placeholder="Código o nombre ERP…" autocomplete="off">' +
+      '<button type="button" class="btn btn-warning btn-buscar-erp"><i class="fas fa-search"></i></button>' +
+      '</div><div class="resultados-erp small mt-1"></div></td>';
+  return tr;
+  }
+
+  function cargarLista() {
+    const body = document.getElementById('chmVincBody');
+    body.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Cargando…</td></tr>';
+    fetch(apiLista + '?' + buildQueryParams(), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) {
+          body.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error al cargar</td></tr>';
+          return;
+        }
+        totalPages = d.total_pages || 1;
+        page = d.page || 1;
+        document.getElementById('chmVincPagerInfo').textContent =
+          'Página ' + page + ' de ' + totalPages + ' · ' + (d.total || 0) + ' pendientes';
+        document.getElementById('btnPrev').disabled = page <= 1;
+        document.getElementById('btnNext').disabled = page >= totalPages;
+        body.innerHTML = '';
+        if (!d.items || !d.items.length) {
+          body.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No hay filas pendientes con estos filtros.</td></tr>';
+          return;
+        }
+        d.items.forEach(function (it) {
+          body.appendChild(renderRow(it));
+        });
+        wireRows();
+      })
+      .catch(function () {
+        body.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error de red</td></tr>';
+      });
+  }
+
+  function vincular(vtexId, productoId, btn) {
+    if (!vtexId || !productoId) return;
+    if (btn) btn.disabled = true;
+    fetch(apiVincular, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        vtex_product_id: vtexId,
+        producto_id: productoId,
+        actualizar_codigo_chilemat: true,
+        copiar_imagen: document.getElementById('chkCopiarImagen').checked,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok) {
+          toast('Vinculado correctamente', true);
+          refreshKpis();
+          cargarLista();
+        } else {
+          toast(d.mensaje || d.error || 'No se pudo vincular', false);
+          if (btn) btn.disabled = false;
+        }
+      })
+      .catch(function () {
+        toast('Error de red', false);
+        if (btn) btn.disabled = false;
+      });
+  }
+
+  function buscarErp(inp) {
+    const tr = inp.closest('tr');
+    const box = tr.querySelector('.resultados-erp');
+    const q = inp.value.trim();
+    if (q.length < 2) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = '<span class="text-muted">Buscando…</span>';
+    fetch(apiBuscarErp + '?q=' + encodeURIComponent(q) + '&limit=12', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok || !d.items || !d.items.length) {
+          box.innerHTML = '<span class="text-muted">Sin resultados</span>';
+          return;
+        }
+        box.innerHTML = '<div class="chm-vinc-sug"></div>';
+        const wrap = box.querySelector('.chm-vinc-sug');
+        const vtexId = tr.dataset.vtexId;
+        d.items.forEach(function (p) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-outline-info btn-sm';
+          b.textContent = (p.nombre || '').slice(0, 40) + ' · ' + (p.codigo_barra || p.codigo_interno || p.id);
+          b.addEventListener('click', function () { vincular(vtexId, p.id, b); });
+          wrap.appendChild(b);
+        });
+      });
+  }
+
+  function wireRows() {
+    document.querySelectorAll('.btn-ficha-chm').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const tr = btn.closest('tr');
+        if (window.ChilematFicha && tr) {
+          ChilematFicha.open(tr.dataset.vtexId);
+        }
+      });
+    });
+    document.querySelectorAll('.btn-vinc-sug').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const tr = btn.closest('tr');
+        vincular(tr.dataset.vtexId, parseInt(btn.dataset.pid, 10), btn);
+      });
+    });
+    document.querySelectorAll('.btn-buscar-erp').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const inp = btn.closest('tr').querySelector('.inp-buscar-erp');
+        buscarErp(inp);
+      });
+    });
+    document.querySelectorAll('.inp-buscar-erp').forEach(function (inp) {
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          buscarErp(inp);
+        }
+      });
+    });
+  }
+
+  document.getElementById('filtroRubro').addEventListener('change', function () {
+    const sub = document.getElementById('filtroSub');
+    sub.innerHTML = '<option value="">Todas</option>';
+    const rid = parseInt(this.value, 10);
+    if (!rid) return;
+    (subPorRubro[rid] || []).forEach(function (s) {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.nombre;
+      sub.appendChild(o);
+    });
+  });
+
+  document.getElementById('btnBuscar').addEventListener('click', function () {
+    page = 1;
+    cargarLista();
+  });
+  document.getElementById('btnPrev').addEventListener('click', function () {
+    if (page > 1) { page -= 1; cargarLista(); }
+  });
+  document.getElementById('btnNext').addEventListener('click', function () {
+    if (page < totalPages) { page += 1; cargarLista(); }
+  });
+  document.getElementById('btnAutoVincular').addEventListener('click', function () {
+    const btn = this;
+    btn.disabled = true;
+    fetch(apiAuto, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ max_items: 25, confianza_min: 0.7 }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        if (d.ok) {
+          toast('Auto-vinculados: ' + (d.vinculados || 0), true);
+          refreshKpis();
+          cargarLista();
+        } else {
+          toast(d.error || 'Error', false);
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        toast('Error de red', false);
+      });
+  });
+
+  refreshKpis();
+  cargarLista();
+})();
+</script>
+{% endblock %}

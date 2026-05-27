@@ -16,6 +16,28 @@ Checklist cerrado **2026-05-25** para seguir desarrollo en esta máquina.
 
 ---
 
+## Chilemat catálogo + sugerencias POS (2026-05-26)
+
+**Checkpoint git:** `checkpoint/chilemat-relaciones-2026-05-26` (commit `f7d1936`)
+
+```powershell
+git checkout checkpoint/chilemat-relaciones-2026-05-26   # revertir código
+```
+
+**Tablas nuevas:** `chilemat_categoria`, `chilemat_vtex_producto`, `producto_relacion`
+
+**Sync (QA):**
+
+```powershell
+.\.venv\Scripts\python.exe scripts/sync_chilemat_catalogo.py --max-productos 100 --max-anclas 25
+.\.venv\Scripts\python.exe scripts/sync_chilemat_catalogo.py
+.\.venv\Scripts\python.exe scripts/sync_chilemat_catalogo.py --solo-relaciones-vtex
+```
+
+**Revertir solo datos:** `TRUNCATE producto_relacion, chilemat_vtex_producto, chilemat_categoria;`
+
+---
+
 ## Rutina diaria
 
 ```powershell
@@ -127,8 +149,28 @@ $env:BOOTSTRAP_ADMIN_PASSWORD = "TuClaveLocal"
 
 ---
 
+## Paridad con PC vieja (USB `LhexIA_Migracion_SD_20260525`)
+
+| Elemento | Estado en esta PC |
+|----------|-------------------|
+| Código Git `main` | Igual o **más nuevo** que el USB (hacer `git pull`) |
+| BD local demo | `local_ferreteria_*.dump` → **2133 ventas, 1670 productos, 11 usuarios** |
+| `.env.local` | Copiado del USB (Operador, Ollama, SII, Neon URL) |
+| `datos_rcv/` | Copiado del USB (17 archivos RCV) |
+| `CARGA DE DATOS/` | Sincronizado desde USB |
+| `instance/certs/` | Verificar `emisor.pfx` presente |
+
+**Única diferencia técnica inevitable:** clave Postgres local **`Azby1928`** (instalador PC nueva) vs `FerreteriaLocal2026` (PC vieja). El resto del entorno es el mismo.
+
+**Importante:** en la PC vieja **local y Neon no eran iguales** (`verify_local_vs_neon.txt`). Esta máquina replica el **Postgres local** de la vieja, no el catálogo masivo de Neon (4899 SKU / 4 ventas). Para espejo Neon, restaurar `neon_*.dump` en otra BD (decisión aparte).
+
+**Ollama:** instalar en esta PC si usas Operador (`scripts/setup_ollama_sd.ps1`).
+
+---
+
 ## Referencias
 
 - Memoria proyecto: `memory.md`, `docs/memory.md`
 - Planes SD-1: `docs/planes/01-entrega-santo-domingo/`
 - Deploy / Neon: `docs/MIGRACION_RENDER_NEON.md`
+- USB / migración: `scripts/CHECKLIST_MIGRACION_PC.md`

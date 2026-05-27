@@ -6,6 +6,7 @@ Referencias: CrSeed.jws, GetTokenFromSeed.jws, POST /cgi_dte/UPL/DTEUpload
 """
 from __future__ import annotations
 
+import html
 import logging
 import os
 import re
@@ -120,6 +121,144 @@ def _parsear_xml_respuesta(raw: Any) -> Any:
     return etree.fromstring(txt.encode('utf-8', errors='replace'))
 
 
+def _extraer_xml_interno_soap(raw: Any) -> str:
+    """
+    SII devuelve RESPUESTA/ESTADO/TOKEN dentro de getTokenReturn o getSeedReturn
+    (a menudo escapado como entidad HTML dentro del sobre SOAP).
+    """
+    if raw is None:
+        return ''
+    if isinstance(raw, (bytes, bytearray)):
+        txt = bytes(raw).decode('utf-8', errors='replace')
+    else:
+        txt = str(raw).strip()
+    if not txt:
+        return ''
+    if '<' not in txt:
+        return txt
+    try:
+        root = _parsear_xml_respuesta(txt)
+    except Exception:
+        return txt
+    nombres_return = (
+        'getTokenReturn',
+        'getSeedReturn',
+        'getTokenFromSeedReturn',
+        'getSeedResponse',
+        'getTokenResponse',
+    )
+    for el in root.iter():
+        if _localname(el) in nombres_return:
+            inner = (el.text or '').strip()
+            if inner:
+                return html.unescape(inner)
+    return txt
+
+
+def _parsear_respuesta_sii_negocio(raw: Any) -> Any:
+    """Parsea RESPUESTA SII (directa o anidada en sobre SOAP)."""
+    inner = _extraer_xml_interno_soap(raw)
+    payload = inner if inner else raw
+    return _parsear_xml_respuesta(payload)
+
+
+def _detalle_respuesta_sii(root: Any) -> Dict[str, Optional[str]]:
+    """ESTADO, SEMILLA/TOKEN y GLOSA (RESPUESTA plana o SII:RESP_HDR)."""
+    estado = _texto_nodo(root, 'ESTADO')
+    glosa = _texto_nodo(root, 'GLOSA')
+    if not estado:
+        for el in root.iter():
+            ln = _localname(el)
+            if ln == 'ESTADO' and el.text:
+                estado = str(el.text).strip()
+            elif ln == 'GLOSA' and el.text and not glosa:
+                glosa = str(el.text).strip()
+    return {
+        'estado': estado,
+        'semilla': _texto_nodo(root, 'SEMILLA'),
+        'token': _texto_nodo(root, 'TOKEN'),
+        'glosa': glosa,
+    }
+
+
+def extraer_rut_desde_certificado(certificate: Any) -> Optional[str]:
+    """
+    RUT del titular del .pfx (formato 8054120-1) desde subject del certificado chileno.
+    """
+    if certificate is None:
+        return None
+    candidatos: list[str] = []
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import ExtensionOID, NameOID
+
+        for attr in certificate.subject:
+            val = str(getattr(attr, 'value', '') or '').strip().upper()
+            if val:
+                candidatos.append(val)
+            if attr.oid == NameOID.SERIAL_NUMBER:
+                candidatos.append(val.replace('RUT', '').strip())
+        try:
+            san = certificate.extensions.get_extension_for_oid(
+                ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+            ).value
+            for name in san:
+                raw = getattr(name, 'value', None)
+                if isinstance(raw, (bytes, bytearray)):
+                    txt = bytes(raw).decode('utf-8', errors='ignore').upper()
+                    if txt:
+                        candidatos.append(txt)
+                elif raw is not None:
+                    candidatos.append(str(raw).upper())
+        except x509.ExtensionNotFound:
+            pass
+    except Exception:
+        pass
+    for val in candidatos:
+        for m in re.finditer(r'(\d{7,8}-[\dK])', val.replace('.', '')):
+            try:
+                cuerpo, dv = split_rut(m.group(1))
+                return f'{cuerpo}-{dv}'
+            except ValueError:
+                continue
+        m = re.search(r'(\d{1,2}\.?\d{3}\.?\d{3}-[\dK])', val)
+        if m:
+            try:
+                cuerpo, dv = split_rut(m.group(1))
+                return f'{cuerpo}-{dv}'
+            except ValueError:
+                continue
+    return None
+
+
+def auditar_rut_certificado_vs_empresa(rut_empresa: Optional[str] = None) -> Dict[str, Any]:
+    """Compara RUT del .pfx con EMPRESA_RUT / configuración ERP."""
+    from services import facturacion_electronica_service as fe
+
+    rut_cfg = (rut_empresa or os.getenv('EMPRESA_RUT') or '8054120-1').strip()
+    out: Dict[str, Any] = {
+        'rut_empresa_config': rut_cfg,
+        'rut_certificado': None,
+        'rut_coincide': None,
+        'error': None,
+    }
+    try:
+        cuerpo_cfg, dv_cfg = split_rut(rut_cfg)
+        rut_cfg_norm = f'{cuerpo_cfg}-{dv_cfg}'
+        _pk, cert = _cargar_clave_certificado_pfx()
+        rut_cert = extraer_rut_desde_certificado(cert)
+        out['rut_certificado'] = rut_cert
+        if rut_cert:
+            cuerpo_c, dv_c = split_rut(rut_cert)
+            out['rut_coincide'] = cuerpo_c == cuerpo_cfg and dv_c == dv_cfg
+        else:
+            out['rut_coincide'] = None
+            out['error'] = 'no_se_pudo_leer_rut_del_certificado'
+    except Exception as ex:
+        out['error'] = f'{type(ex).__name__}:{str(ex)[:200]}'
+    return out
+
+
 def _get_seed_soap_raw(base: str) -> str:
     """POST SOAP getSeed (evita zeep cuando el WSDL devuelve 503 HTML)."""
     import requests
@@ -191,19 +330,27 @@ def obtener_semilla(ambiente: Optional[str] = None) -> ResultadoSemilla:
             _logger.exception('obtener_semilla SII falló (%s)', wsdl)
             return ResultadoSemilla(ok=False, error=f'{type(ex_raw).__name__}:{str(ex_raw)[:300]}')
     try:
-        root = _parsear_xml_respuesta(raw)
-        estado = _texto_nodo(root, 'ESTADO')
-        semilla = _texto_nodo(root, 'SEMILLA')
+        root = _parsear_respuesta_sii_negocio(raw)
+        det = _detalle_respuesta_sii(root)
+        estado = det['estado']
+        semilla = det['semilla']
         ok = (estado or '') == '00' and bool(semilla)
+        err = None if ok else 'semilla_no_obtenida'
+        if not ok and det.get('glosa'):
+            err = f'{err}:{det["glosa"]}'
         return ResultadoSemilla(
             ok=ok,
             semilla=semilla,
             estado=estado,
-            raw=str(raw)[:2000] if raw is not None else None,
-            error=None if ok else 'semilla_no_obtenida',
+            raw=str(raw)[:8000] if raw is not None else None,
+            error=err,
         )
     except Exception as ex:
-        return ResultadoSemilla(ok=False, error=f'{type(ex).__name__}:{str(ex)[:300]}')
+        return ResultadoSemilla(
+            ok=False,
+            error=f'{type(ex).__name__}:{str(ex)[:300]}',
+            raw=str(raw)[:8000] if raw is not None else None,
+        )
 
 
 def _cargar_clave_certificado_pfx() -> Tuple[Any, Any]:
@@ -233,8 +380,53 @@ def _cargar_clave_certificado_pfx() -> Tuple[Any, Any]:
     raise ValueError('pfx_sin_clave_valida')
 
 
+ENV_ALG_ENVELOPED = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
+
+
+def _normalizar_valor_semilla(semilla: str) -> str:
+    """Valor semilla plano: sin espacios, saltos de línea ni caracteres de control."""
+    return re.sub(r'\s+', '', str(semilla or '').strip())
+
+
+def _armar_xml_semilla_sin_firma(semilla_valor: str):
+    """
+    Estructura XSD Maullín GetTokenFromSeed (manual autenticación v1.9):
+    <getToken><item><Semilla>VALOR</Semilla></item></getToken>
+    Sin espacios ni saltos de línea entre nodos.
+    """
+    from lxml import etree
+
+    v = _normalizar_valor_semilla(semilla_valor)
+    if not v:
+        raise ValueError('semilla_vacia')
+    root = etree.Element('getToken')
+    item = etree.SubElement(root, 'item')
+    sem = etree.SubElement(item, 'Semilla')
+    sem.text = v
+    return root, v
+
+
+def _serializar_xml_iso8859(root) -> bytes:
+    from lxml import etree
+
+    raw = etree.tostring(
+        root,
+        xml_declaration=True,
+        encoding='ISO-8859-1',
+        pretty_print=False,
+    )
+    # Sin espacios ni saltos de línea entre etiquetas (contenido de texto intacto).
+    return re.sub(rb'>\s+<', b'><', raw)
+
+
+def _xml_semilla_plano_compacto(semilla_valor: str) -> str:
+    """Representación compacta esperada por SII (sin firma)."""
+    v = _normalizar_valor_semilla(semilla_valor)
+    return f'<getToken><item><Semilla>{v}</Semilla></item></getToken>'
+
+
 class _XMLSignerSiiSha1:
-    """Firma XML semilla SII: C14N 1.0 (sin comentarios) + RSA-SHA1 + SHA1."""
+    """Firma XML semilla SII: C14N 1.0 + RSA-SHA1 + enveloped URI=\"\" (manual v1.9)."""
 
     @staticmethod
     def _signer():
@@ -253,56 +445,62 @@ class _XMLSignerSiiSha1:
 
     @classmethod
     def sign(cls, root, *, key, cert):
-        return cls._signer().sign(
+        signed = cls._signer().sign(
             root,
             key=key,
             cert=[cert],
             always_add_key_value=True,
+            exclude_c14n_transform_element=True,
         )
-
-
-def _armar_gettoken_sin_firma(semilla: str):
-    """Estructura getToken/item/Semilla exigida por GetTokenFromSeed (manual SII §4.1.3)."""
-    from lxml import etree
-
-    root = etree.Element('getToken')
-    item = etree.SubElement(root, 'item')
-    sem = etree.SubElement(item, 'Semilla')
-    sem.text = str(semilla).strip()
-    return root
-
-
-def _serializar_xml_iso8859(root) -> bytes:
-    from lxml import etree
-
-    return etree.tostring(
-        root,
-        xml_declaration=True,
-        encoding='ISO-8859-1',
-        pretty_print=False,
-    )
+        _ajustar_transforms_firma_semilla_sii(signed)
+        return signed
 
 
 def firmar_xml_semilla_token(semilla: str) -> bytes:
     """
-    Arma y firma el XML getToken para GetTokenFromSeed.
+    Arma y firma el XML de semilla para GetTokenFromSeed (pszXml en SOAP).
 
-    Estándar SII (manual autenticación v1.9, cap. 8):
-    - Canonicalización C14N 1.0 (REC-xml-c14n-20010315, sin comentarios)
-    - DigestMethod y SignatureMethod SHA1 / RSA-SHA1
-    - KeyInfo con RSAKeyValue (Modulus, Exponent) + X509Certificate
-    - Salida ISO-8859-1 (no UTF-8)
+    - Documento: <getToken><item><Semilla ID="X">X</Semilla></item></getToken>
+    - Reference URI="#X" (nodo Semilla con atributo ID)
+    - Un solo Transform: enveloped-signature
+    - SignedInfo C14N: REC-xml-c14n-20010315
+    - Salida ISO-8859-1
     """
     private_key, certificate = _cargar_clave_certificado_pfx()
-    root = _armar_gettoken_sin_firma(semilla)
+    root, semilla_id = _armar_xml_semilla_sin_firma(semilla)
     signed = _XMLSignerSiiSha1.sign(root, key=private_key, cert=certificate)
-    _validar_firma_semilla_sii(signed)
+    _validar_firma_semilla_sii(signed, semilla_id)
     return _serializar_xml_iso8859(signed)
 
 
-def _validar_firma_semilla_sii(root) -> None:
-    """Comprueba algoritmos exigidos por SII antes de enviar a Maullín/Palena."""
+def _ajustar_transforms_firma_semilla_sii(root) -> None:
+    """Elimina Transform C14N redundante en Reference; solo enveloped-signature."""
     ns = {'ds': NS_XMLDSIG}
+    for ref in root.findall('.//ds:Reference', namespaces=ns):
+        transforms = ref.find('ds:Transforms', namespaces=ns)
+        if transforms is None:
+            continue
+        for tr in list(transforms.findall('ds:Transform', namespaces=ns)):
+            if (tr.get('Algorithm') or '') != ENV_ALG_ENVELOPED:
+                transforms.remove(tr)
+
+
+def _validar_firma_semilla_sii(root, semilla_id: str) -> None:
+    """Comprueba estructura y algoritmos exigidos por SII antes de enviar a Maullín/Palena."""
+    from lxml import etree
+
+    ns = {'ds': NS_XMLDSIG}
+    sid = _normalizar_valor_semilla(semilla_id)
+    uri_esperado = ''
+
+    if etree.QName(root).localname != 'getToken':
+        raise ValueError('firma_semilla_raiz_invalida')
+    sem = root.find('.//Semilla')
+    if sem is None:
+        raise ValueError('firma_semilla_sin_nodo_Semilla')
+    if (sem.text or '').strip() != sid:
+        raise ValueError('firma_semilla_texto_invalido')
+
     sig = root.find('.//ds:Signature', namespaces=ns)
     if sig is None:
         raise ValueError('firma_semilla_sin_signature')
@@ -318,23 +516,23 @@ def _validar_firma_semilla_sii(root) -> None:
     if sig.find('.//ds:RSAKeyValue', namespaces=ns) is None:
         raise ValueError('firma_semilla_sin_rsakeyvalue')
     ref = sig.find('.//ds:Reference', namespaces=ns)
-    if ref is None or (ref.get('URI') or '') != '':
+    if ref is None or (ref.get('URI') or '') != uri_esperado:
         raise ValueError('firma_semilla_reference_uri_invalido')
-    env = sig.find(
-        './/ds:Transform[@Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"]',
-        namespaces=ns,
-    )
+    env = ref.find(f'.//ds:Transform[@Algorithm="{ENV_ALG_ENVELOPED}"]', namespaces=ns)
     if env is None:
         raise ValueError('firma_semilla_sin_enveloped_transform')
+    extra = ref.findall('ds:Transforms/ds:Transform', namespaces=ns)
+    if len(extra) != 1:
+        raise ValueError('firma_semilla_transforms_invalido')
 
 
 def obtener_token(semilla: str, ambiente: Optional[str] = None) -> ResultadoToken:
     """Firma la semilla y solicita token de sesión al SII."""
     base = url_base_sii(ambiente)
     wsdl = base + '/DTEWS/GetTokenFromSeed.jws?wsdl'
+    raw: Any = None
     try:
         xml_firmado = firmar_xml_semilla_token(semilla)
-        raw: Any = None
         try:
             raw = _get_token_soap_raw(base, xml_firmado)
         except Exception as ex_raw:
@@ -348,20 +546,31 @@ def obtener_token(semilla: str, ambiente: Optional[str] = None) -> ResultadoToke
             xml_txt = xml_firmado.decode('iso-8859-1', errors='strict')
             client = Client(wsdl)
             raw = client.service.getToken(xml_txt)
-        root = _parsear_xml_respuesta(raw)
-        estado = _texto_nodo(root, 'ESTADO')
-        token = _texto_nodo(root, 'TOKEN')
+        root = _parsear_respuesta_sii_negocio(raw)
+        det = _detalle_respuesta_sii(root)
+        estado = det['estado']
+        token = det['token']
         ok = (estado or '') == '00' and bool(token)
+        err = None if ok else 'token_no_obtenido'
+        if not ok:
+            if det.get('glosa'):
+                err = f'{err}:{det["glosa"]}'
+            elif estado and estado != '00':
+                err = f'{err}:estado_{estado}'
         return ResultadoToken(
             ok=ok,
             token=token,
             estado=estado,
-            raw=str(raw)[:2000] if raw is not None else None,
-            error=None if ok else 'token_no_obtenido',
+            raw=str(raw)[:8000] if raw is not None else None,
+            error=err,
         )
     except Exception as ex:
         _logger.exception('obtener_token SII falló')
-        return ResultadoToken(ok=False, error=f'{type(ex).__name__}:{str(ex)[:300]}')
+        return ResultadoToken(
+            ok=False,
+            error=f'{type(ex).__name__}:{str(ex)[:300]}',
+            raw=str(raw)[:8000] if raw is not None else None,
+        )
 
 
 def conectar_sii(ambiente: Optional[str] = None) -> ResultadoToken:
@@ -377,7 +586,8 @@ def date_hoy_iso() -> str:
 
 
 def _config_resolucion_sii() -> Tuple[str, int]:
-    fch = (os.getenv('SII_FCH_RESOLUCION') or date_hoy_iso()).strip()[:10]
+    """Maullín SD: FchResol 2021-03-24 / NroResol 0 (pantalla ad_empresa Maullín)."""
+    fch = (os.getenv('SII_FCH_RESOLUCION') or '2021-03-24').strip()[:10]
     try:
         nro = int((os.getenv('SII_NRO_RESOLUCION') or '0').strip() or '0')
     except ValueError:
@@ -558,11 +768,14 @@ def diagnostico_sii(ambiente: Optional[str] = None) -> Dict[str, Any]:
         'pfx_configurado': pfx_ok,
         'pfx_path': (cfg.get('pfx_path') or '')[:120],
     }
+    out.update(auditar_rut_certificado_vs_empresa())
     sem = obtener_semilla(amb)
     out['semilla_ok'] = sem.ok
     out['semilla_estado'] = sem.estado
     if not sem.ok:
         out['semilla_error'] = sem.error
+        if sem.raw:
+            out['semilla_respuesta_cruda'] = sem.raw
         return out
     if not pfx_ok:
         out['token_ok'] = False
@@ -574,9 +787,20 @@ def diagnostico_sii(ambiente: Optional[str] = None) -> Dict[str, Any]:
     if not tok.ok:
         out['token_error'] = tok.error
         if tok.raw:
-            out['token_respuesta'] = tok.raw[:500]
+            out['token_respuesta_cruda'] = tok.raw
+        try:
+            xml_env = firmar_xml_semilla_token(sem.semilla or '')
+            out['token_xml_firmado_enviado'] = xml_env.decode('iso-8859-1', errors='replace')[:4000]
+        except Exception as ex_xml:
+            out['token_xml_firmado_error'] = str(ex_xml)[:300]
         if tok.estado == '10':
-            out['token_nota'] = 'ESTADO 10 = ERROR RETORNO DATOS (XML/firma semilla no aceptada por SII)'
+            out['token_nota'] = (
+                'ESTADO 10 = SII rechaza getToken (firma o certificado no habilitado en Maullín). '
+                'Revise: certificado vigente, usuario autorizado, software de mercado LhexIA '
+                '(no solo Multicaja boletas). Ver scripts/fe_resolver_facturas.py'
+            )
+        elif tok.estado == '12':
+            out['token_nota'] = 'ESTADO 12 = RECHAZO POR RUT CERTIFICADO (titular .pfx distinto al registrado)'
     else:
         out['token_preview'] = (tok.token or '')[:8] + '…' if tok.token else None
     return out

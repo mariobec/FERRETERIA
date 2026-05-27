@@ -1226,6 +1226,8 @@ body.pos-pantalla-vendedora #contenedor-carrito.pos-cart-list {
 
 body.pos-pantalla-vendedora .pos-cart-card {
   position: relative;
+  isolation: isolate;
+  z-index: 50;
   margin: 0;
   padding: 1rem 1.05rem 1rem 1.15rem;
   border-radius: 12px;
@@ -1259,12 +1261,110 @@ body.pos-pantalla-vendedora .pos-cart-card__body {
   gap: 0.85rem;
 }
 
+body.pos-pantalla-vendedora .pos-cart-card__media {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 4.5rem;
+  position: relative;
+  z-index: 80;
+  pointer-events: auto;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__media * {
+  pointer-events: auto !important;
+}
+
+body.pos-pantalla-vendedora .pos-cart-thumb {
+  width: 4.25rem;
+  height: 4.25rem;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+body.pos-pantalla-vendedora .pos-cart-thumb--table {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+}
+
+body.pos-pantalla-vendedora .pos-cart-thumb--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 1.1rem;
+}
+
+body.pos-pantalla-vendedora .pos-cart-thumb.is-broken {
+  display: none;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__ficha-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  position: relative;
+  z-index: 81;
+  pointer-events: auto;
+}
+
+body.pos-pantalla-vendedora .pos-cart-ficha-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #0284c7;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  z-index: 120;
+  pointer-events: auto !important;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__info {
+  position: relative;
+  z-index: 2;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__commerce {
+  position: relative;
+  z-index: 1;
+}
+
+body.pos-pantalla-vendedora .pos-cart-ficha-btn:hover {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
+body.pos-pantalla-vendedora .pos-cart-card__chm-ref {
+  font-size: 0.65rem;
+  line-height: 1.2;
+  text-align: center;
+  max-width: 5.5rem;
+  word-break: break-word;
+}
+
 @media (min-width: 640px) {
   body.pos-pantalla-vendedora .pos-cart-card--v2 .pos-cart-card__body {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: flex-start;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 1rem 1.25rem;
+  }
+
+  body.pos-pantalla-vendedora .pos-cart-card--v2 .pos-cart-card__commerce {
+    margin-left: auto;
   }
 }
 

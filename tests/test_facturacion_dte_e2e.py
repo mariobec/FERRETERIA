@@ -78,16 +78,8 @@ def test_cobro_caja_persiste_xml_dte_emitido(
     vr = db.session.get(m.Venta, vid)
     assert vr is not None
     assert vr.estado == 'Pagado'
-    assert vr.caf_id == caf_row.id
-    assert vr.dte_estado in ('PENDIENTE_ENVIO', 'ENVIADO')
-    assert vr.nro_documento is not None
-    assert 870010 <= int(vr.nro_documento) <= 870999
-
-    path = st.buscar_xml_dte_por_venta(m.app.root_path, vid)
-    assert path and os.path.isfile(path), 'Debe existir XML firmado (o stub) tras cobro con CAF'
-    assert f'V{vid}_T39_F{int(vr.nro_documento)}.xml' in path.replace('\\', '/')
-
-    try:
-        os.remove(path)
-    except OSError:
-        pass
+    # Boletas: Multicaja emite al SII; LhexIA no consume CAF ni genera XML.
+    assert vr.dte_estado == 'EXTERNO_MULTICAJA'
+    assert vr.caf_id is None
+    assert vr.nro_documento is None
+    assert st.buscar_xml_dte_por_venta(m.app.root_path, vid) is None

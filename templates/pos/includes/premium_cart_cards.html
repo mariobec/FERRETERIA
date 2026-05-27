@@ -23,6 +23,7 @@
     data-detalle-id="{{ d.id }}"
     data-producto-nombre="{{ d.producto.nombre|e }}">
     <div class="pos-cart-card__body">
+      {% include 'pos/includes/cart_line_media.html' %}
       <div class="pos-cart-card__info">
         <div class="pos-cart-card__title-row">
           <h6 class="pos-cart-card__nombre mb-0" title="{{ d.producto.nombre|e }}">{{ d.producto.nombre }}</h6>

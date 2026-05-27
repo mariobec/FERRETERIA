@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 from scripts._sodimac_listado_rapido import (  # noqa: E402
     DEFAULT_URL,
     parse_search_cards,
+    scroll_page_lazy,
 )
 
 
@@ -32,9 +33,7 @@ def fetch_html(url: str) -> str:
         except Exception:
             pass
         time.sleep(3 + random.uniform(0.5, 1.5))
-        for frac in (0.35, 0.7, 1.0):
-            page.evaluate(f'window.scrollTo(0, document.body.scrollHeight * {frac})')
-            time.sleep(1.2 + random.uniform(0.2, 0.8))
+        scroll_page_lazy(page)
         html = page.content()
         browser.close()
     return html

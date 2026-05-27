@@ -1,0 +1,565 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  .chm-universe {
+    --chm-bg: #070b14;
+    --chm-card: rgba(15, 23, 42, 0.72);
+    --chm-border: rgba(148, 163, 184, 0.18);
+    --chm-accent: #f97316;
+    --chm-accent2: #38bdf8;
+    --chm-mint: #34d399;
+    --chm-text: #e2e8f0;
+    --chm-muted: #94a3b8;
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--chm-text);
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .chm-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px;
+    padding: 2rem 2rem 1.5rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid var(--chm-border);
+    background:
+      radial-gradient(ellipse 80% 60% at 10% -20%, rgba(249, 115, 22, 0.35), transparent 55%),
+      radial-gradient(ellipse 60% 50% at 95% 10%, rgba(56, 189, 248, 0.28), transparent 50%),
+      radial-gradient(ellipse 40% 30% at 50% 100%, rgba(52, 211, 153, 0.12), transparent 45%),
+      linear-gradient(145deg, #0f172a 0%, #070b14 60%, #0c1222 100%);
+  }
+
+  .chm-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2394a3b8' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  .chm-hero-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .chm-hero-grid { grid-template-columns: 1fr; }
+  }
+
+  .chm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: rgba(249, 115, 22, 0.15);
+    border: 1px solid rgba(249, 115, 22, 0.35);
+    color: #fdba74;
+  }
+
+  .chm-title {
+    font-size: clamp(1.75rem, 4vw, 2.35rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0.6rem 0 0.35rem;
+    background: linear-gradient(120deg, #fff 0%, #fdba74 45%, #7dd3fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .chm-sub {
+    color: var(--chm-muted);
+    font-size: 1rem;
+    max-width: 36rem;
+    margin: 0;
+  }
+
+  .chm-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+
+  .chm-kpi {
+    background: var(--chm-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--chm-border);
+    border-radius: 14px;
+    padding: 0.85rem 1rem;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+
+  .chm-kpi:hover {
+    transform: translateY(-2px);
+    border-color: rgba(249, 115, 22, 0.35);
+  }
+
+  .chm-kpi-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--chm-muted);
+  }
+
+  .chm-kpi-val {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .chm-kpi-val.accent { color: var(--chm-accent); }
+  .chm-kpi-val.sky { color: var(--chm-accent2); }
+  .chm-kpi-val.mint { color: var(--chm-mint); }
+
+  .chm-panel {
+    background: var(--chm-card);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--chm-border);
+    border-radius: 16px;
+    padding: 1rem 1.15rem;
+    margin-bottom: 1rem;
+  }
+
+  .chm-filters {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto auto;
+    gap: 0.65rem;
+    align-items: end;
+  }
+
+  @media (max-width: 992px) {
+    .chm-filters { grid-template-columns: 1fr 1fr; }
+  }
+
+  .chm-filters label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--chm-muted);
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+
+  .chm-filters .form-control,
+  .chm-filters .form-select {
+    background: rgba(2, 6, 23, 0.6);
+    border-color: var(--chm-border);
+    color: var(--chm-text);
+    font-size: 0.9rem;
+  }
+
+  .chm-filters .form-control:focus,
+  .chm-filters .form-select:focus {
+    border-color: var(--chm-accent);
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+  }
+
+  .chm-btn-primary {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    border: none;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  .chm-btn-ghost {
+    background: transparent;
+    border: 1px solid var(--chm-border);
+    color: var(--chm-text);
+  }
+
+  .chm-table-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 420px);
+    min-height: 320px;
+    border-radius: 12px;
+    border: 1px solid var(--chm-border);
+  }
+
+  .chm-table {
+    width: 100%;
+    margin: 0;
+    font-size: 0.88rem;
+  }
+
+  .chm-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0f172a;
+  }
+
+  .chm-table thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--chm-muted);
+    border-bottom: 1px solid var(--chm-border);
+    padding: 0.65rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .chm-table tbody tr {
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    transition: background 0.15s;
+  }
+
+  .chm-table tbody tr:hover {
+    background: rgba(249, 115, 22, 0.06);
+  }
+
+  .chm-table td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: middle;
+  }
+
+  .chm-code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    color: #7dd3fc;
+  }
+
+  .chm-precio {
+    font-weight: 700;
+    color: var(--chm-mint);
+    white-space: nowrap;
+  }
+
+  .chm-pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .chm-pill-rubro { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; }
+  .chm-pill-sub { background: rgba(148, 163, 184, 0.12); color: #cbd5e1; }
+
+  .chm-link-erp {
+    font-size: 0.75rem;
+    color: var(--chm-mint);
+    text-decoration: none;
+  }
+
+  .chm-link-erp:hover { text-decoration: underline; }
+
+  .chm-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  .chm-status-dot.ok { background: var(--chm-mint); box-shadow: 0 0 8px var(--chm-mint); }
+  .chm-status-dot.pending { background: #64748b; }
+
+  .chm-pager {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--chm-muted);
+  }
+
+  .chm-loading {
+    text-align: center;
+    padding: 3rem;
+    color: var(--chm-muted);
+  }
+
+  .chm-pulse {
+    animation: chmPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes chmPulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .chm-insight {
+    font-size: 0.8rem;
+    color: var(--chm-muted);
+    border-left: 3px solid var(--chm-accent2);
+    padding-left: 0.75rem;
+    margin-top: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chm-universe container-fluid px-2 px-md-3 pb-4">
+  <section class="chm-hero">
+    <div class="chm-hero-grid">
+      <div>
+        <span class="chm-badge"><i class="fas fa-satellite"></i> LhexIA · Inteligencia de compras</span>
+        <h1 class="chm-title">Universo Chilemat</h1>
+        <p class="chm-sub">
+          Catálogo vivo del proveedor principal (~90% del surtido). Precios lista, categorías y vínculo con tu maestro ERP — en un solo lugar.
+        </p>
+        <p class="chm-insight mb-0">
+          <strong>{{ stats.proveedor_nombre }}</strong>
+          {% if stats.proveedor_id %}· ID proveedor {{ stats.proveedor_id }}{% endif %}
+          {% if stats.ultimo_sync %}· Sync {{ stats.ultimo_sync[:10] }}{% endif %}
+        </p>
+      </div>
+      <div class="d-flex flex-column gap-2 align-items-stretch">
+        <a href="{{ url_for('chilemat_vinculacion') }}" class="btn btn-sm chm-btn-primary">
+          <i class="fas fa-link me-1"></i> Vincular ↔ ERP
+        </a>
+        <a href="{{ url_for('precios_radar') }}" class="btn btn-sm chm-btn-ghost">
+          <i class="fas fa-satellite-dish me-1"></i> Radar precios
+        </a>
+        <a href="{{ url_for('revision_precios') }}" class="btn btn-sm chm-btn-ghost">
+          <i class="fas fa-tags me-1"></i> Revisión precios ERP
+        </a>
+      </div>
+    </div>
+    <div class="chm-kpi-row">
+      <div class="chm-kpi">
+        <div class="chm-kpi-label">Productos web</div>
+        <div class="chm-kpi-val accent" data-count="{{ stats.total_productos }}">{{ stats.total_productos }}</div>
+      </div>
+      <div class="chm-kpi">
+        <div class="chm-kpi-label">Rubros</div>
+        <div class="chm-kpi-val sky">{{ stats.rubros }}</div>
+      </div>
+      <div class="chm-kpi">
+        <div class="chm-kpi-label">Vinculados ERP</div>
+        <div class="chm-kpi-val mint">{{ stats.vinculados_erp }}</div>
+      </div>
+      <div class="chm-kpi">
+        <div class="chm-kpi-label">Precio lista prom.</div>
+        <div class="chm-kpi-val">${{ "{:,.0f}".format(stats.precio_lista_promedio).replace(",", ".") }}</div>
+      </div>
+      <div class="chm-kpi">
+        <div class="chm-kpi-label">Sugerencias POS</div>
+        <div class="chm-kpi-val">{{ stats.relaciones_chilemat + stats.relaciones_historico_sd }}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chm-panel">
+    <div class="chm-filters">
+      <div>
+        <label for="chmQ">Buscar</label>
+        <input type="search" id="chmQ" class="form-control" placeholder="Código, nombre, marca, EAN…" autocomplete="off">
+      </div>
+      <div>
+        <label for="chmRubro">Categoría (rubro)</label>
+        <select id="chmRubro" class="form-select">
+          <option value="">Todas</option>
+          {% for r in filtros.rubros %}
+          <option value="{{ r.id }}">{{ r.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="chmSub">Subcategoría</label>
+        <select id="chmSub" class="form-select" disabled>
+          <option value="">— Elija rubro —</option>
+        </select>
+      </div>
+      <div>
+        <label class="d-block">&nbsp;</label>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="chmSoloSin">
+          <label class="form-check-label small" for="chmSoloSin">Sin vínculo ERP</label>
+        </div>
+      </div>
+      <div>
+        <label class="d-block">&nbsp;</label>
+        <button type="button" class="btn chm-btn-primary w-100" id="chmBuscar">
+          <i class="fas fa-search me-1"></i> Filtrar
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="chm-panel p-0 overflow-hidden">
+    <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--chm-border) !important;">
+      <span class="small text-muted" id="chmResumen">Cargando catálogo…</span>
+      <span class="small" id="chmPagInfo"></span>
+    </div>
+    <div class="chm-table-wrap" id="chmTableWrap">
+      <div class="chm-loading chm-pulse"><i class="fas fa-circle-notch fa-spin me-2"></i>Sincronizando vista…</div>
+    </div>
+    <div class="chm-pager px-3 pb-2">
+      <div>
+        <button type="button" class="btn btn-sm chm-btn-ghost" id="chmPrev" disabled><i class="fas fa-chevron-left"></i> Anterior</button>
+        <button type="button" class="btn btn-sm chm-btn-ghost ms-1" id="chmNext" disabled>Siguiente <i class="fas fa-chevron-right"></i></button>
+      </div>
+      <div id="chmPageNums"></div>
+    </div>
+  </section>
+</div>
+
+<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}"></script>
+<script>
+(function () {
+  const SUBS = {{ filtros.subcategorias_por_rubro | tojson }};
+  const API = "{{ url_for('api_chilemat_catalogo_productos') }}";
+  let page = 1;
+  let debounceTimer = null;
+
+  const elQ = document.getElementById('chmQ');
+  const elRubro = document.getElementById('chmRubro');
+  const elSub = document.getElementById('chmSub');
+  const elSoloSin = document.getElementById('chmSoloSin');
+  const elWrap = document.getElementById('chmTableWrap');
+  const elResumen = document.getElementById('chmResumen');
+  const elPagInfo = document.getElementById('chmPagInfo');
+  const elPrev = document.getElementById('chmPrev');
+  const elNext = document.getElementById('chmNext');
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString('es-CL');
+  }
+
+  function fmtPrecio(n) {
+    return '$' + fmt(n);
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  function fillSub() {
+    const rid = elRubro.value;
+    elSub.innerHTML = '<option value="">Todas en rubro</option>';
+    if (!rid) {
+      elSub.disabled = true;
+      return;
+    }
+    elSub.disabled = false;
+    (SUBS[rid] || SUBS[parseInt(rid, 10)] || []).forEach(function (s) {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.nombre;
+      elSub.appendChild(o);
+    });
+  }
+
+  function buildQuery() {
+    const p = new URLSearchParams();
+    p.set('page', String(page));
+    p.set('per_page', '50');
+    if (elQ.value.trim()) p.set('q', elQ.value.trim());
+    if (elRubro.value) p.set('rubro_vtex_id', elRubro.value);
+    if (elSub.value) p.set('sub_vtex_id', elSub.value);
+    if (elSoloSin.checked) p.set('solo_sin_vincular', '1');
+    return p.toString();
+  }
+
+  function renderTable(data) {
+    if (!data.items || !data.items.length) {
+      elWrap.innerHTML = '<div class="chm-loading">Sin resultados. Pruebe otro filtro o ejecute <code>sync_chilemat_catalogo.py</code>.</div>';
+      return;
+    }
+    let html = '<table class="table chm-table mb-0"><thead><tr>';
+    html += '<th>Proveedor</th><th>Código</th><th>VTEX ID</th><th>Descripción</th><th>Marca</th>';
+    html += '<th>Categoría</th><th>Subcategoría</th><th class="text-end">Precio lista</th><th>ERP</th><th></th>';
+    html += '</tr></thead><tbody>';
+    data.items.forEach(function (row) {
+      const erp = row.producto_erp;
+      const erpCell = erp
+        ? '<span class="chm-status-dot ok"></span><a class="chm-link-erp" href="/precios/revision?q=' + encodeURIComponent(erp.codigo_chilemat || erp.codigo_interno || '') + '">#' + erp.id + ' ' + escapeHtml(erp.codigo_chilemat || erp.codigo_interno) + '</a>'
+        : '<span class="chm-status-dot pending"></span><span class="text-muted small">Pendiente cruce</span>';
+      const ext = row.link
+        ? '<a href="' + escapeHtml(row.link) + '" target="_blank" rel="noopener" class="btn btn-sm chm-btn-ghost py-0"><i class="fas fa-external-link-alt"></i></a>'
+        : '';
+      const fichaBtn =
+        '<button type="button" class="btn btn-sm chm-btn-ghost py-0 btn-chm-ficha" data-vtex="' +
+        escapeHtml(row.vtex_id) +
+        '" title="Ficha imagen y descripción"><i class="fas fa-image"></i></button>';
+      html += '<tr>';
+      html += '<td><span class="small">Chilemat</span></td>';
+      html += '<td class="chm-code">' + escapeHtml(row.codigo) + '</td>';
+      html += '<td class="small text-muted">' + escapeHtml(row.vtex_id) + '</td>';
+      html += '<td><strong>' + escapeHtml(row.nombre) + '</strong></td>';
+      html += '<td>' + escapeHtml(row.marca || '—') + '</td>';
+      html += '<td><span class="chm-pill chm-pill-rubro">' + escapeHtml(row.categoria || '—') + '</span></td>';
+      html += '<td><span class="chm-pill chm-pill-sub">' + escapeHtml(row.subcategoria || '—') + '</span></td>';
+      html += '<td class="text-end chm-precio">' + fmtPrecio(row.precio_lista) + '</td>';
+      html += '<td>' + erpCell + '</td>';
+      html += '<td>' + ext + ' ' + fichaBtn + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    elWrap.innerHTML = html;
+    elWrap.querySelectorAll('.btn-chm-ficha').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const vid = btn.getAttribute('data-vtex');
+        if (window.ChilematFicha && vid) ChilematFicha.open(vid);
+      });
+    });
+  }
+
+  function load() {
+    elWrap.innerHTML = '<div class="chm-loading chm-pulse"><i class="fas fa-circle-notch fa-spin me-2"></i>Cargando…</div>';
+    fetch(API + '?' + buildQuery(), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok) throw new Error('Error API');
+        renderTable(data);
+        elResumen.innerHTML = '<strong>' + fmt(data.total) + '</strong> productos · página ' + data.page + ' de ' + data.total_pages;
+        elPagInfo.textContent = 'Mostrando ' + data.items.length + ' filas';
+        elPrev.disabled = data.page <= 1;
+        elNext.disabled = data.page >= data.total_pages;
+      })
+      .catch(function () {
+        elWrap.innerHTML = '<div class="chm-loading text-danger">No se pudo cargar el catálogo.</div>';
+      });
+  }
+
+  elRubro.addEventListener('change', function () {
+    fillSub();
+    page = 1;
+    load();
+  });
+  elSub.addEventListener('change', function () { page = 1; load(); });
+  elSoloSin.addEventListener('change', function () { page = 1; load(); });
+  document.getElementById('chmBuscar').addEventListener('click', function () { page = 1; load(); });
+  elQ.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function () { page = 1; load(); }, 400);
+  });
+  elPrev.addEventListener('click', function () { if (page > 1) { page--; load(); } });
+  elNext.addEventListener('click', function () { page++; load(); });
+
+  document.querySelectorAll('[data-count]').forEach(function (el) {
+    const target = parseInt(el.getAttribute('data-count'), 10) || 0;
+    let cur = 0;
+    const step = Math.max(1, Math.floor(target / 40));
+    const t = setInterval(function () {
+      cur = Math.min(target, cur + step);
+      el.textContent = fmt(cur);
+      if (cur >= target) clearInterval(t);
+    }, 25);
+  });
+
+  fillSub();
+  load();
+})();
+</script>
+{% endblock %}

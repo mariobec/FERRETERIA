@@ -1,0 +1,499 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+  .radar-hero {
+    background: radial-gradient(900px 380px at 0% -20%, rgba(245, 158, 11, .18), transparent 55%),
+                radial-gradient(700px 320px at 100% 0%, rgba(56, 189, 248, .12), transparent 50%),
+                linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+    border: 1px solid rgba(148, 163, 184, .28);
+    border-radius: 14px;
+    color: #e2e8f0;
+  }
+  .radar-hero .text-muted { color: #94a3b8 !important; }
+  .radar-progress { height: 10px; background: #0f172a; border-radius: 999px; overflow: hidden; }
+  .radar-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    transition: width .35s ease;
+    width: 0%;
+  }
+  .radar-table-wrap {
+    max-height: 62vh;
+    overflow: auto;
+    border: 1px solid rgba(148, 163, 184, .2);
+    border-radius: 10px;
+  }
+  .radar-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0f172a;
+    color: #fbbf24;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .radar-table tbody tr.row-new { animation: radarFadeIn .45s ease; }
+  .radar-table tbody tr.row-pulse { animation: radarPulse .6s ease; }
+  @keyframes radarPulse {
+    0% { background: rgba(245, 158, 11, .25); }
+    100% { background: transparent; }
+  }
+  @keyframes radarFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .badge-estado-mapeado { background: rgba(16, 185, 129, .15); color: #34d399; border: 1px solid rgba(16, 185, 129, .35); }
+  .badge-estado-revisar { background: rgba(245, 158, 11, .12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, .35); }
+  .badge-estado-sin { background: rgba(148, 163, 184, .12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, .3); }
+  .badge-estado-aplicado { background: rgba(59, 130, 246, .15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, .35); }
+  .ollama-pill.ok { color: #34d399; }
+  .ollama-pill.off { color: #f87171; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 1280px;">
+  <div class="page-header mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+      <div>
+        <h3 class="page-title">
+          <i class="fas fa-satellite-dish text-warning me-2"></i>LhexIA Radar Precios
+        </h3>
+        <p class="page-subtitle mb-0">
+          Pegue uno o varios enlaces públicos (uno por línea). Ollama normaliza fila a fila vía SSE sin congelar la pantalla.
+        </p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('precios_radar_dashboard') }}" class="btn btn-dark btn-sm">
+          <i class="fas fa-chart-pie me-1"></i> Dashboard premium
+        </a>
+        <a href="{{ url_for('revision_precios') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-tags me-1"></i> Revisión de precios
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-light border small mb-3">
+    <strong>Ayuda de cálculo</strong>:
+    costo actual = <code>precio_compra</code>;
+    margen actual = <code>(venta_actual - costo) / venta_actual</code>;
+    sugerido usa <code>_precio_sugerido_redondeado(costo, 0.30, 90)</code> en dashboard.
+    En el escaneo, <code>Δ%</code> compara precio web vs costo actual.
+  </div>
+
+  <div class="radar-hero p-3 p-md-4 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="small text-uppercase fw-semibold text-warning">Extractor inteligente · cualquier web pública</div>
+      <div class="small ollama-pill {% if ollama.disponible %}ok{% else %}off{% endif %}" id="ollamaStatus">
+        <i class="fas fa-robot me-1"></i>
+        Ollama: {% if ollama.disponible %}conectado ({{ ollama.modelo }}){% elif ollama.habilitado %}no disponible{% else %}desactivado en .env{% endif %}
+      </div>
+    </div>
+
+    <div class="row g-2 align-items-end">
+      <div class="col-lg-7">
+        <label class="form-label small text-muted mb-1">URL(s) del catálogo — una por línea (Chilemat, Sodimac, etc.)</label>
+        <textarea id="providerLink" rows="3" class="form-control bg-dark text-white border-secondary font-monospace small"
+               placeholder="https://www.chilemat.cl/categoria/herramientas&#10;https://www.sodimac.cl/s/herramientas"></textarea>
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label small text-muted mb-1">Proveedor ERP (opcional, mejora mapeo)</label>
+        <select id="proveedorId" class="form-select bg-dark text-white border-secondary">
+          <option value="">— Sin proveedor —</option>
+          {% for pr in proveedores %}
+          <option value="{{ pr.id }}">{{ pr.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2">
+        <button type="button" id="btnProcesar" class="btn btn-warning btn-lg w-100 fw-bold text-dark">
+          <i class="fas fa-bolt me-1"></i> Escanear
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-3 d-none" id="boxProgreso">
+      <div class="d-flex justify-content-between small mb-1">
+        <span id="progresoTexto" class="text-muted">Iniciando…</span>
+        <span id="progresoPct" class="fw-bold text-warning">0%</span>
+      </div>
+      <div class="radar-progress"><div class="radar-progress-bar" id="barProgreso"></div></div>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3 border-warning border-opacity-25">
+    <div class="card-body py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div class="small">
+        <i class="fas fa-file-csv text-warning me-1"></i>
+        <strong>Maestro acumulado</strong>
+        <span class="text-muted">— formato listo para <code>/cargar_productos</code></span>
+        <div class="text-muted" style="font-size:.75rem">
+          <span id="maestroCsvTotal">{{ maestro_csv.total_filas or 0 }}</span> productos en
+          <code class="user-select-all">{{ maestro_csv.path }}</code>
+        </div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('precios_radar_descargar_maestro') }}" class="btn btn-sm btn-outline-warning" id="btnDescargarMaestro">
+          <i class="fas fa-download me-1"></i> Descargar CSV maestro
+        </a>
+        <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-upload me-1"></i> Subir en Productos
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 bg-white">
+      <strong><i class="fas fa-list me-1 text-primary"></i> Resultados de este escaneo</strong>
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <span class="small text-muted" id="contadorLineas">0 productos (escaneo actual)</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSelMapeados" disabled>Seleccionar mapeados</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnAplicar" disabled>
+          <i class="fas fa-database me-1"></i> Aplicar costos seleccionados
+        </button>
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="radar-table-wrap">
+        <table class="table table-sm table-hover mb-0 radar-table align-middle">
+          <thead>
+            <tr>
+              <th class="p-3" style="width:2.5rem"><input type="checkbox" id="chkTodos" disabled></th>
+              <th class="p-3">SKU web</th>
+              <th class="p-3">Descripción</th>
+              <th class="p-3 text-end">Precio lista</th>
+              <th class="p-3">ERP</th>
+              <th class="p-3 text-end">Costo act.</th>
+              <th class="p-3 text-end">Δ%</th>
+              <th class="p-3">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="listaProductos">
+            <tr id="filaVacia">
+              <td colspan="8" class="p-5 text-center text-muted">
+                <i class="fas fa-satellite-dish fa-2x mb-2 d-block opacity-50"></i>
+                Ningún enlace procesado. El radar está en espera.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-white">
+      <strong><i class="fas fa-table me-1 text-warning"></i> Vista del CSV maestro acumulado</strong>
+      <div class="small text-muted">
+        Página <span id="maestroPageActual">1</span>/<span id="maestroPageTotal">1</span>
+        · <span id="maestroRowsTotal">0</span> filas
+      </div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive" style="max-height: 320px;">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th>Código proveedor</th>
+              <th>Código interno</th>
+              <th class="text-end">Precio compra</th>
+              <th>Categoría</th>
+              <th>Subcategoría</th>
+            </tr>
+          </thead>
+          <tbody id="maestroPreviewBody">
+            <tr><td colspan="6" class="text-center text-muted p-3">Cargando vista del CSV…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="d-flex justify-content-end align-items-center gap-2 p-2 border-top">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnMaestroPrev">← Anterior</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnMaestroNext">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+
+  <form id="formAplicar" method="POST" action="{{ url_for('precios_radar_aplicar_form') }}" class="d-none">
+    <input type="hidden" name="job_id" id="inputJobId">
+    <input type="hidden" name="linea_ids" id="inputLineaIds">
+    <input type="hidden" name="motivo" value="Radar Precios — costo desde catálogo web">
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  let jobId = null;
+  let eventSource = null;
+  const lineasMap = {};
+  let maestroPage = 1;
+  let maestroTotalPages = 1;
+  const maestroPerPage = 50;
+
+  const fmtCLP = (n) => {
+    if (n == null || n === '') return '—';
+    return '$' + Number(n).toLocaleString('es-CL');
+  };
+
+  const badgeEstado = (est) => {
+    const map = {
+      mapeado_auto: ['Mapeado', 'badge-estado-mapeado'],
+      revisar: ['Revisar', 'badge-estado-revisar'],
+      sin_match: ['Sin match', 'badge-estado-sin'],
+      aplicado: ['Aplicado', 'badge-estado-aplicado'],
+    };
+    const [txt, cls] = map[est] || [est || '—', 'badge-estado-sin'];
+    return `<span class="badge ${cls}">${txt}</span>`;
+  };
+
+  function resetUI() {
+    document.getElementById('listaProductos').innerHTML = '';
+    document.getElementById('boxProgreso').classList.remove('d-none');
+    document.getElementById('barProgreso').style.width = '0%';
+    document.getElementById('progresoPct').textContent = '0%';
+    document.getElementById('progresoTexto').textContent = 'Conectando…';
+    document.getElementById('contadorLineas').textContent = '0 productos (escaneo actual)';
+    document.getElementById('btnAplicar').disabled = true;
+    document.getElementById('btnSelMapeados').disabled = true;
+    document.getElementById('chkTodos').disabled = true;
+    Object.keys(lineasMap).forEach(k => delete lineasMap[k]);
+  }
+
+  function resetBoton() {
+    const btn = document.getElementById('btnProcesar');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-bolt me-1"></i> Escanear';
+  }
+
+  function agregarFila(linea) {
+    lineasMap[linea.id] = linea;
+    const tbody = document.getElementById('listaProductos');
+    const puedeAplicar = linea.producto_id && linea.precio_lista_clp > 0 && linea.estado !== 'aplicado';
+    const tr = document.createElement('tr');
+    tr.className = 'row-new row-pulse';
+    tr.dataset.lineaId = linea.id;
+    const delta = linea.delta_pct != null
+      ? `<span class="${linea.delta_pct > 15 ? 'text-danger fw-bold' : (linea.delta_pct > 5 ? 'text-warning' : 'text-success')}">${linea.delta_pct > 0 ? '+' : ''}${linea.delta_pct}%</span>`
+      : '—';
+    tr.innerHTML = `
+      <td class="p-3"><input type="checkbox" class="chk-linea" value="${linea.id}" ${puedeAplicar ? '' : 'disabled'}></td>
+      <td class="p-3 font-monospace small text-muted">${linea.sku_proveedor || '—'}</td>
+      <td class="p-3 fw-medium">${linea.descripcion || '—'}</td>
+      <td class="p-3 text-end font-monospace text-success fw-bold">${fmtCLP(linea.precio_lista_clp)}</td>
+      <td class="p-3 small">${linea.codigo_erp || '—'}</td>
+      <td class="p-3 text-end font-monospace">${fmtCLP(linea.costo_actual)}</td>
+      <td class="p-3 text-end">${delta}</td>
+      <td class="p-3">${badgeEstado(linea.estado)}</td>`;
+    tbody.appendChild(tr);
+    const n = Object.keys(lineasMap).length;
+    document.getElementById('contadorLineas').textContent = n + ' producto' + (n !== 1 ? 's' : '') + ' (escaneo actual)';
+    document.getElementById('btnSelMapeados').disabled = n === 0;
+    document.getElementById('chkTodos').disabled = n === 0;
+    document.getElementById('btnAplicar').disabled = n === 0;
+  }
+
+  async function cargarPreviewMaestro(page = 1) {
+    try {
+      const url = `{{ url_for("api_radar_maestro_preview") }}?page=${page}&per_page=${maestroPerPage}`;
+      const res = await fetch(url, { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!data.ok) return;
+      maestroPage = data.page || 1;
+      maestroTotalPages = data.total_pages || 1;
+      document.getElementById('maestroPageActual').textContent = maestroPage;
+      document.getElementById('maestroPageTotal').textContent = maestroTotalPages;
+      document.getElementById('maestroRowsTotal').textContent = data.total_filas || 0;
+
+      const tbody = document.getElementById('maestroPreviewBody');
+      const rows = data.rows || [];
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted p-3">Sin filas en CSV maestro.</td></tr>';
+      } else {
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td>${r.nombre || '—'}</td>
+            <td class="font-monospace small">${r.codigo_chilemat || '—'}</td>
+            <td class="font-monospace small">${r.codigo_interno || '—'}</td>
+            <td class="text-end font-monospace">${fmtCLP(r.precio_compra || 0)}</td>
+            <td>${r.categoria || '—'}</td>
+            <td>${r.subcategoria || '—'}</td>
+          </tr>
+        `).join('');
+      }
+
+      document.getElementById('btnMaestroPrev').disabled = maestroPage <= 1;
+      document.getElementById('btnMaestroNext').disabled = maestroPage >= maestroTotalPages;
+    } catch (_e) {
+      // no-op
+    }
+  }
+
+  async function iniciarRadar() {
+    const link = document.getElementById('providerLink').value.trim();
+    if (!link) {
+      alert('Ingrese una URL válida (http o https).');
+      return;
+    }
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    const btn = document.getElementById('btnProcesar');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Escaneando…';
+    resetUI();
+
+    const proveedorId = document.getElementById('proveedorId').value;
+    const body = { url: link };
+    if (proveedorId) body.proveedor_id = parseInt(proveedorId, 10);
+
+    try {
+      const res = await fetch('{{ url_for("api_radar_iniciar") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        alert('Error: ' + (data.error || 'no se pudo iniciar'));
+        resetBoton();
+        return;
+      }
+      jobId = data.job_id;
+      document.getElementById('inputJobId').value = jobId;
+      eventSource = new EventSource('{{ url_for("api_radar_stream", job_id="__JOB__") }}'.replace('__JOB__', jobId));
+
+      eventSource.onmessage = function (ev) {
+        let payload;
+        try { payload = JSON.parse(ev.data); } catch (e) { return; }
+
+        if (payload.error && payload.fase === 'error') {
+          alert('Error en el escaneo: ' + payload.error);
+          eventSource.close();
+          resetBoton();
+          return;
+        }
+        if (payload.progreso != null) {
+          document.getElementById('barProgreso').style.width = payload.progreso + '%';
+          document.getElementById('progresoPct').textContent = payload.progreso + '%';
+        }
+        if (payload.mensaje) {
+          document.getElementById('progresoTexto').textContent = payload.mensaje;
+        }
+        if (payload.fase === 'ia_item') {
+          document.getElementById('progresoTexto').textContent =
+            payload.mensaje || 'Ollama procesando ítem…';
+        }
+        if (payload.fase && payload.fase !== 'linea') {
+          document.getElementById('progresoTexto').textContent =
+            (payload.mensaje || payload.fase) + (payload.total ? ' · ' + payload.total + ' ítems' : '');
+        }
+        if (payload.linea) {
+          agregarFila(payload.linea);
+        }
+        if (payload.maestro_csv && payload.maestro_csv.total_filas != null) {
+          document.getElementById('maestroCsvTotal').textContent = payload.maestro_csv.total_filas;
+        }
+        if (payload.fase === 'listo') {
+          eventSource.close();
+          resetBoton();
+          document.getElementById('progresoTexto').textContent = 'Escaneo finalizado.';
+          if (payload.maestro_csv_total != null) {
+            document.getElementById('maestroCsvTotal').textContent = payload.maestro_csv_total;
+          }
+          if (payload.maestro_csv_path) {
+            document.getElementById('progresoTexto').textContent +=
+              ' CSV maestro: ' + payload.maestro_csv_total + ' filas.';
+          }
+          cargarPreviewMaestro(1);
+        }
+      };
+
+      eventSource.onerror = function () {
+        if (eventSource) eventSource.close();
+        resetBoton();
+      };
+    } catch (err) {
+      alert('Error de red: ' + err);
+      resetBoton();
+    }
+  }
+
+  document.getElementById('btnProcesar').addEventListener('click', iniciarRadar);
+  document.getElementById('providerLink').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); iniciarRadar(); }
+  });
+
+  document.getElementById('btnSelMapeados').addEventListener('click', function () {
+    document.querySelectorAll('.chk-linea:not(:disabled)').forEach(chk => {
+      const ln = lineasMap[chk.value];
+      if (ln && (ln.estado === 'mapeado_auto' || ln.estado === 'revisar') && ln.producto_id) {
+        chk.checked = true;
+      }
+    });
+  });
+
+  document.getElementById('chkTodos').addEventListener('change', function () {
+    const on = this.checked;
+    document.querySelectorAll('.chk-linea:not(:disabled)').forEach(chk => { chk.checked = on; });
+  });
+
+  document.getElementById('btnAplicar').addEventListener('click', async function () {
+    const ids = [];
+    document.querySelectorAll('.chk-linea:checked').forEach(chk => ids.push(chk.value));
+    if (!ids.length) {
+      alert('Seleccione al menos una línea con producto ERP vinculado.');
+      return;
+    }
+    if (!confirm('¿Actualizar precio de compra (costo) de ' + ids.length + ' producto(s)?')) return;
+
+    try {
+      const res = await fetch('{{ url_for("api_radar_aplicar") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ job_id: jobId, linea_ids: ids, motivo: 'Radar Precios — costo web' }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('Costos actualizados: ' + data.aplicados);
+        ids.forEach(id => {
+          if (lineasMap[id]) lineasMap[id].estado = 'aplicado';
+        });
+        location.reload();
+      } else {
+        alert('Error: ' + (data.error || JSON.stringify(data.errores || '')));
+      }
+    } catch (err) {
+      alert('Error: ' + err);
+    }
+  });
+
+  fetch('{{ url_for("api_radar_ollama") }}', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('ollamaStatus');
+      if (!el || !d.ok) return;
+      el.className = 'small ollama-pill ' + (d.disponible ? 'ok' : 'off');
+      el.innerHTML = '<i class="fas fa-robot me-1"></i> Ollama: ' +
+        (d.disponible ? 'conectado (' + (d.modelo || '') + ')' : (d.habilitado ? 'no disponible' : 'desactivado'));
+    })
+    .catch(() => {});
+
+  document.getElementById('btnMaestroPrev').addEventListener('click', function () {
+    if (maestroPage > 1) cargarPreviewMaestro(maestroPage - 1);
+  });
+  document.getElementById('btnMaestroNext').addEventListener('click', function () {
+    if (maestroPage < maestroTotalPages) cargarPreviewMaestro(maestroPage + 1);
+  });
+  cargarPreviewMaestro(1);
+})();
+</script>
+{% endblock %}

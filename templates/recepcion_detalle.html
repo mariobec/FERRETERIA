@@ -268,12 +268,13 @@
         <p class="small fw-semibold border rounded p-2 bg-light mb-3" id="modalIaBuscarDesc"></p>
         <label class="form-label fw-bold" for="modalIaBuscarSelect">Producto en catálogo</label>
         <select id="modalIaBuscarSelect" class="form-select" style="width:100%"></select>
-        <p class="small text-muted mt-2 mb-0">Escriba al menos 2 caracteres del nombre o código (barras, interno, ref.).</p>
+        <p class="small text-muted mt-2 mb-0">Escriba al menos 2 caracteres del nombre o código (barras, interno, ref. Chilemat).</p>
+        <p class="small text-info mt-2 mb-0">Al confirmar se guarda el vínculo código factura (INT-…) → producto para facturas futuras del mismo proveedor.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-primary" id="btnIaBuscarConfirmar">
-          <i class="fas fa-check me-1"></i> Usar este producto
+          <i class="fas fa-link me-1"></i> Vincular producto
         </button>
       </div>
     </div>
@@ -345,6 +346,7 @@
   (function () {
     var analizarUrl = "{{ url_for('api_ia_factura_analizar', rid=recepcion.id) }}";
     var aplicarUrl = "{{ url_for('api_ia_factura_aplicar', rid=recepcion.id) }}";
+    var vincularUrl = "{{ url_for('api_recepcion_vincular_codigo_proveedor', rid=recepcion.id) }}";
     var buscarUrl = "{{ url_for('buscar_producto') }}";
     var $btnA = $("#btnIaAnalizarFactura");
     var $btnP = $("#btnIaAplicarSeleccion");
@@ -355,13 +357,28 @@
     var modalIaBuscarBs = null;
 
     function matchSeguro(m) {
-      return m === "codigo" || m === "codigo_chilemat" || m === "codigo_interno";
+      return m === "codigo" || m === "codigo_chilemat" || m === "codigo_interno"
+        || m === "codigo_proveedor" || m === "codigo_chilemat_sin_prefijo"
+        || m === "descripcion_exacta";
     }
 
     function badgeMatchClass(m) {
       if (matchSeguro(m)) return "bg-success";
-      if (m === "nombre_parcial" || m === "nombre") return "bg-warning text-dark";
+      if (m === "manual") return "bg-info text-dark";
       return "bg-secondary";
+    }
+
+    function etiquetaMatch(m) {
+      var map = {
+        codigo: "barras",
+        codigo_chilemat: "chilemat",
+        codigo_interno: "interno",
+        codigo_proveedor: "vínculo previo",
+        codigo_chilemat_sin_prefijo: "INT- sin prefijo",
+        descripcion_exacta: "descripción exacta",
+        manual: "manual"
+      };
+      return map[m] || m || "—";
     }
 
     function setStatus(html, cls) {
@@ -402,7 +419,7 @@
       tr.append($("<td>").html(htmlCheckbox(row, idx)));
       tr.append($("<td>").text(row.descripcion_factura || ""));
       tr.append($("<td>").text(row.codigo_factura || "—"));
-      tr.append($("<td>").append($("<span class='badge'>").addClass(badgeMatchClass(row.match)).text(match)));
+      tr.append($("<td>").append($("<span class='badge'>").addClass(badgeMatchClass(row.match)).text(etiquetaMatch(row.match))));
       tr.append($("<td class='ia-col-producto'>").html(htmlProductoCelda(row)));
       tr.append($("<td class='text-end'>").html('<input type="number" min="0" class="form-control form-control-sm ia-cdoc text-end" data-idx="' + idx + '" value="' + (row.cantidad_documento || 0) + '">'));
       tr.append($("<td class='text-end'>").html('<input type="number" min="1" class="form-control form-control-sm ia-cfis text-end" data-idx="' + idx + '" value="' + (row.cantidad_recibida || 1) + '">'));
@@ -424,7 +441,7 @@
       if (!$tr.length) return;
       $tr.find("td").eq(0).html(htmlCheckbox(row, idx));
       $tr.find(".ia-col-producto").html(htmlProductoCelda(row));
-      $tr.find("td").eq(3).empty().append($("<span class='badge'>").addClass(badgeMatchClass(row.match)).text(row.match || "—"));
+      $tr.find("td").eq(3).empty().append($("<span class='badge'>").addClass(badgeMatchClass(row.match)).text(etiquetaMatch(row.match)));
     }
 
     function initModalIaBuscar() {
@@ -490,14 +507,46 @@
       var pid = parseInt(sel[0].id, 10);
       var texto = sel[0].text || "";
       var m = texto.match(/\(([^)]+)\)\s*$/);
-      ultimosItems[iaBuscarIdx].producto_id = pid;
-      ultimosItems[iaBuscarIdx].producto_nombre = texto.replace(/\s*\([^)]+\)\s*$/, "").trim();
-      ultimosItems[iaBuscarIdx].producto_codigo = m ? m[1] : "";
-      ultimosItems[iaBuscarIdx].match = "manual";
-      ultimosItems[iaBuscarIdx].confirmado_manual = true;
-      refrescarFilaIa(iaBuscarIdx);
-      if (modalIaBuscarBs) modalIaBuscarBs.hide();
-      setStatus("Producto confirmado en fila " + (iaBuscarIdx + 1) + ". Puede marcar y aplicar.", "text-success");
+      var row = ultimosItems[iaBuscarIdx];
+      var codFac = (row.codigo_factura || "").trim();
+
+      function aplicarFilaLocal() {
+        row.producto_id = pid;
+        row.producto_nombre = texto.replace(/\s*\([^)]+\)\s*$/, "").trim();
+        row.producto_codigo = m ? m[1] : "";
+        row.match = "manual";
+        row.confirmado_manual = true;
+        refrescarFilaIa(iaBuscarIdx);
+        if (modalIaBuscarBs) modalIaBuscarBs.hide();
+      }
+
+      if (!codFac) {
+        aplicarFilaLocal();
+        setStatus("Producto confirmado (sin código factura para vincular).", "text-success");
+        return;
+      }
+      setStatus('<i class="fas fa-spinner fa-spin me-1"></i> Guardando vínculo código factura…', "text-muted");
+      fetch(vincularUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ codigo_factura: codFac, producto_id: pid })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          if (!x.ok || !x.j.ok) {
+            setStatus((x.j && x.j.message) ? x.j.message : "No se pudo guardar el vínculo.", "text-danger");
+            return;
+          }
+          aplicarFilaLocal();
+          setStatus(
+            "Vínculo guardado: " + codFac + " → producto. Puede marcar la fila y aplicar.",
+            "text-success"
+          );
+        })
+        .catch(function (e) {
+          setStatus("Error al vincular: " + (e && e.message ? e.message : e), "text-danger");
+        });
     });
 
     $btnA.on("click", function () {
@@ -559,6 +608,7 @@
           aplicar: true,
           producto_id: it.producto_id,
           descripcion_factura: it.descripcion_factura,
+          codigo_factura: it.codigo_factura || null,
           cantidad_documento: cdoc,
           cantidad_recibida: cfis,
           costo_unitario: cost,

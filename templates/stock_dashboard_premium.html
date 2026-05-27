@@ -342,7 +342,7 @@
         <div class="progress bg-dark" style="height:8px">
           <div class="progress-bar {% if f.score < 30 %}bg-danger{% elif f.score < 70 %}bg-warning{% else %}bg-info{% endif %}" style="width:{{ f.score }}%"></div>
         </div>
-        <div class="text-secondary" style="font-size:.72rem">{{ f.items }} SKU · % con stock &gt; 0</div>
+        <div class="text-secondary" style="font-size:.72rem">{{ f['items'] }} SKU · % con stock &gt; 0</div>
       </div>
       {% endfor %}
       <div class="demo-note-card mt-4">

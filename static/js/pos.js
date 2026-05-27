@@ -1079,7 +1079,16 @@
       if (!res.ok || !data.ok) return false;
       const host = document.getElementById("posCartHost");
       if (host && data.html) host.innerHTML = data.html;
+      document.querySelectorAll("[id^='precio_unitario_']").forEach(function (cell) {
+        const valor = posReadClpFromEl(cell);
+        const suf = (cell.textContent || "").indexOf("c/u") >= 0 ? " c/u" : "";
+        posWriteClpToEl(cell, valor, suf);
+      });
+      document.querySelectorAll("[id^='subtotal_']").forEach(function (cell) {
+        posWriteClpToEl(cell, posReadClpFromEl(cell));
+      });
       if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      else actualizarTotalesVisuales(posSumarSubtotalesFilasBrutas());
       const dockCount = document.getElementById("posDockItemCount");
       if (dockCount && typeof data.items_count === "number") {
         dockCount.textContent = String(data.items_count);
@@ -1089,6 +1098,7 @@
       wirePosCartV2();
       if (cfg.urls) posBindCartLineHandlers(cfg.urls, !!cfg.descuento_libre);
       posBindRetiroLineaHandlers();
+      document.dispatchEvent(new CustomEvent("pos-cart-refreshed"));
       actualizarEstadoEmisionVale();
       posAsegurarDockVisible();
       return true;
@@ -1775,8 +1785,19 @@
     };
   }
 
+  function posTotalEfectivoDesdeDom(serverTotal) {
+    const sumLineas = posSumarSubtotalesFilasBrutas();
+    let srv = 0;
+    if (typeof serverTotal === "number" && !isNaN(serverTotal)) {
+      srv = Math.max(0, Math.round(serverTotal));
+    }
+    return Math.max(srv, sumLineas);
+  }
+
   function actualizarTotalesVisuales(total) {
-    const rounded = Math.round(total || 0);
+    const rounded = posTotalEfectivoDesdeDom(
+      typeof total === "number" ? total : posLeerTotalClpDesdeMontoEl()
+    );
     const totalFmt = formatoCLP(rounded);
     const main = document.getElementById("monto_total");
     const cockpit = document.getElementById("monto_total_cockpit");
@@ -3921,20 +3942,7 @@
       });
     }
 
-    const sumLineas = posSumarSubtotalesFilasBrutas();
-    let serverT = 0;
-    const mtEl = document.getElementById("monto_total");
-    if (mtEl) {
-      const d = mtEl.getAttribute("data-pos-total-clp");
-      if (d != null && String(d).trim() !== "") {
-        serverT = parseInt(String(d).trim(), 10) || 0;
-        if (isNaN(serverT)) serverT = 0;
-      }
-    }
-    if (!serverT && mtEl) {
-      serverT = Math.round(parseFloat(mtEl.textContent.replace(/[^0-9.-]/g, "")) || 0);
-    }
-    const totalInicial = Math.max(serverT, sumLineas);
+    const totalInicial = posTotalEfectivoDesdeDom(posLeerTotalClpDesdeMontoEl());
 
     document.querySelectorAll("[id^='precio_unitario_']").forEach(function (cell) {
       const valor = posReadClpFromEl(cell);

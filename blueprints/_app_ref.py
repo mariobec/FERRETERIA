@@ -4,6 +4,9 @@ import sys
 
 def app_module():
     m = sys.modules.get('app')
-    if m is not None:
+    if m is not None and getattr(m, 'app', None) is not None:
         return m
-    return sys.modules.get('__main__')
+    main = sys.modules.get('__main__')
+    if main is not None and getattr(main, 'app', None) is not None:
+        return main
+    return m or main

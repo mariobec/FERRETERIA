@@ -18,6 +18,32 @@ elif _neon_pg and 'lc_messages' in _pgopt_actual:
         p for p in _pgopt_actual.split() if 'lc_messages' not in p
     ).strip()
 
+
+def _bootstrap_venv_si_arranque_local():
+    """
+    En PC de desarrollo: `python app.py` suele usar el Python de Windows (sin Flask).
+    Si existe .venv y este archivo se ejecuta como script, relanzar con .venv/Scripts/python.exe.
+    No afecta gunicorn/pytest (importan app con __name__ != '__main__').
+  """
+    if _os_early.environ.get('LHEXIA_SKIP_VENV_BOOTSTRAP') == '1':
+        return
+    if __name__ != '__main__':
+        return
+    import sys as _sys_boot
+
+    _root = _os_early.path.dirname(_os_early.path.abspath(__file__))
+    _venv_py = _os_early.path.join(_root, '.venv', 'Scripts', 'python.exe')
+    if not _os_early.path.isfile(_venv_py):
+        return
+    if _os_early.path.normcase(_sys_boot.executable) == _os_early.path.normcase(_venv_py):
+        return
+    import subprocess as _sp_boot
+
+    raise SystemExit(_sp_boot.call([_venv_py, __file__, *_sys_boot.argv[1:]]))
+
+
+_bootstrap_venv_si_arranque_local()
+
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_from_directory, send_file, session, abort, has_request_context
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date, datetime, timedelta
@@ -716,6 +742,33 @@ def _monto_cobro_venta_bruto_sql(venta_id):
         lin.descuento = desc
         total += _ticket_linea_subtotal_clp(lin)
     return float(total)
+
+
+def _pos_venta_total_clp(venta) -> int:
+    """Total bruto CLP para POS (UI + APIs). No confiar solo en monto_total si está desfasado."""
+    if not venta:
+        return 0
+    return int(round(_monto_cobro_venta_ui(venta) or 0))
+
+
+def _pos_sincronizar_monto_total_abierta(venta) -> None:
+    """Persiste monto_total desde líneas si el vale Abierta quedó en 0 con detalle."""
+    if not venta or (getattr(venta, 'estado', None) or '').strip() != 'Abierta':
+        return
+    if not getattr(venta, 'id', None):
+        return
+    bruto = int(_monto_cobro_venta_bruto_sql(venta.id) or 0)
+    if bruto <= 0:
+        return
+    actual = int(round(float(venta.monto_total or 0)))
+    if actual == bruto:
+        return
+    venta.monto_total = float(bruto)
+    venta.desglosar_iva()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def _monto_cobro_venta_ui(venta):
@@ -1823,6 +1876,18 @@ _NAV_MAP = [
             {'label': 'Revisión de precios', 'icon': 'fa-tags', 'endpoint': 'revision_precios',
              'permisos': ['revision_precios'],
              'endpoints_activos': ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision']},
+            {'label': 'Radar Precios', 'icon': 'fa-satellite-dish', 'endpoint': 'precios_radar',
+             'permisos': ['radar_precios', 'revision_precios', 'gestionar_usuarios', 'ver_gerencia'],
+             'endpoints_activos': ['precios_radar', 'precios_radar_dashboard', 'api_radar_iniciar', 'api_radar_stream', 'api_radar_aplicar']},
+            {'label': 'Universo Chilemat', 'icon': 'fa-globe-americas', 'endpoint': 'chilemat_catalogo_explorer',
+             'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'ver_gerencia', 'admin_inventario'],
+             'endpoints_activos': ['chilemat_catalogo_explorer', 'chilemat_vinculacion', 'api_chilemat_catalogo_productos', 'api_chilemat_catalogo_stats']},
+            {'label': 'Vincular Chilemat ↔ ERP', 'icon': 'fa-link', 'endpoint': 'chilemat_vinculacion',
+             'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'ver_gerencia', 'admin_inventario'],
+             'endpoints_activos': ['chilemat_vinculacion', 'api_chilemat_vincular_lista', 'api_chilemat_vincular_guardar']},
+            {'label': 'Cargas Chilemat → ERP', 'icon': 'fa-cloud-upload-alt', 'endpoint': 'chilemat_cargas',
+             'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'ver_gerencia', 'admin_inventario'],
+             'endpoints_activos': ['chilemat_cargas', 'api_chilemat_cargas_ejecutar']},
         ],
     },
     {
@@ -2005,6 +2070,10 @@ _MODULOS_HUB = [
         'accent': '#0d9488',
         'atajos': [
             {'label': 'Revisión precios', 'endpoint': 'revision_precios', 'icon': 'fa-tags', 'permisos': ['revision_precios']},
+            {'label': 'Radar Precios', 'endpoint': 'precios_radar', 'icon': 'fa-satellite-dish', 'permisos': ['radar_precios', 'revision_precios']},
+            {'label': 'Universo Chilemat', 'endpoint': 'chilemat_catalogo_explorer', 'icon': 'fa-globe-americas', 'permisos': ['revision_precios', 'radar_precios', 'ver_gerencia']},
+            {'label': 'Vincular Chilemat', 'endpoint': 'chilemat_vinculacion', 'icon': 'fa-link', 'permisos': ['revision_precios', 'radar_precios', 'ver_gerencia']},
+            {'label': 'Cargas Chilemat', 'endpoint': 'chilemat_cargas', 'icon': 'fa-cloud-upload-alt', 'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'admin_inventario']},
         ],
     },
     {
@@ -2539,6 +2608,7 @@ _PERMISOS_SISTEMA_INICIAL = (
     'anular_vale_caja',
     'autorizar_descuento_pos',
     'revision_precios',
+    'radar_precios',
     'pos_emitir_vale',
     'caja_cobrar_vale',
     'caja_abrir',
@@ -2587,7 +2657,7 @@ def _seed_permisos_roles_operativos():
             'autorizar_descuento_pos', 'ver_inventario',
         }
         _PERMISOS_GERENTE = {
-            'ver_gerencia', 'panel_gerencia', 'revision_precios',
+            'ver_gerencia', 'panel_gerencia', 'revision_precios', 'radar_precios',
             'ver_inventario', 'gestionar_compras', 'ver_auditoria',
         }
         _PERMISOS_VENDEDOR = {'pos_emitir_vale', 'ver_creditos_cartera'}
@@ -2678,6 +2748,8 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_tabla_c360_llamadas_snapshot()
                     _asegurar_tabla_cobranza_whatsapp_log()
                     _asegurar_tabla_erp_audit_log()
+                    _asegurar_tabla_producto_codigo_proveedor()
+                    _asegurar_tablas_chilemat_relaciones()
                     _asegurar_tabla_agente_ejecuciones()
                     _asegurar_tabla_academy_articles()
                     _asegurar_tabla_cafs_y_columnas_ventas_fe()
@@ -3471,7 +3543,10 @@ class Venta(db.Model):
 
     # Método para recalcular el total automáticamente
     def recalcular_total(self):
-        bruto = int(_venta_bruto_desde_detalles_lineas(self.detalles) or 0)
+        if self.id:
+            bruto = int(_monto_cobro_venta_bruto_sql(self.id) or 0)
+        else:
+            bruto = int(_venta_bruto_desde_detalles_lineas(self.detalles) or 0)
         self.monto_total = float(bruto)
         self.desglosar_iva()
 
@@ -3882,6 +3957,51 @@ def _asegurar_tabla_erp_audit_log():
     except Exception as ex:
         db.session.rollback()
         app.logger.warning('No se pudo crear tabla erp_audit_log: %s', ex)
+        return False
+
+
+def _asegurar_tabla_producto_codigo_proveedor():
+    """Tabla puente código factura proveedor → producto (Chilemat INT-…)."""
+    if app.config.get('_PRODUCTO_CODIGO_PROVEEDOR_TABLE_OK'):
+        return True
+    try:
+        ProductoCodigoProveedor.__table__.create(bind=db.engine, checkfirst=True)
+        db.session.commit()
+        app.config['_PRODUCTO_CODIGO_PROVEEDOR_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo crear tabla producto_codigo_proveedor: %s', ex)
+        return False
+
+
+def _asegurar_tablas_chilemat_relaciones():
+    """Tablas catálogo Chilemat (VTEX) y producto_relacion para cross-sell POS."""
+    if app.config.get('_CHILEMAT_RELACIONES_TABLES_OK'):
+        return True
+    try:
+        ChilematCategoria.__table__.create(bind=db.engine, checkfirst=True)
+        ChilematVtexProducto.__table__.create(bind=db.engine, checkfirst=True)
+        ProductoRelacion.__table__.create(bind=db.engine, checkfirst=True)
+        if db.engine.dialect.name == 'postgresql':
+            db.session.execute(
+                db.text(
+                    'CREATE INDEX IF NOT EXISTS ix_chilemat_vtex_producto_id '
+                    'ON chilemat_vtex_producto (producto_id) WHERE producto_id IS NOT NULL'
+                )
+            )
+            db.session.execute(
+                db.text(
+                    'CREATE INDEX IF NOT EXISTS ix_producto_relacion_ancla '
+                    'ON producto_relacion (producto_id) WHERE activo IS TRUE'
+                )
+            )
+        db.session.commit()
+        app.config['_CHILEMAT_RELACIONES_TABLES_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudieron crear tablas chilemat/relaciones: %s', ex)
         return False
 
 
@@ -5328,6 +5448,84 @@ class BitacoraCostoCompra(db.Model):
 
     producto = db.relationship('Producto')
     proveedor = db.relationship('Proveedor')
+
+
+class ProductoCodigoProveedor(db.Model):
+    """Crosswalk código factura DTE (ej. INT-…) → producto ERP por proveedor."""
+    __tablename__ = 'producto_codigo_proveedor'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'proveedor_id',
+            'codigo_factura_proveedor',
+            name='uq_prod_cod_prov_factura',
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=False)
+    codigo_factura_proveedor = db.Column(db.String(80), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    fecha_vinculo = db.Column(db.DateTime, default=db.func.current_timestamp())
+    usuario = db.Column(db.String(100), nullable=True)
+
+    proveedor = db.relationship('Proveedor', backref='codigos_factura_producto')
+    producto = db.relationship('Producto', backref='codigos_factura_proveedor')
+
+
+class ProductoRelacion(db.Model):
+    """Sugerencias POS: producto ancla → relacionado (Chilemat VTEX, histórico SD, manual)."""
+    __tablename__ = 'producto_relacion'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'producto_id',
+            'relacionado_id',
+            'tipo',
+            'fuente',
+            name='uq_producto_relacion',
+        ),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id', ondelete='CASCADE'), nullable=False)
+    relacionado_id = db.Column(db.Integer, db.ForeignKey('productos.id', ondelete='CASCADE'), nullable=False)
+    tipo = db.Column(db.String(32), nullable=False, default='complemento')
+    fuente = db.Column(db.String(32), nullable=False, default='manual')
+    peso = db.Column(db.Float, nullable=False, default=1.0)
+    activo = db.Column(db.Boolean, nullable=False, default=True)
+    fecha_sync = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    producto = db.relationship('Producto', foreign_keys=[producto_id], backref='relaciones_salientes')
+    relacionado = db.relationship('Producto', foreign_keys=[relacionado_id])
+
+
+class ChilematCategoria(db.Model):
+    """Árbol categorías Chilemat (VTEX) — referencia para sync Radar/maestro."""
+    __tablename__ = 'chilemat_categoria'
+    id = db.Column(db.Integer, primary_key=True)
+    vtex_id = db.Column(db.Integer, nullable=False, unique=True)
+    slug = db.Column(db.String(120), nullable=False)
+    nombre = db.Column(db.String(120), nullable=False)
+    parent_vtex_id = db.Column(db.Integer, nullable=True)
+    depth = db.Column(db.Integer, nullable=False, default=0)
+    synced_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+
+class ChilematVtexProducto(db.Model):
+    """Catálogo web Chilemat (VTEX) + enlace opcional a producto ERP."""
+    __tablename__ = 'chilemat_vtex_producto'
+    vtex_product_id = db.Column(db.String(32), primary_key=True)
+    product_reference = db.Column(db.String(80), nullable=True, index=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id', ondelete='SET NULL'), nullable=True)
+    nombre = db.Column(db.String(200), nullable=True)
+    link = db.Column(db.String(500), nullable=True)
+    categoria_path = db.Column(db.String(300), nullable=True)
+    brand = db.Column(db.String(80), nullable=True)
+    precio_lista = db.Column(db.Float, nullable=True)
+    ean = db.Column(db.String(32), nullable=True)
+    imagen_url = db.Column(db.String(500), nullable=True)
+    descripcion_web = db.Column(db.Text, nullable=True)
+    descripcion_corta = db.Column(db.String(500), nullable=True)
+    synced_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    producto = db.relationship('Producto', backref='chilemat_vtex_refs')
 
 
 class BitacoraPrecioVenta(db.Model):
@@ -8466,16 +8664,31 @@ def revision_precios():
     terminacion = request.args.get('terminacion', 90, type=int)
     solo_alerta = request.args.get('solo_alerta', '1') == '1'
 
-    productos_q = Producto.query.filter(Producto.activo == True)
-    if q:
+    def _q_busqueda_revision(qry):
+        if not q:
+            return qry
         like = f"%{q}%"
-        productos_q = productos_q.filter(
+        return qry.filter(
             or_(
                 Producto.nombre.like(like),
                 Producto.codigo_barra.like(like),
                 and_(Producto.codigo_interno.isnot(None), Producto.codigo_interno.like(like)),
             )
         )
+
+    def _meta_revision_producto(p):
+        costo = float(p.precio_compra or 0)
+        precio_lista = float(p.precio_venta or 0)
+        precio_may = float(p.precio_mayoreo or 0)
+        venta_ef = precio_efectivo_pos_producto(p)
+        sugerido = _precio_sugerido_redondeado(costo, margen_obj, terminacion)
+        margen_actual = ((venta_ef - costo) / venta_ef) if venta_ef > 0 and costo >= 0 else None
+        requiere = sugerido > (venta_ef + 0.01)
+        return costo, precio_lista, precio_may, venta_ef, sugerido, margen_actual, requiere
+
+    # Filtros de categoría aplican solo a la tabla (no al armado de opciones del combo,
+    # para poder cambiar de categoría sin quedar atrapado).
+    productos_q = _q_busqueda_revision(Producto.query.filter(Producto.activo == True))
     if categoria:
         productos_q = productos_q.filter(Producto.categoria == categoria)
     if subcategoria:
@@ -8484,13 +8697,7 @@ def revision_precios():
     productos = productos_q.order_by(Producto.nombre.asc()).limit(1500).all()
     filas = []
     for p in productos:
-        costo = float(p.precio_compra or 0)
-        precio_lista = float(p.precio_venta or 0)
-        precio_may = float(p.precio_mayoreo or 0)
-        venta_ef = precio_efectivo_pos_producto(p)
-        sugerido = _precio_sugerido_redondeado(costo, margen_obj, terminacion)
-        margen_actual = ((venta_ef - costo) / venta_ef) if venta_ef > 0 and costo >= 0 else None
-        requiere = sugerido > (venta_ef + 0.01)
+        costo, precio_lista, precio_may, venta_ef, sugerido, margen_actual, requiere = _meta_revision_producto(p)
         if solo_alerta and not requiere:
             continue
         codigo = (p.codigo_barra or "").strip() or (p.codigo_interno or "").strip() or "—"
@@ -8509,11 +8716,30 @@ def revision_precios():
             "requiere": requiere,
         })
 
-    categorias = [c[0] for c in db.session.query(Producto.categoria).filter(Producto.categoria.isnot(None), Producto.categoria != '').distinct().order_by(Producto.categoria.asc()).all()]
-    sub_q = db.session.query(Producto.subcategoria).filter(Producto.subcategoria.isnot(None), Producto.subcategoria != '')
-    if categoria:
-        sub_q = sub_q.filter(Producto.categoria == categoria)
-    subcategorias = [s[0] for s in sub_q.distinct().order_by(Producto.subcategoria.asc()).all()]
+    # Combos categoría / subcategoría: mismos campos Producto.categoria / Producto.subcategoria
+    # que ves en la tabla. Si "Solo alerta" está activo, solo categorías con al menos un producto
+    # que cumpla alerta (misma lógica que la columna "Aplicar"). Respeta búsqueda q.
+    q_src = _q_busqueda_revision(Producto.query.filter(Producto.activo == True)).order_by(
+        Producto.nombre.asc()
+    ).limit(4000)
+    cats_set: set[str] = set()
+    subs_set: set[str] = set()
+    for p in q_src:
+        _, _, _, _, _, _, requiere = _meta_revision_producto(p)
+        if solo_alerta and not requiere:
+            continue
+        c = (p.categoria or '').strip()
+        s = (p.subcategoria or '').strip()
+        if c:
+            cats_set.add(c)
+        if s:
+            if categoria:
+                if c == categoria:
+                    subs_set.add(s)
+            else:
+                subs_set.add(s)
+    categorias = sorted(cats_set)
+    subcategorias = sorted(subs_set)
 
     cambios_recientes = []
     if _bitacora_precios_disponible():
@@ -11044,6 +11270,13 @@ def _pos_live_wall_payload(venta, *, staff=False):
         p = d.producto
         nombre = (p.nombre if p else '') or 'Producto'
         img = (p.imagen_url or '').strip() if p else ''
+        if p and not img:
+            try:
+                from services.chilemat_ficha_service import imagen_url_para_producto_erp
+
+                img = imagen_url_para_producto_erp(p.id) or ''
+            except Exception:
+                pass
         precio = float(d.precio_unitario or 0)
         desc = float(d.descuento or 0)
         cant = int(d.cantidad or 0)
@@ -11758,6 +11991,7 @@ def _pos_preparar_venta_abierta(caja, vendedor_actual):
         db.session.add(venta)
         db.session.commit()
     _reparar_precios_cero_lineas_venta_abierta(venta)
+    _pos_sincronizar_monto_total_abierta(venta)
     return venta
 
 
@@ -11830,6 +12064,15 @@ def _pos_pagina_context():
     pids = [d.id_producto for d in detalles if d.id_producto]
     stock_tienda = stock_tienda_por_producto_ids(pids)
     stock_bodega = stock_bodega_por_producto_ids(pids)
+    pos_producto_ficha = {}
+    if pids:
+        try:
+            from services.chilemat_ficha_service import fichas_resumen_carrito_por_productos
+
+            pos_producto_ficha = fichas_resumen_carrito_por_productos(pids)
+        except Exception:
+            app.logger.exception('POS fichas carrito')
+            pos_producto_ficha = {}
     pos_cross_sell_enabled = _pos_cross_sell_enabled_session()
     pos_cross_sell = session.pop('pos_cross_sell', None) if pos_cross_sell_enabled else None
     pos_cross_sell_panel = pos_cross_sell
@@ -11871,16 +12114,19 @@ def _pos_pagina_context():
         'items_count': 0,
         'total_fmt': '$0',
     }
+    venta_total_clp = _pos_venta_total_clp(venta) if venta else 0
+    venta_total_fmt = f'${venta_total_clp:,.0f}'.replace(',', '.')
     if venta and detalles and (venta.estado or '').strip() == 'Abierta':
-        total_monto = float(venta.monto_total or 0)
         pos_vale_resume = {
             'show': True,
             'venta_id': int(venta.id),
             'items_count': len(detalles),
-            'total_fmt': f'${total_monto:,.0f}'.replace(',', '.'),
+            'total_fmt': venta_total_fmt,
         }
     return {
         'venta': venta,
+        'venta_total_clp': venta_total_clp,
+        'venta_total_fmt': venta_total_fmt,
         'caja': caja,
         'detalles': detalles,
         'vales_pendientes': vales_pendientes,
@@ -11891,6 +12137,7 @@ def _pos_pagina_context():
         'pids': pids,
         'stock_tienda': stock_tienda,
         'stock_bodega': stock_bodega,
+        'pos_producto_ficha': pos_producto_ficha,
         'pos_cross_sell_enabled': pos_cross_sell_enabled,
         'pos_cross_sell': pos_cross_sell,
         'pos_cross_sell_panel': pos_cross_sell_panel,
@@ -12475,6 +12722,63 @@ def _pos_cross_sell_match_rules(cart_product_ids, rejected_rule_ids=None):
     }
 
 
+def _pos_cross_sell_from_relaciones(cart_product_ids, rejected_rule_ids=None):
+    """Sugerencias desde producto_relacion (Chilemat VTEX / histórico SD)."""
+    if not cart_product_ids:
+        return None
+    try:
+        _asegurar_tablas_chilemat_relaciones()
+        from services.producto_relacion_service import sugerencias_para_carrito
+
+        pid_in_cart = {int(x) for x in cart_product_ids if x is not None}
+        items = sugerencias_para_carrito(list(pid_in_cart), limite=8, excluir_ids=pid_in_cart)
+        items = [it for it in items if int(it.get('id') or 0) not in pid_in_cart]
+        if not items:
+            return None
+        return {
+            'rule_id': 'relaciones_catalogo',
+            'titulo': 'Complementos frecuentes',
+            'mensaje': 'Sugeridos según catálogo Chilemat y ventas en tienda.',
+            'items': items[:8],
+        }
+    except Exception as ex:
+        app.logger.debug('cross-sell relaciones: %s', ex)
+        return None
+
+
+def _pos_cross_sell_merge_sugerencias(rule_sug, rel_sug):
+    """Combina reglas JSON (prioridad de copy) con relaciones de catálogo."""
+    if not rule_sug and not rel_sug:
+        return None
+    if rule_sug and not rel_sug:
+        return rule_sug
+    if rel_sug and not rule_sug:
+        return rel_sug
+    items = list(rule_sug.get('items') or [])
+    seen = {int(it.get('id') or 0) for it in items}
+    for it in rel_sug.get('items') or []:
+        iid = int(it.get('id') or 0)
+        if iid and iid not in seen and len(items) < 8:
+            seen.add(iid)
+            items.append(it)
+    return {
+        'rule_id': rule_sug.get('rule_id') or 'mixto',
+        'titulo': (rule_sug.get('titulo') or rel_sug.get('titulo') or 'Productos sugeridos')[:120],
+        'mensaje': (rule_sug.get('mensaje') or rel_sug.get('mensaje') or '')[:400],
+        'items': items[:8],
+    }
+
+
+def _pos_cross_sell_build_from_cart_ids(cart_product_ids, rejected_rule_ids=None):
+    if rejected_rule_ids is None:
+        rejected_rule_ids = _pos_cross_sell_rejected_rule_ids_session()
+    rule_sug = _pos_cross_sell_match_rules(cart_product_ids, rejected_rule_ids)
+    rel_sug = _pos_cross_sell_from_relaciones(cart_product_ids, rejected_rule_ids)
+    if rel_sug and 'relaciones_catalogo' in set(rejected_rule_ids or []):
+        rel_sug = None
+    return _pos_cross_sell_merge_sugerencias(rule_sug, rel_sug)
+
+
 def _pos_cross_sell_build_for_venta(venta_id):
     v = Venta.query.get(int(venta_id))
     if not v or not v.detalles:
@@ -12482,7 +12786,7 @@ def _pos_cross_sell_build_for_venta(venta_id):
     pids = [d.id_producto for d in v.detalles if d.id_producto]
     if not pids:
         return None
-    return _pos_cross_sell_match_rules(pids, None)
+    return _pos_cross_sell_build_from_cart_ids(pids, None)
 
 
 REABASTO_INSUMO_KEYWORDS = (
@@ -12866,10 +13170,11 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
     except Exception:
         app.logger.exception('POS cross-sell')
     items = DetalleVenta.query.filter_by(id_venta=venta.id).count()
+    total_clp = _pos_venta_total_clp(venta)
     return {
         'ok': True,
         'venta_id': venta.id,
-        'venta_total': float(venta.monto_total or 0),
+        'venta_total': float(total_clp),
         'items_count': items,
         'producto_id': producto.id,
         'producto_nombre': producto.nombre,
@@ -13135,6 +13440,25 @@ def api_pos_nueva_venta():
         return jsonify({'ok': False, 'mensaje': f'No se pudo iniciar nueva venta: {ex}'}), 500
 
 
+def api_pos_producto_ficha(producto_id):
+    """Ficha Chilemat / ERP para vendedor POS (imagen + descripción)."""
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+    refrescar = request.args.get('refresh') in ('1', 'true', 'on')
+    try:
+        from services.chilemat_ficha_service import ficha_por_producto_erp
+
+        ficha = ficha_por_producto_erp(int(producto_id), refrescar_api=refrescar)
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'producto_id_invalido'}), 400
+    except Exception as ex:
+        app.logger.exception('api_pos_producto_ficha')
+        return jsonify({'ok': False, 'error': str(ex)}), 500
+    if not ficha.get('ok'):
+        return jsonify(ficha), 404
+    return jsonify(ficha)
+
+
 def api_pos_carrito_html():
     """JSON: fragmento HTML del carrito premium (pantalla vendedora, sin recargar página)."""
     if not usuario_tiene_permiso('pos_emitir_vale'):
@@ -13153,13 +13477,14 @@ def api_pos_carrito_html():
         consumos_stock=ctx.get('consumos_stock') or {},
         pos_retiro_por_linea=ctx.get('pos_retiro_por_linea'),
         pos_dias_entrega_a_pedido=ctx.get('pos_dias_entrega_a_pedido'),
+        pos_producto_ficha=ctx.get('pos_producto_ficha') or {},
     )
-    total = float(venta.monto_total or 0) if venta else 0.0
+    total = _pos_venta_total_clp(venta) if venta else 0
     return jsonify({
         'ok': True,
         'html': html,
-        'venta_total': int(round(total)),
-        'venta_total_fmt': venta.total if venta else '$0',
+        'venta_total': total,
+        'venta_total_fmt': f'${total:,.0f}'.replace(',', '.') if venta else '$0',
         'items_count': len(detalles),
     })
 
@@ -14771,6 +15096,13 @@ def _pos_tv_reco_item_dict(prod, motivo=''):
     except (TypeError, ValueError):
         precio = 0
     img = (getattr(prod, 'imagen_url', None) or '').strip()
+    if not img:
+        try:
+            from services.chilemat_ficha_service import imagen_url_para_producto_erp
+
+            img = imagen_url_para_producto_erp(prod.id) or ''
+        except Exception:
+            img = ''
     return {
         'id': int(prod.id),
         'nombre': (prod.nombre or 'Producto')[:80],
@@ -15785,15 +16117,20 @@ def procesar_cobro_caja(id):
                 except Exception as ex_fe_post:
                     db.session.rollback()
                     app.logger.exception('FE envoltura post-cobro (persistencia FE): %s', ex_fe_post)
-                    try:
-                        fe_mod.marcar_venta_dte_pendiente_envio(
-                            v_fe,
-                            fe_mod.resolver_dte_tipo_por_tipo_documento(v_fe.tipo_documento),
-                        )
+                    if fe_mod.debe_emitir_fe_en_erp(v_fe.tipo_documento):
+                        try:
+                            fe_mod.marcar_venta_dte_pendiente_envio(
+                                v_fe,
+                                fe_mod.resolver_dte_tipo_por_tipo_documento(v_fe.tipo_documento),
+                            )
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+                        dte_estado_ui = fe_mod.DTE_ESTADO_PENDIENTE_ENVIO
+                    else:
+                        fe_mod.marcar_venta_boleta_sin_fe_erp(v_fe)
                         db.session.commit()
-                    except Exception:
-                        db.session.rollback()
-                    dte_estado_ui = fe_mod.DTE_ESTADO_PENDIENTE_ENVIO
+                        dte_estado_ui = fe_mod.DTE_ESTADO_EXTERNO_BOLETA
                 venta = Venta.query.filter_by(id=venta.id).first() or venta
 
         if metodo == "Credito":
@@ -15835,8 +16172,7 @@ def procesar_cobro_caja(id):
                         'monto_total_fmt': f"${float(venta.monto_total or 0):,.0f}".replace(',', '.'),
                         'estado': venta.estado,
                         'metodo_pago': metodo,
-                        'dte_estado': dte_estado_ui
-                        or (fe_mod.DTE_ESTADO_PENDIENTE_ENVIO if fe_mod else None),
+                        'dte_estado': dte_estado_ui,
                     }
                 )
             flash(msg_fin, "success")
@@ -17654,8 +17990,11 @@ def admin_facturacion_caf():
 def admin_facturacion_cola():
     """Ventas con estado DTE (cola, enviado, etc.): descarga XML y reintento manual."""
     _asegurar_tabla_cafs_y_columnas_ventas_fe()
+    from services.facturacion_electronica_service import DTE_ESTADO_EXTERNO_BOLETA
+
     ventas_dte = (
         Venta.query.filter(Venta.dte_estado.isnot(None))
+        .filter(Venta.dte_estado != DTE_ESTADO_EXTERNO_BOLETA)
         .order_by(Venta.id.desc())
         .limit(200)
         .all()
@@ -17685,7 +18024,15 @@ def admin_facturacion_reintentar(venta_id):
             flash('Reintento de emisión DTE ejecutado.', 'success')
         else:
             db.session.rollback()
-            flash(f"No se pudo reintentar: {res.get('motivo', 'error')}", 'warning')
+            motivo = res.get('motivo', 'error')
+            if motivo == 'boleta_emitida_por_multicaja':
+                flash(
+                    'Las boletas se emiten con Multicaja/Klap, no desde LhexIA. '
+                    'Solo facturas (tipo 33) usan esta cola.',
+                    'info',
+                )
+            else:
+                flash(f"No se pudo reintentar: {motivo}", 'warning')
     except Exception:
         db.session.rollback()
         app.logger.exception('admin_facturacion_reintentar')
@@ -19177,7 +19524,7 @@ def _codigo_linea_factura(codigo_factura, descripcion):
     cod = (str(codigo_factura) if codigo_factura is not None else '').strip().upper()
     if cod:
         return cod
-    m = re.search(r'\b(INT-\d+)\b', (descripcion or ''), re.IGNORECASE)
+    m = re.search(r'\b(INT-[A-Z0-9\-]+)\b', (descripcion or ''), re.IGNORECASE)
     return m.group(1).upper() if m else ''
 
 
@@ -19239,57 +19586,137 @@ def _costo_sugerido_linea_factura(producto, proveedor_id, precio_ia):
     return None, None
 
 
-_MATCH_IA_FACTURA_CODIGO = frozenset({'codigo', 'codigo_chilemat', 'codigo_interno'})
+_MATCH_IA_FACTURA_CODIGO = frozenset({
+    'codigo',
+    'codigo_chilemat',
+    'codigo_interno',
+    'codigo_proveedor',
+    'codigo_chilemat_sin_prefijo',
+    'descripcion_exacta',
+})
 
 
 def _match_ia_factura_es_seguro(match: str | None) -> bool:
     return (match or '').strip() in _MATCH_IA_FACTURA_CODIGO
 
 
-def _matchear_producto_linea_factura(codigo_factura, descripcion):
-    """Empareja una línea de factura con Producto (código de barra / nombre)."""
+def _normalizar_texto_factura(valor) -> str:
+    s = (str(valor) if valor is not None else '').strip().upper()
+    return re.sub(r'\s+', ' ', s)
+
+
+def _producto_activo_por_campo_codigo(campo: str, codigo: str):
+    col = getattr(Producto, campo, None)
+    if col is None or not codigo:
+        return None
+    return (
+        Producto.query.filter(Producto.activo.isnot(False))
+        .filter(db.func.upper(db.func.trim(col)) == codigo)
+        .first()
+    )
+
+
+def _matchear_producto_codigo_proveedor(proveedor_id, codigo_factura):
+    """Tabla puente: código DTE ya vinculado manualmente."""
+    if not proveedor_id or not codigo_factura:
+        return None
+    _asegurar_tabla_producto_codigo_proveedor()
+    row = (
+        ProductoCodigoProveedor.query.filter_by(
+            proveedor_id=int(proveedor_id),
+            codigo_factura_proveedor=codigo_factura,
+        )
+        .first()
+    )
+    if not row:
+        return None
+    p = Producto.query.filter(
+        Producto.id == row.producto_id,
+        Producto.activo.isnot(False),
+    ).first()
+    return p
+
+
+def guardar_producto_codigo_proveedor(
+    proveedor_id,
+    codigo_factura,
+    producto_id,
+    usuario=None,
+    *,
+    commit=True,
+):
+    """Persiste o actualiza vínculo factura → producto (crosswalk Chilemat)."""
+    cod = _normalizar_texto_factura(codigo_factura)
+    if not cod or not proveedor_id or not producto_id:
+        return False, 'Datos incompletos para vincular código de factura.'
+    _asegurar_tabla_producto_codigo_proveedor()
+    pid = int(producto_id)
+    prov_id = int(proveedor_id)
+    if not Producto.query.filter_by(id=pid).first():
+        return False, 'Producto no encontrado.'
+    if not Proveedor.query.filter_by(id=prov_id).first():
+        return False, 'Proveedor no encontrado.'
+    row = ProductoCodigoProveedor.query.filter_by(
+        proveedor_id=prov_id,
+        codigo_factura_proveedor=cod,
+    ).first()
+    if row:
+        row.producto_id = pid
+        row.usuario = (usuario or '')[:100] or row.usuario
+    else:
+        db.session.add(
+            ProductoCodigoProveedor(
+                proveedor_id=prov_id,
+                codigo_factura_proveedor=cod[:80],
+                producto_id=pid,
+                usuario=(usuario or '')[:100] or None,
+            )
+        )
+    try:
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
+        return True, None
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return False, str(ex)
+
+
+def _matchear_producto_linea_factura(codigo_factura, descripcion, proveedor_id=None):
+    """
+    Match híbrido factura Chilemat → Producto.
+    Prioridad: puente proveedor → código exacto → INT- sin prefijo → descripción exacta.
+    """
     cod = _codigo_linea_factura(codigo_factura, descripcion)
     if cod:
+        p = _matchear_producto_codigo_proveedor(proveedor_id, cod)
+        if p:
+            return p, 'codigo_proveedor'
         for campo, etiqueta in (
             ('codigo_barra', 'codigo'),
             ('codigo_chilemat', 'codigo_chilemat'),
             ('codigo_interno', 'codigo_interno'),
         ):
-            col = getattr(Producto, campo, None)
-            if col is None:
-                continue
-            p = (
-                Producto.query.filter(Producto.activo.isnot(False))
-                .filter(db.func.upper(db.func.trim(col)) == cod)
-                .first()
-            )
+            p = _producto_activo_por_campo_codigo(campo, cod)
             if p:
                 return p, etiqueta
-    desc = (descripcion or '').strip()
-    if not desc:
-        return None, None
-    like = f'%{desc[:100]}%'
-    p = (
-        Producto.query.filter(Producto.activo.isnot(False))
-        .filter(Producto.nombre.ilike(like))
-        .order_by(db.func.length(Producto.nombre).asc())
-        .first()
-    )
-    if p:
-        return p, 'nombre'
-    for w in desc.split():
-        w = w.strip('.,;:()[]')
-        if len(w) < 4:
-            continue
-        like_w = f'%{w}%'
+        if cod.startswith('INT-'):
+            cod_limpio = cod[4:].strip()
+            if cod_limpio:
+                p = _producto_activo_por_campo_codigo('codigo_chilemat', cod_limpio)
+                if p:
+                    return p, 'codigo_chilemat_sin_prefijo'
+    desc_norm = _normalizar_texto_factura(descripcion)
+    if desc_norm:
         p = (
             Producto.query.filter(Producto.activo.isnot(False))
-            .filter(Producto.nombre.ilike(like_w))
+            .filter(db.func.upper(db.func.trim(Producto.nombre)) == desc_norm)
             .order_by(Producto.id.asc())
             .first()
         )
         if p:
-            return p, 'nombre_parcial'
+            return p, 'descripcion_exacta'
     return None, None
 
 
@@ -21481,7 +21908,7 @@ def api_ia_factura_analizar(rid):
             continue
         precio_f = _parse_precio_clp_ia(row.get('precio_unitario'))
         cod_norm = _codigo_linea_factura(cod, desc)
-        p, how = _matchear_producto_linea_factura(cod_norm, desc)
+        p, how = _matchear_producto_linea_factura(cod_norm, desc, rec.proveedor_id)
         costo_u, costo_origen = _costo_sugerido_linea_factura(
             p, rec.proveedor_id, precio_f
         )
@@ -21566,6 +21993,21 @@ def api_ia_factura_aplicar(rid):
             errores.append({'producto_id': pid, 'error': err})
             db.session.rollback()
             continue
+        cod_fac = _normalizar_texto_factura(
+            it.get('codigo_factura') or _codigo_linea_factura(None, it.get('descripcion_factura'))
+        )
+        if cod_fac and (it.get('confirmado_manual') or match_t == 'manual'):
+            ok_v, err_v = guardar_producto_codigo_proveedor(
+                rec.proveedor_id,
+                cod_fac,
+                pid,
+                usuario=current_user.nombre,
+                commit=False,
+            )
+            if not ok_v:
+                errores.append({'producto_id': pid, 'error': err_v or 'No se guardó vínculo de código.'})
+                db.session.rollback()
+                continue
         try:
             db.session.commit()
             ok_n += 1
@@ -21575,6 +22017,37 @@ def api_ia_factura_aplicar(rid):
             db.session.rollback()
             errores.append({'producto_id': pid, 'error': str(ex)})
     return jsonify(ok=True, aplicados=ok_n, errores=errores, alertas=alertas)
+
+
+@app.route('/recepciones/<int:rid>/codigo-proveedor/vincular', methods=['POST'])
+@login_required
+def api_recepcion_vincular_codigo_proveedor(rid):
+    """Guarda crosswalk código factura (INT-…) → producto para match futuro."""
+    rec = RecepcionCompra.query.get_or_404(rid)
+    if rec.estado not in ESTADOS_RECEPCION_EDITABLE:
+        return jsonify(ok=False, message='La recepción no admite cambios.'), 400
+    data = request.get_json(silent=True) or {}
+    codigo = data.get('codigo_factura') or data.get('codigo_factura_proveedor')
+    try:
+        pid = int(data.get('producto_id'))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, message='producto_id inválido.'), 400
+    ok, err = guardar_producto_codigo_proveedor(
+        rec.proveedor_id,
+        codigo,
+        pid,
+        usuario=current_user.nombre,
+    )
+    if not ok:
+        return jsonify(ok=False, message=err or 'No se pudo vincular.'), 400
+    p = Producto.query.get(pid)
+    return jsonify(
+        ok=True,
+        codigo_factura=_normalizar_texto_factura(codigo),
+        producto_id=pid,
+        producto_nombre=p.nombre if p else None,
+        message='Vínculo guardado: este código facturará solo en recepciones futuras.',
+    )
 
 
 @app.route('/recepciones/<int:rid>/documento')
@@ -22394,7 +22867,7 @@ def api_pos_cross_sell_sugerencias():
             pids.append(int(x))
     if not pids:
         return jsonify({'ok': True, 'enabled': True, 'sugerencia': None})
-    s = _pos_cross_sell_match_rules(pids, [])
+    s = _pos_cross_sell_build_from_cart_ids(pids, [])
     return jsonify({'ok': True, 'enabled': True, 'sugerencia': s})
 
 
@@ -24109,6 +24582,8 @@ from blueprints.caja import register_caja_routes
 from blueprints.owner_api import register_owner_api_routes
 from blueprints.pos import register_pos_routes
 from blueprints.academy import register_academy_routes
+from blueprints.precios_radar import register_precios_radar_routes
+from blueprints.chilemat_catalogo import register_chilemat_catalogo_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
@@ -24116,6 +24591,8 @@ register_pos_routes(app)
 register_academy_routes(app)
 register_c360_routes(app)
 register_owner_api_routes(app)
+register_precios_radar_routes(app)
+register_chilemat_catalogo_routes(app)
 
 
 # --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---
@@ -24878,10 +25355,23 @@ _DEMO_KEYWORD_IMAGES_ORDERED = [
 
 
 def _get_product_image(product_id, nombre, categoria):
-    """URL de imagen para demo: palabras clave ferretería → Unsplash fijo; si no, rotación estable por id."""
+    """Imagen real (ERP/Chilemat) si existe; si no, demo Unsplash para Liz."""
     cache_key = f'img_{product_id}'
     if cache_key in _IMG_CACHE:
-        return _IMG_CACHE[cache_key], 'cache'
+        cached = _IMG_CACHE[cache_key]
+        if isinstance(cached, tuple):
+            return cached
+        return cached, 'cache'
+
+    try:
+        from services.chilemat_ficha_service import imagen_url_para_producto_erp
+
+        real = imagen_url_para_producto_erp(product_id)
+        if real:
+            _IMG_CACHE[cache_key] = (real, 'chilemat')
+            return real, 'chilemat'
+    except Exception:
+        pass
 
     blob = f'{(nombre or "")} {(categoria or "")}'.lower()
     blob = _re.sub(r'[áàäâ]', 'a', blob)
@@ -24901,7 +25391,7 @@ def _get_product_image(product_id, nombre, categoria):
         idx = (int(product_id or 0) * 7919 + abs(hash(blob)) % 100000) % len(pool)
         url = pool[idx]
 
-    _IMG_CACHE[cache_key] = url
+    _IMG_CACHE[cache_key] = (url, 'demo_curated')
     return url, 'demo_curated'
 
 

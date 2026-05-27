@@ -27,6 +27,21 @@ def test_soap_habilitado_env(monkeypatch):
     assert sii.soap_habilitado() is True
 
 
+def test_extraer_respuesta_desde_sobre_soap_token():
+    soap = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">'
+        '<soapenv:Body><getTokenResponse>'
+        '<getTokenReturn>&lt;?xml version=&quot;1.0&quot;?&gt;'
+        '&lt;RESPUESTA&gt;&lt;ESTADO&gt;00&lt;/ESTADO&gt;'
+        '&lt;TOKEN&gt;TOK-XYZ-99&lt;/TOKEN&gt;&lt;/RESPUESTA&gt;'
+        '</getTokenReturn></getTokenResponse></soapenv:Body></soapenv:Envelope>'
+    )
+    root = sii._parsear_respuesta_sii_negocio(soap)
+    assert sii._texto_nodo(root, 'ESTADO') == '00'
+    assert sii._texto_nodo(root, 'TOKEN') == 'TOK-XYZ-99'
+
+
 def test_obtener_semilla_parse_ok():
     xml = (
         '<?xml version="1.0"?><RESPUESTA><ESTADO>00</ESTADO>'
@@ -38,6 +53,21 @@ def test_obtener_semilla_parse_ok():
         r = sii.obtener_semilla('certificacion')
     assert r.ok is True
     assert r.semilla == 'ABC123XYZ'
+
+
+def test_obtener_token_parse_soap_envelope():
+    soap = (
+        '<?xml version="1.0"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">'
+        '<soapenv:Body><getTokenReturn>'
+        '&lt;RESPUESTA&gt;&lt;ESTADO&gt;00&lt;/ESTADO&gt;'
+        '&lt;TOKEN&gt;MI-TOKEN&lt;/TOKEN&gt;&lt;/RESPUESTA&gt;'
+        '</getTokenReturn></soapenv:Body></soapenv:Envelope>'
+    )
+    with patch.object(sii, 'firmar_xml_semilla_token', return_value=b'<getToken/>'):
+        with patch.object(sii, '_get_token_soap_raw', return_value=soap):
+            r = sii.obtener_token('SEM123', 'certificacion')
+    assert r.ok is True
+    assert r.token == 'MI-TOKEN'
 
 
 def test_enviar_dte_deshabilitado_sin_env(monkeypatch):
@@ -107,10 +137,13 @@ def test_firmar_xml_semilla_token_algoritmos(monkeypatch, tmp_path):
     assert b"encoding='ISO-8859-1'" in xml_bytes or b'encoding="ISO-8859-1"' in xml_bytes
     txt = xml_bytes.decode('iso-8859-1')
     assert '<getToken>' in txt
+    assert '<item>' in txt
     assert '<Semilla>000009574333</Semilla>' in txt
+    assert 'Reference URI=""' in txt
     assert sii.SIG_ALG_RSA_SHA1 in txt
     assert sii.DIGEST_SHA1 in txt
     assert sii.C14N_SII in txt
     assert 'RSAKeyValue' in txt
     assert 'Modulus' in txt
     assert 'X509Certificate' in txt
+    assert txt.count('Transform Algorithm') == 1

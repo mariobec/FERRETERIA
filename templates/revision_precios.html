@@ -11,6 +11,15 @@
 
   <div class="alert alert-light border small mb-3 mb-md-4">
     <strong>Venta actual</strong> es el precio efectivo en POS: el <em>mayor</em> entre precio <em>lista</em> y <em>mayoreo</em>. Si ves <strong>CLP $0</strong>, falta cargar ambos precios o ambos están en cero.
+    <hr class="my-2">
+    <div><strong>Cómo se calcula</strong></div>
+    <ul class="mb-0 ps-3">
+      <li><strong>Costo</strong> = <code>precio_compra</code> del producto.</li>
+      <li><strong>Margen actual</strong> = <code>(venta_actual - costo) / venta_actual</code> (si venta &gt; 0).</li>
+      <li><strong>Sugerido</strong> = función ERP <code>_precio_sugerido_redondeado(costo, margen_obj, terminacion)</code>.</li>
+      <li><strong>Requiere ajuste</strong> cuando <code>sugerido &gt; venta_actual</code>.</li>
+      <li><strong>Categorías/Subcategorías</strong>: salen de <code>Producto.categoria</code> / <code>Producto.subcategoria</code> y respetan búsqueda + “Solo alerta”.</li>
+    </ul>
   </div>
 
   <div class="card card-ds mb-4">

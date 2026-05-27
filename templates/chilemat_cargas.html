@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  .chm-cargas {
+    --bg: #070b14;
+    --card: rgba(15, 23, 42, 0.9);
+    --border: rgba(148, 163, 184, 0.2);
+    --accent: #f97316;
+    --sky: #38bdf8;
+    --mint: #34d399;
+    --danger: #f87171;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    font-family: 'Outfit', system-ui, sans-serif;
+    color: var(--text);
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .chm-cargas-hero {
+    border-radius: 16px;
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    background: linear-gradient(135deg, #0f172a, #070b14);
+  }
+  .chm-cargas-hero h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin: 0 0 0.35rem;
+    background: linear-gradient(90deg, #fff, #fdba74);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .chm-cargas-kpis { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }
+  .chm-cargas-kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.45rem 0.85rem;
+    min-width: 110px;
+  }
+  .chm-cargas-kpi strong { display: block; font-size: 1.15rem; color: var(--sky); }
+  .chm-cargas-kpi span { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; }
+  .chm-cargas-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  @media (max-width: 900px) { .chm-cargas-grid { grid-template-columns: 1fr; } }
+  .chm-cargas-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+  .chm-cargas-card h2 { font-size: 1rem; margin: 0 0 1rem; color: var(--mint); }
+  .chm-cargas label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.25rem; }
+  .chm-cargas input, .chm-cargas select {
+    width: 100%;
+    background: #0b1220;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 0.45rem 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+  .chm-cargas-check { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .chm-cargas-check input { width: auto; margin: 0; }
+  .chm-cargas-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+  .chm-cargas-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 0.55rem 1rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .chm-cargas-btn-primary { background: var(--accent); color: #111; }
+  .chm-cargas-btn-secondary { background: #1e293b; color: var(--text); border: 1px solid var(--border); }
+  .chm-cargas-btn-danger { background: #7f1d1d; color: #fecaca; border: 1px solid #991b1b; }
+  .chm-cargas-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .chm-cargas-log {
+    background: #020617;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    max-height: 360px;
+    overflow: auto;
+    white-space: pre-wrap;
+    margin-top: 1rem;
+  }
+  .chm-cargas-alert {
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+  }
+  .chm-cargas-alert-warn { background: rgba(249, 115, 22, 0.12); border-color: rgba(249, 115, 22, 0.35); }
+  .chm-cargas-alert-info { background: rgba(56, 189, 248, 0.1); }
+  .chm-cargas-links { margin-top: 0.75rem; font-size: 0.85rem; }
+  .chm-cargas-links a { color: var(--sky); margin-right: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chm-cargas">
+  <div class="chm-cargas-hero">
+    <h1>Cargas Chilemat → ERP</h1>
+    <p style="margin:0;color:var(--muted);font-size:0.9rem;">
+      Sincroniza el staging VTEX y carga o borra productos en el maestro local (masivo o por rubro/búsqueda).
+    </p>
+    <div class="chm-cargas-kpis">
+      <div class="chm-cargas-kpi"><strong>{{ stats.productos_erp }}</strong><span>Productos ERP</span></div>
+      <div class="chm-cargas-kpi"><strong>{{ stats.vtex_staging }}</strong><span>Staging VTEX</span></div>
+      <div class="chm-cargas-kpi"><strong>{{ stats.vtex_vinculados }}</strong><span>Vinculados</span></div>
+      <div class="chm-cargas-kpi"><strong>{{ stats.categorias_erp }}</strong><span>Categorías ERP</span></div>
+      <div class="chm-cargas-kpi"><strong>{{ stats.subcategorias_erp }}</strong><span>Subcategorías</span></div>
+    </div>
+    <div class="chm-cargas-links">
+      <a href="{{ url_for('chilemat_catalogo_explorer') }}">← Explorador Chilemat</a>
+      <a href="{{ url_for('chilemat_vinculacion') }}">Vincular manual</a>
+    </div>
+  </div>
+
+  {% if not puede_destructivo %}
+  <div class="chm-cargas-alert chm-cargas-alert-warn">
+    Las acciones destructivas (reset total, reset taxonomía, borrado masivo) requieren permiso
+    <strong>admin inventario</strong> o <strong>gestionar usuarios</strong>. Puede usar vista previa y cargas selectivas.
+  </div>
+  {% endif %}
+
+  <div class="chm-cargas-alert chm-cargas-alert-info">
+  <strong>Reset total:</strong> escriba <code>RESET TOTAL</code> en confirmación y marque «Forzar». Recomendado solo en entorno local/QA.
+  </div>
+
+  <div class="chm-cargas-grid">
+    <div class="chm-cargas-card">
+      <h2>Parámetros</h2>
+      <form id="formCargas">
+        <label for="accion">Acción</label>
+        <select id="accion" name="accion" required>
+          {% for a in acciones %}
+          <option value="{{ a }}">{{ a }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="rubro_vtex_id">Rubro (VTEX)</label>
+        <select id="rubro_vtex_id" name="rubro_vtex_id">
+          <option value="">— Todos —</option>
+          {% for r in filtros.rubros or [] %}
+          <option value="{{ r.vtex_id }}">{{ r.nombre }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="rubro">Rubro (texto en path)</label>
+        <input id="rubro" name="rubro" placeholder="Ej: Pinturas" />
+
+        <label for="q">Búsqueda</label>
+        <input id="q" name="q" placeholder="nombre, ref, EAN, VTEX id" />
+
+        <label for="limit">Límite (0 = sin límite)</label>
+        <input id="limit" name="limit" type="number" min="0" value="0" />
+
+        <label for="confirmacion">Confirmación reset total</label>
+        <input id="confirmacion" name="confirmacion" placeholder="RESET TOTAL" autocomplete="off" />
+
+        <div class="chm-cargas-check">
+          <input type="checkbox" id="sin_sync" name="sin_sync" />
+          <label for="sin_sync" style="margin:0">Sin sync API (usar staging actual)</label>
+        </div>
+        <div class="chm-cargas-check">
+          <input type="checkbox" id="solo_faltantes_sync" name="solo_faltantes_sync" />
+          <label for="solo_faltantes_sync" style="margin:0">Sync solo faltantes (sync_staging)</label>
+        </div>
+        <div class="chm-cargas-check">
+          <input type="checkbox" id="masivo" name="masivo" />
+          <label for="masivo" style="margin:0">Borrado masivo (TRUNCATE productos)</label>
+        </div>
+        <div class="chm-cargas-check">
+          <input type="checkbox" id="forzar" name="forzar" />
+          <label for="forzar" style="margin:0">Forzar acción destructiva</label>
+        </div>
+      </form>
+    </div>
+
+    <div class="chm-cargas-card">
+      <h2>Ejecutar</h2>
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:0;">
+        Use <strong>Vista previa</strong> para ver conteos sin escribir en BD.
+      </p>
+      <div class="chm-cargas-actions">
+        <button type="button" class="chm-cargas-btn chm-cargas-btn-secondary" id="btnPreview">Vista previa</button>
+        <button type="button" class="chm-cargas-btn chm-cargas-btn-primary" id="btnRun">Ejecutar</button>
+        <button type="button" class="chm-cargas-btn chm-cargas-btn-danger" id="btnReset" {% if not puede_destructivo %}disabled title="Sin permiso"{% endif %}>Reset total</button>
+      </div>
+      <pre class="chm-cargas-log" id="logOut">Listo.</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const puedeDestructivo = {{ 'true' if puede_destructivo else 'false' }};
+  const logEl = document.getElementById('logOut');
+  const form = document.getElementById('formCargas');
+
+  function payload(preview) {
+    const fd = new FormData(form);
+    return {
+      accion: fd.get('accion'),
+      rubro_vtex_id: fd.get('rubro_vtex_id') || null,
+      rubro: fd.get('rubro') || '',
+      q: fd.get('q') || '',
+      limit: parseInt(fd.get('limit') || '0', 10) || 0,
+      confirmacion: fd.get('confirmacion') || '',
+      sin_sync: document.getElementById('sin_sync').checked,
+      solo_faltantes_sync: document.getElementById('solo_faltantes_sync').checked,
+      masivo: document.getElementById('masivo').checked,
+      forzar: document.getElementById('forzar').checked,
+      preview: !!preview,
+    };
+  }
+
+  async function ejecutar(preview, accionOverride) {
+    const body = payload(preview);
+    if (accionOverride) body.accion = accionOverride;
+    if (body.accion === 'reset_total') {
+      body.forzar = true;
+      if (!preview && body.confirmacion.trim().toUpperCase() !== 'RESET TOTAL') {
+        logEl.textContent = 'Escriba RESET TOTAL en confirmación.';
+        return;
+      }
+      if (!puedeDestructivo) {
+        logEl.textContent = 'Sin permiso para reset total.';
+        return;
+      }
+      if (!preview && !confirm('¿Borrar TODOS los productos y recargar desde Chilemat?')) return;
+    }
+    logEl.textContent = 'Ejecutando…';
+    try {
+      const res = await fetch('{{ url_for("api_chilemat_cargas_ejecutar") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      logEl.textContent = JSON.stringify(data, null, 2);
+      if (data.ok && !preview && data.resumen_bd) {
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    } catch (e) {
+      logEl.textContent = 'Error: ' + e;
+    }
+  }
+
+  document.getElementById('btnPreview').addEventListener('click', () => ejecutar(true));
+  document.getElementById('btnRun').addEventListener('click', () => ejecutar(false));
+  document.getElementById('btnReset').addEventListener('click', () => {
+    document.getElementById('accion').value = 'reset_total';
+    ejecutar(false, 'reset_total');
+  });
+})();
+</script>
+{% endblock %}

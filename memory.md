@@ -467,7 +467,7 @@ Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador**
 
 **No en Neon:** catálogo `SD-PRUEBA-*` (solo QA local). **IA facturas:** propuesta $305k aprobada; activar `OPENAI_API_KEY` en Render al firmar.
 
-**FE Maullín:** ⏸ SII (folio 77326378627 Recepcionada). **TV/caja prod:** `4ae0292`.
+**FE Maullín:** CAF 33 id 66 (1–50); venta prueba #3040 `PENDIENTE_ENVIO`; token ESTADO 10 ⏸. **TV/caja prod:** `4ae0292`.
 
 ---
 
@@ -478,10 +478,38 @@ Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador**
 | Prioridad | Foco |
 |-----------|------|
 | Sprint A | POS + Caja + Stock + Bodega (validar checklist §18.1 en tienda) |
-| Sprint D | FE SII ⏸ — backend listo; **esperar timbraje SII** (folio 77326378627); Track ID manual en ventana Maullín |
+| Sprint D | FE **solo Factura (33)** en LhexIA; boletas **Multicaja/Klap** (`EXTERNO_MULTICAJA`). Ver § FE 2026-05-26 abajo |
 | Sprint E | C360 + BI según roadmaps en `docs/` |
 
 **Definición “módulo cerrado”:** flujo documentado + RBAC + test smoke/E2E mínimo + checklist §18.x firmado + deuda en §16 del maestro sin sorpresas.
+
+### FE / SII — sesión 2026-05-26 (Santo Domingo)
+
+**Política acordada**
+- **Boletas (39):** Multicaja/Klap — LhexIA **no** envía al SII (`SII_FE_SOLO_FACTURA=1`, `EXTERNO_MULTICAJA` en cobro boleta).
+- **Facturas (33):** solo LhexIA → CAF + firma `.pfx` + cola `/admin/facturacion/cola`.
+
+**Maullín (certificación) — hecho**
+- Emisor DTE **autorizado** (pantalla avance postulación).
+- CAF boleta 39 timbrado 11–1010 (`FoliosSII805412039112026526843.xml`) — **no usar en ERP** (boletas por Multicaja).
+- CAF factura 33 **reobtención** folios **1–50** (`FoliosSII80541203312026526959.xml`) → BD **caf id 66**, `usado_hasta=0`.
+- Software portal: **BOLETA ELECTRONICA MULTICAJA** (coherente con boletas); factura ERP vía software mercado / LhexIA.
+
+**ERP — hecho**
+- Scripts: `cargar_caf_real.py`, `recorrelativizar_cola.py`, `archivar_cola_boletas_multicaja.py`, `limpiar_cola_dte_pruebas.py` (`--todo`).
+- Cola DTE limpiada (97 ventas prueba); pantalla cola solo facturas 33.
+- **Venta prueba #3040:** Factura, folio **1**, `PENDIENTE_ENVIO`, XML `V3040_T33_F1.xml`.
+
+**Bloqueo actual**
+- `fe_diagnostico_sii.py`: semilla OK, **token ESTADO 10** (Error Interno) — sin Track ID / sin `ENVIADO`.
+- Soporte: `docs/soporte/TOKEN_SII_ESTADO_10_CHECKLIST.md`
+
+**Próximo paso FE**
+1. Destrabar token (portal SII / contador / firma getToken).
+2. Reintentar venta **#3040** en cola → `ENVIADO` + Track ID.
+3. Producción Palena: CAF 33 producción + `SII_AMBIENTE=produccion` (post certificación).
+
+**No mezclar:** CAF de `www.sii.cl` (producción) con Maullín; timbraje nuevo 33 en Maullín si se agotan folios (reobtención o pedir **1** folio si máximo=1).
 
 ---
 
@@ -494,6 +522,7 @@ Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador**
 | `docs/MIGRACION_RENDER_NEON.md` | Deploy + sync datos |
 | `docs/PLAN_TRABAJO_CONSOLIDADO_v2_GROK_10-10.md` | Plan v2 cerrado |
 | `docs/roadmap_customer_360_ferreteria_2026.md` | C360 por fases |
+| `docs/soporte/TOKEN_SII_ESTADO_10_CHECKLIST.md` | Token SII ESTADO 10 + reintentos cola |
 
 ---
 

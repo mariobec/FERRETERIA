@@ -104,6 +104,12 @@ def register_pos_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/api/pos/producto-ficha/<int:producto_id>',
+        'api_pos_producto_ficha',
+        _wrap_pos_api_emitir(m.api_pos_producto_ficha),
+        methods=['GET'],
+    )
+    app.add_url_rule(
         '/api/pos/cross-sell-sugerencias',
         'api_pos_cross_sell_sugerencias',
         _wrap_pos_api_emitir(m.api_pos_cross_sell_sugerencias),

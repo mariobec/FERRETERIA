@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-reloj-20260526">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-reloj-20260527c">
 {% if pos_layout_fullwidth %}
 <style id="pos-hdr-nav-fix-inline">
 body.pos-pantalla-vendedora .app-sidebar,
@@ -780,7 +780,32 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
             <tr id="pos_row_{{ d.id }}" class="{% if d.a_pedido %}pos-row-apedido table-light-blue{% endif %}" data-a-pedido="{% if d.a_pedido %}1{% else %}0{% endif %}" data-detalle-id="{{ d.id }}" data-producto-nombre="{{ d.producto.nombre|e }}">
               <td class="{% if pos_layout_fullwidth %}pos-col-codigo{% endif %}"><span class="badge bg-secondary pos-codigo-badge">{{ d.producto.codigo_barra }}</span></td>
               <td class="{% if pos_layout_fullwidth %}pos-col-desc{% endif %}">
+                {% set f = (pos_producto_ficha or {}).get(d.id_producto, {}) %}
+                <div class="d-flex align-items-start gap-2">
+                  {% if (f.imagen_url or '')|trim %}
+                  <img src="{{ f.imagen_url }}" alt="" class="pos-cart-thumb pos-cart-thumb--table" loading="lazy"
+                       onerror="this.style.display='none'">
+                  {% endif %}
+                  <div class="min-w-0 flex-grow-1">
                 <span class="{% if pos_layout_fullwidth %}pos-line-desc{% endif %}" {% if pos_layout_fullwidth %}title="{{ d.producto.nombre|e }}"{% endif %}>{{ d.producto.nombre }}</span>
+                {% if f.vtex_product_id or f.link %}
+                <div class="mt-1 d-flex align-items-center gap-1 flex-wrap">
+                  {% if f.link %}
+                  <a href="{{ f.link }}" target="_blank" rel="noopener" class="btn btn-link btn-sm p-0 text-info" title="Chilemat"
+                     onclick="window.open('{{ f.link }}','_blank','noopener'); return false;"><i class="fas fa-external-link-alt"></i></a>
+                  {% endif %}
+                  {% if f.vtex_product_id or f.tiene_ficha %}
+                  <button type="button" class="btn btn-link btn-sm p-0 text-info btn-pos-ficha-modal"
+                          data-producto-id="{{ d.id_producto }}"
+                          {% if f.vtex_product_id %}data-vtex-id="{{ f.vtex_product_id }}"{% endif %}
+                          onclick="if(window.ChilematFicha){ {% if f.vtex_product_id %}ChilematFicha.open('{{ f.vtex_product_id }}'){% else %}ChilematFicha.openProducto('{{ d.id_producto }}'){% endif %}; } return false;"
+                          title="Ficha técnica"><i class="fas fa-image"></i></button>
+                  {% endif %}
+                  <span class="small text-muted">{% if f.vtex_product_id %}VTEX {{ f.vtex_product_id }}{% endif %}{% if f.product_reference %} · Ref {{ f.product_reference }}{% endif %}</span>
+                </div>
+                {% endif %}
+                  </div>
+                </div>
                 {% if d.a_pedido %}
                 <span class="badge bg-info text-dark ms-1 pos-badge-apedido" style="font-size: 0.7rem;"><i class="fas fa-clock" aria-hidden="true"></i> A pedido</span>
                 {% endif %}
@@ -925,8 +950,8 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
           <div class="pos-dock-checkout">
             <div class="pos-dock-total">
               <span class="pos-dock-total-label">Total a emitir</span>
-              <strong id="monto_total" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</strong>
-              <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</span>
+              <strong id="monto_total" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</strong>
+              <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</span>
               <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems</small>
             </div>
             <div class="pos-dock-actions">
@@ -942,8 +967,8 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
     <div class="pos-dock-grid">
       <div class="pos-dock-total">
         <span class="pos-dock-total-label">Total a emitir</span>
-        <strong id="monto_total" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</strong>
-        <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ (venta.monto_total or 0)|round|int }}">{{ venta.total }}</span>
+        <strong id="monto_total" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</strong>
+        <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</span>
         <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems · {{ current_user.nombre }} · cobro en caja</small>
       </div>
       <div class="pos-dock-cliente">
@@ -1272,6 +1297,18 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
   'from_command_deck': false
 } | tojson }}</script>
 <script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-hdr-reloj-20260526"></script>
+<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-3"></script>
+<script>
+(function () {
+  function wireFicha() {
+    if (window.ChilematFicha && ChilematFicha.bindPosCart) {
+      ChilematFicha.bindPosCart(document);
+    }
+  }
+  wireFicha();
+  document.addEventListener('pos-cart-refreshed', wireFicha);
+})();
+</script>
 {% if pos_layout_fullwidth %}
 <script>
 (function () {

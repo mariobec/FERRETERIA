@@ -11,6 +11,101 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_URL = 'https://www.sodimac.cl/sodimac-cl/buscar?Ntt=maquina%20de%20soldar'
 
+_PRICE_TYPES = ('internetPrice', 'eventPrice', 'normalPrice')
+
+
+def scroll_page_lazy(page, *, step_px: int = 1000, wait_sec: float = 0.8) -> None:
+    """Desplazamiento incremental para activar lazy loading antes de capturar HTML."""
+    last_height = page.evaluate('document.body.scrollHeight')
+    while True:
+        page.evaluate(f'window.scrollBy(0, {step_px});')
+        time.sleep(wait_sec)
+        new_height = page.evaluate('document.body.scrollHeight')
+        if new_height == last_height:
+            page.evaluate('window.scrollBy(0, 500);')
+            time.sleep(1.5)
+            if page.evaluate('document.body.scrollHeight') == last_height:
+                break
+        last_height = new_height
+
+
+def _precio_desde_next_product(p: dict) -> int:
+    prices = p.get('price')
+    if isinstance(prices, dict):
+        raw = prices.get('currentPrice') or prices.get('price') or 0
+        return int(re.sub(r'[^0-9]', '', str(raw)) or 0)
+    entries = p.get('prices')
+    if not isinstance(entries, list):
+        return 0
+    by_type = {e.get('type'): e for e in entries if isinstance(e, dict) and e.get('type')}
+    for tipo in _PRICE_TYPES:
+        entry = by_type.get(tipo)
+        if not entry:
+            continue
+        vals = entry.get('price')
+        if isinstance(vals, list) and vals:
+            return int(re.sub(r'[^0-9]', '', str(vals[0])) or 0)
+        if vals:
+            return int(re.sub(r'[^0-9]', '', str(vals)) or 0)
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        vals = entry.get('price')
+        if isinstance(vals, list) and vals:
+            return int(re.sub(r'[^0-9]', '', str(vals[0])) or 0)
+    return 0
+
+
+def parse_next_data_json(html: str) -> list[dict]:
+    """Catálogo desde __NEXT_DATA__ (Next.js) sin depender del DOM renderizado."""
+    match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if not match:
+        return []
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return []
+
+    pp = (data.get('props') or {}).get('pageProps') or {}
+    products_list = pp.get('results')
+    if not isinstance(products_list, list) or not products_list:
+        sr = pp.get('searchResults')
+        if isinstance(sr, dict):
+            products_list = sr.get('products') or []
+        elif isinstance(sr, list):
+            products_list = sr
+
+    items: list[dict] = []
+    seen: set[str] = set()
+    for p in products_list or []:
+        if not isinstance(p, dict):
+            continue
+        cod = str(p.get('productId') or p.get('id') or '').strip()
+        desc = str(p.get('displayName') or p.get('name') or '').strip()
+        if not cod or not desc or cod in seen:
+            continue
+        seen.add(cod)
+        items.append({
+            'codigo_interno': cod,
+            'descripcion_producto': desc,
+            'precio': _precio_desde_next_product(p),
+        })
+    return items
+
+
+def pagination_from_next_data(html: str) -> dict | None:
+    """Lee bloque pagination de __NEXT_DATA__ (count, perPage, currentPage)."""
+    match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    pag = (data.get('props') or {}).get('pageProps') or {}
+    pag = pag.get('pagination')
+    return pag if isinstance(pag, dict) else None
+
 
 def parse_html(html: str) -> list[dict]:
     items = []
@@ -83,6 +178,9 @@ def parse_search_json(html: str) -> list[dict]:
 
 def parse_search_cards(html: str) -> list[dict]:
     """Parser para tarjetas de /buscar (pod + layout Sodimac)."""
+    found = parse_next_data_json(html)
+    if found:
+        return found
     found = parse_search_json(html)
     if found:
         return found
@@ -135,9 +233,7 @@ def main() -> int:
         except Exception:
             pass
         time.sleep(3 + random.uniform(0.5, 1.5))
-        for frac in (0.35, 0.7, 1.0):
-            page.evaluate(f'window.scrollTo(0, document.body.scrollHeight * {frac})')
-            time.sleep(1.2 + random.uniform(0.2, 0.8))
+        scroll_page_lazy(page)
         html = page.content()
         browser.close()
 
