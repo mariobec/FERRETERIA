@@ -44,6 +44,10 @@ def _inferir_origen_web(url: str) -> tuple[str, str]:
         return 'easy', 'Ferreteria'
     if 'construmart' in host:
         return 'construmart', 'Ferreteria'
+    if 'electrocom' in host:
+        return 'electrocom', 'Electricidad'
+    if 'imperial' in host:
+        return 'imperial', 'Ferreteria'
     return 'web', 'Importacion Radar'
 
 
@@ -66,6 +70,7 @@ def linea_radar_a_fila_maestro(
     precio_lista_clp: int,
     url: str = '',
     proveedor_nombre: str = '',
+    proveedor_id: int | None = None,
 ) -> dict[str, str]:
     """
     Convierte línea Radar al formato maestro (homologar_productos_excel.TARGET_COLUMNS).
@@ -75,7 +80,10 @@ def linea_radar_a_fila_maestro(
     nombre = _clip_txt(descripcion, 100) or _clip_txt(sku_proveedor, 100)
     sku = _clip_txt(sku_proveedor, 80)
     chm = sku
-    if slug == 'sodimac' and chm and not chm.upper().startswith('SOD-'):
+    if proveedor_id and chm:
+        # Misma SKU web de distintos proveedores ERP → filas separadas (comparativo).
+        chm = f'PRV{int(proveedor_id)}-{chm}'[:80]
+    elif slug == 'sodimac' and chm and not chm.upper().startswith('SOD-'):
         chm = f'SOD-{chm}'[:80]
     elif slug == 'easy' and chm and not chm.upper().startswith('EASY-'):
         chm = f'EASY-{chm}'[:80]
@@ -83,7 +91,10 @@ def linea_radar_a_fila_maestro(
     interno = _codigo_interno_sugerido(chm) if chm else ''
     barra = _codigo_barra_pendiente(chm) if chm else ''
 
-    subcat = _clip_txt(proveedor_nombre, 50) or slug.replace('_', ' ').title()
+    if proveedor_nombre:
+        subcat = f'Proveedor: {_clip_txt(proveedor_nombre, 44)}'
+    else:
+        subcat = slug.replace('_', ' ').title()
 
     return {
         'nombre': nombre,
@@ -153,6 +164,7 @@ def append_linea_maestro_csv(
     precio_lista_clp: int,
     url: str = '',
     proveedor_nombre: str = '',
+    proveedor_id: int | None = None,
     erp_root: str | None = None,
 ) -> dict[str, Any]:
     """Agrega o actualiza una fila en el CSV maestro acumulado."""
@@ -163,6 +175,7 @@ def append_linea_maestro_csv(
         precio_lista_clp=precio_lista_clp,
         url=url,
         proveedor_nombre=proveedor_nombre,
+        proveedor_id=proveedor_id,
     )
     if not fila.get('nombre'):
         return {'ok': False, 'error': 'sin_nombre', 'path': str(path)}

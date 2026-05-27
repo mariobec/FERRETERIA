@@ -240,6 +240,7 @@ Guardia anti-prod en `tests/conftest.py` (bloquea hosts cloud salvo `ALLOW_TESTS
 | 2026-05-17 | **Convención ambientes:** desarrollo = local, productivo = Render (+ Neon). |
 | 2026-05-17 | **POS asistente búsqueda manual:** commit `8c9535c` — input `#posBuscarManual`, panel tarjetas, `/buscar_producto?enriquecido=1`. **Pendiente `git push` a Render.** |
 | 2026-05-24 | **Piloto IA SD→Chilemat:** análisis estrategia (Ollama local + Operador + Guardián + Liz/Gemini); memoria en `docs/planes/06-agentes-ia/MEMORY_PILOTO_IA_SD_CHILEMAT.md` + regla `.cursor/rules/ia-piloto-chilemat.mdc`. Pendiente: decisión prioridad Dueño vs Mostrador e implementación. |
+| 2026-05-27 | **Chilemat VTEX en ERP:** explorador, vinculación, **cargas ERP** (`/compras/chilemat/cargas`), reset local 4891 SKU, ficha/imagen API, Radar precios, POS total $0 fix, RCV+CSV en commit `ee2d4fa`. Commits `6c00c08`+`ee2d4fa` sin push. Pendiente: clics ficha carrito POS, token SII ESTADO 10. |
 
 
 ## POS — Pantalla vendedora (rediseño premium) — ANÁLISIS PARA RETOMAR
@@ -396,7 +397,17 @@ Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador**
 
 ## Dónde quedamos (retomar desde aquí)
 
-**Canónico:** **`docs/memory.md`** § «Dónde quedamos» (actualizado 2026-05-22).
+**Última sesión:** **2026-05-27** — Chilemat VTEX en ERP local, cargas masivas/selectivas, Radar precios, POS ficha/total. Ver § «Sesión 2026-05-27» abajo.
+
+**Git local:** `main` **2 commits** sin push → `6c00c08` (código) + `ee2d4fa` (datos CSV/RCV).
+
+**Mañana (prioridad):**
+1. `git push origin main` si Mario confirma.
+2. Probar en piso: **Compras → Cargas Chilemat → ERP** (`/compras/chilemat/cargas`), explorador, vincular.
+3. **Pendiente POS:** botones link/ficha en carrito premium siguen sin responder (revisar `pointer-events` / overlay `pos-checkout-dock`).
+4. FE: token SII **ESTADO 10** sin resolver (`docs/soporte/TOKEN_SII_ESTADO_10_CHECKLIST.md`).
+
+**Canónico histórico:** **`docs/memory.md`** § «Dónde quedamos» (2026-05-22).
 
 **Cierre sesión 2026-05-22:** **D0 maestro Chilemat en Neon** (~4.899 SKU) · **RCV importado** (dedup folio) · **recepciones UI** en prod · **pausa hasta lunes D1** (piloto pistola TIENDA).
 
@@ -538,9 +549,112 @@ Prioridad: **(1) Dueño** Guardián+Operador *(recomendado)* | **(2) Mostrador**
 
 **Mañana:** Ctrl+F5, probar escaneo, commit si OK. Detalle completo en `docs/memory.md` (misma sección).
 
-**Git:** `main` ahead 2; cambios sin commit al cierre del día.
+**Git:** ver sesión 2026-05-27 (commits hechos).
 
 ---
+
+## Sesión 2026-05-27 — Chilemat · Radar · POS · datos (detalle)
+
+**Transcripción chat:** `agent-transcripts/7ab37409-1a66-4b15-9680-363fb76eeafe.jsonl`
+
+### Commits (local, sin push al cierre)
+
+| Hash | Mensaje | Contenido |
+|------|---------|-----------|
+| `6c00c08` | `feat(chilemat-radar-pos): catálogo VTEX, cargas ERP, ficha en carrito y radar precios` | 71 archivos, +11 373 líneas — código, templates, services, tests, docs |
+| `ee2d4fa` | `chore(data): CSV carga maestro/Radar y RCV compras SII 2025-2026` | 21 archivos — importación + 17 CSV RCV en `datos_rcv/` |
+
+### Chilemat / catálogo VTEX → ERP
+
+**Objetivo:** operar el universo Chilemat (~4 891 SKU) desde el ERP sin depender solo de scripts CLI.
+
+**Modelos** (`app.py`): `ChilematCategoria`, `ChilematVtexProducto` (+ columnas `imagen_url`, `descripcion_web`, `descripcion_corta`), `producto_relacion` (cross-sell).
+
+**Services nuevos:**
+- `services/chilemat_catalogo_service.py` — sync API VTEX (`sync_categorias`, `sync_productos_vtex`, `--solo-faltantes`)
+- `services/chilemat_catalogo_ui_service.py` — listados/filtros explorador
+- `services/chilemat_vinculacion_service.py` — vincular/desvincular/auto + copiar imagen a `Producto`
+- `services/chilemat_ficha_service.py` — ficha desde API VTEX (sin scrape); `imagen_url_para_producto_erp`; APIs carrito/POS/TV/Liz
+- `services/chilemat_cargas_service.py` — cargas masivas/selectivas (misma lógica que CLI)
+- `services/producto_relacion_service.py` — relaciones manuales + VTEX + histórico ventas
+
+**Blueprint** `blueprints/chilemat_catalogo.py`:
+
+| Ruta | Uso |
+|------|-----|
+| `/compras/chilemat/explorador` | Explorador visual staging VTEX |
+| `/compras/chilemat/vincular` | Vinculación manual/auto ERP ↔ VTEX |
+| `/compras/chilemat/cargas` | **Pantalla ERP cargas** (sync, carga, borrado, reset) |
+| `/api/compras/chilemat/cargas/ejecutar` | POST JSON (preview / ejecutar) |
+| `/api/compras/chilemat/ficha/...` | Ficha producto VTEX o ERP |
+
+**Menú Compras:** Universo Chilemat · Vincular · **Cargas Chilemat → ERP** (atajo BI también).
+
+**Scripts:**
+- `scripts/sync_chilemat_catalogo.py`
+- `scripts/reset_local_catalogo_a_chilemat.py` — reset total local (taxonomía + TRUNCATE productos + carga)
+- `scripts/chilemat_cargas_local.py` — CLI (delega en `chilemat_cargas_service`)
+- `scripts/seed_pos_chilemat_ejemplo.py` — demo `DEMO-CHM-BARNIZ`, VTEX `34891`, `producto_id` 2401
+
+**Docs:** `CHILEMAT_CARGAS_LOCAL.md`, `LHEXIA_RADAR_PRECIO_EQUIPO.md` (estrategia radar/reunión equipo).
+
+**Estado BD local post-reset** (`.env.local` → `ferreteria_local`):
+- Productos ERP: **4891**
+- `chilemat_vtex_producto`: **4891**, todos con `producto_id`
+- Categorías ERP: **11**, subcategorías: **240**
+
+**Cargas ERP — acciones:** `sync_staging`, `cargar_productos`, `borrar_productos`, `reset_taxonomia`, `reset_total` (confirmación texto `RESET TOTAL` + permiso admin inventario / gestionar usuarios).
+
+### Radar precios
+
+- `blueprints/precios_radar.py` + templates `precios_radar.html`, `precios_radar_dashboard.html`
+- Services: `radar_precios_service.py`, `radar_precios_fetch.py`, `radar_precios_db.py`, `radar_maestro_csv.py`
+- Tests: `tests/test_radar_precios.py`
+- Sin APIs de pago; Ollama local opcional para enriquecimiento (doc equipo)
+
+### POS / TV / Liz
+
+**Corregido:** total a emitir **$0** con ítems en carrito (`_pos_venta_total_clp`, `pos.js`, `punto_venta.html`, `command_deck.html`).
+
+**Integrado:**
+- Miniatura + iconos link/ficha: `templates/pos/includes/cart_line_media.html`, `premium_cart_cards.html`
+- `static/js/chilemat_ficha.js` — modal ficha + `bindPosCart` + delegación capture
+- Live wall / TV cliente / Liz: imágenes vía `imagen_url_para_producto_erp` y cross-sell `producto_relacion`
+
+**Pendiente conocido:** usuario reportó que **botones link/ficha en carrito POS no responden** tras varios fixes CSS/JS — retomar con DevTools (overlay dock, `z-index`, `pointer-events`).
+
+### Facturación SII (soporte en mismo commit)
+
+- Mejoras `facturacion_sii_soap.py`, `facturacion_electronica_service.py`
+- Scripts: `fe_diagnostico_sii.py`, `fe_resolver_facturas.py`, `recorrelativizar_cola.py`, `cargar_caf_real.py`, `limpiar_cola_dte_pruebas.py`, etc.
+- `docs/soporte/TOKEN_SII_ESTADO_10_CHECKLIST.md`
+- **Bloqueo heredado:** token SII ESTADO 10 — venta prueba #3040 sigue `PENDIENTE_ENVIO`
+
+### Tests añadidos/actualizados
+
+`test_chilemat_cargas`, `test_chilemat_catalogo_explorer`, `test_chilemat_ficha`, `test_chilemat_vinculacion`, `test_match_factura_chilemat`, `test_producto_relacion_cross_sell`, `test_radar_precios`, `test_facturacion_sii_soap`, `test_facturacion_dte_e2e`
+
+```bash
+pytest tests/test_chilemat_cargas.py tests/test_chilemat_ficha.py tests/test_chilemat_vinculacion.py -q
+```
+
+### Datos (commit `ee2d4fa`)
+
+**`CARGA DE DATOS/`:** `productos_importacion_final.csv` (actualizado), `productos_importacion_maestro_in.csv`, `radar_maestro_acumulado.csv`, `sd_prueba_productos_casuisticas.csv`
+
+**`datos_rcv/`:** RCV compras `8054120-1`, meses `202501`–`202605` (17 CSV) — match facturas / tests.
+
+**No commiteado:** `respaldos/`, logs `fe_*.txt`, `storage/dtes/caf/`, `Lista productos.xlsx`, probes sueltos.
+
+### Utilidades
+
+- `run.py`, `iniciar_servidor.bat`, `iniciar_servidor.ps1`
+- `.env.example` — vars Chilemat/radar si aplica
+
+### Estrategia acordada (Mario)
+
+- **SD-1:** priorizar homologación operativa en piso (POS + inventario) antes de multi-tenant o agentes pesados.
+- **Chilemat/red:** piloto post SD-1; hoy el foco fue **maestro local alineado a VTEX** + herramientas ERP para cargas selectivas.
 
 ---
 
@@ -562,4 +676,4 @@ Detalle: `docs/memory.md` § «Live Wall / Experience Wall». Commit `4ae0292`. 
 
 ---
 
-*Última actualización: 2026-05-24 — **Deploy prod** commit `16a2dfe` (Operador IA, Guardián, Academy, perf schema). Tag `checkpoint/ia-operador-prod-2026-05-24`.*
+*Última actualización: **2026-05-27** — commits `6c00c08` + `ee2d4fa` (Chilemat/Radar/POS/datos). Push pendiente. Transcript: `7ab37409-1a66-4b15-9680-363fb76eeafe`.*

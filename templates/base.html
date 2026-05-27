@@ -58,16 +58,20 @@
                         <summary><i class="fas {{ grupo.icon }}"></i> {{ grupo.label }}</summary>
                         <div class="app-nav-group-body">
                             {% for it in grupo['items'] %}
-                            <a href="{{ url_for(it.endpoint) }}" class="app-nav-link {% if request.endpoint in it.endpoints_activos %}active{% endif %}"><i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }}"></i> {{ it.label }}</a>
+                            <a href="{{ url_for(it.endpoint) }}{{ it.get('url_hash', '') }}" class="app-nav-link {% if request.endpoint in it.endpoints_activos %}active{% endif %}"><i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }}"></i> {{ it.label }}</a>
                             {% endfor %}
                         </div>
                     </details>
                     {% endfor %}
-                    <a href="{{ url_for('lhexia_academy') }}" class="app-nav-link {% if request.endpoint == 'lhexia_academy' %}active{% endif %}"><i class="fas fa-graduation-cap"></i> LhexIA Academy</a>
+                    <a href="{{ url_for('lhexia_academy') }}" class="app-nav-link {% if request.endpoint == 'lhexia_academy' %}active{% endif %}"><i class="fas fa-graduation-cap"></i> Capacitación LhexIA</a>
                 </div>
 
                 <!-- Footer del Sidebar con Botón Premium -->
                 <div class="app-sidebar-footer app-sidebar-header">
+                    <a href="{{ url_for('cambiar_password') }}" class="app-nav-link {% if request.endpoint == 'cambiar_password' %}active{% endif %}">
+                        <i class="fas fa-user-gear"></i>
+                        <span>Mi cuenta</span>
+                    </a>
                     <a href="{{ url_for('logout') }}" class="logout-premium">
                         <i class="fas fa-power-off"></i>
                         <span>CERRAR SESIÓN</span>
@@ -94,7 +98,7 @@
                         {% endif %}
                         {% if request.endpoint != 'owner_mobile' %}
                         <a href="{{ url_for('owner_mobile') }}" class="btn btn-sm btn-outline-warning">
-                            <i class="fas fa-mobile-screen-button me-1"></i>Vista propietario
+                            <i class="fas fa-mobile-screen-button me-1"></i>Guardián móvil
                         </a>
                         {% endif %}
                         {% if request.endpoint != 'inicio' and request.args.get('from') == 'inicio' %}

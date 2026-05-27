@@ -127,6 +127,9 @@
             <li class="list-group-item">
               <div class="fw-semibold small">{{ h.titulo or h.url[:50] }}…</div>
               <div class="small text-muted">
+                {% if h.proveedor_nombre %}
+                <span class="badge bg-light text-dark border me-1">{{ h.proveedor_nombre }}</span>
+                {% endif %}
                 {{ h.total }} productos · {{ h.mapeados }} mapeados · {{ h.parser }}
               </div>
               <div class="small text-muted">{{ h.finished_at[:19] if h.finished_at else '' }}</div>

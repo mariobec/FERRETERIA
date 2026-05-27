@@ -1115,6 +1115,9 @@
     list.dataset.posCartV2Wired = "1";
 
     list.addEventListener("click", function (e) {
+      if (window.ChilematFicha && ChilematFicha.isFichaTrigger && ChilematFicha.isFichaTrigger(e.target)) {
+        return;
+      }
       if (
         e.target.closest(
           ".pos-retiro-select, .pos-qty-capsule, .pos-cart-card__toolbar, .pos-cart-card__more, .pos-cart-card__delete-btn, button, input, select, label, a"

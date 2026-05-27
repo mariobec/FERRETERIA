@@ -1432,29 +1432,29 @@ class TestHubModulosUrls:
     def test_hub_html_pos_enlaza_punto_venta(self, app_client, caja_abierta):
         r = app_client.get('/hub')
         assert r.status_code == 200
-        assert b'Punto de venta' in r.data
+        assert b'Ventas y mostrador' in r.data
         assert b'/punto_venta' in r.data
         # POS vendedor fullwidth por defecto (sin ?layout=vendedor en URL del hub)
         assert b'layout=clasico' not in r.data
 
     def test_resolver_pos_con_caja_abierta(self, app_ctx, caja_abierta):
         user = _get_admin_user()
-        mod = next(x for x in m._MODULOS_HUB if x['id'] == 'pos')
+        mod = next(x for x in m._MODULOS_HUB if x['id'] == 'ventas_mostrador')
         with m.app.test_request_context('/'):
             url = m._hub_url_para_modulo(mod, user)
         assert url.rstrip('/').endswith('/punto_venta')
         assert 'layout=' not in url
 
-    def test_resolver_pos_sin_caja_a_abrir_caja(self, app_ctx):
+    def test_resolver_ventas_mostrador_sin_caja_a_pos(self, app_ctx):
         user = _get_admin_user()
-        mod = next(x for x in m._MODULOS_HUB if x['id'] == 'pos')
+        mod = next(x for x in m._MODULOS_HUB if x['id'] == 'ventas_mostrador')
         for caja in m.Caja.query.filter_by(estado='Abierta').all():
             caja.estado = 'Cerrada'
         db.session.flush()
         try:
             with m.app.test_request_context('/'):
                 url = m._hub_url_para_modulo(mod, user)
-            assert '/abrir_caja' in url
+            assert url.rstrip('/').endswith('/punto_venta')
         finally:
             db.session.rollback()
 
@@ -1462,7 +1462,7 @@ class TestHubModulosUrls:
         user = _get_admin_user()
         with m.app.test_request_context('/'):
             mods = m._construir_modulos_hub(user)
-        pos = next((x for x in mods if x.get('id') == 'pos'), None)
+        pos = next((x for x in mods if x.get('id') == 'ventas_mostrador'), None)
         assert pos is not None
         assert pos.get('url')
         assert pos['url'].rstrip('/').endswith('/punto_venta')

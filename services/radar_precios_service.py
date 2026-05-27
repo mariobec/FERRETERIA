@@ -17,6 +17,7 @@ from services.radar_precios_fetch import (
     extraer_candidatos_texto_crudo,
     extraer_productos_de_html,
     fetch_public_html,
+    mensaje_error_radar,
     recortar_html_para_ollama,
     validar_url_publica,
 )
@@ -341,6 +342,46 @@ def _match_producto(
     }
 
 
+def _job_guarda_resultados(job: dict[str, Any]) -> bool:
+    return bool(job.get('guardar_resultados'))
+
+
+def _persistir_linea_radar(
+    app,
+    job: dict[str, Any],
+    job_id: str,
+    *,
+    indice: int,
+    linea: dict[str, Any],
+    proveedor_id: int | None,
+    proveedor_nombre: str,
+    url_origen: str,
+) -> dict[str, Any]:
+    """Escribe una línea en BD radar + CSV maestro acumulado."""
+    maestro_info: dict[str, Any] = {}
+    try:
+        radar_db.insertar_linea_db(app, job_id, indice, linea)
+    except Exception as ex:
+        _log.warning('Radar: no se pudo persistir linea %s: %s', linea.get('id'), ex)
+    try:
+        erp_root = getattr(getattr(app, 'app', None), 'root_path', None) or getattr(app, 'root_path', None)
+        maestro_info = radar_csv.append_linea_maestro_csv(
+            sku_proveedor=linea.get('sku_proveedor') or '',
+            descripcion=linea.get('descripcion') or '',
+            precio_lista_clp=int(linea.get('precio_lista_clp') or 0),
+            url=url_origen or job.get('url_final') or job.get('url') or '',
+            proveedor_nombre=proveedor_nombre,
+            proveedor_id=proveedor_id,
+            erp_root=erp_root,
+        )
+        if maestro_info.get('ok'):
+            job['maestro_csv_total'] = maestro_info.get('total_filas')
+            job['maestro_csv_path'] = maestro_info.get('path')
+    except Exception as ex:
+        _log.warning('Radar maestro CSV: %s', ex)
+    return maestro_info
+
+
 def _emit_linea_job(
     app,
     job: dict[str, Any],
@@ -386,27 +427,19 @@ def _emit_linea_job(
         'aplicado': False,
         'parser': parser,
     }
-    try:
-        radar_db.insertar_linea_db(app, job_id, indice, linea)
-    except Exception as ex:
-        _log.warning('Radar: no se pudo persistir linea %s: %s', linea_id, ex)
 
     maestro_info: dict[str, Any] = {}
-    try:
-        erp_root = getattr(getattr(app, 'app', None), 'root_path', None) or getattr(app, 'root_path', None)
-        maestro_info = radar_csv.append_linea_maestro_csv(
-            sku_proveedor=sku,
-            descripcion=desc,
-            precio_lista_clp=precio,
-            url=url_origen or job.get('url_final') or job.get('url') or '',
+    if _job_guarda_resultados(job):
+        maestro_info = _persistir_linea_radar(
+            app,
+            job,
+            job_id,
+            indice=indice,
+            linea=linea,
+            proveedor_id=proveedor_id,
             proveedor_nombre=proveedor_nombre,
-            erp_root=erp_root,
+            url_origen=url_origen,
         )
-        if maestro_info.get('ok'):
-            job['maestro_csv_total'] = maestro_info.get('total_filas')
-            job['maestro_csv_path'] = maestro_info.get('path')
-    except Exception as ex:
-        _log.warning('Radar maestro CSV: %s', ex)
 
     job['lineas'].append(linea)
     pct = int((indice / total) * 100) if total else 100
@@ -422,10 +455,42 @@ def _emit_linea_job(
             'sku_proveedor': sku,
             'producto': desc,
             'precio': precio,
-            'estado_db': 'Mapeado e inyectado',
+            'estado_db': 'Guardado en maestro' if maestro_info.get('ok') else (
+                'Solo lectura' if not _job_guarda_resultados(job) else 'Sin guardar en maestro'
+            ),
             'maestro_csv': maestro_info if maestro_info.get('ok') else None,
+            'proveedor_id': proveedor_id,
+            'proveedor_nombre': proveedor_nombre,
+            'guardar_resultados': _job_guarda_resultados(job),
         },
     )
+
+
+def _min_productos_nativo_ok() -> int:
+    try:
+        return max(1, int((os.getenv('RADAR_PRECIOS_MIN_NATIVO') or '5').strip() or '5'))
+    except ValueError:
+        return 5
+
+
+def _fusionar_productos(
+    *listas: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Une listas de ítems Radar deduplicando por SKU o nombre."""
+    out: list[dict[str, Any]] = []
+    vistos: set[str] = set()
+    for lista in listas:
+        for p in lista or []:
+            sku = (p.get('codigo_interno') or '').strip().upper()
+            nom = re.sub(r'\s+', ' ', (p.get('descripcion_producto') or '').strip().upper())[:80]
+            clave = f'sku:{sku}' if sku else f'nombre:{nom}'
+            if not sku and not nom:
+                continue
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            out.append(p)
+    return out
 
 
 def _resolver_productos_desde_html(
@@ -435,18 +500,19 @@ def _resolver_productos_desde_html(
 ) -> tuple[list[dict[str, Any]], str]:
     productos, parser = extraer_productos_de_html(html, url)
     ollama_item = _ollama_por_item_habilitado()
+    min_ok = _min_productos_nativo_ok()
 
-    if productos and ollama_item:
-        job['parser'] = f'{parser}+ollama_item'
-        return productos, job['parser']
+    # Pocos resultados nativos en página de listado → no cortar; ampliar con Ollama.
+    if productos and len(productos) >= min_ok:
+        if ollama_item:
+            job['parser'] = f'{parser}+ollama_item'
+        return productos, parser or 'nativo'
 
-    if productos:
-        return productos, parser
+    productos_ollama: list[dict[str, Any]] = []
 
     if ollama_item:
         _emit(job, {'fase': 'ia', 'progreso': 20, 'mensaje': 'Ollama item a item…'})
         candidatos = extraer_candidatos_texto_crudo(html)
-        productos_item: list[dict[str, Any]] = []
         total_c = max(len(candidatos), 1)
         for idx, crudo in enumerate(candidatos):
             _emit(
@@ -459,10 +525,20 @@ def _resolver_productos_desde_html(
             )
             res = ollama_normalizar_item(crudo)
             if res.get('ok') and res.get('producto'):
-                productos_item.append(res['producto'])
+                productos_ollama.append(res['producto'])
             time.sleep(0.15)
-        if productos_item:
-            return productos_item, 'ollama_item'
+        if productos_ollama:
+            fusion = _fusionar_productos(productos, productos_ollama)
+            etiqueta = 'nativo+ollama_item' if productos else 'ollama_item'
+            if productos and len(productos) < min_ok:
+                job['aviso_parser'] = (
+                    f'Solo {len(productos)} producto(s) con parser HTML; '
+                    f'Ollama amplió a {len(fusion)}.'
+                )
+            return fusion, etiqueta
+
+    if productos:
+        return productos, parser or 'nativo'
 
     _emit(job, {'fase': 'ia', 'progreso': 25, 'mensaje': 'Ollama estructurando catálogo…'})
     ia = ollama_estructurar_html(html)
@@ -492,17 +568,21 @@ def _run_job(app, job_id: str) -> None:
                     proveedor_nombre = (pr.nombre or '').strip()
             except Exception:
                 pass
+        job['proveedor_id'] = proveedor_id
+        job['proveedor_nombre'] = proveedor_nombre
 
-        try:
-            radar_db.crear_escaneo_db(
-                app,
-                job_id=job_id,
-                url=urls[0],
-                proveedor_id=proveedor_id,
-                usuario=usuario,
-            )
-        except Exception as ex:
-            _log.warning('Radar escaneo DB: %s', ex)
+        guardar = _job_guarda_resultados(job)
+        if guardar:
+            try:
+                radar_db.crear_escaneo_db(
+                    app,
+                    job_id=job_id,
+                    url=urls[0],
+                    proveedor_id=proveedor_id,
+                    usuario=usuario,
+                )
+            except Exception as ex:
+                _log.warning('Radar escaneo DB: %s', ex)
 
         todas_lineas: list[dict[str, Any]] = []
         vistos_por_sku: set[str] = set()
@@ -523,14 +603,23 @@ def _run_job(app, job_id: str) -> None:
                 pref = f'Link {url_idx + 1}: '
                 _emit(job, {'fase': 'descargando', 'progreso': 2, 'mensaje': pref + 'Descargando…'})
                 paso = fetch_public_html(url)
+                if paso.get('fuente'):
+                    job['fetch_fuente'] = paso.get('fuente')
+                if paso.get('aviso'):
+                    _emit(job, {'fase': 'aviso', 'mensaje': paso.get('aviso')})
                 if not paso.get('ok'):
                     if len(urls) == 1:
                         job['status'] = 'error'
                         job['error'] = paso.get('error') or 'error_descarga'
-                        radar_db.actualizar_escaneo_db(
-                            app, job_id, status='error', error=job['error'], finished_at=_ahora_iso()
-                        )
-                        _emit(job, {'fase': 'error', 'error': job['error'], 'progreso': 0})
+                        if guardar:
+                            radar_db.actualizar_escaneo_db(
+                                app, job_id, status='error', error=job['error'], finished_at=_ahora_iso()
+                            )
+                        hint = paso.get('hint') or ''
+                        msg = mensaje_error_radar(job['error'], url)
+                        if hint and hint not in msg:
+                            msg = msg + ' ' + hint
+                        _emit(job, {'fase': 'error', 'error': msg, 'progreso': 0})
                         return
                     _emit(job, {'fase': 'aviso', 'mensaje': f'No se pudo descargar {url}'})
                     continue
@@ -561,15 +650,23 @@ def _run_job(app, job_id: str) -> None:
                     if len(urls) == 1:
                         job['status'] = 'error'
                         job['error'] = job.get('ollama_error') or 'sin_productos_en_pagina'
-                        radar_db.actualizar_escaneo_db(
-                            app,
-                            job_id,
-                            status='error',
-                            error=job['error'],
-                            parser=parser,
-                            finished_at=_ahora_iso(),
+                        if guardar:
+                            radar_db.actualizar_escaneo_db(
+                                app,
+                                job_id,
+                                status='error',
+                                error=job['error'],
+                                parser=parser,
+                                finished_at=_ahora_iso(),
+                            )
+                        _emit(
+                            job,
+                            {
+                                'fase': 'error',
+                                'error': mensaje_error_radar(job['error'], url),
+                                'progreso': 0,
+                            },
                         )
-                        _emit(job, {'fase': 'error', 'error': job['error'], 'progreso': 0})
                         return
                     continue
 
@@ -619,10 +716,18 @@ def _run_job(app, job_id: str) -> None:
             if total == 0:
                 job['status'] = 'error'
                 job['error'] = 'sin_productos_en_pagina'
-                radar_db.actualizar_escaneo_db(
-                    app, job_id, status='error', error=job['error'], finished_at=_ahora_iso()
+                if guardar:
+                    radar_db.actualizar_escaneo_db(
+                        app, job_id, status='error', error=job['error'], finished_at=_ahora_iso()
+                    )
+                _emit(
+                    job,
+                    {
+                        'fase': 'error',
+                        'error': mensaje_error_radar(job['error'], urls[0] if urls else ''),
+                        'progreso': 0,
+                    },
                 )
-                _emit(job, {'fase': 'error', 'error': job['error'], 'progreso': 0})
                 return
 
             job['total'] = total
@@ -636,15 +741,22 @@ def _run_job(app, job_id: str) -> None:
                 )
             job['status'] = 'completado'
             job['finished_at'] = _ahora_iso()
-            radar_db.actualizar_escaneo_db(
-                app,
-                job_id,
-                status='completado',
-                url_final=job.get('url_final'),
-                titulo=job.get('titulo'),
-                parser=job.get('parser'),
-                total=total,
-                finished_at=job['finished_at'],
+            if guardar:
+                job['persistido'] = True
+                radar_db.actualizar_escaneo_db(
+                    app,
+                    job_id,
+                    status='completado',
+                    url_final=job.get('url_final'),
+                    titulo=job.get('titulo'),
+                    parser=job.get('parser'),
+                    total=total,
+                    finished_at=job['finished_at'],
+                )
+            msg_fin = (
+                'Escaneo finalizado y guardado en maestro.'
+                if guardar
+                else 'Escaneo en solo lectura (no se guardó en maestro). Use «Guardar escaneo» si desea conservarlo.'
             )
             _emit(
                 job,
@@ -652,33 +764,45 @@ def _run_job(app, job_id: str) -> None:
                     'fase': 'listo',
                     'progreso': 100,
                     'total': total,
-                    'mensaje': 'Escaneo finalizado.',
+                    'mensaje': msg_fin,
                     'maestro_csv_path': job.get('maestro_csv_path'),
                     'maestro_csv_total': job.get('maestro_csv_total'),
+                    'proveedor_id': proveedor_id,
+                    'proveedor_nombre': proveedor_nombre,
+                    'lineas_guardadas': len(job.get('lineas') or []) if guardar else 0,
+                    'guardar_resultados': guardar,
+                    'persistido': bool(job.get('persistido')),
+                    'parser': job.get('parser'),
+                    'aviso_parser': job.get('aviso_parser'),
+                    'productos_este_escaneo': total,
                 },
             )
 
-            with _lock:
-                _historial.appendleft({
-                    'job_id': job_id,
-                    'url': urls[0],
-                    'titulo': job.get('titulo'),
-                    'total': total,
-                    'parser': job.get('parser'),
-                    'finished_at': job['finished_at'],
-                    'mapeados': sum(1 for ln in job['lineas'] if ln.get('producto_id')),
-                })
+            if guardar:
+                with _lock:
+                    _historial.appendleft({
+                        'job_id': job_id,
+                        'url': urls[0],
+                        'titulo': job.get('titulo'),
+                        'total': total,
+                        'parser': job.get('parser'),
+                        'finished_at': job['finished_at'],
+                        'mapeados': sum(1 for ln in job['lineas'] if ln.get('producto_id')),
+                        'proveedor_id': proveedor_id,
+                        'proveedor_nombre': proveedor_nombre,
+                    })
 
         except Exception as ex:
             _log.exception('Radar job %s: %s', job_id, ex)
             job['status'] = 'error'
             job['error'] = str(ex)
-            try:
-                radar_db.actualizar_escaneo_db(
-                    app, job_id, status='error', error=str(ex)[:500], finished_at=_ahora_iso()
-                )
-            except Exception:
-                pass
+            if _job_guarda_resultados(job):
+                try:
+                    radar_db.actualizar_escaneo_db(
+                        app, job_id, status='error', error=str(ex)[:500], finished_at=_ahora_iso()
+                    )
+                except Exception:
+                    pass
             _emit(job, {'fase': 'error', 'error': str(ex), 'progreso': 0})
 
 
@@ -716,6 +840,7 @@ def crear_job(
     usuario: str,
     app,
     urls: list[str] | None = None,
+    guardar_resultados: bool = False,
 ) -> str:
     urls_ok = _parse_urls_input(url, urls)
     job_id = str(uuid.uuid4())
@@ -738,6 +863,8 @@ def crear_job(
         'cancelled': False,
         'url_final': '',
         'titulo': '',
+        'guardar_resultados': bool(guardar_resultados),
+        'persistido': False,
     }
     with _lock:
         _jobs[job_id] = job
@@ -747,6 +874,99 @@ def crear_job(
     return job_id
 
 
+def persistir_escaneo_en_maestro(app, job_id: str, *, usuario: str) -> dict[str, Any]:
+    """Guarda en BD + CSV maestro un escaneo que se hizo en solo lectura."""
+    with _erp_app_context(app):
+        job = get_job(job_id)
+        if not job:
+            return {'ok': False, 'error': 'job_no_encontrado'}
+        if job.get('status') not in ('completado',):
+            return {'ok': False, 'error': 'escaneo_no_finalizado'}
+        lineas = job.get('lineas') or []
+        if not lineas:
+            return {'ok': False, 'error': 'sin_lineas'}
+        if job.get('persistido'):
+            return {
+                'ok': True,
+                'ya_guardado': True,
+                'lineas': len(lineas),
+                'maestro_csv_total': job.get('maestro_csv_total'),
+            }
+
+        urls = job.get('urls') or [job.get('url') or '']
+        proveedor_id = job.get('proveedor_id')
+        proveedor_nombre = job.get('proveedor_nombre') or ''
+        if proveedor_id and not proveedor_nombre:
+            try:
+                pr = app.Proveedor.query.get(int(proveedor_id))
+                if pr:
+                    proveedor_nombre = (pr.nombre or '').strip()
+                    job['proveedor_nombre'] = proveedor_nombre
+            except Exception:
+                pass
+
+        try:
+            radar_db.crear_escaneo_db(
+                app,
+                job_id=job_id,
+                url=urls[0],
+                proveedor_id=proveedor_id,
+                usuario=usuario,
+            )
+            radar_db.actualizar_escaneo_db(
+                app,
+                job_id,
+                status='completado',
+                url_final=job.get('url_final'),
+                titulo=job.get('titulo'),
+                parser=job.get('parser'),
+                total=len(lineas),
+                finished_at=job.get('finished_at') or _ahora_iso(),
+            )
+        except Exception as ex:
+            _log.warning('Radar persistir escaneo DB: %s', ex)
+
+        guardadas = 0
+        url_base = job.get('url_final') or job.get('url') or ''
+        for i, ln in enumerate(lineas, start=1):
+            info = _persistir_linea_radar(
+                app,
+                job,
+                job_id,
+                indice=i,
+                linea=ln,
+                proveedor_id=proveedor_id,
+                proveedor_nombre=proveedor_nombre,
+                url_origen=url_base,
+            )
+            if info.get('ok'):
+                guardadas += 1
+
+        job['guardar_resultados'] = True
+        job['persistido'] = True
+
+        with _lock:
+            _historial.appendleft({
+                'job_id': job_id,
+                'url': urls[0],
+                'titulo': job.get('titulo'),
+                'total': len(lineas),
+                'parser': job.get('parser'),
+                'finished_at': job.get('finished_at'),
+                'mapeados': sum(1 for ln in lineas if ln.get('producto_id')),
+                'proveedor_id': proveedor_id,
+                'proveedor_nombre': proveedor_nombre,
+            })
+
+        return {
+            'ok': True,
+            'lineas': len(lineas),
+            'lineas_en_maestro': guardadas,
+            'maestro_csv_total': job.get('maestro_csv_total'),
+            'maestro_csv_path': job.get('maestro_csv_path'),
+        }
+
+
 def crear_job_y_stream(
     *,
     url: str,
@@ -754,8 +974,16 @@ def crear_job_y_stream(
     usuario: str,
     app,
     urls: list[str] | None = None,
+    guardar_resultados: bool = False,
 ):
-    job_id = crear_job(url=url, proveedor_id=proveedor_id, usuario=usuario, app=app, urls=urls)
+    job_id = crear_job(
+        url=url,
+        proveedor_id=proveedor_id,
+        usuario=usuario,
+        app=app,
+        urls=urls,
+        guardar_resultados=guardar_resultados,
+    )
     yield from iter_sse(job_id)
 
 

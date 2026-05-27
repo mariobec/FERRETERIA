@@ -788,20 +788,27 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
                   {% endif %}
                   <div class="min-w-0 flex-grow-1">
                 <span class="{% if pos_layout_fullwidth %}pos-line-desc{% endif %}" {% if pos_layout_fullwidth %}title="{{ d.producto.nombre|e }}"{% endif %}>{{ d.producto.nombre }}</span>
-                {% if f.vtex_product_id or f.link %}
+                {% if f.vtex_product_id or f.link or f.imagen_url or f.tiene_ficha %}
                 <div class="mt-1 d-flex align-items-center gap-1 flex-wrap">
-                  {% if f.link %}
-                  <a href="{{ f.link }}" target="_blank" rel="noopener" class="btn btn-link btn-sm p-0 text-info" title="Chilemat"
-                     onclick="window.open('{{ f.link }}','_blank','noopener'); return false;"><i class="fas fa-external-link-alt"></i></a>
-                  {% endif %}
-                  {% if f.vtex_product_id or f.tiene_ficha %}
                   <button type="button" class="btn btn-link btn-sm p-0 text-info btn-pos-ficha-modal"
                           data-producto-id="{{ d.id_producto }}"
                           {% if f.vtex_product_id %}data-vtex-id="{{ f.vtex_product_id }}"{% endif %}
-                          onclick="if(window.ChilematFicha){ {% if f.vtex_product_id %}ChilematFicha.open('{{ f.vtex_product_id }}'){% else %}ChilematFicha.openProducto('{{ d.id_producto }}'){% endif %}; } return false;"
-                          title="Ficha técnica"><i class="fas fa-image"></i></button>
+                          {% if f.imagen_url %}data-img-fallback="{{ f.imagen_url }}"{% endif %}
+                          title="Ver imagen y descripción"><i class="fas fa-image"></i></button>
+                  {% if f.link %}
+                  <button type="button" class="btn btn-link btn-sm p-0 text-info btn-pos-ficha-modal"
+                          data-producto-id="{{ d.id_producto }}"
+                          {% if f.vtex_product_id %}data-vtex-id="{{ f.vtex_product_id }}"{% endif %}
+                          data-chm-link="{{ f.link }}"
+                          title="Ficha Chilemat"><i class="fas fa-external-link-alt"></i></button>
                   {% endif %}
-                  <span class="small text-muted">{% if f.vtex_product_id %}VTEX {{ f.vtex_product_id }}{% endif %}{% if f.product_reference %} · Ref {{ f.product_reference }}{% endif %}</span>
+                  {% if f.vtex_product_id or f.product_reference %}
+                  <button type="button" class="btn btn-link btn-sm p-0 text-muted pos-cart-ficha-trigger border-0"
+                          data-producto-id="{{ d.id_producto }}"
+                          {% if f.vtex_product_id %}data-vtex-id="{{ f.vtex_product_id }}"{% endif %}>
+                    {% if f.vtex_product_id %}VTEX {{ f.vtex_product_id }}{% endif %}{% if f.product_reference %} · Ref {{ f.product_reference }}{% endif %}
+                  </button>
+                  {% endif %}
                 </div>
                 {% endif %}
                   </div>
@@ -1297,7 +1304,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
   'from_command_deck': false
 } | tojson }}</script>
 <script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-hdr-reloj-20260526"></script>
-<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-3"></script>
+<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-4"></script>
 <script>
 (function () {
   function wireFicha() {

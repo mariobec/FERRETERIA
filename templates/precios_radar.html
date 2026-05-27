@@ -50,6 +50,18 @@
   .badge-estado-aplicado { background: rgba(59, 130, 246, .15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, .35); }
   .ollama-pill.ok { color: #34d399; }
   .ollama-pill.off { color: #f87171; }
+  .radar-hero .select2-container--bootstrap-5 .select2-selection {
+    background-color: #0f172a !important;
+    border-color: #475569 !important;
+    color: #e2e8f0 !important;
+    min-height: 38px;
+  }
+  .radar-hero .select2-container--bootstrap-5 .select2-selection__placeholder {
+    color: #94a3b8 !important;
+  }
+  .radar-ayuda-mini summary { list-style: none; }
+  .radar-ayuda-mini summary::-webkit-details-marker { display: none; }
+  .radar-ayuda-mini[open] summary { margin-bottom: .35rem; }
 </style>
 {% endblock %}
 
@@ -76,13 +88,14 @@
     </div>
   </div>
 
-  <div class="alert alert-light border small mb-3">
-    <strong>Ayuda de cálculo</strong>:
-    costo actual = <code>precio_compra</code>;
-    margen actual = <code>(venta_actual - costo) / venta_actual</code>;
-    sugerido usa <code>_precio_sugerido_redondeado(costo, 0.30, 90)</code> en dashboard.
-    En el escaneo, <code>Δ%</code> compara precio web vs costo actual.
-  </div>
+  <details class="radar-ayuda-mini mb-2">
+    <summary class="small text-muted">
+      <i class="fas fa-circle-question me-1"></i> Ayuda Radar <span class="opacity-75">(clic para expandir)</span>
+    </summary>
+    <div class="small text-muted border-start ps-2 ms-1" style="border-color:#cbd5e1!important">
+      Proveedor nuevo: use <strong>Ficha completa</strong> (recomendado). Escaneo en solo lectura salvo que marque guardar.
+    </div>
+  </details>
 
   <div class="radar-hero p-3 p-md-4 mb-3">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -98,15 +111,48 @@
         <label class="form-label small text-muted mb-1">URL(s) del catálogo — una por línea (Chilemat, Sodimac, etc.)</label>
         <textarea id="providerLink" rows="3" class="form-control bg-dark text-white border-secondary font-monospace small"
                placeholder="https://www.chilemat.cl/categoria/herramientas&#10;https://www.sodimac.cl/s/herramientas"></textarea>
+        <div id="avisoImperial" class="alert alert-warning border-warning small py-2 mt-2 mb-0 d-none" role="alert">
+          <div class="fw-semibold">
+            <i class="fas fa-globe-americas me-1"></i> Imperial.cl — catálogo con JavaScript
+          </div>
+          <p class="mb-1 mt-1">
+            Este sitio <strong>no publica precios en el HTML simple</strong>. Radar debe abrir la página con
+            <strong>Playwright</strong> (navegador headless) para ver el listado.
+          </p>
+          <p class="mb-1" id="playwrightEstadoLinea">
+            {% if playwright_ok %}
+            <span class="text-success"><i class="fas fa-check-circle me-1"></i>Chromium listo (Playwright OK).</span>
+            {% elif playwright_pkg %}
+            <span class="text-danger"><i class="fas fa-times-circle me-1"></i>Paquete instalado pero falta Chromium — ejecute <code>playwright install chromium</code>.</span>
+            {% else %}
+            <span class="text-danger"><i class="fas fa-times-circle me-1"></i>Playwright no instalado — el escaneo fallará.</span>
+            {% endif %}
+          </p>
+          <code class="user-select-all d-block small bg-dark text-warning p-1 rounded">pip install playwright</code>
+          <code class="user-select-all d-block small bg-dark text-warning p-1 rounded mt-1">playwright install chromium</code>
+        </div>
       </div>
       <div class="col-lg-3">
-        <label class="form-label small text-muted mb-1">Proveedor ERP (opcional, mejora mapeo)</label>
-        <select id="proveedorId" class="form-select bg-dark text-white border-secondary">
-          <option value="">— Sin proveedor —</option>
-          {% for pr in proveedores %}
-          <option value="{{ pr.id }}">{{ pr.nombre }}</option>
-          {% endfor %}
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="form-label small text-muted mb-0">Proveedor ERP</label>
+          <a href="{{ url_for('mostrar_proveedores', origen='radar') }}" class="btn btn-link btn-sm text-warning p-0 text-decoration-none" title="Ficha completa del proveedor">
+            <i class="fas fa-truck me-1"></i>Ficha completa
+          </a>
+        </div>
+        <select id="proveedorId" class="form-select w-100" style="width:100%">
+          <option value=""></option>
         </select>
+        <details class="small mt-1 text-muted" style="font-size:.7rem">
+          <summary class="user-select-none" style="cursor:pointer">¿Solo tiene el nombre? Alta mínima</summary>
+          <div class="mt-1 d-flex gap-1">
+            <input type="text" id="npNombreRapido" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Nombre proveedor" maxlength="100">
+            <button type="button" class="btn btn-sm btn-outline-warning text-nowrap" id="btnNpRapido">Crear</button>
+          </div>
+          <span id="npRapidoError" class="text-danger d-none"></span>
+        </details>
+        <div class="small mt-1 d-none" id="badgeProveedorActivo">
+          <span class="badge bg-warning text-dark"><i class="fas fa-truck me-1"></i> Escaneo para: <span id="nombreProveedorActivo"></span></span>
+        </div>
       </div>
       <div class="col-lg-2">
         <button type="button" id="btnProcesar" class="btn btn-warning btn-lg w-100 fw-bold text-dark">
@@ -115,10 +161,23 @@
       </div>
     </div>
 
+    <div class="mt-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="chkGuardarAlEscanear">
+        <label class="form-check-label small text-muted" for="chkGuardarAlEscanear">
+          <strong>Guardar al escanear</strong> — escribe en CSV maestro e historial (desmarcado = solo ver precios, sin ensuciar el maestro)
+        </label>
+      </div>
+      <span class="badge bg-info text-dark mt-1 d-none" id="badgeModoLectura"><i class="fas fa-eye me-1"></i> Solo lectura activo</span>
+    </div>
+
     <div class="mt-3 d-none" id="boxProgreso">
-      <div class="d-flex justify-content-between small mb-1">
+      <div class="d-flex justify-content-between small mb-1 flex-wrap gap-1">
         <span id="progresoTexto" class="text-muted">Iniciando…</span>
-        <span id="progresoPct" class="fw-bold text-warning">0%</span>
+        <span>
+          <span class="text-success d-none" id="contadorGuardadoMaestro"><i class="fas fa-check-circle me-1"></i><span id="numGuardadoMaestro">0</span> guardados en maestro</span>
+          <span id="progresoPct" class="fw-bold text-warning ms-2">0%</span>
+        </span>
       </div>
       <div class="radar-progress"><div class="radar-progress-bar" id="barProgreso"></div></div>
     </div>
@@ -129,9 +188,9 @@
       <div class="small">
         <i class="fas fa-file-csv text-warning me-1"></i>
         <strong>Maestro acumulado</strong>
-        <span class="text-muted">— formato listo para <code>/cargar_productos</code></span>
+        <span class="text-muted">— histórico de escaneos <em>guardados</em> (no es este escaneo)</span>
         <div class="text-muted" style="font-size:.75rem">
-          <span id="maestroCsvTotal">{{ maestro_csv.total_filas or 0 }}</span> productos en
+          <span id="maestroCsvTotal">{{ maestro_csv.total_filas or 0 }}</span> filas totales en
           <code class="user-select-all">{{ maestro_csv.path }}</code>
         </div>
       </div>
@@ -150,10 +209,14 @@
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2 bg-white">
       <strong><i class="fas fa-list me-1 text-primary"></i> Resultados de este escaneo</strong>
       <div class="d-flex gap-2 flex-wrap align-items-center">
-        <span class="small text-muted" id="contadorLineas">0 productos (escaneo actual)</span>
+        <span class="small text-muted" id="contadorLineas">0 productos en este escaneo</span>
+        <span class="badge bg-light text-dark border d-none" id="badgeParserEscaneo"></span>
+        <button type="button" class="btn btn-sm btn-success d-none" id="btnGuardarEscaneo" disabled title="Pasar este escaneo al CSV maestro e historial">
+          <i class="fas fa-save me-1"></i> Guardar escaneo en maestro
+        </button>
         <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSelMapeados" disabled>Seleccionar mapeados</button>
-        <button type="button" class="btn btn-sm btn-primary" id="btnAplicar" disabled>
-          <i class="fas fa-database me-1"></i> Aplicar costos seleccionados
+        <button type="button" class="btn btn-sm btn-primary" id="btnAplicar" disabled title="Actualiza precio_compra en el ERP">
+          <i class="fas fa-database me-1"></i> Aplicar costos al ERP (selección)
         </button>
       </div>
     </div>
@@ -203,7 +266,7 @@
               <th>Código interno</th>
               <th class="text-end">Precio compra</th>
               <th>Categoría</th>
-              <th>Subcategoría</th>
+              <th>Proveedor (subcat.)</th>
             </tr>
           </thead>
           <tbody id="maestroPreviewBody">
@@ -235,6 +298,29 @@
   let maestroPage = 1;
   let maestroTotalPages = 1;
   const maestroPerPage = 50;
+  let numGuardadoMaestro = 0;
+  let proveedorActivoNombre = '';
+  let escaneoPersistido = false;
+  let guardarAlEscanear = false;
+  const playwrightOk = {{ playwright_ok|tojson }};
+
+  function urlsEnTexto(text) {
+    return (text || '').split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+  }
+
+  function urlRequierePlaywright(u) {
+    try {
+      const h = new URL(u).hostname.toLowerCase();
+      return h === 'imperial.cl' || h.endsWith('.imperial.cl');
+    } catch (_e) {
+      return /imperial\.cl/i.test(u || '');
+    }
+  }
+
+  function actualizarAvisoImperial() {
+    const hay = urlsEnTexto(document.getElementById('providerLink').value).some(urlRequierePlaywright);
+    document.getElementById('avisoImperial').classList.toggle('d-none', !hay);
+  }
 
   const fmtCLP = (n) => {
     if (n == null || n === '') return '—';
@@ -252,6 +338,35 @@
     return `<span class="badge ${cls}">${txt}</span>`;
   };
 
+  function actualizarBadgeProveedor(nombre) {
+    const badge = document.getElementById('badgeProveedorActivo');
+    if (nombre) {
+      document.getElementById('nombreProveedorActivo').textContent = nombre;
+      badge.classList.remove('d-none');
+    } else {
+      badge.classList.add('d-none');
+    }
+  }
+
+  function proveedorSeleccionado() {
+    const jq = window.jQuery || window.$;
+    const el = document.getElementById('proveedorId');
+    if (!el) return { id: '', nombre: '' };
+    const id = (jq && jq(el).val ? jq(el).val() : el.value) || '';
+    if (!id) return { id: '', nombre: '' };
+    let nombre = '';
+    if (jq && jq.fn && jq.fn.select2) {
+      const d = jq(el).select2('data');
+      const row = Array.isArray(d) ? d[0] : d;
+      nombre = (row && (row.nombre || row.text)) || '';
+    }
+    if (!nombre && el.selectedOptions && el.selectedOptions[0]) {
+      nombre = el.selectedOptions[0].textContent.trim();
+    }
+    if (nombre.includes(' · ')) nombre = nombre.split(' · ')[0].trim();
+    return { id: String(id), nombre };
+  }
+
   function resetUI() {
     document.getElementById('listaProductos').innerHTML = '';
     document.getElementById('boxProgreso').classList.remove('d-none');
@@ -262,7 +377,18 @@
     document.getElementById('btnAplicar').disabled = true;
     document.getElementById('btnSelMapeados').disabled = true;
     document.getElementById('chkTodos').disabled = true;
+    numGuardadoMaestro = 0;
+    escaneoPersistido = false;
+    document.getElementById('numGuardadoMaestro').textContent = '0';
+    document.getElementById('contadorGuardadoMaestro').classList.add('d-none');
+    document.getElementById('btnGuardarEscaneo').classList.add('d-none');
+    document.getElementById('btnGuardarEscaneo').disabled = true;
     Object.keys(lineasMap).forEach(k => delete lineasMap[k]);
+  }
+
+  function actualizarModoGuardadoUI() {
+    const guardar = document.getElementById('chkGuardarAlEscanear').checked;
+    document.getElementById('badgeModoLectura').classList.toggle('d-none', guardar);
   }
 
   function resetBoton() {
@@ -292,7 +418,7 @@
       <td class="p-3">${badgeEstado(linea.estado)}</td>`;
     tbody.appendChild(tr);
     const n = Object.keys(lineasMap).length;
-    document.getElementById('contadorLineas').textContent = n + ' producto' + (n !== 1 ? 's' : '') + ' (escaneo actual)';
+    document.getElementById('contadorLineas').textContent = n + ' producto' + (n !== 1 ? 's' : '') + ' en este escaneo';
     document.getElementById('btnSelMapeados').disabled = n === 0;
     document.getElementById('chkTodos').disabled = n === 0;
     document.getElementById('btnAplicar').disabled = n === 0;
@@ -340,6 +466,17 @@
       alert('Ingrese una URL válida (http o https).');
       return;
     }
+    const lineasUrl = urlsEnTexto(link);
+    if (lineasUrl.some(urlRequierePlaywright) && !playwrightOk) {
+      alert(
+        'Imperial.cl requiere Playwright en este equipo.\n\n' +
+        'Ejecute en la terminal del ERP:\n' +
+        'pip install playwright\n' +
+        'playwright install chromium\n\n' +
+        'Reinicie Flask y vuelva a escanear.'
+      );
+      return;
+    }
     if (eventSource) {
       eventSource.close();
       eventSource = null;
@@ -349,9 +486,11 @@
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Escaneando…';
     resetUI();
 
-    const proveedorId = document.getElementById('proveedorId').value;
-    const body = { url: link };
-    if (proveedorId) body.proveedor_id = parseInt(proveedorId, 10);
+    const prov = proveedorSeleccionado();
+    guardarAlEscanear = document.getElementById('chkGuardarAlEscanear').checked;
+    actualizarModoGuardadoUI();
+    const body = { url: link, guardar_resultados: guardarAlEscanear };
+    if (prov.id) body.proveedor_id = parseInt(prov.id, 10);
 
     try {
       const res = await fetch('{{ url_for("api_radar_iniciar") }}', {
@@ -368,6 +507,12 @@
       }
       jobId = data.job_id;
       document.getElementById('inputJobId').value = jobId;
+      proveedorActivoNombre = data.proveedor_nombre || prov.nombre || '';
+      actualizarBadgeProveedor(proveedorActivoNombre);
+      if (proveedorActivoNombre) {
+        document.getElementById('progresoTexto').textContent =
+          'Escaneando para proveedor: ' + proveedorActivoNombre + '…';
+      }
       eventSource = new EventSource('{{ url_for("api_radar_stream", job_id="__JOB__") }}'.replace('__JOB__', jobId));
 
       eventSource.onmessage = function (ev) {
@@ -398,21 +543,51 @@
         if (payload.linea) {
           agregarFila(payload.linea);
         }
-        if (payload.maestro_csv && payload.maestro_csv.total_filas != null) {
-          document.getElementById('maestroCsvTotal').textContent = payload.maestro_csv.total_filas;
+        if (payload.maestro_csv && payload.maestro_csv.ok && payload.guardar_resultados) {
+          numGuardadoMaestro += 1;
+          document.getElementById('numGuardadoMaestro').textContent = numGuardadoMaestro;
+          document.getElementById('contadorGuardadoMaestro').classList.remove('d-none');
+          if (payload.maestro_csv.total_filas != null) {
+            document.getElementById('maestroCsvTotal').textContent = payload.maestro_csv.total_filas;
+          }
         }
         if (payload.fase === 'listo') {
           eventSource.close();
           resetBoton();
-          document.getElementById('progresoTexto').textContent = 'Escaneo finalizado.';
-          if (payload.maestro_csv_total != null) {
+          escaneoPersistido = !!(payload.persistido || payload.guardar_resultados);
+          const nLineas = Object.keys(lineasMap).length;
+          const btnGuardar = document.getElementById('btnGuardarEscaneo');
+          if (!escaneoPersistido && nLineas > 0) {
+            btnGuardar.classList.remove('d-none');
+            btnGuardar.disabled = false;
+          } else {
+            btnGuardar.classList.add('d-none');
+          }
+          const nEste = payload.productos_este_escaneo != null
+            ? payload.productos_este_escaneo
+            : Object.keys(lineasMap).length;
+          const hist = document.getElementById('maestroCsvTotal').textContent;
+          let msgFin = 'Este escaneo: ' + nEste + ' producto(s) leídos de la web.';
+          if (!payload.guardar_resultados) {
+            msgFin += ' No se sumaron al maestro (solo lectura).';
+          } else if (payload.maestro_csv_total != null) {
+            msgFin += ' Maestro histórico: ' + payload.maestro_csv_total + ' filas.';
+          } else {
+            msgFin += ' Maestro histórico: ' + hist + ' filas (sin cambio).';
+          }
+          if (payload.aviso_parser) {
+            msgFin += ' ' + payload.aviso_parser;
+          }
+          if (payload.parser) {
+            const bp = document.getElementById('badgeParserEscaneo');
+            bp.textContent = 'Parser: ' + payload.parser;
+            bp.classList.remove('d-none');
+          }
+          if (payload.guardar_resultados && payload.maestro_csv_total != null) {
             document.getElementById('maestroCsvTotal').textContent = payload.maestro_csv_total;
+            cargarPreviewMaestro(1);
           }
-          if (payload.maestro_csv_path) {
-            document.getElementById('progresoTexto').textContent +=
-              ' CSV maestro: ' + payload.maestro_csv_total + ' filas.';
-          }
-          cargarPreviewMaestro(1);
+          document.getElementById('progresoTexto').textContent = msgFin;
         }
       };
 
@@ -426,8 +601,156 @@
     }
   }
 
+  document.getElementById('chkGuardarAlEscanear').addEventListener('change', actualizarModoGuardadoUI);
+  actualizarModoGuardadoUI();
+
+  document.getElementById('btnGuardarEscaneo').addEventListener('click', async function () {
+    if (!jobId) return;
+    if (!confirm('¿Guardar ' + Object.keys(lineasMap).length + ' productos en el CSV maestro e historial?')) return;
+    const btn = this;
+    btn.disabled = true;
+    try {
+      const res = await fetch('{{ url_for("api_radar_guardar_escaneo") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ job_id: jobId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        escaneoPersistido = true;
+        btn.classList.add('d-none');
+        if (data.maestro_csv_total != null) {
+          document.getElementById('maestroCsvTotal').textContent = data.maestro_csv_total;
+        }
+        alert('Guardado: ' + (data.lineas_en_maestro || data.lineas) + ' líneas en el maestro.');
+        cargarPreviewMaestro(1);
+      } else {
+        alert('No se pudo guardar: ' + (data.error || 'error'));
+        btn.disabled = false;
+      }
+    } catch (err) {
+      alert('Error: ' + err);
+      btn.disabled = false;
+    }
+  });
+
+  (function initProveedorSelect2() {
+    const jq = window.jQuery || window.$;
+    if (!jq || !jq.fn || !jq.fn.select2) return;
+    const $sel = jq('#proveedorId');
+    if (!$sel.length) return;
+
+    function fmtRow(row) {
+      if (!row.id) return row.text;
+      const $w = jq('<div></div>');
+      $w.append(jq('<div class="fw-semibold"></div>').text(row.nombre || row.text || ''));
+      const sub = [];
+      if (row.rut) sub.push(row.rut);
+      if (row.text && row.text.includes(' · ')) {
+        const parts = row.text.split(' · ').slice(1);
+        parts.forEach(p => { if (p && !sub.includes(p)) sub.push(p); });
+      }
+      if (sub.length) {
+        $w.append(jq('<div class="small text-muted"></div>').text(sub.join(' · ')));
+      }
+      return $w;
+    }
+
+    $sel.select2({
+      theme: 'bootstrap-5',
+      width: '100%',
+      placeholder: 'Escriba nombre, RUT o contacto…',
+      allowClear: true,
+      minimumInputLength: 2,
+      dropdownParent: jq('.radar-hero'),
+      language: {
+        inputTooShort: () => 'Mínimo 2 caracteres',
+        noResults: () => 'Sin proveedores',
+        searching: () => 'Buscando…',
+      },
+      ajax: {
+        url: '{{ url_for("api_radar_buscar_proveedores") }}',
+        dataType: 'json',
+        delay: 280,
+        data: (params) => ({ q: params.term }),
+        processResults: (data) => ({ results: data.results || [] }),
+        cache: true,
+      },
+      templateResult: fmtRow,
+      templateSelection: (row) => row.nombre || row.text || '',
+    });
+
+    $sel.on('select2:select', (e) => {
+      const d = e.params.data;
+      actualizarBadgeProveedor(d.nombre || d.text || '');
+    });
+    $sel.on('select2:clear', () => actualizarBadgeProveedor(''));
+
+    window._radarSeleccionarProveedor = function (row) {
+      const opt = new Option(row.text, row.id, true, true);
+      $sel.append(opt).trigger('change');
+      const d = $sel.select2('data');
+      const item = Array.isArray(d) ? d[0] : d;
+      if (item) {
+        item.nombre = row.nombre;
+        item.rut = row.rut;
+      }
+      actualizarBadgeProveedor(row.nombre || row.text);
+    };
+
+    {% if proveedor_preseleccionado %}
+    window._radarSeleccionarProveedor({{ proveedor_preseleccionado|tojson }});
+    {% endif %}
+  })();
+
+  document.getElementById('btnNpRapido').addEventListener('click', async function () {
+    const nombre = document.getElementById('npNombreRapido').value.trim();
+    const errEl = document.getElementById('npRapidoError');
+    errEl.classList.add('d-none');
+    if (!nombre) {
+      errEl.textContent = 'Escriba el nombre.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    this.disabled = true;
+    try {
+      const res = await fetch('{{ url_for("api_radar_crear_proveedor") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ nombre }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        errEl.textContent = data.error || 'Error al crear';
+        errEl.classList.remove('d-none');
+        return;
+      }
+      if (typeof window._radarSeleccionarProveedor === 'function') {
+        window._radarSeleccionarProveedor(data);
+      }
+      document.getElementById('npNombreRapido').value = '';
+      if (data.ya_existia) {
+        errEl.textContent = 'Ya existía; se seleccionó ese proveedor.';
+        errEl.classList.remove('d-none');
+      }
+    } catch (e) {
+      errEl.textContent = 'Error de red';
+      errEl.classList.remove('d-none');
+    } finally {
+      this.disabled = false;
+    }
+  });
+
   document.getElementById('btnProcesar').addEventListener('click', iniciarRadar);
-  document.getElementById('providerLink').addEventListener('keydown', function (e) {
+  const taUrl = document.getElementById('providerLink');
+  taUrl.addEventListener('input', actualizarAvisoImperial);
+  taUrl.addEventListener('change', actualizarAvisoImperial);
+  taUrl.addEventListener('paste', function () { setTimeout(actualizarAvisoImperial, 0); });
+  actualizarAvisoImperial();
+
+  taUrl.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { e.preventDefault(); iniciarRadar(); }
   });
 

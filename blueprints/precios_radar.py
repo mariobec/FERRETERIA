@@ -5,10 +5,12 @@ import json
 
 from flask import Response, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import or_
 
 from blueprints._app_ref import app_module
 from services import radar_precios_service as radar
 from services import radar_maestro_csv as radar_csv
+from services.radar_precios_fetch import playwright_chromium_listo, playwright_disponible
 
 
 def _wrap_radar(fn):
@@ -22,14 +24,130 @@ def _wrap_radar(fn):
 
 def precios_radar_index():
     m = app_module()
-    proveedores = m.Proveedor.query.order_by(m.Proveedor.nombre.asc()).limit(200).all()
     maestro = radar_csv.estadisticas_maestro_csv(m.app.root_path)
+    proveedor_preseleccionado = None
+    pid = request.args.get('proveedor_id', type=int)
+    if pid:
+        p = m.Proveedor.query.get(pid)
+        if p:
+            nombre = (p.nombre or '').strip()
+            meta = []
+            if (p.rut or '').strip():
+                meta.append(f'RUT {p.rut.strip()}')
+            text = nombre if not meta else f'{nombre} · {" · ".join(meta)}'
+            proveedor_preseleccionado = {
+                'id': p.id,
+                'text': text,
+                'nombre': nombre,
+                'rut': (p.rut or '').strip(),
+            }
     return render_template(
         'precios_radar.html',
-        proveedores=proveedores,
         ollama=radar.ollama_status(),
         maestro_csv=maestro,
+        proveedor_preseleccionado=proveedor_preseleccionado,
+        playwright_ok=playwright_chromium_listo(),
+        playwright_pkg=playwright_disponible(),
     )
+
+
+def api_radar_buscar_proveedores():
+    """Select2 AJAX — nombre, RUT, contacto, email, teléfono."""
+    m = app_module()
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+    like = f'%{q}%'
+    filas = (
+        m.Proveedor.query.filter(
+            or_(
+                m.Proveedor.nombre.ilike(like),
+                m.Proveedor.rut.ilike(like),
+                m.Proveedor.contacto.ilike(like),
+                m.Proveedor.email.ilike(like),
+                m.Proveedor.telefono.ilike(like),
+            )
+        )
+        .order_by(m.Proveedor.nombre.asc())
+        .limit(30)
+        .all()
+    )
+    results = []
+    for p in filas:
+        nombre = (p.nombre or '').strip()
+        meta = []
+        if (p.rut or '').strip():
+            meta.append(f'RUT {p.rut.strip()}')
+        if (p.contacto or '').strip():
+            meta.append(p.contacto.strip())
+        elif (p.email or '').strip():
+            meta.append(p.email.strip())
+        text = nombre if not meta else f'{nombre} · {" · ".join(meta)}'
+        results.append({
+            'id': p.id,
+            'text': text,
+            'nombre': nombre,
+            'rut': (p.rut or '').strip(),
+        })
+    return jsonify({'results': results})
+
+
+def api_radar_crear_proveedor():
+    """Alta rápida desde Radar (nombre obligatorio). Si ya existe, devuelve el existente."""
+    m = app_module()
+    data = request.get_json(silent=True) or {}
+    nombre = (data.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'ok': False, 'error': 'nombre_requerido'}), 400
+    if len(nombre) > 100:
+        return jsonify({'ok': False, 'error': 'nombre_demasiado_largo'}), 400
+
+    exist = m.Proveedor.query.filter(m.Proveedor.nombre.ilike(nombre)).first()
+    if exist:
+        nombre_ex = (exist.nombre or '').strip()
+        meta = []
+        if (exist.rut or '').strip():
+            meta.append(f'RUT {exist.rut.strip()}')
+        text = nombre_ex if not meta else f'{nombre_ex} · {" · ".join(meta)}'
+        return jsonify({
+            'ok': True,
+            'id': exist.id,
+            'text': text,
+            'nombre': nombre_ex,
+            'rut': (exist.rut or '').strip(),
+            'ya_existia': True,
+        })
+
+    rut = (data.get('rut') or '').strip() or None
+    contacto = (data.get('contacto') or '').strip() or None
+    telefono = (data.get('telefono') or '').strip() or None
+    email = (data.get('email') or '').strip() or None
+    prov = m.Proveedor(
+        nombre=nombre,
+        rut=rut,
+        contacto=contacto,
+        telefono=telefono,
+        email=email,
+    )
+    m.db.session.add(prov)
+    m.db.session.commit()
+    try:
+        m.guardar_canal_compra_proveedor(prov.id, 'manual')
+    except Exception:
+        pass
+
+    meta = []
+    if rut:
+        meta.append(f'RUT {rut}')
+    text = nombre if not meta else f'{nombre} · {" · ".join(meta)}'
+    return jsonify({
+        'ok': True,
+        'id': prov.id,
+        'text': text,
+        'nombre': nombre,
+        'rut': rut or '',
+        'ya_existia': False,
+    })
 
 
 def precios_radar_dashboard():
@@ -44,6 +162,11 @@ def api_radar_iniciar():
     url = (data.get('url') or request.form.get('url') or '').strip()
     urls_extra = data.get('urls') or []
     proveedor_id = data.get('proveedor_id') or request.form.get('proveedor_id')
+    guardar_resultados = data.get('guardar_resultados')
+    if guardar_resultados is None:
+        guardar_resultados = request.form.get('guardar_resultados') in ('1', 'true', 'on', 'yes')
+    else:
+        guardar_resultados = bool(guardar_resultados)
     try:
         proveedor_id = int(proveedor_id) if proveedor_id not in (None, '', '0') else None
     except (TypeError, ValueError):
@@ -57,8 +180,20 @@ def api_radar_iniciar():
             proveedor_id=proveedor_id,
             usuario=getattr(current_user, 'nombre', None) or 'usuario',
             app=m,
+            guardar_resultados=guardar_resultados,
         )
-        return jsonify({'ok': True, 'job_id': job_id})
+        proveedor_nombre = ''
+        if proveedor_id:
+            pr = m.Proveedor.query.get(proveedor_id)
+            if pr:
+                proveedor_nombre = (pr.nombre or '').strip()
+        return jsonify({
+            'ok': True,
+            'job_id': job_id,
+            'proveedor_id': proveedor_id,
+            'proveedor_nombre': proveedor_nombre,
+            'guardar_resultados': guardar_resultados,
+        })
     except ValueError as ex:
         return jsonify({'ok': False, 'error': str(ex)}), 400
     except Exception as ex:
@@ -70,6 +205,7 @@ def api_radar_ejecutar():
     m = app_module()
     url = (request.args.get('url') or '').strip()
     proveedor_id = request.args.get('proveedor_id')
+    guardar_resultados = request.args.get('guardar') in ('1', 'true', 'yes', 'on')
     try:
         proveedor_id = int(proveedor_id) if proveedor_id not in (None, '', '0') else None
     except (TypeError, ValueError):
@@ -86,6 +222,7 @@ def api_radar_ejecutar():
                 proveedor_id=proveedor_id,
                 usuario=getattr(current_user, 'nombre', None) or 'usuario',
                 app=m,
+                guardar_resultados=guardar_resultados,
             ):
                 yield chunk
         except ValueError as ex:
@@ -127,7 +264,29 @@ def api_radar_estado(job_id):
         'lineas': job.get('lineas') or [],
         'url_final': job.get('url_final'),
         'titulo': job.get('titulo'),
+        'proveedor_id': job.get('proveedor_id'),
+        'proveedor_nombre': job.get('proveedor_nombre') or '',
+        'maestro_csv_total': job.get('maestro_csv_total'),
+        'maestro_csv_path': job.get('maestro_csv_path'),
+        'guardar_resultados': bool(job.get('guardar_resultados')),
+        'persistido': bool(job.get('persistido')),
     })
+
+
+def api_radar_guardar_escaneo():
+    m = app_module()
+    data = request.get_json(silent=True) or {}
+    job_id = (data.get('job_id') or '').strip()
+    if not job_id:
+        return jsonify({'ok': False, 'error': 'job_id_requerido'}), 400
+    res = radar.persistir_escaneo_en_maestro(
+        m,
+        job_id,
+        usuario=getattr(current_user, 'nombre', None) or 'usuario',
+    )
+    if not res.get('ok'):
+        return jsonify(res), 400
+    return jsonify(res)
 
 
 def api_radar_ollama():
@@ -245,6 +404,18 @@ def register_precios_radar_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/api/precios/radar/proveedores/buscar',
+        'api_radar_buscar_proveedores',
+        _wrap_radar(api_radar_buscar_proveedores),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/precios/radar/proveedores/crear',
+        'api_radar_crear_proveedor',
+        _wrap_radar(api_radar_crear_proveedor),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/api/precios/radar/maestro',
         'api_radar_maestro_estado',
         _wrap_radar(api_radar_maestro_estado),
@@ -261,6 +432,12 @@ def register_precios_radar_routes(app):
         'precios_radar_descargar_maestro',
         _wrap_radar(precios_radar_descargar_maestro),
         methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/precios/radar/guardar',
+        'api_radar_guardar_escaneo',
+        _wrap_radar(api_radar_guardar_escaneo),
+        methods=['POST'],
     )
     app.add_url_rule(
         '/api/precios/radar/aplicar',

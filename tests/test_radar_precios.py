@@ -19,6 +19,24 @@ def test_validar_url_rechaza_localhost():
         validar_url_publica('http://127.0.0.1/lista')
 
 
+@pytest.mark.smoke
+def test_fetch_electrocom_ssl_relaxed(monkeypatch):
+    """electrocom.cl falla verify=True en Windows; lista relajada debe permitir descarga."""
+    from services.radar_precios_fetch import fetch_public_html
+
+    monkeypatch.setenv(
+        'RADAR_FETCH_SSL_RELAXED_HOSTS',
+        'electrocom.cl,www.electrocom.cl',
+    )
+    monkeypatch.setenv('RADAR_FETCH_SSL_VERIFY', '1')
+    url = 'https://electrocom.cl/lineas/9/instalacion-residencial'
+    res = fetch_public_html(url)
+    if not res.get('ok'):
+        pytest.skip(f'Red no disponible o sitio caído: {res.get("error")}')
+    assert len(res.get('html') or '') > 1000
+    assert res.get('ssl_relaxed') is True
+
+
 def test_parse_json_ld_product():
     html = '''
     <script type="application/ld+json">
@@ -29,6 +47,21 @@ def test_parse_json_ld_product():
     assert len(items) == 1
     assert items[0]['descripcion_producto'] == 'Martillo 16oz'
     assert items[0]['precio'] == 8990
+
+
+def test_parse_imperial_occ_state():
+    from pathlib import Path
+
+    from services.radar_precios_fetch import parse_imperial_occ_state
+
+    p = Path(__file__).resolve().parents[1] / 'respaldos/imperial_playwright.html'
+    if not p.is_file():
+        pytest.skip('sin html de prueba imperial')
+    html = p.read_text(encoding='utf-8')
+    items = parse_imperial_occ_state(html)
+    assert len(items) >= 10
+    assert any('Cepillo' in (i.get('descripcion_producto') or '') for i in items)
+    assert items[0]['precio'] > 1000
 
 
 def test_extraer_heuristica_precio():
@@ -93,12 +126,48 @@ def test_radar_maestro_csv_acumula(tmp_path):
     assert r2['total_filas'] == 1
     assert r2['fila']['precio_compra'] == '15990'
 
+    r3 = mc.append_linea_maestro_csv(
+        sku_proveedor='CH-9910',
+        descripcion='Pala Punta Huevo',
+        precio_lista_clp=13990,
+        url='https://www.chilemat.cl/cat',
+        proveedor_nombre='Proveedor Test A',
+        proveedor_id=101,
+        erp_root=root,
+    )
+    assert r3['accion'] == 'nuevo'
+    assert r3['total_filas'] == 2
+    assert r3['fila']['codigo_chilemat'] == 'PRV101-CH-9910'
+    assert r3['fila']['subcategoria'].startswith('Proveedor:')
+
     stats = mc.estadisticas_maestro_csv(root)
-    assert stats['total_filas'] == 1
+    assert stats['total_filas'] == 2
     path = mc.ruta_maestro_csv(root)
     text = path.read_text(encoding='utf-8-sig')
     assert 'nombre,codigo_chilemat' in text.splitlines()[0]
     assert 'Pala Punta Huevo Premium' in text
+
+
+def test_crear_job_solo_lectura_por_defecto(monkeypatch):
+    from services import radar_precios_service as svc
+
+    started = {}
+
+    def fake_run(app, job_id):
+        started['job_id'] = job_id
+
+    monkeypatch.setattr(svc, '_run_job', fake_run)
+    job_id = svc.crear_job(
+        url='https://example.com/cat',
+        proveedor_id=None,
+        usuario='test',
+        app=object(),
+        guardar_resultados=False,
+    )
+    job = svc.get_job(job_id)
+    assert job is not None
+    assert job.get('guardar_resultados') is False
+    assert job.get('persistido') is False
 
 
 @pytest.mark.smoke
@@ -106,6 +175,36 @@ def test_ruta_precios_radar_ok_admin(app_client):
     r = app_client.get('/precios/radar', follow_redirects=False)
     assert r.status_code == 200
     assert b'Radar Precios' in r.data or b'radar' in r.data.lower()
+
+
+def test_api_radar_crear_proveedor(app_client, app_ctx):
+    from blueprints._app_ref import app_module
+
+    m = app_module()
+    ts = __import__('time').time()
+    nombre = f'QA Radar Prov {int(ts)}'
+    r = app_client.post(
+        '/api/precios/radar/proveedores/crear',
+        json={'nombre': nombre, 'rut': '76.000.000-0'},
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get('ok') is True
+    assert data.get('id')
+    prov = m.Proveedor.query.get(data['id'])
+    assert prov is not None
+    assert prov.nombre == nombre
+    m.db.session.delete(prov)
+    m.db.session.commit()
+
+
+@pytest.mark.smoke
+def test_api_radar_buscar_proveedores(app_client, proveedor_test):
+    r = app_client.get('/api/precios/radar/proveedores/buscar?q=TEST')
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get('results')
+    assert any('TEST' in (x.get('text') or '').upper() for x in data['results'])
 
 
 @pytest.mark.smoke

@@ -1,41 +1,60 @@
-{# Miniatura + accesos ficha Chilemat (carrito POS) #}
+{# Miniatura + ficha producto (carrito POS) — clic abre modal imagen + descripción #}
 {% set f = (pos_producto_ficha or {}).get(d.id_producto, {}) %}
 {% set img = (f.imagen_url or '')|trim %}
 {% set vtex = (f.vtex_product_id or '')|trim %}
 {% set ref = (f.product_reference or '')|trim %}
 {% set link = (f.link or '')|trim %}
-<div class="pos-cart-card__media" aria-label="Imagen y ficha del producto">
+{% set pid = d.id_producto %}
+<div class="pos-cart-card__media pos-cart-ficha-host"
+     data-producto-id="{{ pid }}"
+     {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
+     {% if img %}data-img-fallback="{{ img }}"{% endif %}
+     {% if link %}data-chm-link="{{ link }}"{% endif %}
+     aria-label="Imagen y ficha del producto">
   {% if img %}
-  <img src="{{ img }}" alt="" class="pos-cart-thumb" loading="lazy" decoding="async"
-       onerror="this.classList.add('is-broken'); this.removeAttribute('src');">
+  <button type="button" class="pos-cart-thumb pos-cart-ficha-thumb border-0 p-0"
+          data-producto-id="{{ pid }}"
+          {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
+          data-img-fallback="{{ img }}"
+          title="Ver imagen ampliada y descripción" aria-label="Ver ficha del producto">
+    <img src="{{ img }}" alt="" class="pos-cart-thumb__img" loading="lazy" decoding="async"
+         onerror="this.closest('.pos-cart-ficha-thumb').classList.add('is-broken');">
+  </button>
   {% else %}
-  <div class="pos-cart-thumb pos-cart-thumb--empty" title="Sin imagen en catálogo">
+  <button type="button" class="pos-cart-thumb pos-cart-thumb--empty pos-cart-ficha-thumb border-0"
+          data-producto-id="{{ pid }}"
+          {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
+          title="Ver ficha del producto" aria-label="Ver ficha del producto">
     <i class="fas fa-box" aria-hidden="true"></i>
-  </div>
+  </button>
   {% endif %}
   <div class="pos-cart-card__ficha-actions">
-    {% if link %}
-    <a href="{{ link }}" target="_blank" rel="noopener noreferrer" class="pos-cart-ficha-btn"
-       onclick="window.open('{{ link }}','_blank','noopener'); return false;"
-       title="Ver en chilemat.com" aria-label="Abrir ficha en Chilemat">
-      <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-    </a>
-    {% endif %}
-    {% if vtex or f.tiene_ficha %}
     <button type="button" class="pos-cart-ficha-btn btn-pos-ficha-modal"
-            data-producto-id="{{ d.id_producto }}"
+            data-producto-id="{{ pid }}"
             {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
-            onclick="if(window.ChilematFicha){ {% if vtex %}ChilematFicha.open('{{ vtex }}'){% else %}ChilematFicha.openProducto('{{ d.id_producto }}'){% endif %}; } return false;"
-            title="Ficha técnica e imagen" aria-label="Ver ficha técnica">
+            {% if img %}data-img-fallback="{{ img }}"{% endif %}
+            {% if link %}data-chm-link="{{ link }}"{% endif %}
+            title="Ver imagen y descripción del producto" aria-label="Ficha del producto">
       <i class="fas fa-image" aria-hidden="true"></i>
+    </button>
+    {% if link %}
+    <button type="button" class="pos-cart-ficha-btn btn-pos-ficha-modal btn-pos-ficha-modal--link"
+            data-producto-id="{{ pid }}"
+            {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
+            data-chm-link="{{ link }}"
+            title="Ficha web Chilemat" aria-label="Ficha Chilemat">
+      <i class="fas fa-external-link-alt" aria-hidden="true"></i>
     </button>
     {% endif %}
   </div>
   {% if vtex or ref %}
-  <div class="pos-cart-card__chm-ref small text-muted">
+  <button type="button" class="pos-cart-card__chm-ref pos-cart-ficha-trigger small text-muted border-0 bg-transparent p-0"
+          data-producto-id="{{ pid }}"
+          {% if vtex %}data-vtex-id="{{ vtex }}"{% endif %}
+          title="Ver ficha del producto">
     {% if vtex %}<span>VTEX {{ vtex }}</span>{% endif %}
     {% if vtex and ref %}<span class="pos-cart-card__meta-sep">·</span>{% endif %}
     {% if ref %}<span>Ref {{ ref }}</span>{% endif %}
-  </div>
+  </button>
   {% endif %}
 </div>

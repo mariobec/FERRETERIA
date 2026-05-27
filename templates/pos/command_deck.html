@@ -91,16 +91,17 @@
           <div class="fw-bold small">{{ d.producto.nombre }}</div>
           <div class="text-secondary small d-flex align-items-center gap-1 flex-wrap">
             <span>{{ d.producto.codigo_barra }}</span>
-            {% if fdeck.link %}
-            <a href="{{ fdeck.link }}" target="_blank" rel="noopener" class="text-info" title="Chilemat"
-               onclick="window.open('{{ fdeck.link }}','_blank','noopener'); return false;"><i class="fas fa-external-link-alt"></i></a>
-            {% endif %}
-            {% if fdeck.vtex_product_id or fdeck.tiene_ficha %}
             <button type="button" class="btn btn-link btn-sm p-0 text-info btn-pos-ficha-modal"
                     data-producto-id="{{ d.id_producto }}"
                     {% if fdeck.vtex_product_id %}data-vtex-id="{{ fdeck.vtex_product_id }}"{% endif %}
-                    onclick="if(window.ChilematFicha){ {% if fdeck.vtex_product_id %}ChilematFicha.open('{{ fdeck.vtex_product_id }}'){% else %}ChilematFicha.openProducto('{{ d.id_producto }}'){% endif %}; } return false;"
-                    title="Ficha"><i class="fas fa-image"></i></button>
+                    {% if img %}data-img-fallback="{{ img }}"{% endif %}
+                    title="Ver ficha"><i class="fas fa-image"></i></button>
+            {% if fdeck.link %}
+            <button type="button" class="btn btn-link btn-sm p-0 text-info btn-pos-ficha-modal"
+                    data-producto-id="{{ d.id_producto }}"
+                    {% if fdeck.vtex_product_id %}data-vtex-id="{{ fdeck.vtex_product_id }}"{% endif %}
+                    data-chm-link="{{ fdeck.link }}"
+                    title="Ficha Chilemat"><i class="fas fa-external-link-alt"></i></button>
             {% endif %}
           </div>
           {% if pos_retiro_por_linea %}
@@ -287,7 +288,7 @@
 <script src="{{ url_for('static', filename='js/bootstrap.bundle.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/select2/select2.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-hud-focus-20260525"></script>
-<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-3"></script>
+<script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-4"></script>
 <script src="{{ url_for('static', filename='js/pos-command-deck.js') }}"></script>
 <script>
 (function () {

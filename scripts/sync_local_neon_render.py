@@ -78,7 +78,12 @@ ORDER_PREFIX = [
     "clientes",
     "caja",
     "proveedores",
+    "catalogo_categorias",
+    "catalogo_subcategorias",
+    "chilemat_categoria",
     "productos",
+    "producto_codigo_proveedor",
+    "producto_relacion",
     "stock_por_almacen",
     "movimientos_inventario",
     "ventas",
@@ -138,10 +143,8 @@ def sync_data(src_url: str, dst_url: str) -> None:
         tables = _forzar_orden_parent_child(tables)
 
         with dst.cursor() as cur:
-            replica_role_set = False
             try:
                 cur.execute("SET session_replication_role = replica;")
-                replica_role_set = True
             except Exception as ex:
                 dst.rollback()
                 print(f"warn: replica_role_no_aplicado:{ex}", flush=True)
@@ -149,18 +152,14 @@ def sync_data(src_url: str, dst_url: str) -> None:
                 ", ".join(f'"{t}"' for t in tables)
             )
             cur.execute(trunc)
+        dst.commit()
 
         for t in tables:
             rows, _ = _copy_table_custom(src, dst, t)
+            dst.commit()
             print(f"sync:{t}:{rows}", flush=True)
 
         _restaurar_relaciones_cotizacion_venta(src, dst)
-
-        with dst.cursor() as cur:
-            try:
-                cur.execute("SET session_replication_role = origin;")
-            except Exception:
-                pass
         dst.commit()
         src.commit()
         print("sync_completed", flush=True)

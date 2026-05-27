@@ -1745,7 +1745,8 @@ def usuario_requiere_cambio_clave(usuario):
 
 _NAV_MAP = [
     {
-        'id': 'ventas', 'label': 'Ventas', 'icon': 'fa-cart-shopping', 'modulo': 'ventas',
+        'id': 'ventas_mostrador', 'label': 'Ventas y mostrador', 'icon': 'fa-cart-shopping', 'modulo': 'ventas',
+        'permisos_grupo': ['pos_emitir_vale', 'gestionar_usuarios'],
         'items': [
             {'label': 'Punto de venta', 'icon': 'fa-cash-register', 'endpoint': 'punto_venta',
              'permisos': ['pos_emitir_vale'],
@@ -1754,18 +1755,12 @@ _NAV_MAP = [
              'permisos': ['pos_emitir_vale'],
              'endpoints_activos': ['cotizaciones_lista', 'cotizacion_nueva', 'cotizacion_detalle']},
             {'label': 'Historial ventas', 'icon': 'fa-shopping-cart', 'endpoint': 'mostrar_ventas',
-             'permisos': [],
+             'permisos': ['pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios'],
              'endpoints_activos': ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta']},
-            {'label': 'Créditos y cartolas', 'icon': 'fa-hand-holding-usd', 'endpoint': 'modulo_creditos',
-             'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
-             'endpoints_activos': ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'estado_cuenta_credito_resumen_imprimible', 'registrar_abono', 'ver_ticket_abono']},
-            {'label': 'Cobranza cuotas (WA)', 'icon': 'fa-whatsapp fa-brands', 'endpoint': 'cobranza_cuotas',
-             'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
-             'endpoints_activos': ['cobranza_cuotas', 'api_creditos_cobranza_sugerencias']},
         ],
     },
     {
-        'id': 'caja', 'label': 'Caja', 'icon': 'fa-cash-register', 'modulo': 'caja',
+        'id': 'caja_tesoreria', 'label': 'Caja y tesorería', 'icon': 'fa-cash-register', 'modulo': 'caja',
         'permisos_grupo': ['caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar', 'gestionar_usuarios'],
         'items': [
             {'label': 'Vales pendientes', 'icon': 'fa-file-invoice-dollar', 'endpoint': 'caja_pendientes',
@@ -1788,47 +1783,65 @@ _NAV_MAP = [
         ],
     },
     {
-        'id': 'inventario', 'label': 'Inventario y Abastecimiento', 'icon': 'fa-boxes-stacked', 'modulo': 'inventario',
-        'permisos_grupo': ['ver_inventario', 'admin_inventario', 'bodega_operador', 'gestionar_compras', 'gestionar_usuarios'],
+        'id': 'credito_cobranza', 'label': 'Crédito y cobranza', 'icon': 'fa-hand-holding-usd', 'modulo': 'ventas',
+        'permisos_grupo': ['ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios'],
         'items': [
-            {'label': 'Productos', 'icon': 'fa-boxes', 'endpoint': 'mostrar_productos',
-             'permisos': ['ver_inventario', 'admin_inventario'],
-             'endpoints_activos': ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos']},
-            {'label': 'Panel inventario', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_dashboard_premium',
-             'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario'],
-             'endpoints_activos': ['inventario_dashboard_premium']},
+            {'label': 'Créditos y cartolas', 'icon': 'fa-hand-holding-usd', 'endpoint': 'modulo_creditos',
+             'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
+             'endpoints_activos': ['modulo_creditos', 'estado_cuenta_credito', 'estado_cuenta_credito_pdf', 'estado_cuenta_credito_boucher', 'estado_cuenta_credito_resumen_imprimible', 'registrar_abono', 'ver_ticket_abono']},
+            {'label': 'Cobranza cuotas (WA)', 'icon': 'fa-whatsapp fa-brands', 'endpoint': 'cobranza_cuotas',
+             'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
+             'endpoints_activos': ['cobranza_cuotas', 'api_creditos_cobranza_sugerencias']},
+        ],
+    },
+    {
+        'id': 'bodega_despacho', 'label': 'Bodega y despacho', 'icon': 'fa-warehouse', 'modulo': 'inventario',
+        'permisos_grupo': ['bodega_operador', 'ver_inventario', 'admin_inventario', 'gestionar_usuarios'],
+        'items': [
+            {'label': 'Consulta rápida de stock', 'icon': 'fa-magnifying-glass-chart', 'endpoint': 'consulta_stock_publica',
+             'permisos': [], 'endpoints_activos': ['consulta_stock_publica']},
+            {'label': 'Cuadro de mando bodega', 'icon': 'fa-gauge-high', 'endpoint': 'bodega_cuadro_mando',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_cuadro_mando']},
+            {'label': 'Plataforma de retiro', 'icon': 'fa-clipboard-list', 'endpoint': 'bodega_plataforma',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_plataforma', 'bodega_vale_retiro']},
+            {'label': 'Despachos por voz', 'icon': 'fa-microphone', 'endpoint': 'bodega_despachos',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_despachos']},
+            {'label': 'Despacho ticket (QR)', 'icon': 'fa-qrcode', 'endpoint': 'bodega_despacho_qr_vales',
+             'permisos': ['bodega_operador'],
+             'endpoints_activos': ['bodega_despacho_qr_vales']},
+        ],
+    },
+    {
+        'id': 'inventario_compras', 'label': 'Inventario y compras', 'icon': 'fa-boxes-stacked', 'modulo': 'inventario',
+        'permisos_grupo': ['ver_inventario', 'admin_inventario', 'gestionar_compras', 'enrolamiento_inventario', 'gestionar_usuarios'],
+        'items': [
             {'label': 'Enrolamiento inventario', 'icon': 'fa-barcode', 'endpoint': 'inventario_enrolamiento',
              'permisos': ['enrolamiento_inventario', 'admin_inventario'],
              'endpoints_activos': ['inventario_enrolamiento'], 'requiere_endpoint': 'inventario_enrolamiento'},
             {'label': 'Salud inventario', 'icon': 'fa-heartbeat', 'endpoint': 'inventario_salud',
              'permisos': ['enrolamiento_inventario', 'admin_inventario'],
              'endpoints_activos': ['inventario_salud'], 'requiere_endpoint': 'inventario_salud'},
-            {'label': 'Stock crítico', 'icon': 'fa-triangle-exclamation', 'endpoint': 'stock_critico',
-             'permisos': ['ver_inventario', 'admin_inventario'],
-             'endpoints_activos': ['stock_critico']},
+            {'label': 'Panel inventario', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_dashboard_premium',
+             'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario'],
+             'endpoints_activos': ['inventario_dashboard_premium']},
             {'label': 'Kardex', 'icon': 'fa-clipboard-list', 'endpoint': 'kardex',
              'permisos': ['ver_inventario', 'admin_inventario'],
              'endpoints_activos': ['kardex']},
-            {'label': 'Consulta stock', 'icon': 'fa-magnifying-glass-chart', 'endpoint': 'consulta_stock_publica',
-             'permisos': [], 'endpoints_activos': ['consulta_stock_publica']},
-            {'label': 'Cuadro de mando bodega', 'icon': 'fa-gauge-high', 'endpoint': 'bodega_cuadro_mando',
-             'permisos': ['bodega_operador'],
-             'endpoints_activos': ['bodega_cuadro_mando']},
-            {'label': 'Plataforma retiro bodega', 'icon': 'fa-clipboard-list', 'endpoint': 'bodega_plataforma',
-             'permisos': ['bodega_operador'],
-             'endpoints_activos': ['bodega_plataforma', 'bodega_vale_retiro']},
-            {'label': 'Despachos bodega (voz)', 'icon': 'fa-microphone', 'endpoint': 'bodega_despachos',
-             'permisos': ['bodega_operador'],
-             'endpoints_activos': ['bodega_despachos']},
-            {'label': 'Despacho ticket (QR)', 'icon': 'fa-qrcode', 'endpoint': 'bodega_despacho_qr_vales',
-             'permisos': ['bodega_operador'],
-             'endpoints_activos': ['bodega_despacho_qr_vales']},
+            {'label': 'Catálogo e inventario base', 'icon': 'fa-boxes', 'endpoint': 'mostrar_productos',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos']},
+            {'label': 'Stock crítico', 'icon': 'fa-triangle-exclamation', 'endpoint': 'stock_critico',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['stock_critico']},
+            {'label': 'Órdenes de compra', 'icon': 'fa-file-contract', 'endpoint': 'lista_ordenes_compra',
+             'permisos': ['gestionar_compras', 'admin_inventario'],
+             'endpoints_activos': ['lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar']},
             {'label': 'Recepciones', 'icon': 'fa-dolly', 'endpoint': 'lista_recepciones',
              'permisos': ['gestionar_compras', 'ver_inventario', 'admin_inventario'],
              'endpoints_activos': ['lista_recepciones', 'nueva_recepcion', 'detalle_recepcion']},
-            {'label': 'Órdenes compra', 'icon': 'fa-file-contract', 'endpoint': 'lista_ordenes_compra',
-             'permisos': ['gestionar_compras', 'admin_inventario'],
-             'endpoints_activos': ['lista_ordenes_compra', 'orden_compra_nueva', 'orden_compra_editar']},
             {'label': 'Proveedores', 'icon': 'fa-truck', 'endpoint': 'mostrar_proveedores',
              'permisos': ['gestionar_compras', 'admin_inventario'],
              'endpoints_activos': ['mostrar_proveedores', 'guardar_proveedor']},
@@ -1838,47 +1851,15 @@ _NAV_MAP = [
         ],
     },
     {
-        'id': 'gerencia', 'label': 'Gerencia y dueño', 'icon': 'fa-briefcase',
-        'permisos_grupo': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+        'id': 'precios_chilemat', 'label': 'Precios y Chilemat', 'icon': 'fa-chart-line', 'modulo': 'bi',
+        'permisos_grupo': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'ver_gerencia', 'admin_inventario', 'panel_gerencia'],
         'items': [
-            {'label': 'Panel ejecutivo', 'icon': 'fa-chart-pie', 'endpoint': 'panel_dueno',
-             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
-             'endpoints_activos': ['panel_dueno']},
-            {'label': 'Analítica web', 'icon': 'fa-chart-area', 'endpoint': 'gerencia_analitica_web',
-             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
-             'endpoints_activos': ['gerencia_analitica_web']},
-            {'label': 'Reporte horas proyecto', 'icon': 'fa-clock-rotate-left', 'endpoint': 'gerencia_registro_horas',
-             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
-             'endpoints_activos': ['gerencia_registro_horas']},
-            {'label': 'SEO y rankings', 'icon': 'fa-magnifying-glass-chart', 'endpoint': 'gerencia_seo_rankings',
-             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
-             'endpoints_activos': ['gerencia_seo_rankings', 'gerencia_seo_snapshot', 'gerencia_seo_keyword_metric']},
-            {'label': 'ROI IA · Customer 360', 'icon': 'fa-robot', 'endpoint': 'gerencia_c360_ia_dashboard',
-             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
-             'endpoints_activos': ['gerencia_c360_ia_dashboard']},
-            {'label': 'LhexIA Control Center', 'icon': 'fa-tower-broadcast', 'endpoint': 'admin_control_center',
-             'permisos': ['gestionar_usuarios', 'ver_gerencia', 'panel_gerencia'],
-             'endpoints_activos': ['admin_control_center']},
-            {'label': 'Simulador de margen', 'icon': 'fa-flask', 'endpoint': 'simulador_margen',
-             'permisos': ['panel_gerencia'],
-             'endpoints_activos': ['simulador_margen']},
-            {'label': 'Alertas de precio', 'icon': 'fa-bell', 'endpoint': 'bi_alertas_precio_premium_demo',
-             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
-             'endpoints_activos': ['bi_alertas_precio_premium_demo']},
-        ],
-    },
-    {
-        'id': 'bi', 'label': 'BI operativo', 'icon': 'fa-chart-line', 'modulo': 'bi',
-        'items': [
-            {'label': 'BI reportes', 'icon': 'fa-chart-line', 'endpoint': 'business_intelligence',
-             'permisos': [],
-             'endpoints_activos': ['business_intelligence']},
-            {'label': 'Revisión de precios', 'icon': 'fa-tags', 'endpoint': 'revision_precios',
-             'permisos': ['revision_precios'],
-             'endpoints_activos': ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision']},
-            {'label': 'Radar Precios', 'icon': 'fa-satellite-dish', 'endpoint': 'precios_radar',
+            {'label': 'Inyector de Precios', 'icon': 'fa-satellite-dish', 'endpoint': 'precios_radar',
              'permisos': ['radar_precios', 'revision_precios', 'gestionar_usuarios', 'ver_gerencia'],
              'endpoints_activos': ['precios_radar', 'precios_radar_dashboard', 'api_radar_iniciar', 'api_radar_stream', 'api_radar_aplicar']},
+            {'label': 'Guardián de Márgenes', 'icon': 'fa-tags', 'endpoint': 'revision_precios',
+             'permisos': ['revision_precios'],
+             'endpoints_activos': ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision']},
             {'label': 'Universo Chilemat', 'icon': 'fa-globe-americas', 'endpoint': 'chilemat_catalogo_explorer',
              'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'ver_gerencia', 'admin_inventario'],
              'endpoints_activos': ['chilemat_catalogo_explorer', 'chilemat_vinculacion', 'api_chilemat_catalogo_productos', 'api_chilemat_catalogo_stats']},
@@ -1891,25 +1872,58 @@ _NAV_MAP = [
         ],
     },
     {
-        'id': 'admin', 'label': 'Mantenedores', 'icon': 'fa-sliders-h',
+        'id': 'gerencia_fiscal', 'label': 'Gerencia y fiscal', 'icon': 'fa-briefcase',
+        'permisos_grupo': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+        'items': [
+            {'label': 'Panel ejecutivo', 'icon': 'fa-chart-pie', 'endpoint': 'panel_dueno',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['panel_dueno']},
+            {'label': 'Analítica web', 'icon': 'fa-chart-area', 'endpoint': 'gerencia_analitica_web',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['gerencia_analitica_web']},
+            {'label': 'BI reportes', 'icon': 'fa-chart-line', 'endpoint': 'business_intelligence',
+             'permisos': [],
+             'endpoints_activos': ['business_intelligence']},
+            {'label': 'ROI IA · Customer 360', 'icon': 'fa-robot', 'endpoint': 'gerencia_c360_ia_dashboard',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['gerencia_c360_ia_dashboard']},
+            {'label': 'LhexIA Guardián (móvil)', 'icon': 'fa-mobile-screen', 'endpoint': 'owner_mobile',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['owner_mobile']},
+            {'label': 'Consola de IA (Ollama local)', 'icon': 'fa-tower-broadcast', 'endpoint': 'admin_control_center',
+             'permisos': ['gestionar_usuarios', 'ver_gerencia', 'panel_gerencia'],
+             'endpoints_activos': ['admin_control_center']},
+            {'label': 'Simulador de margen', 'icon': 'fa-flask', 'endpoint': 'simulador_margen',
+             'permisos': ['panel_gerencia'],
+             'endpoints_activos': ['simulador_margen']},
+            {'label': 'Alertas de precio', 'icon': 'fa-bell', 'endpoint': 'bi_alertas_precio_premium_demo',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['bi_alertas_precio_premium_demo']},
+            {'label': 'Gestión de facturación electrónica', 'icon': 'fa-file-invoice', 'endpoint': 'admin_facturacion_cola',
+             'permisos': ['gestionar_usuarios'],
+             'endpoints_activos': ['admin_facturacion_cola', 'admin_facturacion_caf']},
+        ],
+    },
+    {
+        'id': 'config_erp', 'label': 'Configuración ERP', 'icon': 'fa-sliders-h',
         'permisos_grupo': ['gestionar_usuarios'],
         'items': [
+            {'label': 'Datos de empresa', 'icon': 'fa-building', 'endpoint': 'admin_empresa',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_empresa']},
+            {'label': 'Almacenes', 'icon': 'fa-warehouse', 'endpoint': 'admin_almacenes',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_almacenes']},
+            {'label': 'Usuarios y roles', 'icon': 'fa-users-cog', 'endpoint': 'usuarios',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['usuarios', 'editar_usuario']},
+            {'label': 'Roles y permisos', 'icon': 'fa-user-shield', 'endpoint': 'admin_roles_permisos',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_roles_permisos']},
+            {'label': 'Clientes', 'icon': 'fa-address-book', 'endpoint': 'admin_clientes',
+             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_clientes']},
             {'label': 'Catálogo categorías', 'icon': 'fa-sitemap', 'endpoint': 'admin_catalogo',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_catalogo']},
             {'label': 'Unidades de medida', 'icon': 'fa-balance-scale', 'endpoint': 'admin_unidades',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_unidades']},
-            {'label': 'Almacenes', 'icon': 'fa-warehouse', 'endpoint': 'admin_almacenes',
-             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_almacenes']},
-            {'label': 'Clientes', 'icon': 'fa-address-book', 'endpoint': 'admin_clientes',
-             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_clientes']},
-            {'label': 'Roles y permisos', 'icon': 'fa-user-shield', 'endpoint': 'admin_roles_permisos',
-             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_roles_permisos']},
-            {'label': 'Datos de empresa', 'icon': 'fa-building', 'endpoint': 'admin_empresa',
-             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_empresa']},
             {'label': 'POS — autorización descuentos', 'icon': 'fa-id-card', 'endpoint': 'admin_pos_autorizacion',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_pos_autorizacion']},
-            {'label': 'Usuarios y roles', 'icon': 'fa-users-cog', 'endpoint': 'usuarios',
-             'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['usuarios', 'editar_usuario']},
             {'label': 'Log auditoría ERP', 'icon': 'fa-scroll', 'endpoint': 'admin_erp_audit_log',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_erp_audit_log']},
         ],
@@ -1960,37 +1974,24 @@ def _construir_nav_usuario():
 
 _MODULOS_HUB = [
     {
-        'id': 'pos',
-        'titulo': 'Punto de venta',
-        'subtitulo': 'Emitir vales y atender mostrador',
+        'id': 'ventas_mostrador',
+        'titulo': 'Ventas y mostrador',
+        'subtitulo': 'POS, cotizaciones e historial',
         'icon': 'fa-cash-register',
         'endpoint': 'punto_venta',
         'permisos': ['pos_emitir_vale'],
         'modulo': 'ventas',
         'accent': '#ea580c',
         'atajos': [
-            {'label': 'Historial ventas', 'endpoint': 'mostrar_ventas', 'icon': 'fa-shopping-cart'},
-            {'label': 'Cambios / devoluciones', 'endpoint': 'caja_cambios', 'icon': 'fa-rotate', 'permisos': ['caja_cobrar_vale']},
+            {'label': 'Cotizaciones', 'endpoint': 'cotizaciones_lista', 'icon': 'fa-file-invoice-dollar', 'permisos': ['pos_emitir_vale']},
+            {'label': 'Historial ventas', 'endpoint': 'mostrar_ventas', 'icon': 'fa-shopping-cart', 'permisos': ['pos_emitir_vale', 'caja_cobrar_vale']},
         ],
     },
     {
-        'id': 'cotizaciones',
-        'titulo': 'Cotizaciones',
-        'subtitulo': 'Presupuestos, PDF y conversión a venta',
-        'icon': 'fa-file-invoice-dollar',
-        'endpoint': 'cotizaciones_lista',
-        'permisos': ['pos_emitir_vale'],
-        'modulo': 'ventas',
-        'accent': '#f59e0b',
-        'atajos': [
-            {'label': 'Nueva cotización', 'endpoint': 'cotizacion_nueva', 'icon': 'fa-plus'},
-        ],
-    },
-    {
-        'id': 'caja',
-        'titulo': 'Caja',
-        'subtitulo': 'Cobros, vales pendientes y arqueos',
-        'icon': 'fa-cash-register',
+        'id': 'caja_tesoreria',
+        'titulo': 'Caja y tesorería',
+        'subtitulo': 'Vales, cambios y arqueos',
+        'icon': 'fa-wallet',
         'endpoint': 'caja_pendientes',
         'permisos': ['caja_cobrar_vale', 'caja_abrir', 'caja_movimientos', 'caja_cerrar'],
         'modulo': 'caja',
@@ -1999,166 +2000,101 @@ _MODULOS_HUB = [
             {'label': 'Abrir caja', 'endpoint': 'abrir_caja', 'icon': 'fa-door-open', 'permisos': ['caja_abrir']},
             {'label': 'Cerrar caja', 'endpoint': 'cerrar_caja', 'icon': 'fa-door-closed', 'permisos': ['caja_cerrar']},
             {'label': 'Movimientos', 'endpoint': 'movimiento_caja', 'icon': 'fa-exchange-alt', 'permisos': ['caja_movimientos']},
+            {'label': 'Cambios / devoluciones', 'endpoint': 'caja_cambios', 'icon': 'fa-rotate', 'permisos': ['caja_cobrar_vale']},
         ],
     },
     {
-        'id': 'inventario',
-        'titulo': 'Inventario',
-        'subtitulo': 'Productos, stock, kardex y alertas',
-        'icon': 'fa-boxes-stacked',
-        'endpoint': 'mostrar_productos',
-        'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario'],
-        'modulo': 'inventario',
-        'accent': '#2563eb',
-        'atajos': [
-            {'label': 'Panel inventario', 'endpoint': 'inventario_dashboard_premium', 'icon': 'fa-chart-pie'},
-            {'label': 'Stock crítico', 'endpoint': 'stock_critico', 'icon': 'fa-triangle-exclamation'},
-            {'label': 'Kardex', 'endpoint': 'kardex', 'icon': 'fa-clipboard-list'},
-            {'label': 'Enrolamiento', 'endpoint': 'inventario_enrolamiento', 'icon': 'fa-barcode', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
-        ],
-    },
-    {
-        'id': 'bodega',
-        'titulo': 'Bodega',
-        'subtitulo': 'Despachos, retiros y cuadro de mando',
-        'icon': 'fa-warehouse',
-        'endpoint': 'bodega_plataforma',
-        'permisos': ['bodega_operador'],
-        'modulo': 'inventario',
-        'accent': '#7c3aed',
-        'atajos': [
-            {'label': 'Cuadro de mando', 'endpoint': 'bodega_cuadro_mando', 'icon': 'fa-gauge-high'},
-            {'label': 'Despacho QR', 'endpoint': 'bodega_despacho_qr_vales', 'icon': 'fa-qrcode'},
-        ],
-    },
-    {
-        'id': 'compras',
-        'titulo': 'Compras',
-        'subtitulo': 'Órdenes, recepciones y proveedores',
-        'icon': 'fa-truck',
-        'endpoint': 'lista_ordenes_compra',
-        'permisos': ['gestionar_compras', 'admin_inventario'],
-        'modulo': 'inventario',
-        'accent': '#0891b2',
-        'atajos': [
-            {'label': 'Recepciones', 'endpoint': 'lista_recepciones', 'icon': 'fa-dolly'},
-            {'label': 'Proveedores', 'endpoint': 'mostrar_proveedores', 'icon': 'fa-truck-field'},
-            {'label': 'IA abastecimiento', 'endpoint': 'ia_abastecimiento', 'icon': 'fa-robot', 'modulo_item': 'ia'},
-        ],
-    },
-    {
-        'id': 'creditos',
-        'titulo': 'Crédito y cobranzas',
-        'subtitulo': 'Cartera, abonos y cuotas',
+        'id': 'credito_cobranza',
+        'titulo': 'Crédito y cobranza',
+        'subtitulo': 'Cartolas, abonos y cuotas WhatsApp',
         'icon': 'fa-hand-holding-usd',
         'endpoint': 'modulo_creditos',
         'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale'],
         'modulo': 'ventas',
         'accent': '#ca8a04',
         'atajos': [
-            {'label': 'Cobranza cuotas', 'endpoint': 'cobranza_cuotas', 'icon': 'fa-whatsapp fa-brands'},
+            {'label': 'Cobranza cuotas (WA)', 'endpoint': 'cobranza_cuotas', 'icon': 'fa-whatsapp fa-brands', 'permisos': ['ver_creditos_cartera', 'caja_cobrar_vale']},
         ],
     },
     {
-        'id': 'bi_operativo',
-        'titulo': 'Reportes operativos',
-        'subtitulo': 'BI, márgenes y revisión de precios',
+        'id': 'bodega_ops',
+        'titulo': 'Operación de Bodega',
+        'subtitulo': 'Retiros, despachos y consulta stock',
+        'icon': 'fa-warehouse',
+        'endpoint': 'bodega_plataforma',
+        'permisos': ['bodega_operador', 'ver_inventario', 'admin_inventario'],
+        'modulo': 'inventario',
+        'accent': '#7c3aed',
+        'atajos': [
+            {'label': 'Consulta stock', 'endpoint': 'consulta_stock_publica', 'icon': 'fa-magnifying-glass'},
+            {'label': 'Cuadro de mando', 'endpoint': 'bodega_cuadro_mando', 'icon': 'fa-gauge-high', 'permisos': ['bodega_operador']},
+            {'label': 'Despacho QR', 'endpoint': 'bodega_despacho_qr_vales', 'icon': 'fa-qrcode', 'permisos': ['bodega_operador']},
+            {'label': 'Despachos por voz', 'endpoint': 'bodega_despachos', 'icon': 'fa-microphone', 'permisos': ['bodega_operador']},
+        ],
+    },
+    {
+        'id': 'inventario_compras',
+        'titulo': 'Inventario y compras',
+        'subtitulo': 'Toma física, catálogo, OC y recepciones',
+        'icon': 'fa-boxes-stacked',
+        'endpoint': 'inventario_enrolamiento',
+        'permisos': ['ver_inventario', 'admin_inventario', 'gestionar_compras', 'enrolamiento_inventario'],
+        'modulo': 'inventario',
+        'accent': '#2563eb',
+        'atajos': [
+            {'label': 'Catálogo productos', 'endpoint': 'mostrar_productos', 'icon': 'fa-boxes', 'permisos': ['ver_inventario', 'admin_inventario']},
+            {'label': 'Salud inventario', 'endpoint': 'inventario_salud', 'icon': 'fa-heartbeat', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
+            {'label': 'Kardex', 'endpoint': 'kardex', 'icon': 'fa-clipboard-list', 'permisos': ['ver_inventario', 'admin_inventario']},
+            {'label': 'Órdenes compra', 'endpoint': 'lista_ordenes_compra', 'icon': 'fa-file-contract', 'permisos': ['gestionar_compras', 'admin_inventario']},
+            {'label': 'Recepciones', 'endpoint': 'lista_recepciones', 'icon': 'fa-dolly', 'permisos': ['gestionar_compras', 'ver_inventario', 'admin_inventario']},
+            {'label': 'IA abastecimiento', 'endpoint': 'ia_abastecimiento', 'icon': 'fa-robot', 'modulo_item': 'ia', 'permisos': ['gestionar_compras', 'admin_inventario']},
+        ],
+    },
+    {
+        'id': 'inteligencia_margen',
+        'titulo': 'Inteligencia de Margen',
+        'subtitulo': 'Inyector, Guardián y red Chilemat',
         'icon': 'fa-chart-line',
-        'endpoint': 'business_intelligence',
-        'permisos': [],
+        'endpoint': 'precios_radar',
+        'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'ver_gerencia', 'admin_inventario', 'panel_gerencia'],
         'modulo': 'bi',
         'accent': '#0d9488',
         'atajos': [
-            {'label': 'Revisión precios', 'endpoint': 'revision_precios', 'icon': 'fa-tags', 'permisos': ['revision_precios']},
-            {'label': 'Radar Precios', 'endpoint': 'precios_radar', 'icon': 'fa-satellite-dish', 'permisos': ['radar_precios', 'revision_precios']},
+            {'label': 'Guardián de márgenes', 'endpoint': 'revision_precios', 'icon': 'fa-tags', 'permisos': ['revision_precios']},
+            {'label': 'Cargas Chilemat', 'endpoint': 'chilemat_cargas', 'icon': 'fa-cloud-upload-alt', 'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'admin_inventario']},
             {'label': 'Universo Chilemat', 'endpoint': 'chilemat_catalogo_explorer', 'icon': 'fa-globe-americas', 'permisos': ['revision_precios', 'radar_precios', 'ver_gerencia']},
             {'label': 'Vincular Chilemat', 'endpoint': 'chilemat_vinculacion', 'icon': 'fa-link', 'permisos': ['revision_precios', 'radar_precios', 'ver_gerencia']},
-            {'label': 'Cargas Chilemat', 'endpoint': 'chilemat_cargas', 'icon': 'fa-cloud-upload-alt', 'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'admin_inventario']},
         ],
     },
     {
-        'id': 'panel_dia',
-        'titulo': 'Panel del día',
-        'subtitulo': 'KPIs, alertas y acciones rápidas',
-        'icon': 'fa-gauge-high',
-        'endpoint': 'inicio',
-        'permisos': [],
-        'grupo': 'soporte',
-        'accent': '#059669',
-        'atajos': [],
-    },
-    {
-        'id': 'consulta_stock',
-        'titulo': 'Consulta stock',
-        'subtitulo': 'Disponibilidad por nombre o código de barras',
-        'icon': 'fa-magnifying-glass',
-        'endpoint': 'consulta_stock_publica',
-        'permisos': [],
-        'grupo': 'soporte',
-        'accent': '#14b8a6',
-        'atajos': [],
-    },
-    {
-        'id': 'capacitacion',
-        'titulo': 'Capacitación',
-        'subtitulo': 'Manuales, guías y buenas prácticas por rol',
-        'icon': 'fa-graduation-cap',
-        'endpoint': 'centro_ayuda',
-        'permisos': [],
-        'grupo': 'soporte',
-        'accent': '#8b5cf6',
-        'atajos': [],
-    },
-    {
-        'id': 'mi_cuenta',
-        'titulo': 'Mi cuenta',
-        'subtitulo': 'Contraseña y seguridad de acceso',
-        'icon': 'fa-user-gear',
-        'endpoint': 'cambiar_password',
-        'permisos': [],
-        'grupo': 'soporte',
-        'accent': '#475569',
-        'atajos': [],
-    },
-    {
-        'id': 'gerencia',
-        'titulo': 'Reportes gerencia',
-        'subtitulo': 'Panel ejecutivo, C360 y analítica',
+        'id': 'gerencia_fiscal',
+        'titulo': 'Control Gerencial',
+        'subtitulo': 'Panel, analítica, BI y facturación SII',
         'icon': 'fa-briefcase',
         'endpoint': 'panel_dueno',
         'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
         'accent': '#be185d',
         'atajos': [
-            {'label': 'Control Center', 'endpoint': 'admin_control_center', 'icon': 'fa-tower-broadcast'},
-            {'label': 'Móvil dueño', 'endpoint': 'owner_mobile', 'icon': 'fa-mobile-screen'},
-            {'label': 'C360 IA', 'endpoint': 'gerencia_c360_ia_dashboard', 'icon': 'fa-robot'},
-            {'label': 'Analítica web', 'endpoint': 'gerencia_analitica_web', 'icon': 'fa-chart-area'},
+            {'label': 'Panel del día', 'endpoint': 'inicio', 'icon': 'fa-gauge-high'},
+            {'label': 'Guardián móvil', 'endpoint': 'owner_mobile', 'icon': 'fa-mobile-screen', 'permisos': ['ver_gerencia', 'panel_gerencia']},
+            {'label': 'Facturación electrónica', 'endpoint': 'admin_facturacion_cola', 'icon': 'fa-file-invoice', 'permisos': ['gestionar_usuarios']},
+            {'label': 'Consola IA (Ollama)', 'endpoint': 'admin_control_center', 'icon': 'fa-tower-broadcast', 'permisos': ['gestionar_usuarios', 'ver_gerencia', 'panel_gerencia']},
+            {'label': 'C360 IA', 'endpoint': 'gerencia_c360_ia_dashboard', 'icon': 'fa-robot', 'permisos': ['ver_gerencia', 'panel_gerencia']},
         ],
     },
     {
-        'id': 'facturacion',
-        'titulo': 'Facturación electrónica',
-        'subtitulo': 'Cola DTE, folios CAF y reintentos SII',
-        'icon': 'fa-file-invoice',
-        'endpoint': 'admin_facturacion_cola',
-        'permisos': ['gestionar_usuarios'],
-        'accent': '#0369a1',
-        'atajos': [
-            {'label': 'Cargar CAF', 'endpoint': 'admin_facturacion_caf', 'icon': 'fa-upload'},
-        ],
-    },
-    {
-        'id': 'admin',
-        'titulo': 'Mantenedores',
-        'subtitulo': 'Usuarios, catálogo y configuración',
+        'id': 'configuracion_erp',
+        'titulo': 'Configuración ERP',
+        'subtitulo': 'Usuarios, empresa y auditoría',
         'icon': 'fa-sliders-h',
         'endpoint': 'usuarios',
         'permisos': ['gestionar_usuarios'],
         'accent': '#64748b',
         'atajos': [
+            {'label': 'Mi cuenta', 'endpoint': 'cambiar_password', 'icon': 'fa-user-gear'},
+            {'label': 'Capacitación LhexIA', 'endpoint': 'lhexia_academy', 'icon': 'fa-graduation-cap'},
             {'label': 'Empresa', 'endpoint': 'admin_empresa', 'icon': 'fa-building'},
-            {'label': 'Roles', 'endpoint': 'admin_roles_permisos', 'icon': 'fa-user-shield'},
-            {'label': 'Clientes', 'endpoint': 'admin_clientes', 'icon': 'fa-address-book'},
+            {'label': 'Almacenes', 'endpoint': 'admin_almacenes', 'icon': 'fa-warehouse'},
             {'label': 'Auditoría', 'endpoint': 'admin_erp_audit_log', 'icon': 'fa-scroll'},
         ],
     },
@@ -2182,16 +2118,14 @@ def _hub_url_para_modulo(mod, usuario):
     """URL destino de cada tarjeta del hub (lógica operativa, no solo endpoint genérico)."""
     mod_id = (mod.get('id') or '').strip()
 
-    if mod_id == 'pos':
-        if obtener_caja_activa():
+    if mod_id in ('pos', 'ventas_mostrador', 'ventas_caja'):
+        if obtener_caja_activa() and _hub_usuario_tiene_permiso(usuario, 'pos_emitir_vale'):
             return _pos_url_destino(usuario)
-        if _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
-            return url_for('abrir_caja', next=_pos_url_destino(usuario))
-        if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale'):
-            return url_for('caja_pendientes')
-        return _pos_url_destino(usuario)
+        if _hub_usuario_tiene_permiso(usuario, 'pos_emitir_vale'):
+            return _pos_url_destino(usuario)
+        return url_for('erp_hub')
 
-    if mod_id == 'caja':
+    if mod_id in ('caja', 'caja_tesoreria'):
         if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale'):
             return url_for('caja_pendientes')
         if _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
@@ -2203,6 +2137,23 @@ def _hub_url_para_modulo(mod, usuario):
         ep = mod.get('endpoint')
         return url_for(ep) if ep else url_for('erp_hub')
 
+    if mod_id in ('credito_cobranza', 'creditos'):
+        if _hub_usuario_tiene_permiso(usuario, 'ver_creditos_cartera', 'caja_cobrar_vale'):
+            return url_for('modulo_creditos')
+        return url_for('erp_hub')
+
+    if mod_id == 'inventario_compras':
+        if _hub_usuario_tiene_permiso(usuario, 'enrolamiento_inventario', 'admin_inventario'):
+            from flask import current_app
+            if 'inventario_enrolamiento' in current_app.view_functions:
+                return url_for('inventario_enrolamiento')
+        if _hub_usuario_tiene_permiso(usuario, 'ver_inventario', 'admin_inventario'):
+            return url_for('mostrar_productos')
+        if _hub_usuario_tiene_permiso(usuario, 'gestionar_compras'):
+            return url_for('lista_ordenes_compra')
+        ep = mod.get('endpoint')
+        return url_for(ep) if ep else url_for('erp_hub')
+
     if mod_id == 'consulta_stock':
         if _hub_usuario_tiene_permiso(
             usuario, 'ver_inventario', 'admin_inventario', 'enrolamiento_inventario'
@@ -2210,8 +2161,9 @@ def _hub_url_para_modulo(mod, usuario):
             return url_for('mostrar_productos')
         return url_for('consulta_stock_publica')
 
-    if mod_id == 'capacitacion':
-        return url_for('centro_ayuda') + '#lhexia-academy'
+    if mod_id in ('capacitacion', 'configuracion_erp'):
+        if mod_id == 'capacitacion':
+            return url_for('lhexia_academy')
 
     ep = mod.get('endpoint')
     if ep:
@@ -2951,8 +2903,7 @@ def _enrol_buscar_producto_por_codigo(codigo):
     p = Producto.query.filter(Producto.codigo_interno == c).first()
     if p:
         return p
-    p = Producto.query.filter(Producto.codigo_chilemat == c).first()
-    return p
+    return _producto_por_codigo_chilemat_escaneo(c.upper())
 
 
 def _enrol_codigo_barra_ocupado(codigo, excluir_producto_id=None):
@@ -10290,9 +10241,13 @@ def descargar_plantilla_productos():
     )
 # --- PROVEEDORES ---....................................................................
 @app.route('/proveedores')
-@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
+@permisos_required(
+    'gestionar_compras', 'admin_inventario', 'gestionar_usuarios',
+    'radar_precios', 'revision_precios',
+)
 def mostrar_proveedores():
     q = (request.args.get('q') or '').strip()
+    origen = (request.args.get('origen') or '').strip().lower()
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     per_page = max(10, min(per_page, 100))
@@ -10302,6 +10257,7 @@ def mostrar_proveedores():
         like = f"%{q}%"
         proveedores_query = proveedores_query.filter(
             (Proveedor.nombre.like(like)) |
+            (Proveedor.rut.like(like)) |
             (Proveedor.contacto.like(like)) |
             (Proveedor.telefono.like(like)) |
             (Proveedor.email.like(like))
@@ -10329,31 +10285,43 @@ def mostrar_proveedores():
         per_page=per_page,
         total_proveedores=total_proveedores,
         proveedores_con_telefono=proveedores_con_telefono,
-        proveedores_con_email=proveedores_con_email
+        proveedores_con_email=proveedores_con_email,
+        origen_radar=(origen == 'radar'),
     )
 # proceso de guardar nuevo proveedor desde formulario........................................................................
 @app.route('/guardar_proveedor', methods=['POST'])
 @login_required
 def guardar_proveedor():
     nombre = (request.form.get('nombre') or '').strip()
+    rut = (request.form.get('rut') or '').strip()
     contacto = (request.form.get('contacto') or '').strip()
     telefono = (request.form.get('telefono') or '').strip()
     email = (request.form.get('email') or '').strip()
     canal_compra = (request.form.get('canal_compra') or 'manual').strip().lower()
+    origen = (request.form.get('origen') or '').strip().lower()
 
     if not nombre:
         flash("El nombre del proveedor es obligatorio.", "warning")
+        if origen == 'radar':
+            return redirect(url_for('mostrar_proveedores', origen='radar'))
         return redirect(url_for('mostrar_proveedores'))
 
     nuevo_prov = Proveedor(
         nombre=nombre,
+        rut=rut or None,
         contacto=contacto or None,
         telefono=telefono or None,
-        email=email or None
+        email=email or None,
     )
     db.session.add(nuevo_prov)
     db.session.commit()
     guardar_canal_compra_proveedor(nuevo_prov.id, canal_compra)
+    if origen == 'radar':
+        flash(
+            f'Proveedor «{nombre}» registrado. Ya puede escanear precios en Radar.',
+            'success',
+        )
+        return redirect(url_for('precios_radar', proveedor_id=nuevo_prov.id))
     flash("Proveedor registrado correctamente.", "success")
     return redirect(url_for('mostrar_proveedores'))
 
@@ -10363,6 +10331,7 @@ def guardar_proveedor():
 def editar_proveedor(id):
     prov = Proveedor.query.get_or_404(id)
     nombre = (request.form.get('nombre') or '').strip()
+    rut = (request.form.get('rut') or '').strip()
     contacto = (request.form.get('contacto') or '').strip()
     telefono = (request.form.get('telefono') or '').strip()
     email = (request.form.get('email') or '').strip()
@@ -10373,6 +10342,7 @@ def editar_proveedor(id):
         return redirect(url_for('mostrar_proveedores'))
 
     prov.nombre = nombre
+    prov.rut = rut or None
     prov.contacto = contacto or None
     prov.telefono = telefono or None
     prov.email = email or None
@@ -12986,6 +12956,32 @@ def _buscar_productos_texto_stock(qtext, limit=5):
 
 # proceso de agregar productos a venta abierta desde punto de venta........................................
 
+def _producto_por_codigo_chilemat_escaneo(cnorm: str):
+    """Chilemat en ficha sin prefijo; etiquetas/factura a veces traen INT-."""
+    if not cnorm:
+        return None
+    producto = (
+        Producto.query.filter(
+            Producto.codigo_chilemat.isnot(None),
+            db.func.upper(db.func.trim(Producto.codigo_chilemat)) == cnorm,
+        )
+        .first()
+    )
+    if producto:
+        return producto
+    if cnorm.startswith('INT-'):
+        alt = cnorm[4:].strip()
+        if alt:
+            return (
+                Producto.query.filter(
+                    Producto.codigo_chilemat.isnot(None),
+                    db.func.upper(db.func.trim(Producto.codigo_chilemat)) == alt,
+                )
+                .first()
+            )
+    return None
+
+
 def _pos_buscar_producto_por_codigo(codigo):
     """Resuelve producto por código de barras, interno o chilemat (misma lógica que el escáner POS)."""
     if not codigo:
@@ -13008,13 +13004,7 @@ def _pos_buscar_producto_por_codigo(codigo):
         )
     if not producto and codigo:
         cnorm = codigo.strip().upper()
-        producto = (
-            Producto.query.filter(
-                Producto.codigo_chilemat.isnot(None),
-                db.func.upper(db.func.trim(Producto.codigo_chilemat)) == cnorm,
-            )
-            .first()
-        )
+        producto = _producto_por_codigo_chilemat_escaneo(cnorm)
     return producto
 
 
@@ -17561,7 +17551,19 @@ def _login_next_url_seguro():
 
 
 def _home_por_perfil(usuario):
-    """Launcher de módulos tras login (salvo ?next= explícito)."""
+    """Destino tras login según rol (salvo ?next= explícito)."""
+    if _hub_usuario_tiene_permiso(usuario, 'gestionar_usuarios', 'ver_gerencia', 'panel_gerencia'):
+        if _hub_usuario_tiene_permiso(usuario, 'ver_gerencia', 'panel_gerencia'):
+            return url_for('inicio')
+        return url_for('erp_hub')
+    if _hub_usuario_tiene_permiso(usuario, 'bodega_operador') and not _hub_usuario_tiene_permiso(
+        usuario, 'pos_emitir_vale', 'caja_cobrar_vale'
+    ):
+        return url_for('bodega_plataforma')
+    if _hub_usuario_tiene_permiso(usuario, 'pos_emitir_vale'):
+        return _pos_url_destino(usuario)
+    if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale', 'caja_abrir'):
+        return url_for('caja_pendientes')
     return url_for('erp_hub')
 
 
@@ -19560,6 +19562,29 @@ def _parse_precio_clp_ia(val):
         return f if f > 0 else None
     except ValueError:
         return None
+
+
+def _alerta_variacion_costo_factura(producto, precio_factura, umbral_pct=None):
+    """Aviso si el precio del DTE se aleja del precio_compra en catálogo (post-maestra / histórico)."""
+    if not producto or precio_factura is None:
+        return None
+    try:
+        precio_f = float(precio_factura)
+    except (TypeError, ValueError):
+        return None
+    if precio_f <= 0:
+        return None
+    ref = float(producto.precio_compra or 0)
+    if ref <= 0:
+        return None
+    umbral = float(umbral_pct if umbral_pct is not None else os.getenv('ALERTA_COSTO_FACTURA_PCT', '15'))
+    pct = (precio_f - ref) / ref * 100.0
+    if abs(pct) < umbral:
+        return None
+    return (
+        f'Precio en factura ${precio_f:,.0f} difiere {pct:+.1f}% '
+        f'del costo en catálogo (${ref:,.0f}).'
+    )
 
 
 def _costo_sugerido_linea_factura(producto, proveedor_id, precio_ia):
@@ -21912,6 +21937,7 @@ def api_ia_factura_analizar(rid):
         costo_u, costo_origen = _costo_sugerido_linea_factura(
             p, rec.proveedor_id, precio_f
         )
+        alerta_costo = _alerta_variacion_costo_factura(p, precio_f if precio_f > 0 else costo_u)
         out.append(
             {
                 'descripcion_factura': desc,
@@ -21924,6 +21950,7 @@ def api_ia_factura_analizar(rid):
                 'producto_nombre': p.nombre if p else None,
                 'producto_codigo': (p.codigo_barra or '').strip() if p else None,
                 'match': how,
+                'alerta_costo': alerta_costo,
             }
         )
     return jsonify(

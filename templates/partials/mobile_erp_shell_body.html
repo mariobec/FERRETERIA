@@ -13,13 +13,14 @@
     <details class="border-0" {% if ns.open %}open{% endif %}>
       <summary><i class="fas {{ grupo.icon }} me-1"></i> {{ grupo.label }}</summary>
       {% for it in grupo['items'] %}
-      <a href="{{ url_for(it.endpoint) }}" class="app-nav-link ps-4 {% if request.endpoint in it.endpoints_activos %}active{% endif %}">
+      <a href="{{ url_for(it.endpoint) }}{{ it.get('url_hash', '') }}" class="app-nav-link ps-4 {% if request.endpoint in it.endpoints_activos %}active{% endif %}">
         <i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }} me-2"></i>{{ it.label }}
       </a>
       {% endfor %}
     </details>
     {% endfor %}
-    <a href="{{ url_for('lhexia_academy') }}" class="app-nav-link"><i class="fas fa-graduation-cap me-2"></i>LhexIA Academy</a>
+    <a href="{{ url_for('lhexia_academy') }}" class="app-nav-link {% if request.endpoint == 'lhexia_academy' %}active{% endif %}"><i class="fas fa-graduation-cap me-2"></i>Capacitación LhexIA</a>
+    <a href="{{ url_for('cambiar_password') }}" class="app-nav-link {% if request.endpoint == 'cambiar_password' %}active{% endif %}"><i class="fas fa-user-gear me-2"></i>Mi cuenta</a>
     <a href="{{ url_for('logout') }}" class="app-nav-link text-danger"><i class="fas fa-power-off me-2"></i>Cerrar sesión</a>
   </div>
 </div>
@@ -41,9 +42,19 @@
     <i class="fas fa-wallet"></i><span>Caja</span>
   </a>
   {% endif %}
-  {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') or usuario_tiene_permiso('gestionar_usuarios') %}
+  {% if usuario_tiene_permiso('ver_creditos_cartera') or usuario_tiene_permiso('caja_cobrar_vale') %}
+  <a href="{{ url_for('modulo_creditos') }}" class="mobile-quick-dock__item">
+    <i class="fas fa-hand-holding-usd"></i><span>Crédito</span>
+  </a>
+  {% endif %}
+  {% if usuario_tiene_permiso('bodega_operador') %}
+  <a href="{{ url_for('bodega_plataforma') }}" class="mobile-quick-dock__item">
+    <i class="fas fa-warehouse"></i><span>Bodega</span>
+  </a>
+  {% endif %}
+  {% if usuario_tiene_permiso('panel_gerencia') or usuario_tiene_permiso('ver_gerencia') %}
   <a href="{{ url_for('owner_mobile') }}" class="mobile-quick-dock__item mobile-quick-dock__item--accent">
-    <i class="fas fa-mobile-screen"></i><span>Guardián</span>
+    <i class="fas fa-mobile-screen"></i><span>Dueño</span>
   </a>
   {% endif %}
   <button type="button" class="mobile-quick-dock__item" data-bs-toggle="offcanvas" data-bs-target="#mobileNavOffcanvas">

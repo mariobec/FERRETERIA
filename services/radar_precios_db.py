@@ -197,9 +197,11 @@ def historial_escaneos_db(app, limit: int = 15) -> list[dict[str, Any]]:
         db.text(
             """
             SELECT e.id, e.url, e.url_final, e.titulo, e.total, e.parser, e.status,
-                   e.finished_at, e.created_at,
+                   e.finished_at, e.created_at, e.proveedor_id,
+                   p.nombre AS proveedor_nombre,
                    (SELECT COUNT(*) FROM radar_precios_linea l WHERE l.escaneo_id = e.id AND l.producto_id IS NOT NULL) AS mapeados
             FROM radar_precios_escaneo e
+            LEFT JOIN proveedores p ON p.id = e.proveedor_id
             ORDER BY COALESCE(e.finished_at, e.created_at) DESC
             LIMIT :lim
             """
@@ -218,5 +220,7 @@ def historial_escaneos_db(app, limit: int = 15) -> list[dict[str, Any]]:
             'status': r['status'],
             'finished_at': r['finished_at'].isoformat() if r['finished_at'] else None,
             'mapeados': int(r['mapeados'] or 0),
+            'proveedor_id': r['proveedor_id'],
+            'proveedor_nombre': (r['proveedor_nombre'] or '').strip(),
         })
     return out

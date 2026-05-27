@@ -3,13 +3,51 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import time
+from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
+import certifi
 import requests
+import urllib3
 
 _log = logging.getLogger(__name__)
+
+# Sitios con cadena SSL incompleta (común en retail CL). Ampliar por env sin tocar código.
+_DEFAULT_SSL_RELAXED = 'electrocom.cl,www.electrocom.cl'
+_DEFAULT_PLAYWRIGHT_HOSTS = 'imperial.cl,www.imperial.cl'
+
+
+def _ssl_relaxed_hosts() -> frozenset[str]:
+    raw = (os.getenv('RADAR_FETCH_SSL_RELAXED_HOSTS') or _DEFAULT_SSL_RELAXED).strip()
+    return frozenset(h.strip().lower() for h in raw.split(',') if h.strip())
+
+
+def _host_en_lista_relajada(hostname: str, relaxed: frozenset[str]) -> bool:
+    h = (hostname or '').lower()
+    if not h:
+        return False
+    if h in relaxed:
+        return True
+    return any(h == rh or h.endswith('.' + rh) for rh in relaxed)
+
+
+def _resolve_ssl_verify(url: str) -> bool | str:
+    """
+    verify para requests.get:
+    - certifi por defecto (Windows/local)
+    - False solo en hosts listados o si RADAR_FETCH_SSL_VERIFY=0
+    """
+    flag = (os.getenv('RADAR_FETCH_SSL_VERIFY') or '1').strip().lower()
+    if flag in ('0', 'false', 'no', 'off'):
+        return False
+    host = (urlparse(url).hostname or '').lower()
+    if _host_en_lista_relajada(host, _ssl_relaxed_hosts()):
+        return False
+    return certifi.where()
 
 _USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
@@ -35,33 +73,261 @@ def validar_url_publica(url: str) -> str:
     return u
 
 
-def fetch_public_html(url: str) -> dict[str, Any]:
-    """Descarga HTML de una página pública."""
+def _playwright_hosts() -> frozenset[str]:
+    raw = (os.getenv('RADAR_FETCH_PLAYWRIGHT_HOSTS') or _DEFAULT_PLAYWRIGHT_HOSTS).strip()
+    return frozenset(h.strip().lower() for h in raw.split(',') if h.strip())
+
+
+def _host_usa_playwright(hostname: str) -> bool:
+    h = (hostname or '').lower()
+    if not h:
+        return False
+    relaxed = _playwright_hosts()
+    if h in relaxed:
+        return True
+    return any(h == rh or h.endswith('.' + rh) for rh in relaxed)
+
+
+def playwright_disponible() -> bool:
+    try:
+        import playwright  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+_chromium_ok_cache: bool | None = None
+
+
+def playwright_chromium_listo() -> bool:
+    """Paquete playwright + navegador Chromium instalado (playwright install chromium)."""
+    global _chromium_ok_cache
+    if _chromium_ok_cache is not None:
+        return _chromium_ok_cache
+    _ensure_playwright_browsers_path()
+    if not playwright_disponible():
+        _chromium_ok_cache = False
+        return False
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            browser.close()
+        _chromium_ok_cache = True
+    except Exception as ex:
+        _log.debug('playwright chromium no listo: %s', ex)
+        _chromium_ok_cache = False
+    return _chromium_ok_cache
+
+
+def _ensure_playwright_browsers_path() -> None:
+    """Usa Chromium instalado en %LOCALAPPDATA%\\ms-playwright si no hay env."""
+    if (os.getenv('PLAYWRIGHT_BROWSERS_PATH') or '').strip():
+        return
+    default = Path(os.environ.get('LOCALAPPDATA', '')) / 'ms-playwright'
+    if default.is_dir():
+        os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(default)
+
+
+def fetch_playwright_html(url: str) -> dict[str, Any]:
+    """
+    Renderiza la página con Chromium (catálogos SPA: Imperial, etc.).
+  Requiere: pip install playwright && playwright install chromium
+    """
+    _ensure_playwright_browsers_path()
+    if not playwright_disponible():
+        return {
+            'ok': False,
+            'error': 'playwright_no_instalado',
+            'html': '',
+            'hint': 'pip install playwright && playwright install chromium',
+        }
+    url = validar_url_publica(url)
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return {
+            'ok': False,
+            'error': 'playwright_no_instalado',
+            'html': '',
+        }
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                locale='es-CL',
+                user_agent=_USER_AGENT,
+                viewport={'width': 1400, 'height': 900},
+            )
+            page = context.new_page()
+            try:
+                page.goto(url, wait_until='domcontentloaded', timeout=90000)
+                try:
+                    page.wait_for_load_state('networkidle', timeout=45000)
+                except Exception:
+                    pass
+                for sel in (
+                    'a[href*="/product/"]',
+                    'a[href*="/p/"]',
+                    '[data-product-id]',
+                    '[class*="product" i]',
+                    '.product-tile',
+                    '.product-item',
+                    '[class*="price" i]',
+                    'img[alt*="product" i]',
+                ):
+                    try:
+                        page.wait_for_selector(sel, timeout=15000)
+                        break
+                    except Exception:
+                        continue
+                time.sleep(3)
+                for _ in range(8):
+                    page.evaluate(
+                        'window.scrollBy(0, Math.max(500, window.innerHeight * 0.85))'
+                    )
+                    time.sleep(0.7)
+                html = page.content()
+                if len(html.encode('utf-8', errors='ignore')) > _MAX_HTML_BYTES:
+                    html = html[:_MAX_HTML_BYTES]
+                return {
+                    'ok': True,
+                    'html': html,
+                    'url_final': page.url,
+                    'titulo': page.title() or _extraer_titulo(html),
+                    'fuente': 'playwright',
+                }
+            finally:
+                context.close()
+                browser.close()
+    except Exception as ex:
+        _log.warning('playwright fetch %s: %s', url, ex)
+        return {'ok': False, 'error': f'playwright: {ex}', 'html': ''}
+
+
+def _fetch_public_html_requests(url: str) -> dict[str, Any]:
+    """Descarga HTML estático (sin render JS)."""
     url = validar_url_publica(url)
     headers = {
         'User-Agent': _USER_AGENT,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'es-CL,es;q=0.9',
     }
+    verify = _resolve_ssl_verify(url)
+    if verify is False:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     try:
-        r = requests.get(url, headers=headers, timeout=_FETCH_TIMEOUT, allow_redirects=True)
+        r = requests.get(
+            url,
+            headers=headers,
+            timeout=_FETCH_TIMEOUT,
+            allow_redirects=True,
+            verify=verify,
+        )
         r.raise_for_status()
         if not r.encoding or r.encoding.lower() == 'iso-8859-1':
             r.encoding = r.apparent_encoding or 'utf-8'
         html = r.text
         if len(html.encode('utf-8', errors='ignore')) > _MAX_HTML_BYTES:
             html = html[:_MAX_HTML_BYTES]
-        return {
+        out = {
             'ok': True,
             'html': html,
             'url_final': r.url,
             'titulo': _extraer_titulo(html),
             'status_code': r.status_code,
         }
+        if verify is False:
+            out['ssl_relaxed'] = True
+        return out
     except requests.Timeout:
         return {'ok': False, 'error': 'timeout_descarga', 'html': ''}
+    except requests.exceptions.SSLError as ex:
+        host = (urlparse(url).hostname or '')
+        return {
+            'ok': False,
+            'error': (
+                f'ssl_certificado: {host or url} — verifique RADAR_FETCH_SSL_RELAXED_HOSTS '
+                f'o el certificado del sitio. ({ex})'
+            ),
+            'html': '',
+        }
     except requests.RequestException as ex:
         return {'ok': False, 'error': f'descarga: {ex}', 'html': ''}
+
+
+def fetch_public_html(url: str) -> dict[str, Any]:
+    """Descarga HTML; usa Playwright en hosts SPA (Imperial) o si el HTML viene vacío."""
+    url = validar_url_publica(url)
+    host = (urlparse(url).hostname or '').lower()
+
+    if _host_usa_playwright(host):
+        paso = fetch_playwright_html(url)
+        if paso.get('ok'):
+            prods, _ = extraer_productos_de_html(paso.get('html') or '', url)
+            if prods:
+                return paso
+            return {
+                'ok': False,
+                'error': 'playwright_sin_productos',
+                'html': paso.get('html') or '',
+                'hint': (
+                    'Playwright abrió la página pero no se detectaron fichas. '
+                    'Pruebe otra URL de categoría o espere más tiempo de carga.'
+                ),
+            }
+        return {
+            'ok': False,
+            'error': paso.get('error') or 'playwright_fallo',
+            'html': '',
+            'hint': paso.get('hint')
+            or 'pip install playwright && playwright install chromium',
+        }
+
+    req = _fetch_public_html_requests(url)
+    if not req.get('ok'):
+        return req
+
+    prods, _ = extraer_productos_de_html(req.get('html') or '', url)
+    if len(prods) < 3 and playwright_disponible():
+        paso = fetch_playwright_html(url)
+        if paso.get('ok'):
+            prods2, _ = extraer_productos_de_html(paso.get('html') or '', url)
+            if len(prods2) > len(prods):
+                paso['fuente'] = 'playwright_fallback'
+                return paso
+    return req
+
+
+def mensaje_error_radar(codigo: str, url: str = '') -> str:
+    """Texto legible para errores SSE/UI."""
+    host = (urlparse(url or '').hostname or '').lower()
+    mapa = {
+        'sin_productos_en_pagina': (
+            'No se detectaron productos en la página descargada. '
+            'Sitios como Imperial.cl cargan el catálogo con JavaScript: '
+            'instale Playwright (pip install playwright && playwright install chromium) '
+            'o pruebe una URL de listado que muestre precios sin login.'
+        ),
+        'playwright_no_instalado': (
+            'Este sitio requiere Playwright para ver el catálogo renderizado. '
+            'En la terminal del ERP (misma Python que Flask): '
+            'pip install playwright && playwright install chromium — luego reinicie Flask.'
+        ),
+        'playwright_fallo': (
+            'No se pudo abrir Chromium (Playwright). Ejecute: playwright install chromium'
+        ),
+        'playwright_sin_productos': (
+            'La página cargó en Playwright pero no se vieron productos. '
+            'Verifique la URL de categoría o aumente el tiempo de espera.'
+        ),
+        'timeout_descarga': 'La descarga tardó demasiado. Intente de nuevo.',
+    }
+    if codigo == 'sin_productos_en_pagina' and _host_usa_playwright(host):
+        return mapa['sin_productos_en_pagina']
+    return mapa.get(codigo, codigo or 'error_desconocido')
 
 
 def _extraer_titulo(html: str) -> str:
@@ -162,6 +428,78 @@ def _agregar_producto_ld(prod: dict, items: list[dict[str, Any]]) -> None:
     it = _item(sku, nombre, precio)
     if it:
         items.append(it)
+
+
+def _imperial_attr_val(attrs: dict[str, Any], key: str) -> str:
+    val = attrs.get(key)
+    if isinstance(val, list) and val:
+        return str(val[0]).strip()
+    if val is not None:
+        return str(val).strip()
+    return ''
+
+
+def _imperial_precio_clp(raw: str) -> int:
+    if not raw:
+        return 0
+    try:
+        v = int(round(float(raw.replace(',', '.'))))
+        return v if 0 < v <= 50_000_000 else 0
+    except (TypeError, ValueError):
+        return _precio_entero_clp(raw)
+
+
+def parse_imperial_occ_state(html: str) -> list[dict[str, Any]]:
+    """Oracle Commerce Cloud — window.state en imperial.cl (searchRepository.records)."""
+    m = re.search(
+        r'window\.state\s*=\s*JSON\.parse\(decodeURI\("([^"]+)"\)\)',
+        html,
+    )
+    if not m:
+        return []
+    try:
+        data = json.loads(unquote(m.group(1)))
+    except (json.JSONDecodeError, ValueError) as ex:
+        _log.debug('imperial state json: %s', ex)
+        return []
+
+    items: list[dict[str, Any]] = []
+    pages = (data.get('searchRepository') or {}).get('pages') or {}
+    if not isinstance(pages, dict):
+        return []
+
+    for page in pages.values():
+        if not isinstance(page, dict):
+            continue
+        results = page.get('results')
+        if not isinstance(results, dict):
+            continue
+        records = results.get('records')
+        if not isinstance(records, list):
+            continue
+        for rec in records:
+            if not isinstance(rec, dict):
+                continue
+            attrs = rec.get('attributes')
+            if not isinstance(attrs, dict):
+                continue
+            nombre = _imperial_attr_val(attrs, 'product.displayName')
+            sku = (
+                _imperial_attr_val(attrs, 'sku.repositoryId')
+                or _imperial_attr_val(attrs, 'product.repositoryId')
+                or _imperial_attr_val(attrs, 'sku.listingId')
+            )
+            precio_raw = (
+                _imperial_attr_val(attrs, 'sku.activePrice')
+                or _imperial_attr_val(attrs, 'sku.listPrice')
+                or _imperial_attr_val(attrs, 'sku.maxActivePrice')
+            )
+            precio = _imperial_precio_clp(precio_raw)
+            it = _item(sku, nombre, precio)
+            if it and it['precio'] > 0 and nombre:
+                items.append(it)
+
+    return _dedupe_items(items)
 
 
 def parse_embedded_json_products(html: str) -> list[dict[str, Any]]:
@@ -271,6 +609,12 @@ def extraer_productos_de_html(html: str, url: str = '') -> tuple[list[dict[str, 
         return [], 'vacio'
     items: list[dict[str, Any]] = []
     fuentes: list[str] = []
+
+    host = (urlparse(url or '').hostname or '').lower()
+    if 'imperial.cl' in host:
+        imp = parse_imperial_occ_state(html)
+        if imp:
+            return imp, 'imperial_occ'
 
     for parser_fn, nombre in (
         (parse_json_ld_products, 'json_ld'),
