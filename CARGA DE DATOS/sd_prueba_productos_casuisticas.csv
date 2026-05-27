@@ -1,0 +1,10 @@
+nombre,codigo_chilemat,codigo_interno,codigo_barra,precio_compra,precio_venta,precio_mayoreo,unidad_compra,unidad_venta,factor_conversion,stock,categoria,subcategoria,escenarios_qa
+SD PRUEBA PRODUCTO Cemento especial 25kg,SDPR-CEM001,SDPR-CEM001,SD-PRUEBA-CEM-001,4500.0,6690.0,6290,Saco,Saco,1,80,Materiales,Cemento,"CAS-V01,CAS-V04,CAS-V07,CAS-V08,CAS-C01"
+SD PRUEBA PRODUCTO Arena gruesa m3,SDPR-ARE001,SDPR-ARE001,SD-PRUEBA-ARE-001,12000.0,17690.0,16630,M3,M3,1,40,Materiales,Arena,"CAS-V05,CAS-V07"
+SD PRUEBA PRODUCTO Tuberia PVC 32mm 3m,SDPR-PVC001,SDPR-PVC001,SD-PRUEBA-PVC-001,2200.0,3290.0,3090,Unidad,Unidad,1,60,Gasfiteria,PVC,"CAS-V02,CAS-V03"
+SD PRUEBA PRODUCTO Pegamento PVC 250cc,SDPR-PEG001,SDPR-PEG001,SD-PRUEBA-PEG-001,1800.0,2690.0,2530,Unidad,Unidad,1,90,Gasfiteria,Pegamentos,CAS-V07
+SD PRUEBA PRODUCTO Llave stillson 14 pulg,SDPR-LLV001,SDPR-LLV001,SD-PRUEBA-LLV-001,6500.0,9590.0,9010,Unidad,Unidad,1,25,Herramientas,Llaves,CAS-V08
+SD PRUEBA PRODUCTO Clavo 3 pulg promo POS,SDPR-OFE001,SDPR-OFE001,SD-PRUEBA-OFE-001,900.0,1390.0,1310,Caja,Caja,1,500,Fijaciones,Clavos,"CAS-V01,CAS-V03,CAS-V06"
+SD PRUEBA PRODUCTO Brocha 4 pulg promo POS,SDPR-OFE002,SDPR-OFE002,SD-PRUEBA-OFE-002,1200.0,1790.0,1680,Unidad,Unidad,1,120,Pinturas,Brochas,CAS-V06
+SD PRUEBA PRODUCTO Guante nitrilo par (stock critico QA),SDPR-STK001,SDPR-STK001,SD-PRUEBA-STK-001,1500.0,2090.0,1960,Unidad,Unidad,1,3,Seguridad,EPP,stock_critico
+SD PRUEBA PRODUCTO Tornillo drywall 6x1 caja,SDPR-VAR001,SDPR-VAR001,SD-PRUEBA-VAR-001,2800.0,4190.0,3940,Caja,Caja,1,200,Fijaciones,Tornillos,rotacion
