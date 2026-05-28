@@ -296,24 +296,151 @@
     );
   }
 
-  function appendCards(cards) {
-    if (!body || !Array.isArray(cards) || !cards.length) return;
+  function carritoPayloadFromCard(c) {
+    return {
+      producto_id: c.producto_id,
+      nombre: c.nombre || "",
+      referencia: c.referencia || "",
+      precio: parseInt(c.precio, 10) || 0,
+      precio_fmt: c.precio_fmt || "",
+      imagen_url: c.imagen_url || "",
+      disponible: !!c.disponible,
+      stock_tienda: parseInt(c.stock_tienda, 10) || 0,
+    };
+  }
+
+  function appendProductCards(cards, parentEl) {
+    if (!cards || !cards.length) return;
+    const host = parentEl || body;
+    if (!host) return;
     const wrap = document.createElement("div");
-    wrap.className = "tienda-assistant-cards";
+    wrap.className = "tienda-assistant-product-cards";
     cards.forEach(function (c) {
-      const a = document.createElement("a");
-      a.href = c.url || "#";
-      a.innerHTML =
-        "<strong>" +
+      const pid = parseInt(c.producto_id, 10);
+      if (!pid) return;
+      const img = c.imagen_url
+        ? '<img src="' + esc(c.imagen_url) + '" alt="" class="tienda-assistant-pcard-img" loading="lazy">'
+        : '<span class="tienda-assistant-pcard-img tienda-assistant-pcard-img--empty"><i class="fas fa-image"></i></span>';
+      const badge = c.disponible
+        ? '<span class="tienda-assistant-pcard-badge ok">Stock en tienda</span>'
+        : '<span class="tienda-assistant-pcard-badge no">Consultar stock</span>';
+      const payload = encodeURIComponent(JSON.stringify(carritoPayloadFromCard(c)));
+      const art = document.createElement("article");
+      art.className = "tienda-assistant-pcard";
+      art.innerHTML =
+        '<a href="' + esc(c.url || productoUrl(pid)) + '" class="tienda-assistant-pcard-media">' +
+        img +
+        "</a>" +
+        '<div class="tienda-assistant-pcard-body">' +
+        '<a href="' + esc(c.url || productoUrl(pid)) + '" class="tienda-assistant-pcard-title">' +
         esc(c.nombre || "Producto") +
-        "</strong><br>" +
-        esc(c.precio_fmt || "") +
-        " · " +
-        (c.disponible ? "Disponible en tienda" : "Sin stock en tienda");
-      wrap.appendChild(a);
+        "</a>" +
+        '<div class="tienda-assistant-pcard-price">' + esc(c.precio_fmt || "") + "</div>" +
+        badge +
+        '<button type="button" class="tienda-assistant-pcard-cart" data-add-carrito="1" data-carrito-item="' +
+        payload +
+        '"><i class="fas fa-cart-plus me-1"></i> Añadir al carrito</button>' +
+        "</div>";
+      wrap.appendChild(art);
     });
-    body.appendChild(wrap);
-    body.scrollTop = body.scrollHeight;
+    host.appendChild(wrap);
+    host.scrollTop = host.scrollHeight;
+  }
+
+  function appendCards(cards) {
+    appendProductCards(cards, body);
+  }
+
+  function renderUiBlocks(ui, msgEl) {
+    if (!ui || !Array.isArray(ui.blocks) || !ui.blocks.length) return false;
+    const host = msgEl || body;
+    if (!host) return false;
+    ui.blocks.forEach(function (block) {
+      if (!block || !block.type) return;
+      if (block.type === "text") {
+        if (block.text && msgEl) {
+          /* texto principal ya va en el párrafo del mensaje bot */
+        } else if (block.text && !msgEl) {
+          appendMsg("<p class=\"mb-0\">" + esc(block.text) + "</p>", "bot");
+        }
+        return;
+      }
+      if (block.type === "product_cards") {
+        appendProductCards(block.cards || [], host);
+        return;
+      }
+      if (block.type === "button" && block.variant === "combo_cart") {
+        const comboWrap = document.createElement("div");
+        comboWrap.className = "tienda-assistant-combo-actions mt-2";
+        const comboBtn = document.createElement("button");
+        comboBtn.type = "button";
+        comboBtn.className = "btn btn-sm btn-warning fw-semibold";
+        comboBtn.setAttribute(
+          "data-add-combo-carrito",
+          encodeURIComponent(JSON.stringify(block.lineas || []))
+        );
+        comboBtn.innerHTML =
+          '<i class="fas fa-cart-plus me-1"></i> ' + esc(block.label || "Agregar combo al carrito");
+        comboWrap.appendChild(comboBtn);
+        host.appendChild(comboWrap);
+        return;
+      }
+      if (block.type === "cart_summary") {
+        const box = document.createElement("div");
+        box.className = "tienda-assistant-cart-cta";
+        const sub = block.subtotal_fmt
+          ? '<div class="tienda-assistant-cart-cta-sub">Subtotal ref. ' + esc(block.subtotal_fmt) + "</div>"
+          : "";
+        const action = block.cta_action || "generar_vale_web";
+        const icon =
+          action === "open_cart_whatsapp"
+            ? '<i class="fab fa-whatsapp me-1"></i> '
+            : '<i class="fas fa-receipt me-1"></i> ';
+        box.innerHTML =
+          sub +
+          '<button type="button" class="tienda-assistant-cart-cta-btn" data-liz-cart-cta="' +
+          esc(action) +
+          '">' +
+          icon +
+          esc(block.cta_label || "Generar vale PED-WEB") +
+          "</button>";
+        host.appendChild(box);
+        return;
+      }
+      if (block.type === "vale_emitido") {
+        const box = document.createElement("div");
+        box.className = "tienda-assistant-vale-ok";
+        box.innerHTML =
+          '<div class="tienda-assistant-vale-code">' +
+          esc(block.ped_web_codigo || "") +
+          "</div>" +
+          '<div class="tienda-assistant-vale-meta">' +
+          (block.vale_folio ? "Folio caja: " + esc(block.vale_folio) + " · " : "") +
+          esc(block.monto_total_fmt || "") +
+          "</div>" +
+          '<p class="small mb-0 mt-2">' +
+          esc(block.instrucciones || "Presenta este código en caja para retiro.") +
+          "</p>";
+        host.appendChild(box);
+        return;
+      }
+      if (block.type === "link" && block.url) {
+        const p = document.createElement("p");
+        p.className = "small mb-0 mt-2";
+        p.innerHTML =
+          '<a href="' + esc(block.url) + '">' + esc(block.label || "Ver catálogo") + "</a>";
+        host.appendChild(p);
+      }
+    });
+    host.scrollTop = host.scrollHeight;
+    return true;
+  }
+
+  function snapshotCarritoParaApi() {
+    if (typeof window.__tiendaGetCarrito === "function") {
+      return window.__tiendaGetCarrito();
+    }
+    return [];
   }
 
   async function sendMessage(msg) {
@@ -326,14 +453,28 @@
       const btn = form.querySelector("button[type='submit']");
       if (btn) btn.disabled = true;
     }
+    const contactoPayload = function () {
+      const nomEl = document.getElementById("tiendaCartNombre");
+      const telEl = document.getElementById("tiendaCartTelefono");
+      return {
+        cliente_nombre: nomEl ? nomEl.value.trim() : "",
+        cliente_telefono: telEl ? telEl.value.trim() : "",
+      };
+    };
     try {
       const res = await fetch(cfg.api_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mensaje: msg,
-          producto_id: cfg.producto_id || null,
-        }),
+        body: JSON.stringify(
+          Object.assign(
+            {
+              mensaje: msg,
+              producto_id: cfg.producto_id || null,
+              carrito: snapshotCarritoParaApi(),
+            },
+            contactoPayload()
+          )
+        ),
       });
       const data = await res.json();
       if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
@@ -342,37 +483,43 @@
         return;
       }
       const reply = (data.reply || "Te ayudo con otra búsqueda.").trim();
-      let extra = "";
-      if (data.catalogo_url && !data.consulta) {
-        extra =
-          '<p class="small mb-0 mt-2"><a href="' +
-          esc(data.catalogo_url) +
-          '">Ver todos en el catálogo</a></p>';
-      }
-      const msgEl = appendMsg("<p class=\"mb-0\">" + esc(reply) + "</p>" + extra, "bot");
-      if (data.modo_combo && data.combo_lineas && data.combo_lineas.length && msgEl) {
-        const comboWrap = document.createElement("div");
-        comboWrap.className = "tienda-assistant-combo-actions mt-2";
-        const comboBtn = document.createElement("button");
-        comboBtn.type = "button";
-        comboBtn.className = "btn btn-sm btn-warning fw-semibold";
-        comboBtn.setAttribute(
-          "data-add-combo-carrito",
-          encodeURIComponent(JSON.stringify(data.combo_lineas))
-        );
-        comboBtn.innerHTML =
-          '<i class="fas fa-cart-plus me-1"></i> Agregar combo al carrito';
-        comboWrap.appendChild(comboBtn);
-        msgEl.appendChild(comboWrap);
-        body.scrollTop = body.scrollHeight;
-      }
-      if (data.consulta) {
-        await actualizarGrillaCatalogo(data.consulta, data.catalogo_url);
-      } else {
+      const msgEl = appendMsg("<p class=\"mb-0\">" + esc(reply) + "</p>", "bot");
+      const ui = data.ui;
+      const uiHandled =
+        ui && renderUiBlocks(ui, msgEl);
+      if (!uiHandled) {
+        if (data.catalogo_url && !data.consulta) {
+          const p = document.createElement("p");
+          p.className = "small mb-0 mt-2";
+          p.innerHTML =
+            '<a href="' + esc(data.catalogo_url) + '">Ver todos en el catálogo</a>';
+          if (msgEl) msgEl.appendChild(p);
+        }
+        if (data.modo_combo && data.combo_lineas && data.combo_lineas.length && msgEl) {
+          const comboWrap = document.createElement("div");
+          comboWrap.className = "tienda-assistant-combo-actions mt-2";
+          const comboBtn = document.createElement("button");
+          comboBtn.type = "button";
+          comboBtn.className = "btn btn-sm btn-warning fw-semibold";
+          comboBtn.setAttribute(
+            "data-add-combo-carrito",
+            encodeURIComponent(JSON.stringify(data.combo_lineas))
+          );
+          comboBtn.innerHTML =
+            '<i class="fas fa-cart-plus me-1"></i> Agregar combo al carrito';
+          comboWrap.appendChild(comboBtn);
+          msgEl.appendChild(comboWrap);
+        }
         appendCards(data.cards || []);
         if (data.modo_combo && data.combo_cards && data.combo_cards.length) {
           appendCards(data.combo_cards);
         }
+      }
+      const actualizarGrilla =
+        data.consulta &&
+        (!ui || ui.actualizar_grilla !== false);
+      if (actualizarGrilla) {
+        await actualizarGrillaCatalogo(data.consulta, data.catalogo_url);
       }
     } catch (_err) {
       if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
@@ -736,6 +883,59 @@
     }
   }
 
+  window.__tiendaGetCarrito = function () {
+    return loadCart();
+  };
+
+  async function generarValePedidoWeb() {
+    const lines = loadCart();
+    if (!lines.length) {
+      showCartToast("Agrega productos al carrito primero");
+      return;
+    }
+    const api = cartCfg && cartCfg.vale_api_url;
+    if (!api) {
+      showCartToast("Generación de vale no disponible");
+      return;
+    }
+    showCartToast("Generando vale PED-WEB…");
+    try {
+      const res = await fetch(api, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lineas: lines,
+          cliente_nombre: cartNombre ? cartNombre.value.trim() : "",
+          cliente_telefono: cartTelefono ? cartTelefono.value.trim() : "",
+        }),
+      });
+      const data = await res.json();
+      if (!data || !data.ok) {
+        showCartToast((data && data.mensaje) || "No se pudo generar el vale");
+        return;
+      }
+      if (body && data.ui) {
+        const msgEl = appendMsg(
+          "<p class=\"mb-0\">" + esc(data.mensaje || data.reply || "Vale generado.") + "</p>",
+          "bot"
+        );
+        renderUiBlocks(data.ui, msgEl);
+        setLizOpen(true);
+      } else if (data.ped_web_codigo) {
+        appendMsg(
+          "<p class=\"mb-0\">Vale <strong>" +
+            esc(data.ped_web_codigo) +
+            "</strong> creado. Preséntalo en caja.</p>",
+          "bot"
+        );
+        setLizOpen(true);
+      }
+      showCartToast("Vale " + (data.ped_web_codigo || "") + " listo");
+    } catch (_valeErr) {
+      showCartToast("Error de conexión al generar vale");
+    }
+  }
+
   if (cartCfg && cartToggle) {
     renderCart();
     cartToggle.addEventListener("click", function () {
@@ -770,11 +970,40 @@
         }
         return;
       }
+      const lizCta = ev.target.closest("[data-liz-cart-cta]");
+      if (lizCta) {
+        ev.preventDefault();
+        const action = lizCta.getAttribute("data-liz-cart-cta") || "generar_vale_web";
+        if (action === "open_cart_whatsapp") {
+          setCartOpen(true);
+          if (cartWhatsapp && !cartWhatsapp.classList.contains("disabled")) {
+            cartWhatsapp.focus();
+          }
+        } else {
+          generarValePedidoWeb();
+        }
+        return;
+      }
       const addBtn = ev.target.closest("[data-add-carrito]");
       if (addBtn) {
         ev.preventDefault();
         const item = parseCarritoItem(addBtn);
-        if (item) addToCart(item);
+        if (item) {
+          const lines = mergeCartLine(loadCart(), item, true);
+          saveCart(lines);
+          if (!item.disponible) {
+            showCartToast("Agregado. Sin stock en tienda — lo confirmamos al cotizar.");
+          } else {
+            showCartToast("Producto agregado al carrito");
+          }
+          if (addBtn.closest(".tienda-assistant-pcard")) {
+            setCartOpen(false);
+            setLizOpen(true);
+            if (input) input.focus();
+          } else {
+            setCartOpen(true);
+          }
+        }
         return;
       }
       const qtyBtn = ev.target.closest("[data-cart-qty]");

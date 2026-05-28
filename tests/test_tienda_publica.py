@@ -48,6 +48,75 @@ def test_tienda_asistente_api(app_client):
     assert data.get('ok') is True
     assert 'reply' in data
     assert 'motor' in data
+    assert data.get('ui', {}).get('version') == 1
+    assert isinstance(data.get('ui', {}).get('blocks'), list)
+
+
+def test_construir_ui_product_cards():
+    cards = [
+        {
+            'producto_id': 99,
+            'nombre': 'Bota Goma',
+            'precio_fmt': '$12.990',
+            'precio': 12990,
+            'disponible': True,
+            'url': '/tienda/x/producto/99',
+        }
+    ]
+    ui = vt._construir_ui_respuesta(reply='Te recomiendo:', cards=cards)
+    types = [b['type'] for b in ui['blocks']]
+    assert 'text' in types
+    assert 'product_cards' in types
+
+
+def test_es_intencion_cierre_no_confunde_precio():
+    assert vt._es_intencion_cierre_carrito('cuanto vale el cemento') is False
+    assert vt._es_intencion_cierre_carrito('generar vale de retiro') is True
+
+
+def test_asistente_cierre_carrito_ui(app_client, monkeypatch):
+    monkeypatch.setattr(
+        vt,
+        'crear_vale_pedido_web',
+        lambda *_a, **_k: {
+            'ok': True,
+            'ped_web_codigo': 'PED-WEB-000099',
+            'vale_folio': 'VL000099',
+            'monto_total_fmt': '$9.990',
+            'mensaje': 'ok',
+            'instrucciones': 'ir a caja',
+        },
+    )
+    r = app_client.post(
+        '/api/tienda/ferreteria-santo-domingo/asistente',
+        json={
+            'mensaje': 'listo quiero retiro en tienda',
+            'carrito': [
+                {
+                    'producto_id': 1001,
+                    'nombre': 'Cemento 25 kg',
+                    'precio': 5990,
+                    'precio_fmt': '$5.990',
+                    'cantidad': 2,
+                    'disponible': True,
+                },
+                {
+                    'producto_id': 1002,
+                    'nombre': 'Broca 8 mm',
+                    'precio': 1990,
+                    'precio_fmt': '$1.990',
+                    'cantidad': 1,
+                    'disponible': True,
+                },
+            ],
+        },
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get('ok') is True
+    blocks = data.get('ui', {}).get('blocks') or []
+    assert any(b.get('type') == 'cart_summary' for b in blocks)
+    assert 'carrito' in (data.get('reply') or '').lower() or 'listo' in (data.get('reply') or '').lower()
     assert 'liz' in (data.get('reply') or '').lower() or data.get('motor')
 
 
@@ -230,6 +299,65 @@ def test_respuesta_recomendacion_generica_fallback(monkeypatch):
     assert out.get('cards')
     assert len(out['cards']) >= 1
     assert 'recom' in (out.get('reply') or '').lower()
+
+
+def test_es_consulta_por_problema_gotera():
+    msg = 'Tengo una gotera horrible en el techo de zinc y esta lloviendo, que me sirve?'
+    assert vt._es_consulta_por_problema(msg) is True
+
+
+def test_interpretar_problema_reglas_gotera_zinc():
+    r = vt._interpretar_problema_reglas(
+        'Tengo gotera en el techo de zinc con lluvia, que me sirve?'
+    )
+    assert r.get('ok') is True
+    terminos = ' '.join(r.get('terminos') or []).lower()
+    assert 'silicona' in terminos
+    assert 'tapagotera' in terminos or 'sellador' in terminos
+
+
+def test_respuesta_maestro_constructor_gotera(monkeypatch):
+    items = [
+        {
+            'producto_id': 501,
+            'nombre': 'Silicona neutra 280 ml',
+            'precio_fmt': '$5.990',
+            'precio': 5990,
+            'disponible': True,
+            'stock_tienda': 4,
+            'referencia': 'SIL280',
+        },
+        {
+            'producto_id': 502,
+            'nombre': 'Cinta tapagoteras asfaltica',
+            'precio_fmt': '$8.490',
+            'precio': 8490,
+            'disponible': True,
+            'stock_tienda': 2,
+            'referencia': 'TAP01',
+        },
+    ]
+    interpret = {
+        'ok': True,
+        'diagnostico': 'Gotera en techo de zinc',
+        'terminos': ['silicona neutra', 'tapagotera'],
+        'fuente': 'reglas',
+    }
+
+    monkeypatch.setattr(vt, '_maestro_constructor_habilitado', lambda: True)
+    monkeypatch.setattr(vt, '_es_consulta_por_problema', lambda _t: True)
+    monkeypatch.setattr(vt, '_interpretar_problema_cliente', lambda _t: interpret)
+    monkeypatch.setattr(vt, '_buscar_items_maestro', lambda _terms: (items, len(items)))
+    monkeypatch.setattr(vt, '_buscar_items_asistente', lambda _t: ([], 0))
+    monkeypatch.setattr(vt, '_respuesta_ollama', lambda **_k: None)
+
+    msg = 'Tengo una gotera horrible en el techo de zinc y esta lloviendo, que me sirve?'
+    out = vt.respuesta_asistente(slug=vt.TIENDA_SLUG_SD, mensaje=msg)
+    assert out.get('motor') == 'maestro'
+    assert out.get('cards')
+    reply = (out.get('reply') or '').lower()
+    assert 'entiendo' in reply or 'gotera' in reply or 'silicona' in reply
+    assert out.get('consulta')
 
 
 def test_respuesta_tienes_producto_sin_match_entrega_alternativas(monkeypatch):

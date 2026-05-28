@@ -1,6 +1,7 @@
 """Vitrina pública piloto: catálogo Chilemat + stock ERP (Ferretería Santo Domingo)."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import unicodedata
@@ -23,6 +24,26 @@ _INTENCION_RECOMENDAR = (
     'recomiend', 'recomendar', 'recomendacion', 'suger', 'sugerencia',
     'alternativa', 'alternativas', 'opcion', 'opciones', 'que me recomiendas',
 )
+
+# Maestro Constructor: el cliente describe un problema (gotera, humedad), no un SKU.
+_MARCADORES_PROBLEMA = (
+    'gotera', 'gotea', 'filtr', 'humed', 'moho', 'grieta', 'fisura', 'fuga', 'filtra',
+    'impermeabil', 'techo', 'zinc', 'lluvia', 'llueve', 'oxida', 'herrumbre', 'corrosion',
+    'cortocircuito', 'chispa', 'disyuntor', 'entra agua', 'sellar', 'empapa', 'filtracion',
+    'se rompio', 'se quemo', 'no prende', 'no enciende', 'tapar agua', 'goteando',
+)
+_PREGUNTA_SOLUCION = (
+    'que me sirve', 'que necesito', 'que compro', 'como arreglo', 'como reparo',
+    'como solucion', 'que uso para', 'que llevo para', 'ayudame con',
+)
+_INTENCION_CIERRE_CARRITO = (
+    'listo', 'termin', 'finaliz', 'cerrar pedido', 'vale de retiro', 'vale retiro',
+    'generar vale', 'pedir retiro', 'retiro en tienda', 'confirmar carrito',
+    'ver mi carrito', 'mi carrito', 'pasar a retirar', 'cotizar pedido', 'hacer pedido',
+)
+
+CARRITO_MAX_CANTIDAD = 99
+CARRITO_STORAGE_KEY = 'sd_vitrina_carrito_v1'
 
 # Término de búsqueda → categoría Chilemat (raíz o nivel 1)
 _INTENCION_CATEGORIA: dict[str, tuple[str, ...]] = {
@@ -97,6 +118,244 @@ def _modo_combo_habilitado() -> bool:
     return v not in ('0', 'false', 'no', 'off')
 
 
+def _maestro_constructor_habilitado() -> bool:
+    """Asesoría técnica: problema del cliente → términos de catálogo reales."""
+    v = (os.getenv('VITRINA_MAESTRO_CONSTRUCTOR') or '1').strip().lower()
+    return v not in ('0', 'false', 'no', 'off')
+
+
+def _es_consulta_por_problema(txt: str) -> bool:
+    """True si el mensaje describe una situación/reparación, no solo un nombre de producto."""
+    base = _texto_simple(txt)
+    if not base:
+        return False
+    if any(m in base for m in _MARCADORES_PROBLEMA):
+        return True
+    if any(p in base for p in _PREGUNTA_SOLUCION) and len(base.split()) >= 4:
+        return True
+    if '?' in (txt or '') and len(base) >= 28 and any(m in base for m in _MARCADORES_PROBLEMA[:12]):
+        return True
+    return False
+
+
+def _interpretar_problema_reglas(txt: str) -> dict[str, Any]:
+    """Mapa heurístico problema → términos de búsqueda (sin Ollama)."""
+    base = _texto_simple(txt)
+    if not base:
+        return {'ok': False}
+
+    if any(x in base for x in ('gotera', 'gotea', 'filtr', 'goteando')) or (
+        'agua' in base and any(x in base for x in ('techo', 'zinc', 'cubre', 'teja', 'cubierta'))
+    ):
+        diag = 'Filtración o gotera en cubierta o techo'
+        if 'zinc' in base:
+            diag = 'Gotera o filtración en techo de zinc (lluvia / cubierta metálica)'
+        terminos = ['silicona', 'tapagotera', 'sellador', 'cinta']
+        if 'zinc' in base or 'metal' in base:
+            terminos = ['silicona neutra', 'tapagotera', 'cinta autoadhesiva', 'sellador']
+        return {'ok': True, 'diagnostico': diag, 'terminos': terminos, 'fuente': 'reglas'}
+
+    if any(x in base for x in ('humedad', 'moho', 'empapa')) and any(
+        x in base for x in ('muro', 'pared', 'bano', 'cocina', 'sotano')
+    ):
+        return {
+            'ok': True,
+            'diagnostico': 'Humedad o moho en muro o ambiente húmedo',
+            'terminos': ['impermeabilizante', 'sellador', 'antihumedad'],
+            'fuente': 'reglas',
+        }
+
+    if any(x in base for x in ('cortocircuito', 'chispa', 'disyuntor', 'se va la luz')):
+        return {
+            'ok': True,
+            'diagnostico': 'Protección o falla eléctrica en instalación',
+            'terminos': ['disyuntor', 'cable', 'cinta aisladora'],
+            'fuente': 'reglas',
+        }
+
+    if any(x in base for x in ('oxida', 'herrumbre', 'corrosion', 'oxido')):
+        return {
+            'ok': True,
+            'diagnostico': 'Óxido o corrosión en metal',
+            'terminos': ['anticorrosivo', 'convertidor', 'esmalte'],
+            'fuente': 'reglas',
+        }
+
+    if 'grieta' in base or 'fisura' in base:
+        return {
+            'ok': True,
+            'diagnostico': 'Grietas o fisuras en mampostería',
+            'terminos': ['masilla', 'cemento', 'mortero', 'sellador'],
+            'fuente': 'reglas',
+        }
+
+    return {'ok': False}
+
+
+def _prompt_maestro_constructor_interpretar() -> str:
+    extra = (os.getenv('VITRINA_MAESTRO_PROMPT_EXTRA') or '').strip()
+    base = (
+        'Eres el Maestro Constructor (asesor técnico) de una ferretería en Chile. '
+        'El cliente describe un PROBLEMA en su casa (gotera, humedad, grieta), no el nombre exacto del producto. '
+        'Traduce el problema a entre 3 y 5 términos cortos para buscar en catálogo ferretero real '
+        '(ej: silicona neutra, tapagotera, cinta autoadhesiva, impermeabilizante). '
+        'NO inventes marcas. Responde SOLO JSON válido sin markdown ni texto extra: '
+        '{"diagnostico":"una frase técnica breve","terminos_busqueda":["term1","term2","term3"]}'
+    )
+    return f'{base} {extra}'.strip()
+
+
+def _parse_json_desde_ollama(raw: str) -> dict[str, Any] | None:
+    if not raw:
+        return None
+    texto = raw.strip()
+    m = re.search(r'\{[\s\S]*\}', texto)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _interpretar_problema_ollama(txt: str) -> dict[str, Any]:
+    """Ollama traduce problema → términos de catálogo (JSON)."""
+    vacio: dict[str, Any] = {'ok': False}
+    try:
+        from services.ollama_client import generar_chat, ollama_disponible
+    except Exception:
+        return vacio
+    if not ollama_disponible():
+        return vacio
+
+    user = (
+        f'Problema del cliente: {txt.strip()[:500]}\n'
+        'Devuelve solo el JSON con diagnostico y terminos_busqueda.'
+    )
+    out = generar_chat(system=_prompt_maestro_constructor_interpretar(), user=user)
+    if not out.get('ok'):
+        return vacio
+    data = _parse_json_desde_ollama(out.get('texto') or '')
+    if not data:
+        return vacio
+    terminos_raw = data.get('terminos_busqueda') or data.get('terminos') or []
+    if isinstance(terminos_raw, str):
+        terminos_raw = [terminos_raw]
+    terminos: list[str] = []
+    for t in terminos_raw:
+        s = (str(t) if t is not None else '').strip()[:60]
+        if s and s.lower() not in {x.lower() for x in terminos}:
+            terminos.append(s)
+    if not terminos:
+        return vacio
+    diag = (str(data.get('diagnostico') or data.get('resumen') or '')).strip()[:200]
+    return {
+        'ok': True,
+        'diagnostico': diag or 'Consulta técnica del cliente',
+        'terminos': terminos[:5],
+        'fuente': 'ollama',
+    }
+
+
+def _interpretar_problema_cliente(txt: str) -> dict[str, Any]:
+    """Reglas locales + Ollama (si está activo); prioriza términos útiles para el catálogo."""
+    reglas = _interpretar_problema_reglas(txt)
+    ollama = _interpretar_problema_ollama(txt) if ollama_vitrina_disponible() else {'ok': False}
+
+    if ollama.get('ok') and reglas.get('ok'):
+        terminos = list(ollama.get('terminos') or [])
+        for t in reglas.get('terminos') or []:
+            if t and t.lower() not in {x.lower() for x in terminos}:
+                terminos.append(t)
+        return {
+            'ok': True,
+            'diagnostico': (ollama.get('diagnostico') or reglas.get('diagnostico') or '').strip(),
+            'terminos': terminos[:6],
+            'fuente': 'ollama+reglas',
+        }
+    if ollama.get('ok'):
+        return ollama
+    if reglas.get('ok'):
+        return reglas
+    return {'ok': False}
+
+
+def _buscar_items_maestro(terminos: list[str]) -> tuple[list[dict[str, Any]], int]:
+    """Búsqueda multi-término tras interpretación técnica."""
+    limpios = [(t or '').strip()[:60] for t in (terminos or []) if (t or '').strip()]
+    if not limpios:
+        return [], 0
+
+    rank_tokens: list[str] = []
+    for term in limpios:
+        for tok in _texto_simple(term).split():
+            if len(tok) >= 3 and tok not in rank_tokens:
+                rank_tokens.append(tok)
+    rank_tokens = rank_tokens[:10]
+
+    lotes: list[list[dict[str, Any]]] = []
+    for term in limpios[:4]:
+        try:
+            r = listar_productos(page=1, per_page=28, q_text=term, solo_disponibles=False)
+            if r.get('productos'):
+                lotes.append(r['productos'])
+        except Exception:
+            continue
+
+    merged = _merge_items_por_producto(*lotes, limite=48)
+    if not merged:
+        return [], 0
+
+    ranked = _rankear_y_filtrar_items(merged, rank_tokens, min_score=3, limite=24)
+    if not ranked:
+        ranked = merged[:24]
+
+    def _sort_key(it: dict[str, Any]) -> tuple[int, int]:
+        disp = 0 if it.get('disponible') else 1
+        score = _score_item_busqueda(it, rank_tokens)
+        return (disp, -score)
+
+    ranked.sort(key=_sort_key)
+    return ranked, len(ranked)
+
+
+def _reply_maestro_constructor(
+    items: list[dict[str, Any]],
+    interpret: dict[str, Any],
+    mensaje: str,
+) -> str:
+    """Respuesta asesoría técnica con producto estrella + precio/stock."""
+    if not items:
+        diag = (interpret.get('diagnostico') or 'tu situación').strip()
+        return (
+            f'Entiendo: {diag}. No encontré coincidencias claras en catálogo ahora; '
+            'prueba en tienda o dime otra palabra (marca o medida).'
+        )
+    diag = (interpret.get('diagnostico') or 'tu situación').strip()
+    top = items[0]
+    nombre = (top.get('nombre') or 'este producto').strip()
+    precio = (top.get('precio_fmt') or '').strip()
+    msg = f'Entiendo el problema: {diag}. '
+    msg += f'Para eso en ferretería te conviene revisar {nombre}'
+    if precio:
+        msg += f' (precio de referencia {precio})'
+    if top.get('disponible'):
+        msg += ', con stock en tienda ahora'
+    else:
+        msg += '; consulta disponibilidad en tienda'
+    msg += '. '
+    n = len(items)
+    if n > 1:
+        msg += f'Te dejé {min(n, 3)} opciones relacionadas al lado para comparar.'
+    else:
+        msg += 'La ves en el listado al lado.'
+    _ = mensaje  # contexto futuro Ollama redacción
+    return msg
+
+
 def _liz_prompt_ollama(nombre_tienda: str, *, modo_combo: bool = False) -> str:
     """Instrucciones de tono Liz (vitrina). Ajustar con VITRINA_LIZ_PROMPT_EXTRA en .env."""
     extra = (os.getenv('VITRINA_LIZ_PROMPT_EXTRA') or '').strip()
@@ -119,6 +378,11 @@ def _liz_prompt_ollama(nombre_tienda: str, *, modo_combo: bool = False) -> str:
         base += (
             ' Maximo 2 oraciones. Si hay productos en la lista, menciona uno o dos nombres '
             'y di que quedan abajo para ver detalle.'
+        )
+    if _maestro_constructor_habilitado():
+        base += (
+            ' Si el cliente describe un problema (gotera, humedad, grieta), actua como asesor tecnico: '
+            'explica brevemente la solucion y recomienda productos del listado con precio de referencia.'
         )
     return f'{base} {extra}'.strip()
 
@@ -833,17 +1097,313 @@ def _cards_desde_items(items: list[dict[str, Any]], slug: str, *, limite: int = 
         pid = int(it.get('producto_id') or 0)
         if not pid:
             continue
+        precio = int(it.get('precio') or 0)
+        img = (it.get('imagen_url') or '').strip()
         out.append(
             {
                 'producto_id': pid,
                 'nombre': (it.get('nombre') or 'Producto')[:100],
-                'precio_fmt': it.get('precio_fmt') or _fmt_clp(it.get('precio') or 0),
+                'referencia': (it.get('referencia') or '')[:80],
+                'precio': precio,
+                'precio_fmt': it.get('precio_fmt') or _fmt_clp(precio),
+                'imagen_url': img[:500] if img else None,
                 'stock_tienda': int(it.get('stock_tienda') or 0),
                 'disponible': bool(it.get('disponible')),
                 'url': url_tienda_producto(slug, pid),
             }
         )
     return out
+
+
+def _es_intencion_cierre_carrito(txt: str) -> bool:
+    """Cliente quiere cerrar / retiro / vale con lo que ya tiene en carrito."""
+    base = _texto_simple(txt)
+    if not base:
+        return False
+    # No confundir consultas de precio («cuánto vale») con cierre de pedido.
+    if any(x in base for x in ('cuanto vale', 'cuánto vale', 'precio', 'cuesta', 'sale')):
+        if not any(
+            x in base
+            for x in (
+                'generar vale',
+                'vale de retiro',
+                'vale retiro',
+                'confirmar carrito',
+                'cerrar pedido',
+                'retiro en tienda',
+            )
+        ):
+            return False
+    return any(k in base for k in _INTENCION_CIERRE_CARRITO)
+
+
+def _normalizar_carrito_cliente(lineas: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Sanitiza payload del carrito enviado por el navegador."""
+    out: list[dict[str, Any]] = []
+    for ln in lineas or []:
+        if not isinstance(ln, dict):
+            continue
+        pid_raw = ln.get('producto_id') or ln.get('id') or 0
+        try:
+            pid = int(pid_raw)
+        except (TypeError, ValueError):
+            pid = 0
+        if not pid:
+            continue
+        try:
+            qty = max(1, min(int(ln.get('cantidad') or 1), CARRITO_MAX_CANTIDAD))
+        except (TypeError, ValueError):
+            qty = 1
+        try:
+            precio = int(ln.get('precio') or 0)
+        except (TypeError, ValueError):
+            precio = 0
+        out.append(
+            {
+                'producto_id': pid,
+                'nombre': (ln.get('nombre') or 'Producto')[:100],
+                'referencia': (ln.get('referencia') or '')[:80],
+                'precio': precio,
+                'precio_fmt': (ln.get('precio_fmt') or _fmt_clp(precio))[:32],
+                'imagen_url': (ln.get('imagen_url') or '')[:500] or None,
+                'disponible': bool(ln.get('disponible')),
+                'stock_tienda': int(ln.get('stock_tienda') or 0),
+                'cantidad': qty,
+            }
+        )
+        if len(out) >= 24:
+            break
+    return out
+
+
+def _reply_cierre_carrito(totales: dict[str, Any], nombre_tienda: str = TIENDA_TITULO_DEFAULT) -> str:
+    n_lineas = int(totales.get('lineas_count') or 0)
+    n_unidades = int(totales.get('items_count') or 0)
+    sub = (totales.get('subtotal_fmt') or '').strip()
+    tienda = (nombre_tienda or TIENDA_TITULO_DEFAULT).strip()
+    if n_lineas <= 0:
+        return 'Tu carrito está vacío. Dime qué producto buscas y te ayudo a armarlo.'
+    msg = f'¡Listo! Tu carrito tiene {n_lineas} producto'
+    if n_lineas != 1:
+        msg += 's'
+    if n_unidades > n_lineas:
+        msg += f' ({n_unidades} unidades en total)'
+    msg += f' en {tienda}.'
+    if sub:
+        msg += f' Subtotal de referencia: {sub}.'
+    msg += ' Pincha el botón verde de abajo para generar tu vale PED-WEB en tienda.'
+    return msg
+
+
+def pedido_web_habilitado() -> bool:
+    v = (os.getenv('VITRINA_PEDIDO_WEB_HABILITADO') or '1').strip().lower()
+    return v not in ('0', 'false', 'no', 'off')
+
+
+def codigo_pedido_web(venta_id: int) -> str:
+    return f'PED-WEB-{int(venta_id):06d}'
+
+
+def crear_vale_pedido_web(
+    carrito_lineas: list[dict[str, Any]] | None,
+    *,
+    cliente_nombre: str = '',
+    cliente_telefono: str = '',
+    nombre_tienda: str = TIENDA_TITULO_DEFAULT,
+) -> dict[str, Any]:
+    """
+    Crea venta ERP estado Pendiente desde carrito vitrina (retiro en tienda).
+    Folio operativo: PED-WEB-###### (id venta). En caja aparece como VL######.
+    """
+    if not pedido_web_habilitado():
+        return {'ok': False, 'error': 'pedido_web_disabled'}
+
+    lineas = _normalizar_carrito_cliente(carrito_lineas)
+    if not lineas:
+        return {'ok': False, 'error': 'carrito_vacio', 'mensaje': 'No hay productos válidos en el carrito.'}
+
+    from datetime import datetime
+
+    from app import DetalleVenta, Producto, Venta, db
+
+    try:
+        from app import obtener_caja_activa, obtener_o_crear_cliente_final
+    except ImportError:
+        return {'ok': False, 'error': 'erp_no_disponible'}
+
+    cliente = obtener_o_crear_cliente_final()
+    if not cliente:
+        return {'ok': False, 'error': 'sin_cliente'}
+
+    caja = None
+    try:
+        caja = obtener_caja_activa()
+    except Exception:
+        caja = None
+
+    notas_contacto = []
+    cn = (cliente_nombre or '').strip()[:80]
+    ct = (cliente_telefono or '').strip()[:30]
+    if cn:
+        notas_contacto.append(f'Nombre: {cn}')
+    if ct:
+        notas_contacto.append(f'Tel: {ct}')
+    usuario_vale = 'Liz-Web'
+    if notas_contacto:
+        usuario_vale = f"Liz-Web ({'; '.join(notas_contacto)})"[:50]
+
+    venta = Venta(
+        fecha=datetime.now(),
+        monto_total=0,
+        usuario=usuario_vale,
+        estado='Pendiente',
+        caja_id=int(caja.id) if caja else None,
+        cliente_id=int(cliente.id),
+        punto_retiro='Tienda',
+        metodo_pago=None,
+        tipo_documento='Boleta',
+    )
+    db.session.add(venta)
+    db.session.flush()
+
+    detalles_ok = 0
+    for ln in lineas:
+        prod = Producto.query.filter(
+            Producto.id == int(ln['producto_id']),
+            Producto.activo.isnot(False),
+        ).first()
+        if not prod:
+            continue
+        precio = int(round(float(prod.precio_venta or ln.get('precio') or 0)))
+        qty = int(ln.get('cantidad') or 1)
+        db.session.add(
+            DetalleVenta(
+                id_venta=int(venta.id),
+                id_producto=int(prod.id),
+                cantidad=qty,
+                precio_unitario=precio,
+                subtotal=qty * precio,
+                punto_retiro_linea='Tienda',
+            )
+        )
+        detalles_ok += 1
+
+    if detalles_ok <= 0:
+        db.session.rollback()
+        return {
+            'ok': False,
+            'error': 'sin_productos_validos',
+            'mensaje': 'Los productos del carrito no están activos en el ERP.',
+        }
+
+    venta.recalcular_total()
+    venta.bodega_preparacion_estado = 'PENDIENTE'
+    try:
+        from app import _asegurar_columnas_ventas_bodega_despacho
+
+        _asegurar_columnas_ventas_bodega_despacho()
+    except Exception:
+        pass
+    db.session.commit()
+
+    codigo = codigo_pedido_web(int(venta.id))
+    vale_folio = f'VL{int(venta.id):06d}'
+    tot = calcular_totales_carrito(lineas)
+    tienda = (nombre_tienda or TIENDA_TITULO_DEFAULT).strip()
+
+    return {
+        'ok': True,
+        'venta_id': int(venta.id),
+        'ped_web_codigo': codigo,
+        'vale_folio': vale_folio,
+        'monto_total': int(round(float(venta.monto_total or 0))),
+        'monto_total_fmt': _fmt_clp(venta.monto_total),
+        'items_count': tot.get('items_count'),
+        'lineas_count': detalles_ok,
+        'mensaje': (
+            f'Vale {codigo} creado en {tienda}. Presenta este código en caja para retiro; '
+            f'folio interno {vale_folio}.'
+        ),
+        'instrucciones': (
+            'Acércate a caja de Ferretería Santo Domingo con este código. '
+            'El precio final se confirma al cobrar.'
+        ),
+    }
+
+
+def _construir_ui_respuesta(
+    *,
+    reply: str,
+    cards: list[dict[str, Any]] | None = None,
+    catalogo_url: str | None = None,
+    consulta: str | None = None,
+    modo_combo: bool = False,
+    combo_lineas: list[dict[str, Any]] | None = None,
+    carrito_totales: dict[str, Any] | None = None,
+    cierre_carrito: bool = False,
+) -> dict[str, Any]:
+    """
+    Bloques UI para el chat (JSON). El front dibuja tarjetas y botones;
+    Ollama solo redacta texto — no inventa productos ni precios.
+    """
+    blocks: list[dict[str, Any]] = []
+    texto = (reply or '').strip()
+    if texto:
+        blocks.append({'type': 'text', 'text': texto})
+
+    card_list = list(cards or [])
+    if card_list:
+        blocks.append({'type': 'product_cards', 'cards': card_list})
+
+    if modo_combo and combo_lineas:
+        blocks.append(
+            {
+                'type': 'button',
+                'variant': 'combo_cart',
+                'label': 'Agregar combo al carrito',
+                'lineas': combo_lineas,
+            }
+        )
+
+    tot = carrito_totales or {}
+    if int(tot.get('lineas_count') or 0) > 0 and cierre_carrito:
+        blocks.append(
+            {
+                'type': 'cart_summary',
+                'items_count': int(tot.get('items_count') or 0),
+                'lineas_count': int(tot.get('lineas_count') or 0),
+                'subtotal_fmt': tot.get('subtotal_fmt') or '',
+                'cta_label': 'Generar vale PED-WEB (retiro en tienda)',
+                'cta_action': 'generar_vale_web',
+            }
+        )
+
+    vp = vale_pedido or {}
+    if vp.get('ok') and vp.get('ped_web_codigo'):
+        blocks.append(
+            {
+                'type': 'vale_emitido',
+                'ped_web_codigo': vp.get('ped_web_codigo'),
+                'vale_folio': vp.get('vale_folio'),
+                'monto_total_fmt': vp.get('monto_total_fmt') or '',
+                'instrucciones': vp.get('instrucciones') or '',
+            }
+        )
+
+    if catalogo_url and not consulta:
+        blocks.append(
+            {
+                'type': 'link',
+                'label': 'Ver todos en el catálogo',
+                'url': catalogo_url,
+            }
+        )
+
+    return {
+        'version': 1,
+        'blocks': blocks,
+        'actualizar_grilla': bool(consulta),
+    }
 
 
 def ollama_vitrina_disponible() -> bool:
@@ -865,6 +1425,8 @@ def chips_asistente(*, producto_id: int | None = None) -> list[str]:
             'Ver productos relacionados',
         ]
     return [
+        'Generar vale de retiro',
+        'Gotera en techo de zinc',
         'Precio pintura impermeabilizante',
         '¿Hay stock cemento?',
         'Broca para hormigón',
@@ -939,22 +1501,28 @@ def _emit_respuesta(
     consulta: str | None = None,
     items_ranked: list[dict[str, Any]] | None = None,
     slug: str | None = None,
+    motor_fijo: str | None = None,
+    carrito_totales: dict[str, Any] | None = None,
+    cierre_carrito: bool = False,
+    vale_pedido: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     combo_ctx: dict[str, Any] = {}
-    if items_ranked and slug and _modo_combo_habilitado():
+    if items_ranked and slug and _modo_combo_habilitado() and motor_fijo != 'maestro':
         combo_ctx = _contexto_combo_liz(items_ranked, slug)
     modo_combo = bool(combo_ctx.get('activo'))
 
     reply_out = reply
     ollama_txt = None
-    motor = 'reglas'
+    motor = motor_fijo or 'reglas'
 
-    if modo_combo:
+    if motor_fijo == 'maestro':
+        reply_out = reply
+    elif modo_combo:
         reply_base = _reply_combo_reglas(combo_ctx, (consulta or mensaje or '')[:80])
         # Modo combo forzado por reglas: no reescribir con Ollama.
         reply_out = reply_base
         motor = 'combo'
-    elif not cards:
+    elif not cards and not motor_fijo:
         ollama_txt = _respuesta_ollama(
             mensaje=mensaje,
             respuesta_base=reply,
@@ -978,6 +1546,28 @@ def _emit_respuesta(
         out['modo_combo'] = True
         out['combo_cards'] = combo_ctx.get('cards_combo') or []
         out['combo_lineas'] = combo_ctx.get('lineas_carrito') or []
+
+    combo_lineas_ui = out.get('combo_lineas') if modo_combo else None
+    cards_ui = list(out.get('cards') or [])
+    if modo_combo and out.get('combo_cards'):
+        seen = {int(c.get('producto_id') or 0) for c in cards_ui}
+        for cc in out.get('combo_cards') or []:
+            pid = int(cc.get('producto_id') or 0)
+            if pid and pid not in seen:
+                cards_ui.append(cc)
+                seen.add(pid)
+
+    out['ui'] = _construir_ui_respuesta(
+        reply=reply_out,
+        cards=cards_ui,
+        catalogo_url=catalogo_url,
+        consulta=consulta,
+        modo_combo=modo_combo,
+        combo_lineas=combo_lineas_ui,
+        carrito_totales=carrito_totales,
+        cierre_carrito=cierre_carrito,
+        vale_pedido=vale_pedido,
+    )
     return out
 
 
@@ -986,14 +1576,63 @@ def respuesta_asistente(
     slug: str,
     mensaje: str,
     producto_id: int | None = None,
+    carrito_lineas: list[dict[str, Any]] | None = None,
+    cliente_nombre: str = '',
+    cliente_telefono: str = '',
 ) -> dict[str, Any]:
     """Liz — asistente de ventas vitrina (reglas ERP+Chilemat + Ollama opcional)."""
     txt = (mensaje or '').strip()
     q = txt.lower()
+    carrito = _normalizar_carrito_cliente(carrito_lineas)
+    totales_carrito = calcular_totales_carrito(carrito) if carrito else None
+
+    def _emit_con_carrito(**kwargs):
+        kw = dict(kwargs)
+        if 'carrito_totales' not in kw:
+            kw['carrito_totales'] = totales_carrito
+        return _emit_respuesta(**kw)
+
     if not txt:
         return _emit_respuesta(
             mensaje=txt,
             reply='Cuéntame qué buscas y te muestro opciones con precio de referencia y stock en tienda.',
+            cards=[],
+            carrito_totales=totales_carrito,
+        )
+
+    if _es_intencion_cierre_carrito(txt):
+        n_en_carrito = int((totales_carrito or {}).get('lineas_count') or 0)
+        if carrito and n_en_carrito > 0:
+            vale_res: dict[str, Any] | None = None
+            if pedido_web_habilitado():
+                vale_res = crear_vale_pedido_web(
+                    carrito,
+                    cliente_nombre=cliente_nombre,
+                    cliente_telefono=cliente_telefono,
+                )
+            reply_txt = _reply_cierre_carrito(totales_carrito or {})
+            if vale_res and vale_res.get('ok'):
+                reply_txt = (
+                    f"¡Listo! Generé tu vale {vale_res.get('ped_web_codigo')} "
+                    f"({vale_res.get('monto_total_fmt')} referencial). "
+                    f"Preséntalo en caja ({vale_res.get('vale_folio')}) para retiro en tienda."
+                )
+            elif vale_res and not vale_res.get('ok'):
+                reply_txt += f" ({vale_res.get('mensaje') or 'No pude crear el vale en ERP.'})"
+            return _emit_con_carrito(
+                mensaje=txt,
+                reply=reply_txt,
+                cards=[],
+                cierre_carrito=True,
+                vale_pedido=vale_res,
+            )
+        return _emit_con_carrito(
+            mensaje=txt,
+            reply=(
+                'No recibí productos válidos en tu carrito (revisa que hayas pulsado '
+                '«Añadir al carrito» en la tarjeta verde). Si ya agregaste ítems, '
+                'intenta de nuevo o abre el carrito flotante para confirmar.'
+            ),
             cards=[],
         )
 
@@ -1052,12 +1691,53 @@ def respuesta_asistente(
             cards=[],
         )
 
+    # Maestro Constructor: problema técnico → términos de catálogo (Ollama + reglas)
+    interpret: dict[str, Any] | None = None
+    if _maestro_constructor_habilitado() and _es_consulta_por_problema(txt):
+        interpret = _interpretar_problema_cliente(txt)
+        if interpret.get('ok') and interpret.get('terminos'):
+            items_mc, _total_mc = _buscar_items_maestro(interpret['terminos'])
+            if items_mc:
+                consulta_mc = (interpret['terminos'][0] or '')[:60]
+                cat_url_mc = _url_catalogo_busqueda(slug, consulta_mc) or _url_catalogo_busqueda(slug, txt)
+                reply_mc = _reply_maestro_constructor(items_mc, interpret, txt)
+                cards_mc = _cards_desde_items(items_mc, slug, limite=3)
+                return _emit_respuesta(
+                    mensaje=txt,
+                    reply=reply_mc,
+                    cards=cards_mc,
+                    catalogo_url=cat_url_mc,
+                    consulta=consulta_mc,
+                    items_ranked=items_mc,
+                    slug=slug,
+                    motor_fijo='maestro',
+                )
+
     # búsqueda libre en catálogo (con normalización + fallback por tokens)
     _, tokens = _normalizar_consulta_asistente(txt)
     consulta = ' '.join(tokens) if tokens else txt
     items, total = _buscar_items_asistente(consulta)
     cat_url = _url_catalogo_busqueda(slug, txt)
     if not items:
+        if _maestro_constructor_habilitado() and not interpret:
+            interpret = _interpretar_problema_cliente(txt)
+            if interpret.get('ok') and interpret.get('terminos'):
+                items_mc, _total_mc = _buscar_items_maestro(interpret['terminos'])
+                if items_mc:
+                    consulta_mc = (interpret['terminos'][0] or '')[:60]
+                    cat_url_mc = _url_catalogo_busqueda(slug, consulta_mc) or cat_url
+                    reply_mc = _reply_maestro_constructor(items_mc, interpret, txt)
+                    cards_mc = _cards_desde_items(items_mc, slug, limite=3)
+                    return _emit_respuesta(
+                        mensaje=txt,
+                        reply=reply_mc,
+                        cards=cards_mc,
+                        catalogo_url=cat_url_mc,
+                        consulta=consulta_mc,
+                        items_ranked=items_mc,
+                        slug=slug,
+                        motor_fijo='maestro',
+                    )
         sugeridos_ambiguos = _fallback_sugerencias_ambiguas(txt, tokens)
         if sugeridos_ambiguos:
             cards_amb = _cards_desde_items(sugeridos_ambiguos, slug, limite=3)
@@ -1117,19 +1797,17 @@ def respuesta_asistente(
         )
 
     reply = _reply_destacado_sodimac(items, consulta)
+    top_cards = _cards_desde_items(items, slug, limite=3)
     return _emit_respuesta(
         mensaje=txt,
         reply=reply,
-        cards=[],
+        cards=top_cards,
         catalogo_url=cat_url,
         consulta=consulta,
         items_ranked=items,
         slug=slug,
+        carrito_totales=totales_carrito,
     )
-
-
-CARRITO_MAX_CANTIDAD = 99
-CARRITO_STORAGE_KEY = 'sd_vitrina_carrito_v1'
 
 
 def calcular_totales_carrito(lineas: list[dict[str, Any]]) -> dict[str, Any]:

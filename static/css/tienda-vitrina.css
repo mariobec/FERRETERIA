@@ -798,6 +798,166 @@ body.tienda-cart-open .tienda-assistant-panel {
   font-weight: 600;
 }
 
+/* Tarjetas producto interactivas dentro del chat Liz */
+.tienda-assistant-product-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.tienda-assistant-pcard {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.tienda-assistant-pcard-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f1f5f9;
+  min-height: 72px;
+}
+
+.tienda-assistant-pcard-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.tienda-assistant-pcard-img--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  width: 72px;
+  height: 72px;
+}
+
+.tienda-assistant-pcard-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sd-text);
+  text-decoration: none;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tienda-assistant-pcard-title:hover {
+  color: #0b5cab;
+}
+
+.tienda-assistant-pcard-price {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0b5cab;
+  margin: 2px 0 4px;
+}
+
+.tienda-assistant-pcard-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+}
+
+.tienda-assistant-pcard-badge.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.tienda-assistant-pcard-badge.no {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tienda-assistant-pcard-cart {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.35);
+  cursor: pointer;
+}
+
+.tienda-assistant-pcard-cart:hover {
+  filter: brightness(1.05);
+}
+
+.tienda-assistant-pcard-cart:active {
+  transform: translateY(1px);
+}
+
+.tienda-assistant-cart-cta {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+}
+
+.tienda-assistant-cart-cta-sub {
+  font-size: 0.75rem;
+  color: var(--sd-muted);
+  margin-bottom: 8px;
+}
+
+.tienda-assistant-cart-cta-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: #25d366;
+  cursor: pointer;
+}
+
+.tienda-assistant-cart-cta-btn:hover {
+  filter: brightness(1.05);
+}
+
+.tienda-assistant-vale-ok {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #6ee7b7;
+}
+
+.tienda-assistant-vale-code {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #065f46;
+}
+
+.tienda-assistant-vale-meta {
+  font-size: 0.78rem;
+  color: #047857;
+  margin-top: 4px;
+}
+
 .tienda-assistant-chips {
   display: flex;
   flex-wrap: wrap;

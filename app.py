@@ -1783,6 +1783,15 @@ _NAV_MAP = [
         ],
     },
     {
+        'id': 'ecommerce_pedidos', 'label': 'E-commerce', 'icon': 'fa-store', 'modulo': 'ventas',
+        'permisos_grupo': ['ecommerce_pedidos', 'bodega_operador', 'caja_cobrar_vale', 'gestionar_usuarios'],
+        'items': [
+            {'label': 'Bandeja pedidos web', 'icon': 'fa-inbox', 'endpoint': 'ecommerce_bandeja',
+             'permisos': ['ecommerce_pedidos', 'bodega_operador', 'caja_cobrar_vale'],
+             'endpoints_activos': ['ecommerce_bandeja', 'ecommerce_pedido_detalle', 'ecommerce_pedido_estado']},
+        ],
+    },
+    {
         'id': 'credito_cobranza', 'label': 'Crédito y cobranza', 'icon': 'fa-hand-holding-usd', 'modulo': 'ventas',
         'permisos_grupo': ['ver_creditos_cartera', 'caja_cobrar_vale', 'gestionar_usuarios'],
         'items': [
@@ -2004,6 +2013,20 @@ _MODULOS_HUB = [
             {'label': 'Cerrar caja', 'endpoint': 'cerrar_caja', 'icon': 'fa-door-closed', 'permisos': ['caja_cerrar']},
             {'label': 'Movimientos', 'endpoint': 'movimiento_caja', 'icon': 'fa-exchange-alt', 'permisos': ['caja_movimientos']},
             {'label': 'Cambios / devoluciones', 'endpoint': 'caja_cambios', 'icon': 'fa-rotate', 'permisos': ['caja_cobrar_vale']},
+            {'label': 'Pedidos web (Liz)', 'endpoint': 'ecommerce_bandeja', 'icon': 'fa-inbox', 'permisos': ['ecommerce_pedidos', 'bodega_operador']},
+        ],
+    },
+    {
+        'id': 'ecommerce_pedidos',
+        'titulo': 'E-commerce',
+        'subtitulo': 'Pedidos vitrina Liz — preparar antes de caja',
+        'icon': 'fa-store',
+        'endpoint': 'ecommerce_bandeja',
+        'permisos': ['ecommerce_pedidos', 'bodega_operador', 'caja_cobrar_vale'],
+        'modulo': 'ventas',
+        'accent': '#059669',
+        'atajos': [
+            {'label': 'Vales pendientes (caja)', 'endpoint': 'caja_pendientes', 'icon': 'fa-cash-register', 'permisos': ['caja_cobrar_vale']},
         ],
     },
     {
@@ -2572,6 +2595,7 @@ _PERMISOS_SISTEMA_INICIAL = (
     'ver_creditos_cartera',
     'registrar_abono_credito',
     'bodega_operador',
+    'ecommerce_pedidos',
     'ver_inventario',
     'ver_gerencia',
     'gestionar_compras',
@@ -2606,6 +2630,7 @@ def _seed_permisos_roles_operativos():
             'pos_emitir_vale', 'caja_cobrar_vale', 'caja_abrir',
             'caja_movimientos', 'caja_cerrar',
             'ver_creditos_cartera', 'registrar_abono_credito',
+            'ecommerce_pedidos',
         }
         _PERMISOS_SUPERVISOR = _PERMISOS_CAJERA | {
             'anular_vale_caja', 'anular_vale_con_despacho_bodega',
@@ -2615,7 +2640,7 @@ def _seed_permisos_roles_operativos():
             'ver_gerencia', 'panel_gerencia', 'revision_precios', 'radar_precios',
             'ver_inventario', 'gestionar_compras', 'ver_auditoria',
         }
-        _PERMISOS_VENDEDOR = {'pos_emitir_vale', 'ver_creditos_cartera'}
+        _PERMISOS_VENDEDOR = {'pos_emitir_vale', 'ver_creditos_cartera', 'ecommerce_pedidos'}
         mapa_por_rol = {
             'vendedor':   _PERMISOS_VENDEDOR,
             'vendedora':  _PERMISOS_VENDEDOR,
@@ -2628,8 +2653,8 @@ def _seed_permisos_roles_operativos():
             'encargado':  _PERMISOS_SUPERVISOR,
             'gerente':    _PERMISOS_GERENTE,
             'dueno':      _PERMISOS_GERENTE | {'gestionar_usuarios'},
-            'bodeguero':  {'bodega_operador', 'ver_inventario'},
-            'bodeguera':  {'bodega_operador', 'ver_inventario'},
+            'bodeguero':  {'bodega_operador', 'ver_inventario', 'ecommerce_pedidos'},
+            'bodeguera':  {'bodega_operador', 'ver_inventario', 'ecommerce_pedidos'},
         }
 
         from services.db_sequence_service import reparar_secuencia_id
@@ -24758,6 +24783,7 @@ from blueprints.precios_radar import register_precios_radar_routes
 from blueprints.chilemat_catalogo import register_chilemat_catalogo_routes
 from blueprints.reportes_maestra_costos import register_reportes_maestra_routes
 from blueprints.tienda_publica import register_tienda_publica_routes
+from blueprints.ecommerce import register_ecommerce_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
@@ -24769,6 +24795,7 @@ register_precios_radar_routes(app)
 register_chilemat_catalogo_routes(app)
 register_reportes_maestra_routes(app)
 register_tienda_publica_routes(app)
+register_ecommerce_routes(app)
 
 
 # --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---

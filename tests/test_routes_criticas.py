@@ -280,6 +280,17 @@ class TestBodegaRutas:
         r = app_client.get('/bodega/despachos')
         assert r.status_code in (200, 302)
 
+
+class TestEcommerceRutas:
+
+    def test_ecommerce_bandeja_get(self, app_client):
+        r = app_client.get('/ecommerce/pedidos')
+        assert r.status_code in (200, 302)
+
+    def test_ecommerce_bandeja_filtro(self, app_client):
+        r = app_client.get('/ecommerce/pedidos?estado=NUEVOS')
+        assert r.status_code in (200, 302)
+
     def test_bodega_export_dia(self, app_client):
         r = app_client.get('/bodega/export-dia')
         assert r.status_code in (200, 302)

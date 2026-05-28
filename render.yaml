@@ -66,3 +66,8 @@ services:
         sync: false
       - key: EMPRESA_RUT
         sync: false
+      # Vitrina pública lhexia.cl/tienda/ferreteria-santo-domingo (piloto SD-1)
+      - key: VITRINA_TIENDA_HABILITADA
+        value: "1"
+      - key: VITRINA_PEDIDO_WEB_HABILITADO
+        value: "1"

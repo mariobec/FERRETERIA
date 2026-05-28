@@ -31,6 +31,7 @@ def _carrito_template_ctx(slug: str, nombre_tienda: str):
             'whatsapp': dig,
             'nombre_tienda': nombre_tienda,
             'whatsapp_api_url': url_for('tienda_api_carrito_whatsapp', slug=slug),
+            'vale_api_url': url_for('tienda_api_carrito_vale', slug=slug),
         },
     }
 
@@ -270,9 +271,48 @@ def tienda_asistente(slug: str):
         pid = int(producto_id) if producto_id is not None else None
     except (TypeError, ValueError):
         pid = None
-    out = vt.respuesta_asistente(slug=slug, mensaje=mensaje, producto_id=pid)
+    carrito = data.get('carrito') or data.get('carrito_lineas')
+    if not isinstance(carrito, list):
+        carrito = None
+    out = vt.respuesta_asistente(
+        slug=slug,
+        mensaje=mensaje,
+        producto_id=pid,
+        carrito_lineas=carrito,
+        cliente_nombre=(data.get('cliente_nombre') or '').strip(),
+        cliente_telefono=(data.get('cliente_telefono') or '').strip(),
+    )
     out['ia_local_disponible'] = vt.ollama_vitrina_disponible()
     return jsonify({'ok': True, **out})
+
+
+def tienda_api_carrito_vale(slug: str):
+    """Genera vale ERP Pendiente PED-WEB-###### desde carrito vitrina."""
+    if not vt.tienda_habilitada() or slug != vt.TIENDA_SLUG_SD:
+        return jsonify({'ok': False, 'error': 'not_found'}), 404
+    if not vt.pedido_web_habilitado():
+        return jsonify({'ok': False, 'error': 'pedido_web_disabled'}), 503
+    data = request.get_json(silent=True) or {}
+    lineas = _sanitizar_lineas_carrito(data.get('lineas') or data.get('carrito'))
+    if not lineas:
+        return jsonify({'ok': False, 'error': 'carrito_vacio'}), 400
+    _cfg, nombre = _empresa_ctx()
+    res = vt.crear_vale_pedido_web(
+        lineas,
+        cliente_nombre=(data.get('cliente_nombre') or '').strip(),
+        cliente_telefono=(data.get('cliente_telefono') or '').strip(),
+        nombre_tienda=nombre,
+    )
+    if not res.get('ok'):
+        code = 400 if res.get('error') in ('carrito_vacio', 'sin_productos_validos') else 503
+        return jsonify(res), code
+    ui = vt._construir_ui_respuesta(
+        reply=res.get('mensaje') or 'Vale generado.',
+        cards=[],
+        cierre_carrito=True,
+        vale_pedido=res,
+    )
+    return jsonify({'ok': True, **res, 'ui': ui})
 
 
 def register_tienda_publica_routes(app) -> None:
@@ -306,4 +346,10 @@ def register_tienda_publica_routes(app) -> None:
         view_func=tienda_api_carrito_whatsapp,
         methods=['POST'],
         endpoint='tienda_api_carrito_whatsapp',
+    )
+    app.add_url_rule(
+        '/api/tienda/<slug>/carrito/vale',
+        view_func=tienda_api_carrito_vale,
+        methods=['POST'],
+        endpoint='tienda_api_carrito_vale',
     )
