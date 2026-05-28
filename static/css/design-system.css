@@ -949,14 +949,22 @@ body .card.card-ds > .card-header {
 .lhexia-mentor-sidebar {
     position: fixed;
     inset: 0;
-    z-index: 1055;
+    z-index: 1040;
     pointer-events: none;
     visibility: hidden;
     transition: visibility 0.2s ease;
 }
+.lhexia-mentor-sidebar:not(.is-open),
+.lhexia-mentor-sidebar:not(.is-open) * {
+    pointer-events: none !important;
+}
 .lhexia-mentor-sidebar.is-open {
     pointer-events: auto;
     visibility: visible;
+}
+.lhexia-mentor-sidebar.is-open .lhexia-mentor-sidebar__backdrop,
+.lhexia-mentor-sidebar.is-open .lhexia-mentor-sidebar__panel {
+    pointer-events: auto;
 }
 .lhexia-mentor-sidebar__backdrop {
     position: absolute;

@@ -20,7 +20,16 @@
         Los usuarios se gestionan en <a href="{{ url_for('usuarios') }}">Usuarios</a>.
       </p>
     </div>
-    <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+    <div class="d-flex flex-wrap gap-2">
+      <form method="POST" action="{{ url_for('admin_roles_permisos') }}" class="d-inline"
+            onsubmit="return confirm('¿Reparar secuencias de IDs en la base de datos? (recomendado si hubo error al guardar)');">
+        <input type="hidden" name="action" value="reparar_secuencias">
+        <button type="submit" class="btn btn-outline-warning btn-sm">
+          <i class="fas fa-wrench me-1"></i> Reparar secuencias BD
+        </button>
+      </form>
+      <a href="{{ url_for('inicio') }}" class="btn btn-outline-secondary btn-sm">Inicio</a>
+    </div>
   </div>
 
   {% if not permisos %}

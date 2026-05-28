@@ -2632,6 +2632,9 @@ def _seed_permisos_roles_operativos():
             'bodeguera':  {'bodega_operador', 'ver_inventario'},
         }
 
+        from services.db_sequence_service import reparar_secuencia_id
+
+        reparar_secuencia_id(db.session, 'rol_permisos')
         cambios = False
         for rol in Rol.query.options(joinedload(Rol.rol_permisos)).all():
             clave = _normalizar_nombre_rol(rol.nombre)
@@ -18703,6 +18706,22 @@ def admin_roles_permisos():
 
     if request.method == 'POST':
         act = (request.form.get('action') or '').strip()
+        if act == 'reparar_secuencias':
+            from services.db_sequence_service import reparar_secuencias_tablas
+
+            try:
+                n = reparar_secuencias_tablas(db.session)
+                db.session.commit()
+                flash(
+                    f'Secuencias de base de datos reparadas ({n} tablas). '
+                    'Ya puede guardar permisos de rol.',
+                    'success',
+                )
+            except Exception as ex:
+                db.session.rollback()
+                app.logger.exception('reparar_secuencias admin: %s', ex)
+                flash('No se pudieron reparar las secuencias. Revise logs o ejecute scripts/_reset_secuencias.py', 'danger')
+            return redirect(url_for('admin_roles_permisos'))
         if act != 'guardar_rol':
             flash('Acción no reconocida.', 'warning')
             return redirect(url_for('admin_roles_permisos'))
@@ -18731,19 +18750,55 @@ def admin_roles_permisos():
                 'danger',
             )
             return redirect(url_for('admin_roles_permisos'))
+        from services.db_sequence_service import guardar_permisos_rol
+
         try:
-            RolPermiso.query.filter_by(rol_id=rol.id).delete(synchronize_session=False)
-            for pid in ids_int:
-                if Permiso.query.get(pid):
-                    db.session.add(RolPermiso(rol_id=rol.id, permiso_id=pid))
+            guardar_permisos_rol(db.session, rol.id, ids_int)
             db.session.commit()
             flash(f'Permisos actualizados para el rol «{rol.nombre}».', 'success')
             if current_user.rol_id == rol.id:
                 flash('Cierre sesión y vuelva a entrar para que los cambios apliquen a su usuario.', 'info')
         except Exception as ex:
+            from sqlalchemy.exc import IntegrityError
+
+            from services.db_sequence_service import (
+                es_violacion_pk_rol_permisos,
+                guardar_permisos_rol,
+                reparar_secuencias_tablas,
+            )
+
             db.session.rollback()
-            flash(f'Error al guardar: {ex}', 'danger')
+            if isinstance(ex, IntegrityError) and es_violacion_pk_rol_permisos(ex):
+                try:
+                    reparar_secuencias_tablas(db.session, ('rol_permisos',))
+                    guardar_permisos_rol(db.session, rol.id, ids_int)
+                    db.session.commit()
+                    flash(f'Permisos actualizados para el rol «{rol.nombre}».', 'success')
+                    if current_user.rol_id == rol.id:
+                        flash(
+                            'Cierre sesión y vuelva a entrar para que los cambios apliquen a su usuario.',
+                            'info',
+                        )
+                except Exception as ex2:
+                    db.session.rollback()
+                    app.logger.exception('roles_permisos retry falló: %s', ex2)
+                    flash(
+                        'Error al guardar permisos (secuencia BD). Ejecute scripts/_reset_secuencias.py neon '
+                        'o contacte soporte.',
+                        'danger',
+                    )
+            else:
+                app.logger.exception('roles_permisos guardar: %s', ex)
+                flash('Error al guardar permisos. Intente de nuevo o contacte soporte.', 'danger')
         return redirect(url_for('admin_roles_permisos'))
+
+    try:
+        from services.db_sequence_service import reparar_secuencia_id
+
+        if reparar_secuencia_id(db.session, 'rol_permisos'):
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     roles = Rol.query.options(joinedload(Rol.rol_permisos).joinedload(RolPermiso.permiso)).order_by(Rol.nombre.asc()).all()
     permisos = Permiso.query.order_by(Permiso.nombre.asc()).all()

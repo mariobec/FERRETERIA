@@ -2,7 +2,7 @@
 {% block body_class %}erp-ops-space page-caja-pendientes{% endblock %}
 
 {% block extra_css %}
-<!-- caja-pendientes-ui-v4 — estilos modales/tabla; header premium en design-system.css -->
+<!-- caja-pendientes-ui-v9 — modales en body (z-index backdrop fix) -->
 <style id="caja-pendientes-page-fix">
     .modal-premium .modal-content {
         border-radius: 16px;
@@ -44,12 +44,53 @@
     .modal-premium .modal-footer {
         border-top-color: rgba(255, 255, 255, 0.1) !important;
     }
+    /* No bajar z-index del contenedor de modales: el backdrop (1050) quedaría encima y bloquea clics */
+    body.page-caja-pendientes .modal-premium {
+        --bs-modal-zindex: 1060;
+    }
     body.page-caja-pendientes .modal-premium .modal-dialog {
         max-width: 520px;
+        margin: 0.75rem auto;
+        pointer-events: auto;
+    }
+    body.page-caja-pendientes .modal-premium.show {
+        pointer-events: auto;
+    }
+    body.page-caja-pendientes .modal-premium .modal-content {
+        max-height: min(90vh, 640px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        pointer-events: auto;
+    }
+    body.page-caja-pendientes .modal-premium .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: 100%;
+    }
+    body.page-caja-pendientes .modal-premium .modal-header,
+    body.page-caja-pendientes .modal-premium .modal-footer {
+        flex-shrink: 0;
     }
     body.page-caja-pendientes .modal-premium .modal-body {
-        max-height: min(70vh, 520px);
+        flex: 1 1 auto;
+        min-height: 8rem;
+        max-height: calc(90vh - 11rem);
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    body.page-caja-pendientes .modal-premium .modal-footer {
+        background: #1e293b !important;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+        position: relative;
+        z-index: 2;
+    }
+    body.page-caja-pendientes .modal-premium .btn-primary {
+        background: #2563eb !important;
+        border-color: #3b82f6 !important;
+        color: #fff !important;
     }
     .vuelto-banner {
         border: 2px solid #f59e0b;
@@ -224,7 +265,6 @@
             <a href="{{ url_for('movimiento_caja') }}" class="caja-nav-dock__link">
                 <i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Movimientos</span>
             </a>
-            {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'caja-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
         </nav>
         <div class="caja-hdr-premium__clock" aria-live="polite">
             <span class="caja-hdr-premium__clock-label">Turno activo</span>
@@ -478,6 +518,10 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <div id="cajaModalesPortal">
             {% for v in cola_combined %}
             {% set saldo_disp = v.saldo_favor_disponible or 0 %}
             {% set monto_cobro = v.monto_cobro_ui if v.monto_cobro_ui is defined else (v.monto_total or 0) %}
@@ -568,9 +612,11 @@
                                     <div class="form-text" id="hint_monto_{{ v.id }}">Para efectivo/débito debe ser mayor o igual al total pendiente después de saldo a favor.</div>
                                 </div>
                             </div>
-                            <div class="modal-footer">
+                            <div class="modal-footer d-flex flex-wrap gap-2 justify-content-end">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button type="submit" class="btn btn-primary fw-bold px-4" {% if monto_cobro <= 0 %}disabled{% endif %}>FINALIZAR</button>
+                                <button type="submit" class="btn btn-primary fw-bold px-4" {% if monto_cobro <= 0 %}disabled{% endif %}>
+                                    <i class="fas fa-check-circle me-1"></i> Finalizar cobro
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -619,11 +665,8 @@
             {% endif %}
             {% endif %}
             {% endfor %}
-        </div>
     </div>
 </div>
-
-{% include 'partials/lhexia_mentor_sidebar.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -758,6 +801,28 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        var portal = document.getElementById('cajaModalesPortal');
+        if (portal) {
+            portal.querySelectorAll('.modal').forEach(function (modalEl) {
+                document.body.appendChild(modalEl);
+            });
+            portal.remove();
+        }
+
+        document.querySelectorAll('.modal-premium[id^="modalCobro"], .modal-premium[id^="modalAnular"]').forEach(function (modalEl) {
+            modalEl.addEventListener('show.bs.modal', function () {
+                document.querySelectorAll('.modal-backdrop').forEach(function (bd, i, list) {
+                    if (i < list.length - 1) bd.remove();
+                });
+            });
+            modalEl.addEventListener('shown.bs.modal', function () {
+                var body = modalEl.querySelector('.modal-body');
+                if (body) body.scrollTop = 0;
+                var dlg = modalEl.querySelector('.modal-dialog');
+                if (dlg) dlg.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+            });
+        });
+
         var master = document.getElementById('chkAnularLoteTodos');
         if (master) {
             master.addEventListener('change', function () {
@@ -791,5 +856,4 @@
   });
 </script>
 {% endif %}
-{% include 'partials/lhexia_mentor_init.html' %}
 {% endblock %}
