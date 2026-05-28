@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .rep-hero-inf {
+    background: linear-gradient(135deg, #042f2e 0%, #0f766e 40%, #f59e0b 100%);
+    border-radius: 1.25rem;
+    color: #fff;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+  }
+  .rep-kpi-inf {
+    background: rgba(0,0,0,.2);
+    border-radius: 1rem;
+    padding: 1rem;
+    height: 100%;
+  }
+  .chart-box {
+    background: #fff;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    border: 1px solid #e2e8f0;
+    height: 100%;
+  }
+  .insight-card {
+    border-left: 4px solid #f59e0b;
+    background: #fffbeb;
+    padding: .75rem 1rem;
+    border-radius: 0 .75rem .75rem 0;
+    margin-bottom: .5rem;
+    font-size: .9rem;
+  }
+</style>
+
+<div class="container-fluid px-0">
+  <div class="rep-hero-inf">
+    <div class="d-flex flex-wrap justify-content-between gap-3">
+      <div>
+        <div class="small opacity-75">{{ data.generado_ts }}</div>
+        <h2 class="h3 fw-bold mb-2"><i class="fas fa-chart-line me-2"></i>Reporte 2 — Termómetro de compras 2024→2026</h2>
+        <p class="mb-0 opacity-90" style="max-width: 44rem;">Cuánto compraste, con quién y cómo subieron los precios. Base para renegociar y subir venta a tiempo.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('reportes_maestra_hub') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-th-large me-1"></i>Centro reportes</a>
+        <a href="{{ url_for('reporte_fuga_costos') }}" class="btn btn-outline-light btn-sm">Fuga de costo</a>
+        <a href="{{ url_for('reporte_inflacion_compras', refresh=1) }}" class="btn btn-warning btn-sm text-dark">Actualizar datos</a>
+      </div>
+    </div>
+    <div class="row g-3 mt-2">
+      <div class="col-6 col-md-3"><div class="rep-kpi-inf"><div class="small opacity-75">2024</div><div class="fw-bold fs-5">{{ data.inflacion.kpis.neto_2024_fmt }}</div></div></div>
+      <div class="col-6 col-md-3"><div class="rep-kpi-inf"><div class="small opacity-75">2025</div><div class="fw-bold fs-5">{{ data.inflacion.kpis.neto_2025_fmt }}</div></div></div>
+      <div class="col-6 col-md-3"><div class="rep-kpi-inf"><div class="small opacity-75">2026 (YTD)</div><div class="fw-bold fs-5">{{ data.inflacion.kpis.neto_2026_fmt }}</div></div></div>
+      <div class="col-6 col-md-3"><div class="rep-kpi-inf"><div class="small opacity-75">Top 3 proveedores</div><div class="fw-bold fs-5">{{ data.inflacion.kpis.concentracion_top3_pct }}% del neto</div></div></div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-5">
+      <div class="chart-box">
+        <h6 class="fw-bold mb-3">Compras netas por año</h6>
+        <canvas id="chartAnios" height="200"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="chart-box">
+        <h6 class="fw-bold mb-3">Top 8 proveedores (neto acumulado 2024–2026)</h6>
+        <canvas id="chartProv" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Proveedores — variación y volumen</div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Proveedor</th>
+                <th class="text-end">2024</th>
+                <th class="text-end">2025</th>
+                <th class="text-end">2026</th>
+                <th class="text-end">Δ 24→26</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in data.inflacion.proveedores[:20] %}
+              <tr>
+                <td class="small fw-semibold">{{ p.proveedor[:36] }}</td>
+                <td class="text-end font-monospace small">${{ '{:,.0f}'.format(p.neto_2024).replace(',', '.') }}</td>
+                <td class="text-end font-monospace small">${{ '{:,.0f}'.format(p.neto_2025).replace(',', '.') }}</td>
+                <td class="text-end font-monospace small">${{ '{:,.0f}'.format(p.neto_2026).replace(',', '.') }}</td>
+                <td class="text-end">
+                  <span class="badge {% if p.variacion_24_26_pct > 10 %}bg-danger{% elif p.variacion_24_26_pct > 0 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                    {{ '%+.1f'|format(p.variacion_24_26_pct) }}%
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <h6 class="fw-bold">Frases para gerencia (auto)</h6>
+      {% for p in data.inflacion.proveedores[:5] %}
+      <div class="insight-card">
+        <strong>{{ p.proveedor[:40] }}</strong> concentró
+        {{ '%.0f'|format(p.neto_total / (data.inflacion.kpis.neto_2024 + data.inflacion.kpis.neto_2025 + data.inflacion.kpis.neto_2026 + 1) * 100) }}% del gasto;
+        gasto 24→26: <strong>{{ '%+.1f'|format(p.variacion_24_26_pct) }}%</strong>
+        (neto {{ '${:,.0f}'.format(p.neto_total).replace(',', '.') }}).
+      </div>
+      {% endfor %}
+
+      <h6 class="fw-bold mt-3">Rubros con mayor subida de precio (unitario)</h6>
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead><tr><th>Rubro</th><th class="text-end">Δ 24→26</th></tr></thead>
+          <tbody>
+            {% for r in data.inflacion.rubros[:8] %}
+            <tr>
+              <td class="small">{{ r.rubro[:30] }}</td>
+              <td class="text-end"><span class="badge bg-danger">+{{ r.variacion_24_26_pct }}%</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const anios = {{ data.inflacion.chart_anios | tojson }};
+  const prov = {{ data.inflacion.chart_top_prov | tojson }};
+  new Chart(document.getElementById('chartAnios'), {
+    type: 'bar',
+    data: {
+      labels: anios.labels,
+      datasets: [{
+        label: 'Neto compras',
+        data: anios.neto,
+        backgroundColor: ['#0d9488', '#14b8a6', '#f59e0b'],
+        borderRadius: 8,
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          ticks: {
+            callback: (v) => '$' + (v / 1e6).toFixed(0) + 'M',
+          },
+        },
+      },
+    },
+  });
+  new Chart(document.getElementById('chartProv'), {
+    type: 'bar',
+    data: {
+      labels: prov.labels,
+      datasets: [{
+        label: 'Neto total',
+        data: prov.neto,
+        backgroundColor: '#6366f1',
+        borderRadius: 6,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: {
+            callback: (v) => '$' + (v / 1e6).toFixed(1) + 'M',
+          },
+        },
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

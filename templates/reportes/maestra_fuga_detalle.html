@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .det-hero {
+    background: linear-gradient(135deg, #1e1b4b, #7f1d1d);
+    color: #fff;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .det-table tbody tr.ultima { background: #fef2f2; font-weight: 600; }
+  .det-table tbody tr { cursor: default; }
+  tr.clickable-row { cursor: pointer; }
+</style>
+
+<div class="container-fluid px-0">
+  <div class="mb-3">
+    <a href="{{ url_for('reporte_fuga_costos', umbral=umbral) }}" class="btn btn-outline-secondary btn-sm">
+      <i class="fas fa-arrow-left me-1"></i> Volver al reporte
+    </a>
+  </div>
+
+  <div class="det-hero">
+    <div class="small opacity-75 font-monospace">{{ det.codigo_factura }}</div>
+    <h2 class="h4 fw-bold mb-1">{{ det.descripcion[:70] }}</h2>
+    <div class="mb-2">{{ det.proveedor }}</div>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="small opacity-75">Costo en ERP (catálogo)</div>
+        <div class="fs-5 fw-bold">{{ det.resumen.costo_erp_fmt }}</div>
+      </div>
+      <div class="col-md-3">
+        <div class="small opacity-75">Última compra real (maestra)</div>
+        <div class="fs-5 fw-bold text-warning">{{ det.resumen.ultimo_costo_fmt }}</div>
+      </div>
+      <div class="col-md-3">
+        <div class="small opacity-75">Desviación</div>
+        <div class="fs-5 fw-bold">+{{ det.resumen.delta_pct }}%</div>
+      </div>
+      <div class="col-md-3">
+        <div class="small opacity-75">Neto histórico 2024–26</div>
+        <div class="fs-5 fw-bold">{{ det.resumen.neto_historico_fmt }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info border-0 small">
+    <strong>Sí, lo entendiste bien:</strong> el ERP tiene un <em>precio de compra</em> más bajo que lo que pagaste
+    en la <strong>última línea</strong> de este código con este proveedor (resaltada en rojo abajo).
+    {{ det.nota_fecha }}
+  </div>
+
+  {% if det.erp.producto_id %}
+  <div class="mb-3">
+    <a href="{{ url_for('mostrar_productos') }}?q={{ det.codigo_factura|urlencode }}" class="btn btn-primary btn-sm">
+      <i class="fas fa-box me-1"></i> Abrir ficha producto en catálogo
+    </a>
+    <a href="{{ url_for('revision_precios') }}?q={{ det.erp.nombre|urlencode }}" class="btn btn-outline-primary btn-sm">
+      Revisión de precios
+    </a>
+  </div>
+  {% endif %}
+
+  {% if det.erp.oc_en_erp %}
+  <div class="card card-ds mb-3">
+    <div class="card-header fw-bold">Órdenes de compra en el ERP (vinculadas)</div>
+    <ul class="list-group list-group-flush">
+      {% for oc in det.erp.oc_en_erp %}
+      <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>OC maestra <strong>{{ oc.oc_maestra }}</strong> → ERP #{{ oc.oc_erp_id }} ({{ oc.numero_erp }}) · {{ oc.estado }}</span>
+        <span>
+          <span class="text-muted small me-2">{{ oc.fecha }}</span>
+          <a href="{{ url_for('orden_compra_editar', oid=oc.oc_erp_id) }}" class="btn btn-sm btn-outline-primary">Ver OC en ERP</a>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold">
+      Historial de compras en la maestra ({{ det.resumen.lineas_total }} movimientos)
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm det-table mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Año</th>
+            <th>OC / folio</th>
+            <th class="text-end">Cantidad</th>
+            <th class="text-end">Neto</th>
+            <th class="text-end">Costo unit.</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ln in det.lineas %}
+          <tr class="{% if ln.es_ultima %}ultima{% endif %}">
+            <td>{{ ln.anio or '—' }}</td>
+            <td class="font-monospace">{{ ln.oc or '—' }}</td>
+            <td class="text-end">{{ ln.cantidad }}</td>
+            <td class="text-end">{{ ln.neto_fmt }}</td>
+            <td class="text-end {% if ln.es_ultima %}text-danger{% endif %}">{{ ln.costo_fmt }}</td>
+            <td class="text-end">
+              {% if ln.es_ultima %}<span class="badge bg-danger">Última compra</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

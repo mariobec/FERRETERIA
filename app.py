@@ -1878,6 +1878,9 @@ _NAV_MAP = [
             {'label': 'Panel ejecutivo', 'icon': 'fa-chart-pie', 'endpoint': 'panel_dueno',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['panel_dueno']},
+            {'label': 'Inteligencia de costos', 'icon': 'fa-fire', 'endpoint': 'reportes_maestra_hub',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'revision_precios', 'gestionar_usuarios'],
+             'endpoints_activos': ['reportes_maestra_hub', 'reporte_fuga_costos', 'reporte_fuga_detalle', 'reporte_inflacion_compras']},
             {'label': 'Analítica web', 'icon': 'fa-chart-area', 'endpoint': 'gerencia_analitica_web',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['gerencia_analitica_web']},
@@ -19564,8 +19567,28 @@ def _parse_precio_clp_ia(val):
         return None
 
 
-def _alerta_variacion_costo_factura(producto, precio_factura, umbral_pct=None):
-    """Aviso si el precio del DTE se aleja del precio_compra en catálogo (post-maestra / histórico)."""
+def _alerta_variacion_costo_factura(
+    producto,
+    precio_factura,
+    umbral_pct=None,
+    *,
+    proveedor_id=None,
+    codigo_factura=None,
+):
+    """Aviso si el precio del DTE se aleja del histórico maestra o del precio_compra en catálogo."""
+    try:
+        from services.maestra_ultimo_costo_service import alerta_precio_vs_historico
+
+        return alerta_precio_vs_historico(
+            producto,
+            proveedor_id,
+            codigo_factura,
+            precio_factura,
+            app=app,
+            umbral_pct=umbral_pct,
+        )
+    except Exception as ex:
+        app.logger.debug('alerta maestra fallback: %s', ex)
     if not producto or precio_factura is None:
         return None
     try:
@@ -19583,7 +19606,7 @@ def _alerta_variacion_costo_factura(producto, precio_factura, umbral_pct=None):
         return None
     return (
         f'Precio en factura ${precio_f:,.0f} difiere {pct:+.1f}% '
-        f'del costo en catálogo (${ref:,.0f}).'
+        f'del precio_compra en catálogo (${ref:,.0f}).'
     )
 
 
@@ -21937,7 +21960,12 @@ def api_ia_factura_analizar(rid):
         costo_u, costo_origen = _costo_sugerido_linea_factura(
             p, rec.proveedor_id, precio_f
         )
-        alerta_costo = _alerta_variacion_costo_factura(p, precio_f if precio_f > 0 else costo_u)
+        alerta_costo = _alerta_variacion_costo_factura(
+            p,
+            precio_f if precio_f > 0 else costo_u,
+            proveedor_id=rec.proveedor_id,
+            codigo_factura=cod_norm or cod,
+        )
         out.append(
             {
                 'descripcion_factura': desc,
@@ -24611,6 +24639,7 @@ from blueprints.pos import register_pos_routes
 from blueprints.academy import register_academy_routes
 from blueprints.precios_radar import register_precios_radar_routes
 from blueprints.chilemat_catalogo import register_chilemat_catalogo_routes
+from blueprints.reportes_maestra_costos import register_reportes_maestra_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
@@ -24620,6 +24649,7 @@ register_c360_routes(app)
 register_owner_api_routes(app)
 register_precios_radar_routes(app)
 register_chilemat_catalogo_routes(app)
+register_reportes_maestra_routes(app)
 
 
 # --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---

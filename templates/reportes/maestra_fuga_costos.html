@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}">
+<style>
+  .rep-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #7f1d1d 100%);
+    border-radius: 1.25rem;
+    color: #f8fafc;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 20px 50px rgba(127, 29, 29, .25);
+  }
+  .rep-kpi {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    height: 100%;
+  }
+  .rep-kpi .val { font-size: 1.75rem; font-weight: 800; letter-spacing: -.02em; }
+  .rep-kpi.danger .val { color: #fca5a5; }
+  .rep-table-wrap {
+    border-radius: 1rem;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 8px 30px rgba(15,23,42,.06);
+  }
+  .rep-table thead { background: #0f172a; color: #fff; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .rep-table tbody tr.rep-row-click { cursor: pointer; }
+  .rep-table tbody tr.rep-row-click:hover { background: #fef2f2; }
+  .badge-delta { font-weight: 700; }
+</style>
+
+<div class="container-fluid px-0">
+  <div class="rep-hero">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <div class="small text-white-50 mb-1">Maestra 2024–2026 × ERP · {{ data.generado_ts }}</div>
+        <h2 class="h3 fw-bold mb-2"><i class="fas fa-fire-flame-curved me-2"></i>Reporte 1 — Fuga por costo desactualizado</h2>
+        <p class="mb-0 opacity-90" style="max-width: 42rem;">
+          Dinero que el ERP <strong>no ve</strong>: última compra real (maestra) vs <code>precio_compra</code> del catálogo.
+          La columna <strong>impacto</strong> estima sobrecosto si recompras el volumen de 2025 al precio nuevo.
+        </p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('reportes_maestra_hub') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-th-large me-1"></i>Centro reportes</a>
+        <a href="{{ url_for('reporte_inflacion_compras') }}" class="btn btn-outline-light btn-sm">Termómetro 24–26</a>
+        <a href="{{ url_for('revision_precios') }}" class="btn btn-light btn-sm text-dark"><i class="fas fa-tags me-1"></i>Revisión precios</a>
+        <a href="{{ url_for('reporte_fuga_costos', refresh=1, umbral=umbral) }}" class="btn btn-warning btn-sm text-dark">Actualizar datos</a>
+      </div>
+    </div>
+    <div class="row g-3 mt-3">
+      <div class="col-md-4">
+        <div class="rep-kpi danger">
+          <div class="small text-white-50">Impacto estimado (recompra 2025)</div>
+          <div class="val">{{ data.fuga.kpis.fuga_total_fmt }}</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="rep-kpi">
+          <div class="small text-white-50">SKUs con costo ERP bajo vs real (≥{{ umbral|int }}%)</div>
+          <div class="val">{{ data.fuga.kpis.skus_desactualizados }}</div>
+          <div class="small text-warning">{{ data.fuga.kpis.skus_criticos_15pct }} críticos (≥15%)</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="rep-kpi">
+          <div class="small text-white-50">Compras históricas analizadas</div>
+          <div class="val" style="font-size:1.35rem">{{ data.fuga.kpis.neto_compras_fmt }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form class="row g-2 mb-3 align-items-end" method="get">
+    <div class="col-auto">
+      <label class="form-label small mb-0">Umbral mínimo %</label>
+      <input type="number" name="umbral" class="form-control form-control-sm" value="{{ umbral }}" min="1" max="50" step="1">
+    </div>
+    <div class="col-auto"><button class="btn btn-primary btn-sm">Filtrar</button></div>
+  </form>
+
+  <div class="rep-table-wrap">
+    <table class="table table-sm rep-table mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Producto / código factura</th>
+          <th>Proveedor</th>
+          <th class="text-end" title="Campo precio_compra del producto en catálogo">Precio compra catálogo</th>
+          <th class="text-end">Último real</th>
+          <th class="text-end">Δ%</th>
+          <th class="text-end">Impacto $</th>
+          <th class="text-end">Margen ERP→real</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in data.fuga.filas %}
+        <tr class="rep-row-click"
+            role="button"
+            tabindex="0"
+            onclick="window.location='{{ url_for('reporte_fuga_detalle', codigo=r.codigo_factura, proveedor=r.proveedor, producto_id=r.producto_id, umbral=umbral) }}'"
+            title="Clic para ver OC, años y montos de cada compra">
+          <td class="text-muted">{{ loop.index }}</td>
+          <td>
+            <div class="fw-semibold">{{ r.descripcion[:55] }}{% if r.descripcion|length > 55 %}…{% endif %}</div>
+            <div class="small text-muted font-monospace">{{ r.codigo_factura }}</div>
+            {% if r.nombre_erp %}<div class="small text-primary">{{ r.nombre_erp[:40] }}</div>{% endif %}
+            <div class="small text-primary mt-1"><i class="fas fa-search-plus me-1"></i>Ver historial compras</div>
+          </td>
+          <td class="small">{{ r.proveedor[:32] }}</td>
+          <td class="text-end font-monospace">${{ '{:,.0f}'.format(r.costo_erp).replace(',', '.') }}</td>
+          <td class="text-end font-monospace text-danger fw-bold">${{ '{:,.0f}'.format(r.ultimo_costo_maestra).replace(',', '.') }}</td>
+          <td class="text-end"><span class="badge bg-danger badge-delta">+{{ r.delta_pct }}%</span></td>
+          <td class="text-end font-monospace fw-bold text-danger">${{ '{:,.0f}'.format(r.fuga_recompra_clp).replace(',', '.') }}</td>
+          <td class="text-end small">
+            {% if r.precio_venta and r.precio_venta > 0 and r.margen_erp_pct is not none %}
+            {{ r.margen_erp_pct }}% → <span class="text-danger">{{ r.margen_real_pct }}%</span>
+            {% else %}<span class="text-muted" title="Sin precio de venta en catálogo">Sin venta</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center py-4 text-muted">Sin filas con umbral actual. Baje el % o cargue más vínculos factura→producto.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="small text-muted mt-2">
+    <strong>Clic en una fila</strong> para ver detalle: cada OC/año de la maestra, neto, cantidad y costo unitario.
+    La fila en rojo compara costo catálogo vs <em>última</em> compra registrada.
+  </p>
+</div>
+{% endblock %}
