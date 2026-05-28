@@ -71,3 +71,15 @@ services:
         value: "1"
       - key: VITRINA_PEDIDO_WEB_HABILITADO
         value: "1"
+      # Liz + Ollama en prod: túnel desde PC sucursal → URL pública (ver docs/VITRINA_OLLAMA_PRODUCCION.md)
+      # AGENTE_OLLAMA_ENABLED sigue en 0 (Operador enrich solo en PC local).
+      - key: VITRINA_OLLAMA_ENABLED
+        value: "1"
+      - key: VITRINA_OLLAMA_BASE_URL
+        sync: false
+      - key: VITRINA_OLLAMA_MODEL
+        sync: false
+      - key: VITRINA_OLLAMA_API_KEY
+        sync: false
+      - key: VITRINA_OLLAMA_TIMEOUT_SEC
+        value: "120"

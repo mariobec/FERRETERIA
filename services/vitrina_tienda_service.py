@@ -225,17 +225,17 @@ def _interpretar_problema_ollama(txt: str) -> dict[str, Any]:
     """Ollama traduce problema → términos de catálogo (JSON)."""
     vacio: dict[str, Any] = {'ok': False}
     try:
-        from services.ollama_client import generar_chat, ollama_disponible
+        from services.ollama_client import generar_chat_vitrina, ollama_disponible_vitrina
     except Exception:
         return vacio
-    if not ollama_disponible():
+    if not ollama_disponible_vitrina():
         return vacio
 
     user = (
         f'Problema del cliente: {txt.strip()[:500]}\n'
         'Devuelve solo el JSON con diagnostico y terminos_busqueda.'
     )
-    out = generar_chat(system=_prompt_maestro_constructor_interpretar(), user=user)
+    out = generar_chat_vitrina(system=_prompt_maestro_constructor_interpretar(), user=user)
     if not out.get('ok'):
         return vacio
     data = _parse_json_desde_ollama(out.get('texto') or '')
@@ -1409,9 +1409,9 @@ def _construir_ui_respuesta(
 def ollama_vitrina_disponible() -> bool:
     """Ollama listo para redactar respuestas de Liz en vitrina."""
     try:
-        from services.ollama_client import ollama_disponible
+        from services.ollama_client import ollama_disponible_vitrina
 
-        return bool(ollama_disponible())
+        return bool(ollama_disponible_vitrina())
     except Exception:
         return False
 
@@ -1444,11 +1444,11 @@ def _respuesta_ollama(
 ) -> str | None:
     """Refina respuesta de Liz con Ollama local; retorna None si no aplica."""
     try:
-        from services.ollama_client import generar_chat, ollama_disponible
+        from services.ollama_client import generar_chat_vitrina, ollama_disponible_vitrina
     except Exception:
         return None
 
-    if not ollama_disponible():
+    if not ollama_disponible_vitrina():
         return None
 
     combo_ctx = combo_context or {}
@@ -1481,7 +1481,7 @@ def _respuesta_ollama(
             f'Productos candidatos:\n{contexto}\n'
             'Devuelve solo el texto final para el chat (sin markdown ni listas con guiones).'
         )
-    out = generar_chat(system=system, user=user)
+    out = generar_chat_vitrina(system=system, user=user)
     if not out.get('ok'):
         return None
     txt = (out.get('texto') or '').strip()

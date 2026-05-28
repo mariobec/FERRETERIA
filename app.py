@@ -6013,6 +6013,12 @@ def healthz():
         payload['ia_factura_pdf'] = True
     except ImportError:
         payload['ia_factura_pdf'] = False
+    try:
+        from services.ollama_client import vitrina_ollama_status
+
+        payload['liz_ollama'] = vitrina_ollama_status()
+    except Exception:
+        payload['liz_ollama'] = {'habilitado': False, 'disponible': False}
     return jsonify(payload), 200
 
 
