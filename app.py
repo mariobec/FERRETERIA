@@ -1118,7 +1118,7 @@ def _web_analytics_page_family(path):
         return 'about'
     if p.startswith('/login') or p.startswith('/acceso'):
         return 'login'
-    if p.startswith('/catalogo') or p.startswith('/consulta-stock'):
+    if p.startswith('/catalogo') or p.startswith('/consulta-stock') or p.startswith('/tienda'):
         return 'public_tool'
     return 'other'
 
@@ -12710,8 +12710,8 @@ def _pos_cross_sell_from_relaciones(cart_product_ids, rejected_rule_ids=None):
             return None
         return {
             'rule_id': 'relaciones_catalogo',
-            'titulo': 'Complementos frecuentes',
-            'mensaje': 'Sugeridos según catálogo Chilemat y ventas en tienda.',
+            'titulo': 'Productos sugeridos',
+            'mensaje': 'Complementos según catálogo Chilemat (como en chilemat.com) y ventas en tienda.',
             'items': items[:8],
         }
     except Exception as ex:
@@ -12720,24 +12720,24 @@ def _pos_cross_sell_from_relaciones(cart_product_ids, rejected_rule_ids=None):
 
 
 def _pos_cross_sell_merge_sugerencias(rule_sug, rel_sug):
-    """Combina reglas JSON (prioridad de copy) con relaciones de catálogo."""
+    """Combina relaciones Chilemat/ventas (primero) con reglas JSON de copy."""
     if not rule_sug and not rel_sug:
         return None
     if rule_sug and not rel_sug:
         return rule_sug
     if rel_sug and not rule_sug:
         return rel_sug
-    items = list(rule_sug.get('items') or [])
-    seen = {int(it.get('id') or 0) for it in items}
-    for it in rel_sug.get('items') or []:
+    items = list(rel_sug.get('items') or [])
+    seen = {int(it.get('id') or 0) for it in items if int(it.get('id') or 0)}
+    for it in rule_sug.get('items') or []:
         iid = int(it.get('id') or 0)
         if iid and iid not in seen and len(items) < 8:
             seen.add(iid)
             items.append(it)
     return {
-        'rule_id': rule_sug.get('rule_id') or 'mixto',
-        'titulo': (rule_sug.get('titulo') or rel_sug.get('titulo') or 'Productos sugeridos')[:120],
-        'mensaje': (rule_sug.get('mensaje') or rel_sug.get('mensaje') or '')[:400],
+        'rule_id': rel_sug.get('rule_id') or rule_sug.get('rule_id') or 'mixto',
+        'titulo': (rel_sug.get('titulo') or rule_sug.get('titulo') or 'Productos sugeridos')[:120],
+        'mensaje': (rel_sug.get('mensaje') or rule_sug.get('mensaje') or '')[:400],
         'items': items[:8],
     }
 
@@ -15465,6 +15465,59 @@ def _pos_tv_popular_fill(exclude_ids, max_add=4):
     return q.order_by(Producto.stock.desc(), Producto.nombre.asc()).limit(max_add).all()
 
 
+def _pos_tv_candidatos_chilemat_relaciones(pids, seen, ctx, perfil):
+    """Productos sugeridos VTEX/Chilemat (tabla producto_relacion) para TV cliente."""
+    if not pids:
+        return []
+    try:
+        _asegurar_tablas_chilemat_relaciones()
+        from services.producto_relacion_service import sugerencias_para_carrito
+
+        items = sugerencias_para_carrito(list(pids), limite=8, excluir_ids=set(seen))
+    except Exception as ex:
+        app.logger.debug('TV candidatos chilemat: %s', ex)
+        return []
+    if not items:
+        return []
+
+    max_precio = _pos_tv_max_precio_item(ctx, perfil)
+    exclude = tuple(perfil.get('exclude_nombre') or ())
+    if not ctx.get('permite_electrico_caro'):
+        exclude = tuple(set(exclude + _POS_TV_ELECTRIC_EXPENSIVE))
+
+    out = []
+    prio = 94
+    for it in items:
+        try:
+            pid = int(it.get('id') or 0)
+        except (TypeError, ValueError):
+            continue
+        if not pid or pid in seen:
+            continue
+        prod = db.session.get(Producto, pid)
+        if not prod or prod.activo is False:
+            continue
+        n = (prod.nombre or '').lower()
+        if _pos_tv_nombre_excluido(n, exclude, max_precio, prod):
+            continue
+        tipo = (it.get('tipo') or '').strip()
+        if tipo == 'co_comprado':
+            motivo = 'Otros clientes lo llevan con su compra'
+        elif tipo == 'co_visto':
+            motivo = 'Suele verse junto a este producto'
+        elif tipo == 'similar':
+            motivo = 'Producto similar al que eligió'
+        elif tipo == 'accesorio':
+            motivo = 'Accesorio recomendado'
+        else:
+            motivo = 'Producto sugerido'
+        if (it.get('fuente') or '') == 'chilemat_vtex':
+            motivo = 'Destacado en catálogo Chilemat'
+        out.append((prio, pid, motivo))
+        prio -= 2
+    return out
+
+
 def _pos_live_wall_recomendaciones_tv(venta):
     """
     Recomendaciones coherentes para TV cliente (sin sesión POS).
@@ -15489,6 +15542,15 @@ def _pos_live_wall_recomendaciones_tv(venta):
 
     seen = set(pids)
     candidatos = []
+
+    chm_cands = _pos_tv_candidatos_chilemat_relaciones(pids, seen, ctx, perfil)
+    for prio, pid, motivo in chm_cands:
+        if pid in seen:
+            continue
+        seen.add(pid)
+        candidatos.append((prio, pid, motivo))
+    if chm_cands:
+        subtitulo = 'Complementos sugeridos según catálogo Chilemat y su compra'[:200]
 
     for kw, motivo_tpl, prio in perfil.get('sugerencias') or ():
         if len(candidatos) >= 6:
@@ -24640,6 +24702,7 @@ from blueprints.academy import register_academy_routes
 from blueprints.precios_radar import register_precios_radar_routes
 from blueprints.chilemat_catalogo import register_chilemat_catalogo_routes
 from blueprints.reportes_maestra_costos import register_reportes_maestra_routes
+from blueprints.tienda_publica import register_tienda_publica_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
@@ -24650,6 +24713,7 @@ register_owner_api_routes(app)
 register_precios_radar_routes(app)
 register_chilemat_catalogo_routes(app)
 register_reportes_maestra_routes(app)
+register_tienda_publica_routes(app)
 
 
 # --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---

@@ -1,0 +1,39 @@
+{# Carrito piloto vitrina — localStorage + WhatsApp #}
+<script type="application/json" id="tiendaCarritoConfig">{{ carrito_config | tojson }}</script>
+
+<button type="button" class="tienda-cart-btn" id="tiendaCartToggle" aria-expanded="false" aria-controls="tiendaCartDrawer" title="Ver carrito">
+  <i class="fas fa-shopping-cart" aria-hidden="true"></i>
+  <span class="tienda-cart-count d-none" id="tiendaCartCount" aria-live="polite">0</span>
+</button>
+
+<div class="tienda-cart-backdrop d-none" id="tiendaCartBackdrop" aria-hidden="true"></div>
+<aside class="tienda-cart-drawer d-none" id="tiendaCartDrawer" aria-labelledby="tiendaCartTitle" role="dialog">
+  <header class="tienda-cart-header">
+    <h2 class="tienda-cart-title" id="tiendaCartTitle"><i class="fas fa-shopping-cart me-2"></i>Mi pedido</h2>
+    <button type="button" class="tienda-cart-close" id="tiendaCartClose" aria-label="Cerrar carrito"><i class="fas fa-times"></i></button>
+  </header>
+  <div class="tienda-cart-body" id="tiendaCartBody">
+    <p class="tienda-cart-empty text-muted" id="tiendaCartEmpty">Tu carrito está vacío. Agrega productos desde el catálogo.</p>
+    <ul class="tienda-cart-lines list-unstyled mb-0 d-none" id="tiendaCartLines"></ul>
+  </div>
+  <footer class="tienda-cart-footer d-none" id="tiendaCartFooter">
+    <div class="tienda-cart-total-row">
+      <span>Total referencial</span>
+      <strong id="tiendaCartSubtotal">$0</strong>
+    </div>
+    <p class="tienda-cart-hint small text-muted mb-2">Precio y stock se confirman en caja al retirar o pagar.</p>
+    <div class="mb-2">
+      <label class="form-label small mb-1" for="tiendaCartNombre">Tu nombre (opcional)</label>
+      <input type="text" class="form-control form-control-sm" id="tiendaCartNombre" maxlength="80" autocomplete="name" placeholder="Ej. Juan Pérez">
+    </div>
+    <div class="mb-3">
+      <label class="form-label small mb-1" for="tiendaCartTelefono">Teléfono (opcional)</label>
+      <input type="tel" class="form-control form-control-sm" id="tiendaCartTelefono" maxlength="40" autocomplete="tel" placeholder="Ej. +56 9 1234 5678">
+    </div>
+    <a href="#" class="btn btn-success w-100 mb-2" id="tiendaCartWhatsapp" target="_blank" rel="noopener">
+      <i class="fab fa-whatsapp me-1"></i> Enviar pedido por WhatsApp
+    </a>
+    <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="tiendaCartVaciar">Vaciar carrito</button>
+  </footer>
+</aside>
+<div class="tienda-cart-toast d-none" id="tiendaCartToast" role="status"></div>

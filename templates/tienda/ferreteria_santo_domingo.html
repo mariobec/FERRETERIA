@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="{{ page_meta_description }}">
+  <link rel="canonical" href="{{ page_canonical }}">
+  <title>{{ nombre_tienda }} — Tienda en línea</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}">
+</head>
+<body class="tienda-vitrina">
+  <header class="tienda-top">
+    <div class="tienda-top-inner">
+      <a href="{{ url_for('tienda_vitrina', slug=slug) }}" class="tienda-brand text-decoration-none d-flex align-items-center gap-3">
+        <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}">
+        <div>
+          <h1 class="text-dark">{{ nombre_tienda }}</h1>
+          <small>Catálogo Chilemat · Stock en tienda</small>
+        </div>
+      </a>
+      <form class="tienda-search" method="get" action="{{ url_for('tienda_vitrina', slug=slug) }}">
+        {% if cat_vtex %}<input type="hidden" name="cat" value="{{ cat_vtex }}">{% endif %}
+        <input type="search" name="q" value="{{ q or '' }}" placeholder="Buscar productos..." autocomplete="off">
+        <button type="submit" aria-label="Buscar"><i class="fas fa-search"></i></button>
+      </form>
+      <div class="tienda-nav-actions d-flex align-items-center gap-2">
+        {% include 'tienda/includes/carrito_vitrina.html' %}
+        {% if wa_base %}
+        <a class="btn-wa" href="{{ wa_base }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp me-1"></i> WhatsApp</a>
+        {% endif %}
+        <a href="{{ url_for('index') }}">LhexIA</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="tienda-main">
+    <div class="tienda-layout">
+      <aside class="tienda-sidebar">
+        <div class="tienda-sidebar-title"><i class="fas fa-bars me-1"></i> Categorías</div>
+        {% for r in menu_nav.raices %}
+        <a href="{{ r.url }}" class="tienda-sidebar-link{% if r.activa %} is-active{% endif %}">
+          <i class="fas {{ r.icono }}"></i>
+          <span>{{ r.nombre }}</span>
+          <i class="fas fa-chevron-right ms-auto small"></i>
+        </a>
+        {% endfor %}
+      </aside>
+      <section class="tienda-content">
+        {% if panel_activo and panel_activo.destacados %}
+        <div class="tienda-subcats-strip" id="tiendaSubcatsStrip">
+          {% for d in panel_activo.destacados[:8] %}
+          <a href="{{ d.url }}" class="tienda-mega-pill">
+            <span class="tienda-mega-pill-icon"><i class="fas fa-box-open"></i></span>
+            <span>{{ d.nombre }}</span>
+          </a>
+          {% endfor %}
+          <a href="{{ panel_activo.url_raiz }}" class="tienda-mega-pill ver-todo-pill">
+            <span class="tienda-mega-pill-icon"><i class="fas fa-arrow-right"></i></span>
+            <span>Ver todo</span>
+          </a>
+        </div>
+        {% endif %}
+
+        <div class="tienda-toolbar">
+          <div id="tiendaToolbarMeta">
+            <strong>{{ listado.total }}</strong> productos encontrados
+            {% if cat_vtex %} · categoría filtrada{% endif %}
+            {% if q %} · búsqueda «{{ q }}»{% endif %}
+          </div>
+          <form method="get" class="d-flex flex-wrap gap-2 align-items-center">
+            {% if cat_vtex %}<input type="hidden" name="cat" value="{{ cat_vtex }}">{% endif %}
+            {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+            <input type="hidden" name="menu" value="0">
+            <select name="orden" class="form-select form-select-sm" onchange="this.form.submit()">
+              <option value="recomendados" {% if orden == 'recomendados' %}selected{% endif %}>Recomendados</option>
+              <option value="precio_asc" {% if orden == 'precio_asc' %}selected{% endif %}>Precio menor</option>
+              <option value="precio_desc" {% if orden == 'precio_desc' %}selected{% endif %}>Precio mayor</option>
+              <option value="nombre" {% if orden == 'nombre' %}selected{% endif %}>Nombre</option>
+            </select>
+            <label class="form-check form-check-inline small mb-0">
+              <input class="form-check-input" type="checkbox" name="solo_disponibles" value="1"
+                     {% if solo_disponibles %}checked{% endif %} onchange="this.form.submit()">
+              Solo con stock
+            </label>
+          </form>
+        </div>
+
+        <div id="tiendaLizHero" class="tienda-liz-hero d-none" aria-hidden="true">
+          <div class="tienda-liz-hero-inner">
+            <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}" class="tienda-liz-hero-logo">
+            <div>
+              <p class="tienda-liz-hero-marca mb-0">{{ nombre_tienda }}</p>
+              <h2 class="tienda-liz-hero-title mb-1">Productos recomendados</h2>
+              <p class="tienda-liz-hero-sub mb-0" id="tiendaLizHeroSub">Encuentra lo que necesitas para tu proyecto</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="tiendaResultados">
+        {% if listado.productos %}
+        <div class="tienda-grid" id="tiendaGrid">
+          {% for p in listado.productos %}
+          <article class="tienda-card">
+            <a href="{{ url_for('tienda_producto', slug=slug, producto_id=p.producto_id) }}" class="tienda-card-img">
+              {% if p.imagen_url %}
+              <img src="{{ p.imagen_url }}" alt="" loading="lazy">
+              {% else %}
+              <i class="fas fa-image fa-2x text-muted"></i>
+              {% endif %}
+            </a>
+            <div class="tienda-card-body">
+              {% if p.marca %}<div class="tienda-card-brand">{{ p.marca }}</div>{% endif %}
+              <h2 class="tienda-card-title">
+                <a href="{{ url_for('tienda_producto', slug=slug, producto_id=p.producto_id) }}">{{ p.nombre }}</a>
+              </h2>
+              <div class="tienda-card-price">{{ p.precio_fmt }}</div>
+              <span class="tienda-badge {% if p.disponible %}ok{% else %}no{% endif %}">
+                {% if p.disponible %}Disponible en tienda{% else %}Sin stock en tienda{% endif %}
+              </span>
+              <button type="button" class="tienda-card-add-cart" data-add-carrito="1"
+                data-carrito-item='{{ {"producto_id": p.producto_id, "nombre": p.nombre, "referencia": p.referencia or "", "precio": p.precio, "precio_fmt": p.precio_fmt, "imagen_url": p.imagen_url or "", "disponible": p.disponible, "stock_tienda": p.stock_tienda}|tojson }}'>
+                <i class="fas fa-cart-plus me-1"></i> Agregar
+              </button>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted" id="tiendaGridEmpty">No hay productos para este filtro. Pruebe otra categoría o búsqueda.</p>
+        {% endif %}
+
+        {% if listado.pages > 1 %}
+        <nav class="mt-4 d-flex justify-content-center gap-2" id="tiendaPager">
+          {% if listado.has_prev %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="{{ url_for('tienda_vitrina', slug=slug, page=listado.prev_num, q=q or none, cat=cat_vtex or none, orden=orden, solo_disponibles=1 if solo_disponibles else none, menu=0) }}">Anterior</a>
+          {% endif %}
+          <span class="align-self-center small text-muted">Pág. {{ listado.page }} / {{ listado.pages }}</span>
+          {% if listado.has_next %}
+          <a class="btn btn-outline-secondary btn-sm"
+             href="{{ url_for('tienda_vitrina', slug=slug, page=listado.next_num, q=q or none, cat=cat_vtex or none, orden=orden, solo_disponibles=1 if solo_disponibles else none, menu=0) }}">Siguiente</a>
+          {% endif %}
+        </nav>
+        {% endif %}
+        </div>
+
+        <p class="tienda-legal">
+          Precios referenciales según catálogo Chilemat. Stock y precio de cobro final en caja pueden variar.
+          Operado por {{ nombre_tienda }} · LhexIA ERP.
+        </p>
+      </section>
+    </div>
+  </main>
+
+  {% include 'tienda/includes/liz_asistente.html' %}
+  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=liz-vitrina-10"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{# Liz — asistente de ventas vitrina (marca SD, inspiración UX marketplace) #}
+<script id="tiendaAssistantConfig" type="application/json">
+  {{ assistant_config|tojson }}
+</script>
+<section class="tienda-assistant" id="tiendaAssistant" aria-label="Asistente Liz">
+  <button type="button" class="tienda-assistant-fab" id="tiendaAssistantToggle" aria-expanded="false" aria-controls="tiendaAssistantPanel">
+    <img src="{{ url_for('static', filename='img/liz_avatar.png') }}" alt="" class="tienda-assistant-fab-avatar" width="44" height="44">
+    <span class="tienda-assistant-fab-label">Liz · Asistente</span>
+  </button>
+  <div class="tienda-assistant-panel tienda-assistant-panel--liz d-none" id="tiendaAssistantPanel" role="dialog" aria-labelledby="tiendaLizTitle">
+    <header class="tienda-assistant-head">
+      <div class="tienda-assistant-identity">
+        <img src="{{ url_for('static', filename='img/liz_avatar.png') }}" alt="" class="tienda-assistant-avatar" width="64" height="64">
+        <div>
+          <strong id="tiendaLizTitle">Liz</strong>
+          <span class="tienda-assistant-sub">Asistente de ventas</span>
+          <span class="tienda-assistant-marca">{{ nombre_tienda }}</span>
+        </div>
+      </div>
+      <button type="button" class="tienda-assistant-reset" id="tiendaAssistantReset" title="Nueva conversación" aria-label="Nueva conversación">
+        <i class="fas fa-redo-alt"></i>
+      </button>
+    </header>
+    {% if wa_base %}
+  <div class="tienda-assistant-advisor">
+      <span class="tienda-assistant-advisor-label">Asesor de compra</span>
+      <a href="{{ wa_base }}" target="_blank" rel="noopener" class="tienda-assistant-advisor-wa" title="WhatsApp tienda">
+        <i class="fab fa-whatsapp"></i>
+      </a>
+    </div>
+    {% endif %}
+    <div class="tienda-assistant-body" id="tiendaAssistantBody">
+      <div class="tienda-assistant-msg bot" data-welcome="1">
+        <p class="mb-1">Hola, soy <strong>Liz</strong>. Te ayudo a encontrar productos, ver precios de referencia y stock en nuestra tienda.</p>
+        {% if assistant_producto_id %}
+        <p class="small text-muted mb-0">Pregunta por este producto: stock, precio o complementos.</p>
+        {% else %}
+        <p class="small text-muted mb-0">Ejemplo: <em>precio pintura impermeabilizante</em> o <em>¿hay stock cemento?</em></p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="tienda-assistant-chips" id="tiendaAssistantChips">
+      {% for chip in assistant_chips %}
+      <button type="button" class="tienda-assistant-chip" data-chip="{{ chip }}">{{ chip }}</button>
+      {% endfor %}
+    </div>
+    <form id="tiendaAssistantForm" class="tienda-assistant-form">
+      <input type="text" id="tiendaAssistantInput" placeholder="¿Qué producto buscas?" maxlength="180" autocomplete="off" required>
+      <button type="submit" aria-label="Enviar"><i class="fas fa-paper-plane"></i></button>
+    </form>
+  </div>
+</section>
