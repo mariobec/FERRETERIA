@@ -476,10 +476,19 @@
           )
         ),
       });
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (_jsonErr) {
+        data = null;
+      }
       if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
-      if (!data || !data.ok) {
-        appendMsg("No pude responder ahora. Intenta de nuevo en un momento.", "bot");
+      if (!res.ok || !data || !data.ok) {
+        const det = (data && (data.mensaje || data.error)) || ("HTTP " + res.status);
+        appendMsg(
+          "No pude responder ahora (" + esc(String(det).slice(0, 120)) + "). Intenta de nuevo.",
+          "bot"
+        );
         return;
       }
       const reply = (data.reply || "Te ayudo con otra búsqueda.").trim();

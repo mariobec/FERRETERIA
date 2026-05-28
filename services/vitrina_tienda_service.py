@@ -1341,6 +1341,7 @@ def _construir_ui_respuesta(
     combo_lineas: list[dict[str, Any]] | None = None,
     carrito_totales: dict[str, Any] | None = None,
     cierre_carrito: bool = False,
+    vale_pedido: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Bloques UI para el chat (JSON). El front dibuja tarjetas y botones;

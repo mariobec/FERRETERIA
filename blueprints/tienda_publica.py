@@ -274,16 +274,22 @@ def tienda_asistente(slug: str):
     carrito = data.get('carrito') or data.get('carrito_lineas')
     if not isinstance(carrito, list):
         carrito = None
-    out = vt.respuesta_asistente(
-        slug=slug,
-        mensaje=mensaje,
-        producto_id=pid,
-        carrito_lineas=carrito,
-        cliente_nombre=(data.get('cliente_nombre') or '').strip(),
-        cliente_telefono=(data.get('cliente_telefono') or '').strip(),
-    )
-    out['ia_local_disponible'] = vt.ollama_vitrina_disponible()
-    return jsonify({'ok': True, **out})
+    try:
+        out = vt.respuesta_asistente(
+            slug=slug,
+            mensaje=mensaje,
+            producto_id=pid,
+            carrito_lineas=carrito,
+            cliente_nombre=(data.get('cliente_nombre') or '').strip(),
+            cliente_telefono=(data.get('cliente_telefono') or '').strip(),
+        )
+        out['ia_local_disponible'] = vt.ollama_vitrina_disponible()
+        return jsonify({'ok': True, **out})
+    except Exception as ex:
+        import logging
+
+        logging.getLogger(__name__).exception('tienda_asistente: %s', ex)
+        return jsonify({'ok': False, 'error': 'asistente_error', 'mensaje': str(ex)[:200]}), 500
 
 
 def tienda_api_carrito_vale(slug: str):
