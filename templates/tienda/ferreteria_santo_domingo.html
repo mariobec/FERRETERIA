@@ -8,32 +8,14 @@
   <title>{{ nombre_tienda }} — Tienda en línea</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=tienda-shell-13-typing">
 </head>
 <body class="tienda-vitrina">
-  <header class="tienda-top">
-    <div class="tienda-top-inner">
-      <a href="{{ url_for('tienda_vitrina', slug=slug) }}" class="tienda-brand text-decoration-none d-flex align-items-center gap-3">
-        <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}">
-        <div>
-          <h1 class="text-dark">{{ nombre_tienda }}</h1>
-          <small>Catálogo Chilemat · Stock en tienda</small>
-        </div>
-      </a>
-      <form class="tienda-search" method="get" action="{{ url_for('tienda_vitrina', slug=slug) }}">
-        {% if cat_vtex %}<input type="hidden" name="cat" value="{{ cat_vtex }}">{% endif %}
-        <input type="search" name="q" value="{{ q or '' }}" placeholder="Buscar productos..." autocomplete="off">
-        <button type="submit" aria-label="Buscar"><i class="fas fa-search"></i></button>
-      </form>
-      <div class="tienda-nav-actions d-flex align-items-center gap-2">
-        {% include 'tienda/includes/carrito_vitrina.html' %}
-        {% if wa_base %}
-        <a class="btn-wa" href="{{ wa_base }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp me-1"></i> WhatsApp</a>
-        {% endif %}
-        <a href="{{ url_for('index') }}">LhexIA</a>
-      </div>
-    </div>
-  </header>
+  {% set header_home_url = url_for('tienda_vitrina', slug=slug) %}
+  {% set header_search_action = url_for('tienda_vitrina', slug=slug) %}
+  {% set header_search_q = q or '' %}
+  {% set header_cat_vtex = cat_vtex %}
+  {% include 'tienda/includes/header_vitrina.html' %}
 
   <main class="tienda-main">
     <div class="tienda-layout">
@@ -148,13 +130,14 @@
 
         <p class="tienda-legal">
           Precios referenciales según catálogo Chilemat. Stock y precio de cobro final en caja pueden variar.
-          Operado por {{ nombre_tienda }} · LhexIA ERP.
+          {{ nombre_tienda }} — tienda en línea. Precios referenciales; cobro y stock en mostrador.
         </p>
       </section>
     </div>
   </main>
 
+  {% include 'tienda/includes/carrito_vitrina_shell.html' %}
   {% include 'tienda/includes/liz_asistente.html' %}
-  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=liz-vitrina-10"></script>
+  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=liz-vitrina-14-typing"></script>
 </body>
 </html>

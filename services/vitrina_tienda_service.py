@@ -19,6 +19,10 @@ _TOKENS_RUIDO_ASISTENTE = {
     'hola', 'buenas', 'buen', 'dia', 'tardes', 'noches', 'ayuda', 'asesor', 'liz', 'tal',
 }
 _SALUDO_SOLO = {'hola', 'buenas', 'buen', 'dia', 'tardes', 'noches', 'ayuda', 'asesor', 'liz', 'tal', 'que'}
+_INTENCION_RECOMENDAR = (
+    'recomiend', 'recomendar', 'recomendacion', 'suger', 'sugerencia',
+    'alternativa', 'alternativas', 'opcion', 'opciones', 'que me recomiendas',
+)
 
 # Término de búsqueda → categoría Chilemat (raíz o nivel 1)
 _INTENCION_CATEGORIA: dict[str, tuple[str, ...]] = {
@@ -87,17 +91,35 @@ def _texto_simple(txt: str) -> str:
     return re.sub(r'\s+', ' ', base).strip()
 
 
-def _liz_prompt_ollama(nombre_tienda: str) -> str:
+def _modo_combo_habilitado() -> bool:
+    """Activa venta cruzada Liz + relaciones producto_relacion (Chilemat sync)."""
+    v = (os.getenv('VITRINA_LIZ_MODO_COMBO') or '1').strip().lower()
+    return v not in ('0', 'false', 'no', 'off')
+
+
+def _liz_prompt_ollama(nombre_tienda: str, *, modo_combo: bool = False) -> str:
     """Instrucciones de tono Liz (vitrina). Ajustar con VITRINA_LIZ_PROMPT_EXTRA en .env."""
     extra = (os.getenv('VITRINA_LIZ_PROMPT_EXTRA') or '').strip()
     base = (
         f"Eres Liz, asistente de ventas de '{nombre_tienda}' (ferreteria en Chile). "
-        'Tutea al cliente, tono cercano y profesional. Maximo 2 oraciones. '
+        'Tutea al cliente, tono cercano y profesional. '
         'PROHIBIDO decir Chilemat, ERP, precio referencial Chilemat o precio referencial. '
         'Para precios di: precio de referencia en la tienda en linea; el valor final se confirma en caja. '
-        'Si hay productos en la lista, menciona uno o dos nombres y di que quedan abajo para ver detalle. '
         'NO inventes productos, precios ni stock: solo usa la respuesta base y los candidatos.'
     )
+    if modo_combo:
+        base += (
+            ' MODO COMBO ACTIVO: el cliente pregunta por un producto y debes sugerir llevar tambien '
+            'los productos relacionados del contexto (comprados juntos en la tienda). '
+            'Confirma disponibilidad del producto principal, nombra 1 o 2 complementos con su precio '
+            'de referencia y cierra invitando a agregar ambos al carrito de compras. '
+            'Maximo 3 oraciones cortas, sin markdown ni listas con guiones.'
+        )
+    else:
+        base += (
+            ' Maximo 2 oraciones. Si hay productos en la lista, menciona uno o dos nombres '
+            'y di que quedan abajo para ver detalle.'
+        )
     return f'{base} {extra}'.strip()
 
 
@@ -133,6 +155,35 @@ def _normalizar_consulta_asistente(txt: str) -> tuple[str, list[str]]:
         tokens = [t for t in simple.split(' ') if len(t) >= 3]
     tokens = tokens[:5]
     return ' '.join(tokens), tokens
+
+
+def _es_intencion_recomendacion(txt: str) -> bool:
+    base = _texto_simple(txt)
+    if not base:
+        return False
+    return any(k in base for k in _INTENCION_RECOMENDAR)
+
+
+def _fallback_sugerencias_ambiguas(txt: str, tokens: list[str]) -> list[dict[str, Any]]:
+    """Ante consulta ambigua sin match exacto, buscar alternativas cercanas con stock."""
+    candidatos: list[dict[str, Any]] = []
+    probes: list[str] = []
+    normal = _texto_simple(txt)
+    if normal:
+        probes.append(normal[:80])
+    for tk in tokens[:3]:
+        if tk and tk not in probes:
+            probes.append(tk)
+
+    for q in probes:
+        try:
+            block = listar_productos(page=1, per_page=24, q_text=q, solo_disponibles=True)
+            candidatos.extend(block.get('productos') or [])
+        except Exception:
+            continue
+        if len(candidatos) >= 12:
+            break
+    return _rankear_y_filtrar_items(candidatos, tokens, min_score=4, limite=3)
 
 
 def _merge_items_por_producto(*listas: list[dict[str, Any]], limite: int = 12) -> list[dict[str, Any]]:
@@ -223,6 +274,111 @@ def _rankear_y_filtrar_items(
         scored.append((punt, it))
     scored.sort(key=lambda x: (-x[0], (x[1].get('nombre') or '').lower()))
     return [it for _, it in scored[:limite]]
+
+
+def _linea_carrito_desde_item(it: dict[str, Any]) -> dict[str, Any]:
+    """Payload mínimo para carrito vitrina (localStorage + WhatsApp)."""
+    return {
+        'producto_id': int(it.get('producto_id') or 0),
+        'nombre': (it.get('nombre') or 'Producto')[:100],
+        'referencia': (it.get('referencia') or '')[:80],
+        'precio': int(it.get('precio') or 0),
+        'precio_fmt': (it.get('precio_fmt') or _fmt_clp(it.get('precio') or 0)),
+        'imagen_url': it.get('imagen_url'),
+        'disponible': bool(it.get('disponible')),
+        'stock_tienda': int(it.get('stock_tienda') or 0),
+    }
+
+
+def _contexto_combo_liz(
+    items: list[dict[str, Any]],
+    slug: str,
+    *,
+    limite_combo: int = 2,
+) -> dict[str, Any]:
+    """Relaciones producto_relacion (Chilemat / histórico) para venta cruzada Liz."""
+    vacio: dict[str, Any] = {
+        'activo': False,
+        'ancla': None,
+        'relacionados': [],
+        'cards_combo': [],
+        'lineas_carrito': [],
+        'resumen_ollama': '',
+    }
+    if not items:
+        return vacio
+    ancla = items[0]
+    pid = int(ancla.get('producto_id') or 0)
+    if not pid:
+        return vacio
+    sugeridos = sugeridos_para_detalle(pid, limite=limite_combo)
+    if not sugeridos:
+        return vacio
+    relacionados: list[dict[str, Any]] = []
+    for s in sugeridos:
+        relacionados.append(
+            {
+                'producto_id': int(s['producto_id']),
+                'nombre': (s.get('nombre') or '')[:100],
+                'referencia': '',
+                'precio': int(s.get('precio') or 0),
+                'precio_fmt': s.get('precio_fmt') or _fmt_clp(s.get('precio') or 0),
+                'imagen_url': s.get('imagen_url'),
+                'disponible': bool(s.get('disponible')),
+                'stock_tienda': int(s.get('stock_tienda') or 0),
+            }
+        )
+    partes = []
+    for s in relacionados:
+        p = f"{s['nombre']} ({s['precio_fmt']})"
+        if not s.get('disponible'):
+            p += ' — consultar stock en tienda'
+        partes.append(p)
+    lineas = [_linea_carrito_desde_item(ancla)]
+    vistos = {int(ancla.get('producto_id') or 0)}
+    for s in relacionados:
+        sid = int(s.get('producto_id') or 0)
+        if sid and sid not in vistos:
+            lineas.append(_linea_carrito_desde_item(s))
+            vistos.add(sid)
+    return {
+        'activo': True,
+        'ancla': ancla,
+        'relacionados': relacionados,
+        'cards_combo': _cards_desde_items(relacionados, slug, limite=limite_combo),
+        'lineas_carrito': lineas,
+        'resumen_ollama': '; '.join(partes),
+    }
+
+
+def _reply_combo_reglas(combo_ctx: dict[str, Any], consulta: str) -> str:
+    """Respuesta combo sin Ollama (misma intención comercial)."""
+    ancla = combo_ctx.get('ancla') or {}
+    rels = combo_ctx.get('relacionados') or []
+    if not ancla or not rels:
+        return _reply_destacado_sodimac([ancla] if ancla else [], consulta)
+    nombre = (ancla.get('nombre') or 'este producto').strip()
+    precio = (ancla.get('precio_fmt') or '').strip()
+    msg = f'¡Hola! Sí, tenemos {nombre}'
+    if precio:
+        msg += f' disponible en tienda a {precio}'
+    msg += '. '
+    if len(rels) == 1:
+        r0 = rels[0]
+        msg += (
+            f'Por experiencia, te sugiero llevar también {r0.get("nombre", "un complemento")}'
+        )
+        if r0.get('precio_fmt'):
+            msg += f' ({r0["precio_fmt"]})'
+        msg += '.'
+    else:
+        otros = ', '.join(
+            f'{r.get("nombre", "producto")} ({r.get("precio_fmt", "")})'.strip()
+            for r in rels[:2]
+        )
+        msg += f'Por experiencia, si estás en el mismo proyecto, te conviene llevar también {otros}.'
+    msg += ' ¿Te gustaría que agregue ambos al carrito de compras?'
+    return msg
 
 
 def _reply_destacado_sodimac(items: list[dict[str, Any]], consulta: str) -> str:
@@ -722,6 +878,7 @@ def _respuesta_ollama(
     respuesta_base: str,
     cards: list[dict[str, Any]],
     nombre_tienda: str = TIENDA_TITULO_DEFAULT,
+    combo_context: dict[str, Any] | None = None,
 ) -> str | None:
     """Refina respuesta de Liz con Ollama local; retorna None si no aplica."""
     try:
@@ -732,27 +889,44 @@ def _respuesta_ollama(
     if not ollama_disponible():
         return None
 
+    combo_ctx = combo_context or {}
+    modo_combo = bool(combo_ctx.get('activo'))
+
     resumen_cards = []
-    for c in cards[:4]:
+    for c in cards[:6]:
         resumen_cards.append(
             f"- {c.get('nombre','Producto')}: {c.get('precio_fmt','')} · "
             f"{'Disponible' if c.get('disponible') else 'Sin stock'}"
         )
     contexto = '\n'.join(resumen_cards) if resumen_cards else '- Sin productos sugeridos'
-    system = _liz_prompt_ollama(nombre_tienda)
-    user = (
-        f'Consulta cliente: {mensaje}\n'
-        f'Respuesta base del sistema: {respuesta_base}\n'
-        f'Productos candidatos:\n{contexto}\n'
-        'Devuelve solo el texto final para el chat (sin markdown ni listas con guiones).'
-    )
+    system = _liz_prompt_ollama(nombre_tienda, modo_combo=modo_combo)
+
+    if modo_combo:
+        ancla = combo_ctx.get('ancla') or {}
+        user = (
+            f'Consulta cliente: {mensaje}\n'
+            f'Producto principal: {ancla.get("nombre", "Producto")} — {ancla.get("precio_fmt", "")} — '
+            f'{"con stock en tienda" if ancla.get("disponible") else "sin stock en tienda ahora"}.\n'
+            f'Complementos que otros clientes llevan juntos (datos reales): {combo_ctx.get("resumen_ollama", "")}\n'
+            f'Respuesta base sugerida: {respuesta_base}\n'
+            f'Catalogo candidato:\n{contexto}\n'
+            'Redacta la respuesta final para el chat. Debes ofrecer el combo e invitar a agregar al carrito.'
+        )
+    else:
+        user = (
+            f'Consulta cliente: {mensaje}\n'
+            f'Respuesta base del sistema: {respuesta_base}\n'
+            f'Productos candidatos:\n{contexto}\n'
+            'Devuelve solo el texto final para el chat (sin markdown ni listas con guiones).'
+        )
     out = generar_chat(system=system, user=user)
     if not out.get('ok'):
         return None
     txt = (out.get('texto') or '').strip()
     if not txt:
         return None
-    return txt[:480]
+    lim = 620 if modo_combo else 480
+    return txt[:lim]
 
 
 def _emit_respuesta(
@@ -763,25 +937,47 @@ def _emit_respuesta(
     nombre_tienda: str = TIENDA_TITULO_DEFAULT,
     catalogo_url: str | None = None,
     consulta: str | None = None,
+    items_ranked: list[dict[str, Any]] | None = None,
+    slug: str | None = None,
 ) -> dict[str, Any]:
-    # Con productos encontrados: respuesta fija + grilla al costado (sin reescritura Ollama).
+    combo_ctx: dict[str, Any] = {}
+    if items_ranked and slug and _modo_combo_habilitado():
+        combo_ctx = _contexto_combo_liz(items_ranked, slug)
+    modo_combo = bool(combo_ctx.get('activo'))
+
+    reply_out = reply
     ollama_txt = None
-    if not cards:
+    motor = 'reglas'
+
+    if modo_combo:
+        reply_base = _reply_combo_reglas(combo_ctx, (consulta or mensaje or '')[:80])
+        # Modo combo forzado por reglas: no reescribir con Ollama.
+        reply_out = reply_base
+        motor = 'combo'
+    elif not cards:
         ollama_txt = _respuesta_ollama(
             mensaje=mensaje,
             respuesta_base=reply,
             cards=cards,
             nombre_tienda=nombre_tienda,
         )
+        if ollama_txt:
+            reply_out = ollama_txt
+            motor = 'ollama'
+
     out: dict[str, Any] = {
-        'reply': ollama_txt or reply,
+        'reply': reply_out,
         'cards': cards,
-        'motor': 'ollama' if ollama_txt else 'reglas',
+        'motor': motor,
     }
     if catalogo_url:
         out['catalogo_url'] = catalogo_url
     if consulta:
         out['consulta'] = consulta
+    if modo_combo:
+        out['modo_combo'] = True
+        out['combo_cards'] = combo_ctx.get('cards_combo') or []
+        out['combo_lineas'] = combo_ctx.get('lineas_carrito') or []
     return out
 
 
@@ -811,23 +1007,35 @@ def respuesta_asistente(
                     reply=f'{estado} para {det["nombre"]}.',
                     cards=_cards_desde_items([det], slug, limite=1),
                 )
-            if any(x in q for x in ('relacion', 'recomend', 'complement', 'llevar')):
+            if any(x in q for x in ('relacion', 'recomend', 'complement', 'llevar', 'combo', 'carrito')):
                 sugs = det.get('sugeridos') or []
                 if sugs:
-                    cards = _cards_desde_items(
-                        [
-                            {
-                                'producto_id': x['producto_id'],
-                                'nombre': x['nombre'],
-                                'precio_fmt': x['precio_fmt'],
-                                'stock_tienda': x.get('stock_tienda', 0),
-                                'disponible': x.get('disponible', False),
-                            }
-                            for x in sugs
-                        ],
-                        slug,
-                        limite=3,
-                    )
+                    rel_items = [
+                        {
+                            'producto_id': x['producto_id'],
+                            'nombre': x['nombre'],
+                            'precio_fmt': x['precio_fmt'],
+                            'precio': x.get('precio', 0),
+                            'stock_tienda': x.get('stock_tienda', 0),
+                            'disponible': x.get('disponible', False),
+                            'imagen_url': x.get('imagen_url'),
+                            'referencia': '',
+                        }
+                        for x in sugs
+                    ]
+                    items_ctx = [det] + rel_items
+                    combo_ctx = _contexto_combo_liz(items_ctx, slug) if _modo_combo_habilitado() else {}
+                    if combo_ctx.get('activo'):
+                        reply_combo = _reply_combo_reglas(combo_ctx, det.get('nombre') or 'producto')
+                        cards = _cards_desde_items(rel_items, slug, limite=3)
+                        return _emit_respuesta(
+                            mensaje=txt,
+                            reply=reply_combo,
+                            cards=cards,
+                            items_ranked=items_ctx,
+                            slug=slug,
+                        )
+                    cards = _cards_desde_items(rel_items, slug, limite=3)
                     return _emit_respuesta(
                         mensaje=txt,
                         reply='Te sugiero estos complementos para ese producto.',
@@ -850,6 +1058,36 @@ def respuesta_asistente(
     items, total = _buscar_items_asistente(consulta)
     cat_url = _url_catalogo_busqueda(slug, txt)
     if not items:
+        sugeridos_ambiguos = _fallback_sugerencias_ambiguas(txt, tokens)
+        if sugeridos_ambiguos:
+            cards_amb = _cards_desde_items(sugeridos_ambiguos, slug, limite=3)
+            nombre_base = (tokens[0] if tokens else (consulta.split(' ')[0] if consulta else 'ese producto')).strip()
+            return _emit_respuesta(
+                mensaje=txt,
+                reply=(
+                    f'Sí, tenemos alternativas de {nombre_base} en tienda. '
+                    'Te dejé opciones recomendadas con precio y stock para que compares. '
+                    'Si quieres, te agrego una al carrito.'
+                ),
+                cards=cards_amb,
+                catalogo_url=cat_url,
+                consulta=None,
+            )
+        if _es_intencion_recomendacion(txt):
+            try:
+                destacados = listar_productos(page=1, per_page=6, solo_disponibles=True)
+                sugeridos = _rankear_y_filtrar_items(destacados.get('productos') or [], [], limite=3)
+            except Exception:
+                sugeridos = []
+            if sugeridos:
+                cards_sugeridos = _cards_desde_items(sugeridos, slug, limite=3)
+                return _emit_respuesta(
+                    mensaje=txt,
+                    reply='Claro, te recomiendo estas opciones top con stock en tienda ahora:',
+                    cards=cards_sugeridos,
+                    catalogo_url=cat_url,
+                    consulta=None,
+                )
         return _emit_respuesta(
             mensaje=txt,
             reply='No encontré coincidencias exactas. Prueba con otra palabra (ej: cemento, broca, cinta).',
@@ -885,6 +1123,8 @@ def respuesta_asistente(
         cards=[],
         catalogo_url=cat_url,
         consulta=consulta,
+        items_ranked=items,
+        slug=slug,
     )
 
 

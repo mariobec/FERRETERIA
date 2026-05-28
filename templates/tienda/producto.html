@@ -8,21 +8,14 @@
   <title>{{ item.nombre }} | {{ nombre_tienda }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=tienda-shell-13-typing">
 </head>
 <body class="tienda-vitrina">
-  <header class="tienda-top">
-    <div class="tienda-top-inner">
-      <a href="{{ vitrina_url }}" class="tienda-brand text-decoration-none d-flex align-items-center gap-3">
-        <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}">
-        <div><h1 class="text-dark">{{ nombre_tienda }}</h1></div>
-      </a>
-      <div class="tienda-nav-actions ms-auto d-flex align-items-center gap-2">
-        {% include 'tienda/includes/carrito_vitrina.html' %}
-        <a href="{{ vitrina_url }}"><i class="fas fa-arrow-left me-1"></i> Volver al catálogo</a>
-      </div>
-    </div>
-  </header>
+  {% set header_home_url = vitrina_url %}
+  {% set header_search_action = vitrina_url %}
+  {% set header_search_q = '' %}
+  {% set header_cat_vtex = none %}
+  {% include 'tienda/includes/header_vitrina.html' %}
 
   <main class="tienda-main">
     <div class="row g-4">
@@ -59,7 +52,7 @@
           </a>
           {% endif %}
         </div>
-        <p class="tienda-legal">Precio referencial Chilemat. Confirmación en tienda.</p>
+        <p class="tienda-legal">{{ nombre_tienda }} — precio referencial web. Confirmación en tienda.</p>
       </div>
     </div>
 
@@ -82,7 +75,8 @@
     </section>
     {% endif %}
   </main>
+  {% include 'tienda/includes/carrito_vitrina_shell.html' %}
   {% include 'tienda/includes/liz_asistente.html' %}
-  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=liz-vitrina-10"></script>
+  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=liz-vitrina-14-typing"></script>
 </body>
 </html>

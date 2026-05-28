@@ -111,6 +111,89 @@ def test_reply_destacado_menciona_producto():
     assert '$9.990' in msg
 
 
+def test_reply_combo_reglas_menciona_carrito():
+    combo = {
+        'activo': True,
+        'ancla': {
+            'nombre': 'Cinta Masking 48mm',
+            'precio_fmt': '$2.500',
+            'disponible': True,
+        },
+        'relacionados': [
+            {'nombre': 'Brocha Hormigon 4"', 'precio_fmt': '$4.990', 'disponible': True},
+        ],
+    }
+    msg = vt._reply_combo_reglas(combo, 'cinta masking')
+    assert 'Cinta Masking' in msg
+    assert 'Brocha' in msg
+    assert 'carrito' in msg.lower()
+
+
+def test_contexto_combo_vacio_sin_relaciones(monkeypatch):
+    monkeypatch.setattr(vt, 'sugeridos_para_detalle', lambda *_a, **_k: [])
+    ctx = vt._contexto_combo_liz(
+        [{'producto_id': 1, 'nombre': 'Test', 'precio_fmt': '$1', 'disponible': True}],
+        vt.TIENDA_SLUG_SD,
+    )
+    assert ctx.get('activo') is False
+
+
+def test_respuesta_asistente_modo_combo(monkeypatch):
+    items = [
+        {
+            'producto_id': 10,
+            'nombre': 'Cinta Masking',
+            'precio_fmt': '$2.500',
+            'precio': 2500,
+            'disponible': True,
+            'stock_tienda': 5,
+            'referencia': 'CM1',
+        }
+    ]
+
+    def _fake_buscar(txt):
+        return items, 1
+
+    monkeypatch.setattr(vt, '_buscar_items_asistente', _fake_buscar)
+    monkeypatch.setattr(
+        vt,
+        '_contexto_combo_liz',
+        lambda _items, _slug, **_: {
+            'activo': True,
+            'ancla': items[0],
+            'relacionados': [
+                {
+                    'producto_id': 11,
+                    'nombre': 'Brocha Hormigon',
+                    'precio_fmt': '$4.990',
+                    'disponible': True,
+                }
+            ],
+            'cards_combo': [],
+            'lineas_carrito': [
+                vt._linea_carrito_desde_item(items[0]),
+                {
+                    'producto_id': 11,
+                    'nombre': 'Brocha Hormigon',
+                    'precio_fmt': '$4.990',
+                    'precio': 4990,
+                    'disponible': True,
+                    'stock_tienda': 2,
+                    'referencia': '',
+                },
+            ],
+            'resumen_ollama': 'Brocha Hormigon ($4.990)',
+        },
+    )
+    monkeypatch.setattr(vt, '_respuesta_ollama', lambda **_k: None)
+
+    out = vt.respuesta_asistente(slug=vt.TIENDA_SLUG_SD, mensaje='tienes cinta masking?')
+    assert out.get('modo_combo') is True
+    assert 'Brocha' in (out.get('reply') or '')
+    assert len(out.get('combo_lineas') or []) >= 2
+    assert out.get('motor') in ('combo', 'ollama')
+
+
 def test_respuesta_hola_quiero_pintura_devuelve_cards(monkeypatch):
     def _fake_buscar(txt):
         if 'pintura' in (txt or ''):
@@ -126,6 +209,50 @@ def test_respuesta_hola_quiero_pintura_devuelve_cards(monkeypatch):
     assert out.get('catalogo_url')
     assert out.get('consulta') == 'pintura'
     assert 'opcion' in (out.get('reply') or '').lower() or 'destacada' in (out.get('reply') or '').lower()
+
+
+def test_respuesta_recomendacion_generica_fallback(monkeypatch):
+    monkeypatch.setattr(vt, '_buscar_items_asistente', lambda _txt: ([], 0))
+    monkeypatch.setattr(vt, '_respuesta_ollama', lambda **_k: None)
+    monkeypatch.setattr(
+        vt,
+        'listar_productos',
+        lambda **_k: {
+            'productos': [
+                {'producto_id': 201, 'nombre': 'Serrucho Profesional 20"', 'precio_fmt': '$8.990', 'disponible': True},
+                {'producto_id': 202, 'nombre': 'Martillo Carpintero 16oz', 'precio_fmt': '$6.990', 'disponible': True},
+                {'producto_id': 203, 'nombre': 'Broca Muro 8mm', 'precio_fmt': '$1.990', 'disponible': True},
+            ],
+            'total': 3,
+        },
+    )
+    out = vt.respuesta_asistente(slug=vt.TIENDA_SLUG_SD, mensaje='me puedes recomendar una')
+    assert out.get('cards')
+    assert len(out['cards']) >= 1
+    assert 'recom' in (out.get('reply') or '').lower()
+
+
+def test_respuesta_tienes_producto_sin_match_entrega_alternativas(monkeypatch):
+    monkeypatch.setattr(vt, '_buscar_items_asistente', lambda _txt: ([], 0))
+    monkeypatch.setattr(vt, '_respuesta_ollama', lambda **_k: None)
+    monkeypatch.setattr(
+        vt,
+        'listar_productos',
+        lambda **kwargs: {
+            'productos': [
+                {'producto_id': 301, 'nombre': 'Alambre galvanizado 1.6 mm', 'precio_fmt': '$3.990', 'disponible': True},
+                {'producto_id': 302, 'nombre': 'Alambre recocido 1 kg', 'precio_fmt': '$4.490', 'disponible': True},
+                {'producto_id': 303, 'nombre': 'Alambre de amarre 0.8 mm', 'precio_fmt': '$2.990', 'disponible': True},
+            ],
+            'total': 3,
+            'q': kwargs.get('q_text', ''),
+        },
+    )
+    out = vt.respuesta_asistente(slug=vt.TIENDA_SLUG_SD, mensaje='hola linda, tienes alambre?')
+    assert out.get('cards')
+    assert len(out['cards']) >= 1
+    assert 'carrito' in (out.get('reply') or '').lower()
+    assert 'alternativas' in (out.get('reply') or '').lower() or 'opciones' in (out.get('reply') or '').lower()
 
 
 @pytest.mark.smoke

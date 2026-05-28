@@ -1,0 +1,27 @@
+{# Header unificado vitrina e-commerce Ferretería Santo Domingo #}
+<header class="tienda-top">
+  <div class="tienda-top-accent" aria-hidden="true"></div>
+  <div class="tienda-top-inner">
+    <a href="{{ header_home_url }}" class="tienda-brand text-decoration-none d-flex align-items-center gap-3">
+      <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}">
+      <div>
+        <h1>{{ nombre_tienda }}</h1>
+        <small>Tienda en línea · Catálogo Chilemat · Stock en tienda</small>
+      </div>
+    </a>
+    <form class="tienda-search" method="get" action="{{ header_search_action }}">
+      {% if header_cat_vtex %}<input type="hidden" name="cat" value="{{ header_cat_vtex }}">{% endif %}
+      <input type="hidden" name="menu" value="0">
+      <input type="search" name="q" value="{{ header_search_q or '' }}" placeholder="Buscar productos..." autocomplete="off">
+      <button type="submit" aria-label="Buscar"><i class="fas fa-search"></i></button>
+    </form>
+    <div class="tienda-nav-actions d-flex align-items-center gap-2">
+      {% include 'tienda/includes/carrito_vitrina_btn.html' %}
+      {% if wa_base %}
+      <a class="btn-wa" href="{{ wa_base }}" target="_blank" rel="noopener" title="Contactar por WhatsApp">
+        <i class="fab fa-whatsapp me-1"></i><span class="tienda-nav-wa-label">WhatsApp</span>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</header>

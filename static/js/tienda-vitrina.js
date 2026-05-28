@@ -285,7 +285,15 @@
   }
 
   function appendSearching() {
-    return appendMsg("<span>Buscando…</span>", "status");
+    return appendMsg(
+      '<div class="tienda-assistant-typing" aria-label="Liz está escribiendo">' +
+      '<span class="tienda-assistant-typing-text">Liz está escribiendo</span>' +
+      '<span class="tienda-assistant-typing-dots" aria-hidden="true">' +
+      "<i></i><i></i><i></i>" +
+      "</span>" +
+      "</div>",
+      "status"
+    );
   }
 
   function appendCards(cards) {
@@ -310,6 +318,7 @@
 
   async function sendMessage(msg) {
     if (!cfg || !cfg.api_url || !msg) return;
+    if (typeof setCartOpen === "function") setCartOpen(false);
     appendMsg(msg, "user");
     const statusEl = appendSearching();
     if (input) input.disabled = true;
@@ -340,11 +349,30 @@
           esc(data.catalogo_url) +
           '">Ver todos en el catálogo</a></p>';
       }
-      appendMsg("<p class=\"mb-0\">" + esc(reply) + "</p>" + extra, "bot");
+      const msgEl = appendMsg("<p class=\"mb-0\">" + esc(reply) + "</p>" + extra, "bot");
+      if (data.modo_combo && data.combo_lineas && data.combo_lineas.length && msgEl) {
+        const comboWrap = document.createElement("div");
+        comboWrap.className = "tienda-assistant-combo-actions mt-2";
+        const comboBtn = document.createElement("button");
+        comboBtn.type = "button";
+        comboBtn.className = "btn btn-sm btn-warning fw-semibold";
+        comboBtn.setAttribute(
+          "data-add-combo-carrito",
+          encodeURIComponent(JSON.stringify(data.combo_lineas))
+        );
+        comboBtn.innerHTML =
+          '<i class="fas fa-cart-plus me-1"></i> Agregar combo al carrito';
+        comboWrap.appendChild(comboBtn);
+        msgEl.appendChild(comboWrap);
+        body.scrollTop = body.scrollHeight;
+      }
       if (data.consulta) {
         await actualizarGrillaCatalogo(data.consulta, data.catalogo_url);
       } else {
         appendCards(data.cards || []);
+        if (data.modo_combo && data.combo_cards && data.combo_cards.length) {
+          appendCards(data.combo_cards);
+        }
       }
     } catch (_err) {
       if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
@@ -367,12 +395,21 @@
     if (input) input.focus();
   }
 
+  function setLizOpen(open) {
+    if (!panel || !toggle) return;
+    panel.classList.toggle("d-none", !open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    document.body.classList.toggle("tienda-assistant-open", open);
+    if (open && input) input.focus();
+  }
+
   if (toggle && panel) {
     toggle.addEventListener("click", function () {
-      const open = panel.classList.toggle("d-none");
-      const visible = !open;
-      toggle.setAttribute("aria-expanded", visible ? "true" : "false");
-      if (visible && input) input.focus();
+      const willOpen = panel.classList.contains("d-none");
+      if (willOpen && typeof window.__tiendaSetCartOpen === "function") {
+        window.__tiendaSetCartOpen(false);
+      }
+      setLizOpen(willOpen);
     });
   }
 
@@ -500,11 +537,16 @@
 
   function setCartOpen(open) {
     if (!cartDrawer || !cartBackdrop || !cartToggle) return;
+    if (open) {
+      setLizOpen(false);
+    }
     cartDrawer.classList.toggle("d-none", !open);
     cartBackdrop.classList.toggle("d-none", !open);
     cartToggle.setAttribute("aria-expanded", open ? "true" : "false");
     document.body.classList.toggle("tienda-cart-open", open);
   }
+
+  window.__tiendaSetCartOpen = setCartOpen;
 
   function renderCart() {
     const lines = loadCart();
@@ -574,15 +616,15 @@
     if (cartSubtotal) cartSubtotal.textContent = fmtClp(tot.subtotal);
   }
 
-  function addToCart(item) {
-    if (!item || !item.producto_id) return;
+  function mergeCartLine(lines, item, increment) {
+    if (!item || !item.producto_id) return lines;
     const pid = parseInt(item.producto_id, 10);
-    if (!pid) return;
-    const lines = loadCart();
+    if (!pid) return lines;
     let merged = false;
     for (let i = 0; i < lines.length; i++) {
       if (parseInt(lines[i].producto_id, 10) === pid) {
-        const next = (parseInt(lines[i].cantidad, 10) || 1) + 1;
+        const base = parseInt(lines[i].cantidad, 10) || 1;
+        const next = increment ? base + 1 : Math.max(base, 1);
         lines[i].cantidad = Math.min(next, cartMaxQty());
         merged = true;
         break;
@@ -601,6 +643,12 @@
         cantidad: 1,
       });
     }
+    return lines;
+  }
+
+  function addToCart(item) {
+    if (!item || !item.producto_id) return;
+    const lines = mergeCartLine(loadCart(), item, true);
     saveCart(lines);
     if (!item.disponible) {
       showCartToast("Agregado. Sin stock en tienda — lo confirmamos al cotizar.");
@@ -608,6 +656,24 @@
       showCartToast("Producto agregado al carrito");
     }
     setCartOpen(true);
+  }
+
+  function addComboToCart(lineas) {
+    if (!lineas || !lineas.length) return;
+    let lines = loadCart();
+    let added = 0;
+    lineas.forEach(function (item) {
+      const before = lines.length;
+      lines = mergeCartLine(lines, item, false);
+      if (lines.length >= before) added += 1;
+    });
+    saveCart(lines);
+    showCartToast(
+      added > 1 ? "Combo agregado al carrito (" + added + " productos)" : "Combo agregado al carrito"
+    );
+    setCartOpen(false);
+    if (typeof setLizOpen === "function") setLizOpen(true);
+    if (input) input.focus();
   }
 
   function changeQty(pid, delta) {
@@ -691,6 +757,19 @@
       });
     }
     document.addEventListener("click", function (ev) {
+      const comboBtn = ev.target.closest("[data-add-combo-carrito]");
+      if (comboBtn) {
+        ev.preventDefault();
+        const raw = comboBtn.getAttribute("data-add-combo-carrito");
+        if (!raw) return;
+        try {
+          const lineas = JSON.parse(decodeURIComponent(raw));
+          addComboToCart(lineas);
+        } catch (_comboErr) {
+          showCartToast("No pude cargar el combo. Intenta de nuevo.");
+        }
+        return;
+      }
       const addBtn = ev.target.closest("[data-add-carrito]");
       if (addBtn) {
         ev.preventDefault();
@@ -711,7 +790,10 @@
       }
     });
     document.addEventListener("keydown", function (ev) {
-      if (ev.key === "Escape") setCartOpen(false);
+      if (ev.key === "Escape") {
+        setCartOpen(false);
+        setLizOpen(false);
+      }
     });
   }
 })();

@@ -1,15 +1,9 @@
-{# Carrito piloto vitrina — localStorage + WhatsApp #}
+{# Panel carrito al final del body (fuera del header) para z-index correcto #}
 <script type="application/json" id="tiendaCarritoConfig">{{ carrito_config | tojson }}</script>
-
-<button type="button" class="tienda-cart-btn" id="tiendaCartToggle" aria-expanded="false" aria-controls="tiendaCartDrawer" title="Ver carrito">
-  <i class="fas fa-shopping-cart" aria-hidden="true"></i>
-  <span class="tienda-cart-count d-none" id="tiendaCartCount" aria-live="polite">0</span>
-</button>
-
 <div class="tienda-cart-backdrop d-none" id="tiendaCartBackdrop" aria-hidden="true"></div>
-<aside class="tienda-cart-drawer d-none" id="tiendaCartDrawer" aria-labelledby="tiendaCartTitle" role="dialog">
+<aside class="tienda-cart-drawer d-none" id="tiendaCartDrawer" aria-labelledby="tiendaCartDrawerTitle" role="dialog">
   <header class="tienda-cart-header">
-    <h2 class="tienda-cart-title" id="tiendaCartTitle"><i class="fas fa-shopping-cart me-2"></i>Mi pedido</h2>
+    <h2 class="tienda-cart-title" id="tiendaCartDrawerTitle"><i class="fas fa-shopping-cart me-2"></i>Mi pedido</h2>
     <button type="button" class="tienda-cart-close" id="tiendaCartClose" aria-label="Cerrar carrito"><i class="fas fa-times"></i></button>
   </header>
   <div class="tienda-cart-body" id="tiendaCartBody">
