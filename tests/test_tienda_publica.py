@@ -74,6 +74,19 @@ def test_es_intencion_cierre_no_confunde_precio():
     assert vt._es_intencion_cierre_carrito('generar vale de retiro') is True
 
 
+def test_maestro_reglas_picar_tierra():
+    r = vt._interpretar_problema_reglas('con que puedo picar tierra')
+    assert r.get('ok') is True
+    assert 'pico' in [t.lower() for t in r.get('terminos', [])]
+    assert 'pala' in [t.lower() for t in r.get('terminos', [])]
+
+
+def test_normalizar_picar_tierra_busca_herramientas():
+    consulta, tokens = vt._normalizar_consulta_asistente('con que puedo picar tierra')
+    assert 'pala' in tokens and 'pico' in tokens
+    assert 'puedo' not in tokens
+
+
 def test_asistente_cierre_carrito_ui(app_client, monkeypatch):
     monkeypatch.setattr(
         vt,

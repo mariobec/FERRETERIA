@@ -18,6 +18,8 @@ _TOKENS_RUIDO_ASISTENTE = {
     'unas', 'por', 'para', 'con', 'favor', 'porfa', 'me', 'cotiza', 'cotizar', 'precio',
     'stock', 'cuanto', 'cuánto',
     'hola', 'buenas', 'buen', 'dia', 'tardes', 'noches', 'ayuda', 'asesor', 'liz', 'tal',
+    'que', 'cual', 'cuales', 'como', 'puedo', 'puede', 'usar', 'uso', 'sirve', 'sirven',
+    'algo', 'algun', 'alguna', 'este', 'esta', 'estoy', 'tengo', 'hacer', 'hago',
 }
 _SALUDO_SOLO = {'hola', 'buenas', 'buen', 'dia', 'tardes', 'noches', 'ayuda', 'asesor', 'liz', 'tal', 'que'}
 _INTENCION_RECOMENDAR = (
@@ -31,10 +33,12 @@ _MARCADORES_PROBLEMA = (
     'impermeabil', 'techo', 'zinc', 'lluvia', 'llueve', 'oxida', 'herrumbre', 'corrosion',
     'cortocircuito', 'chispa', 'disyuntor', 'entra agua', 'sellar', 'empapa', 'filtracion',
     'se rompio', 'se quemo', 'no prende', 'no enciende', 'tapar agua', 'goteando',
+    'picar tierra', 'cavar tierra', 'excavar', 'romper tierra', 'mover tierra',
 )
 _PREGUNTA_SOLUCION = (
     'que me sirve', 'que necesito', 'que compro', 'como arreglo', 'como reparo',
     'como solucion', 'que uso para', 'que llevo para', 'ayudame con',
+    'con que puedo', 'con que se puede', 'que puedo usar', 'para picar', 'para cavar',
 )
 _INTENCION_CIERRE_CARRITO = (
     'listo', 'termin', 'finaliz', 'cerrar pedido', 'vale de retiro', 'vale retiro',
@@ -186,6 +190,16 @@ def _interpretar_problema_reglas(txt: str) -> dict[str, Any]:
             'ok': True,
             'diagnostico': 'Grietas o fisuras en mampostería',
             'terminos': ['masilla', 'cemento', 'mortero', 'sellador'],
+            'fuente': 'reglas',
+        }
+
+    if any(x in base for x in ('picar', 'cavar', 'excavar', 'romper', 'zapar')) and any(
+        x in base for x in ('tierra', 'suelo', 'terreno', 'zanja', 'pozo', 'hoyo')
+    ):
+        return {
+            'ok': True,
+            'diagnostico': 'Excavación o picado de tierra / movimiento de suelo a mano',
+            'terminos': ['pico', 'pala', 'zapapico', 'barreno', 'calderilla'],
             'fuente': 'reglas',
         }
 
@@ -364,7 +378,9 @@ def _liz_prompt_ollama(nombre_tienda: str, *, modo_combo: bool = False) -> str:
         'Tutea al cliente, tono cercano y profesional. '
         'PROHIBIDO decir Chilemat, ERP, precio referencial Chilemat o precio referencial. '
         'Para precios di: precio de referencia en la tienda en linea; el valor final se confirma en caja. '
-        'NO inventes productos, precios ni stock: solo usa la respuesta base y los candidatos.'
+        'NO inventes productos, precios ni stock: solo usa la respuesta base y los candidatos. '
+        'Si ningun candidato sirve para la pregunta (ej. piden pala y solo hay cocina), '
+        'di que no hay match claro y sugiere otra palabra; NO recomiendes productos irrelevantes.'
     )
     if modo_combo:
         base += (
@@ -406,6 +422,16 @@ def _url_catalogo_busqueda(slug: str, txt: str) -> str | None:
     return url_tienda(slug, q=q, menu=0)
 
 
+def _es_intencion_excavacion_tierra(simple: str) -> bool:
+    if not simple:
+        return False
+    if 'picar tierra' in simple or 'cavar tierra' in simple:
+        return True
+    accion = any(x in simple for x in ('picar', 'cavar', 'excavar', 'romper', 'zapar'))
+    suelo = any(x in simple for x in ('tierra', 'suelo', 'terreno', 'zanja', 'pozo'))
+    return accion and suelo
+
+
 def _normalizar_consulta_asistente(txt: str) -> tuple[str, list[str]]:
     """
     Convierte frases naturales ('busco pintura impermeabilizante') en términos buscables.
@@ -414,6 +440,9 @@ def _normalizar_consulta_asistente(txt: str) -> tuple[str, list[str]]:
     simple = _texto_simple(txt)
     if not simple:
         return '', []
+    if _es_intencion_excavacion_tierra(simple):
+        tokens_exc = ['pala', 'pico', 'zapapico', 'barreno']
+        return 'pala pico', tokens_exc
     tokens = [t for t in simple.split(' ') if len(t) >= 3 and t not in _TOKENS_RUIDO_ASISTENTE]
     if not tokens:
         tokens = [t for t in simple.split(' ') if len(t) >= 3]
@@ -511,6 +540,13 @@ def _score_item_busqueda(item: dict[str, Any], tokens: list[str]) -> int:
             score -= 50
         if 'bandeja' in nombre and 'pintura' in nombre:
             score -= 40
+    if _es_intencion_excavacion_tierra(' '.join(tokens)):
+        if any(x in nombre for x in ('pico', 'pala', 'zapapico', 'zapa', 'barreno', 'calderilla', 'azadon')):
+            score += 45
+        if any(x in nombre for x in ('anafe', 'quemador', 'parrilla', 'cocina', 'camping', 'gas licuado', 'glp')):
+            score -= 90
+        if any(x in nombre for x in ('pintura', 'brocha', 'rodillo', 'cinta')):
+            score -= 25
     return score
 
 

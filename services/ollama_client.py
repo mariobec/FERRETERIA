@@ -122,7 +122,7 @@ def ollama_disponible(*, scope: OllamaScope = 'default', requiere_modelo: bool =
         if not names:
             return False
         return any(
-            n == want or n.startswith(want + ':') or want.startswith(n.split(':')[0])
+            n == want or n.startswith(want + ':') or want.startswith(n + ':')
             for n in names
         )
     except Exception as ex:
