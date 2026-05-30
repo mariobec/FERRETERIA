@@ -163,6 +163,46 @@
     .caja-pendientes-hud .btn-caja-anular-fila:hover {
         background: rgba(248, 113, 113, 0.15) !important;
     }
+    .caja-sla-banner {
+        border: 1px solid rgba(251, 146, 60, 0.45);
+        background: rgba(251, 146, 60, 0.12);
+        color: #fde68a;
+        border-radius: 12px;
+        padding: 0.65rem 1rem;
+        font-size: 0.92rem;
+    }
+    .caja-sla-banner--critical {
+        border-color: rgba(248, 113, 113, 0.55);
+        background: rgba(248, 113, 113, 0.14);
+        color: #fecaca;
+    }
+    .caja-sla-badge {
+        font-size: 0.72rem;
+        font-weight: 600;
+        margin-left: 0.35rem;
+        vertical-align: middle;
+    }
+    .caja-sla-badge--sla-attention {
+        color: #fde68a !important;
+        background: rgba(251, 191, 36, 0.18) !important;
+        border: 1px solid rgba(251, 191, 36, 0.45) !important;
+    }
+    .caja-sla-badge--sla-delayed {
+        color: #fed7aa !important;
+        background: rgba(251, 146, 60, 0.22) !important;
+        border: 1px solid rgba(251, 146, 60, 0.55) !important;
+    }
+    .caja-sla-badge--sla-critical {
+        color: #fecaca !important;
+        background: rgba(248, 113, 113, 0.22) !important;
+        border: 1px solid rgba(248, 113, 113, 0.55) !important;
+    }
+    tr.caja-row-sla-attention > td {
+        box-shadow: inset 3px 0 0 rgba(251, 191, 36, 0.75);
+    }
+    tr.caja-row-sla-delayed > td {
+        box-shadow: inset 3px 0 0 rgba(251, 146, 60, 0.85);
+    }
     .caja-pendientes-hud .btn-caja-ghost {
         color: var(--caja-muted) !important;
         border: 1px solid rgba(148, 163, 184, 0.22) !important;
@@ -358,6 +398,18 @@
         </div>
     </div>
 
+    <div class="card card-ds mb-4 caja-modulo-pinturas-card" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 152, 0, 0.35) !important;">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 py-3">
+            <div>
+                <h6 class="mb-1 fw-bold" style="color: #ffffff !important;"><i class="fas fa-palette me-2" style="color: #fb923c !important;"></i>Módulo cliente · Fábrica de Color</h6>
+                <p class="mb-0 small text-muted">Habilite el wizard de pinturas en la pantalla del cliente (TV o tablet). La URL expira en ~20 min.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-warning fw-bold px-3" id="btnHabilitarModuloPinturas" data-api-url="{{ url_for('api_caja_modulo_pinturas_habilitar') }}">
+                <i class="fas fa-tv me-1"></i> Habilitar para cliente
+            </button>
+        </div>
+    </div>
+
     <div class="card card-ds mb-4" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important;">
         <div class="card-header d-flex justify-content-between align-items-center" style="background: #22252a !important; color: #ffffff !important;">
             <h6 class="mb-0 fw-bold" style="color: #ffffff !important;"><i class="fas fa-file-invoice-dollar me-2 caja-card-icon" style="color: #fb923c !important; opacity: 1 !important;"></i>Créditos registrados hoy</h6>
@@ -395,6 +447,9 @@
 
     <!-- 4. COLA DE COBRO -->
     {% set puede_lote_anular = usuario_tiene_permiso('anular_vale_caja') %}
+    <div id="cajaSlaBannerWrap" class="mb-3{% if n_sla_atencion|default(0) == 0 %} d-none{% endif %}">
+        <div id="cajaSlaBanner" class="caja-sla-banner{% if n_sla_modal|default(0) > 0 %} caja-sla-banner--critical{% endif %}" role="status" aria-live="polite">{% if n_sla_modal|default(0) > 0 %}{% if n_sla_modal == 1 %}Hay 1 vale con más de 15 min sin cobrar. Debe cobrar o anular.{% else %}Hay {{ n_sla_modal }} vales con más de 15 min sin cobrar. Debe cobrar o anular.{% endif %}{% elif n_sla_atencion|default(0) > 0 %}{% if n_sla_atencion == 1 %}Hay 1 vale con más de 10 min en cola. Revise si el cliente va a pagar.{% else %}Hay {{ n_sla_atencion }} vales con más de 10 min en cola.{% endif %}{% endif %}</div>
+    </div>
     <div class="card card-ds" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important;">
         <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: #22252a !important; color: #ffffff !important;">
             <h6 class="mb-0 fw-bold" style="color: #ffffff !important;"><i class="fas fa-list me-2 caja-card-icon" style="color: #4ade80 !important; opacity: 1 !important;"></i>Cola de cobro</h6>
@@ -456,7 +511,7 @@
                     </thead>
                     <tbody>
                         {% for v in cola_combined %}
-                        <tr>
+                        <tr id="cajaRowVale{{ v.id }}" data-caja-sla-pendiente="{{ '1' if not v.cola_es_borrador else '0' }}"{% if not v.cola_es_borrador and v.sla_tier|default(0) >= 1 %} class="caja-row-sla-{{ v.sla_css }}"{% endif %}>
                             {% if puede_lote_anular %}
                             {% set puede_anular_dsp_chk = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
                             <td class="ps-3 text-center" style="background-color: rgba(15, 23, 42, 0.72) !important;">
@@ -470,7 +525,14 @@
                             <td class="ps-4 caja-celda-principal" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">
                                 <span style="color: #f1f5f9 !important; -webkit-text-fill-color: #f1f5f9 !important;" title="{% if v.cola_es_borrador %}Borrador POS{% endif %}{% if v.tiene_despacho_bodega %}{% if v.cola_es_borrador %} · {% endif %}Despachado bodega{% endif %}{% if v.cotizacion_origen_id %}{% if v.cola_es_borrador or v.tiene_despacho_bodega %} · {% endif %}Cotización{% endif %}">#{{ v.id }}</span>
                             </td>
-                            <td style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ v.fecha.strftime('%H:%M') }}</td>
+                            <td style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">
+                                {{ v.fecha.strftime('%H:%M') }}
+                                {% if not v.cola_es_borrador and v.sla_tier|default(0) >= 1 %}
+                                <span id="cajaSlaBadge{{ v.id }}" class="badge rounded-pill caja-sla-badge caja-sla-badge--{{ v.sla_css }}">{{ v.sla_label }}</span>
+                                {% elif not v.cola_es_borrador %}
+                                <span id="cajaSlaBadge{{ v.id }}" class="d-none"></span>
+                                {% endif %}
+                            </td>
                             <td class="caja-celda-principal" style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">{{ v.usuario }}</td>
                             <td class="caja-monto" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">$ {{ "{:,.0f}".format(v.monto_cobro_ui).replace(",", ".") }}</td>
                             <td class="text-center" style="background-color: rgba(15, 23, 42, 0.72) !important;">
@@ -522,6 +584,33 @@
     </div>
 
     <div id="cajaModalesPortal">
+            <div class="modal fade modal-premium" id="modalCajaSlaRecordatorio" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content shadow-lg">
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold"><i class="fas fa-clock me-2"></i>Vale sin cobrar</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="modal-body p-4">
+                            <p class="mb-2" id="cajaSlaModalText">Este vale lleva varios minutos en cola.</p>
+                            <div class="text-center mb-3">
+                                <div class="display-6 fw-bold text-primary" id="cajaSlaModalMonto">$ 0</div>
+                                <div class="small text-muted" id="cajaSlaModalMeta"></div>
+                            </div>
+                            <p class="small text-muted mb-0" id="cajaSlaModalHint">
+                                A los {{ caja_sla_config.anular_minutos }} minutos sin cobro se anula automáticamente (excepto vales con despacho en bodega).
+                            </p>
+                        </div>
+                        <div class="modal-footer flex-wrap gap-2">
+                            <button type="button" class="btn btn-secondary" id="cajaSlaBtnPosponer">Recordar en 5 min</button>
+                            {% if usuario_tiene_permiso('anular_vale_caja') %}
+                            <button type="button" class="btn btn-neon-anular fw-bold" id="cajaSlaBtnAnular">Anular</button>
+                            {% endif %}
+                            <button type="button" class="btn btn-primary fw-bold" id="cajaSlaBtnCobrar">Cobrar ahora</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% for v in cola_combined %}
             {% set saldo_disp = v.saldo_favor_disponible or 0 %}
             {% set monto_cobro = v.monto_cobro_ui if v.monto_cobro_ui is defined else (v.monto_total or 0) %}
@@ -667,10 +756,36 @@
             {% endfor %}
     </div>
 </div>
+
+<div class="modal fade modal-premium" id="modalModuloPinturas" tabindex="-1" aria-labelledby="modalModuloPinturasTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalModuloPinturasTitle"><i class="fas fa-palette me-2"></i>Módulo Fábrica de Color</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Abra esta URL en la TV o tablet del cliente:</p>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control" id="moduloPinturasUrl" readonly>
+                    <button type="button" class="btn btn-outline-light" id="moduloPinturasCopiar">Copiar</button>
+                </div>
+                <p class="small text-muted mb-0" id="moduloPinturasMeta"></p>
+            </div>
+            <div class="modal-footer">
+                <a href="#" target="_blank" rel="noopener" class="btn btn-warning fw-bold" id="moduloPinturasAbrir">Abrir en pantalla</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 {% set vuelto_ultima_js = (request.args.get('vuelto') or '0')|replace(',', '.')|float %}
+<script id="caja-sla-config" type="application/json">
+{"pollUrl": {{ url_for('api_caja_vales_pendientes_sla')|tojson }}, "anularMinutos": {{ caja_sla_config.anular_minutos }}}
+</script>
 <script>
     function actualizarReloj() {
         const ahora = new Date();
@@ -844,7 +959,224 @@
             });
         });
         _cajaPendientesRefreshLoteCount();
+        if (typeof window._cajaSlaInit === 'function') window._cajaSlaInit();
     });
+
+    (function cajaValeSlaPoll() {
+        var cfgEl = document.getElementById('caja-sla-config');
+        if (!cfgEl) return;
+        var cfg = {};
+        try { cfg = JSON.parse(cfgEl.textContent || '{}'); } catch (e) { return; }
+        var pollUrl = cfg.pollUrl || '';
+        if (!pollUrl) return;
+
+        var slaModalInst = null;
+        var slaModalValeId = null;
+        var slaModalShownKeys = {};
+        var SLA_SNOOZE_MS = 5 * 60 * 1000;
+
+        function fmtClp(n) {
+            return '$ ' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+        }
+
+        function cobroModalAbierto() {
+            return !!document.querySelector('.modal-premium[id^="modalCobro"].show, .modal-premium[id^="modalAnular"].show');
+        }
+
+        function slaSnoozeKey(id) { return 'cajaSlaSnoozeUntil_' + id; }
+
+        function estaSnoozed(id) {
+            try {
+                var until = parseInt(localStorage.getItem(slaSnoozeKey(id)) || '0', 10);
+                return until > Date.now();
+            } catch (e) { return false; }
+        }
+
+        function posponerSnooze(id) {
+            try { localStorage.setItem(slaSnoozeKey(id), String(Date.now() + SLA_SNOOZE_MS)); } catch (e) {}
+        }
+
+        function actualizarBadge(v) {
+            var row = document.getElementById('cajaRowVale' + v.id);
+            if (!row || row.getAttribute('data-caja-sla-pendiente') !== '1') return;
+            var badge = document.getElementById('cajaSlaBadge' + v.id);
+            row.classList.remove('caja-row-sla-attention', 'caja-row-sla-delayed', 'caja-row-sla-critical');
+            if (!badge) return;
+            if ((v.tier || 0) >= 1) {
+                badge.textContent = v.label || (v.minutos + ' min');
+                badge.className = 'badge rounded-pill caja-sla-badge caja-sla-badge--' + (v.css || 'sla-attention');
+                badge.classList.remove('d-none');
+                if ((v.tier || 0) >= 2) {
+                    row.classList.add('caja-row-sla-delayed');
+                } else {
+                    row.classList.add('caja-row-sla-attention');
+                }
+            } else {
+                badge.classList.add('d-none');
+            }
+        }
+
+        function actualizarBanner(data) {
+            var wrap = document.getElementById('cajaSlaBannerWrap');
+            var banner = document.getElementById('cajaSlaBanner');
+            if (!wrap || !banner) return;
+            var nModal = data.n_modal || 0;
+            var nAtencion = data.n_atencion || 0;
+            if (nModal > 0) {
+                wrap.classList.remove('d-none');
+                banner.className = 'caja-sla-banner caja-sla-banner--critical';
+                banner.textContent = nModal === 1
+                    ? 'Hay 1 vale con más de 15 min sin cobrar. Debe cobrar o anular.'
+                    : ('Hay ' + nModal + ' vales con más de 15 min sin cobrar. Debe cobrar o anular.');
+            } else if (nAtencion > 0) {
+                wrap.classList.remove('d-none');
+                banner.className = 'caja-sla-banner';
+                banner.textContent = nAtencion === 1
+                    ? 'Hay 1 vale con más de 10 min en cola. Revise si el cliente va a pagar.'
+                    : ('Hay ' + nAtencion + ' vales con más de 10 min en cola.');
+            } else {
+                wrap.classList.add('d-none');
+                banner.textContent = '';
+            }
+        }
+
+        function abrirModalSla(v) {
+            if (typeof bootstrap === 'undefined') return;
+            if (cobroModalAbierto()) return;
+            if (estaSnoozed(v.id)) return;
+            var key = String(v.id) + ':' + String(v.minutos || 0);
+            if (slaModalShownKeys[key]) return;
+
+            var modalEl = document.getElementById('modalCajaSlaRecordatorio');
+            if (!modalEl) return;
+            slaModalValeId = v.id;
+            var txt = document.getElementById('cajaSlaModalText');
+            var monto = document.getElementById('cajaSlaModalMonto');
+            var meta = document.getElementById('cajaSlaModalMeta');
+            if (txt) {
+                txt.textContent = 'Vale #' + v.id + ' lleva ' + (v.minutos || 0) + ' minutos sin cobrar.';
+            }
+            if (monto) monto.textContent = fmtClp(v.monto);
+            if (meta) {
+                meta.textContent = (v.usuario ? ('Vendedor: ' + v.usuario) : '') +
+                    (v.tiene_despacho_bodega ? ' · Despacho bodega (no se auto-anula)' : '');
+            }
+            slaModalInst = bootstrap.Modal.getOrCreateInstance(modalEl);
+            slaModalInst.show();
+            slaModalShownKeys[key] = true;
+        }
+
+        function manejarAutoAnulados(list) {
+            if (!list || !list.length) return;
+            var ids = list.map(function (x) { return x.id; }).join(', #');
+            alert('Se anularon automáticamente por SLA los vales #' + ids + ' (20 min sin cobro).');
+            window.location.reload();
+        }
+
+        async function pollSla() {
+            try {
+                var r = await fetch(pollUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+                if (!r.ok) return;
+                var data = await r.json();
+                if (!data || !data.ok) return;
+                if (data.auto_anulados && data.auto_anulados.length) {
+                    manejarAutoAnulados(data.auto_anulados);
+                    return;
+                }
+                (data.vales || []).forEach(actualizarBadge);
+                actualizarBanner(data);
+                var candidatos = (data.modal_vales || []).slice().sort(function (a, b) {
+                    return (b.minutos || 0) - (a.minutos || 0);
+                });
+                for (var i = 0; i < candidatos.length; i++) {
+                    if ((candidatos[i].tier || 0) >= 2 && !estaSnoozed(candidatos[i].id)) {
+                        abrirModalSla(candidatos[i]);
+                        break;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        window._cajaSlaInit = function () {
+            var btnCobrar = document.getElementById('cajaSlaBtnCobrar');
+                var btnAnular = document.getElementById('cajaSlaBtnAnular');
+                var btnPosponer = document.getElementById('cajaSlaBtnPosponer');
+                if (btnCobrar) {
+                    btnCobrar.addEventListener('click', function () {
+                        if (!slaModalValeId) return;
+                        var target = document.getElementById('modalCobro' + slaModalValeId);
+                        if (slaModalInst) slaModalInst.hide();
+                        if (target && typeof bootstrap !== 'undefined') {
+                            bootstrap.Modal.getOrCreateInstance(target).show();
+                        }
+                    });
+                }
+                if (btnAnular) {
+                    btnAnular.addEventListener('click', function () {
+                        if (!slaModalValeId) return;
+                        var target = document.getElementById('modalAnular' + slaModalValeId);
+                        if (slaModalInst) slaModalInst.hide();
+                        if (target && typeof bootstrap !== 'undefined') {
+                            bootstrap.Modal.getOrCreateInstance(target).show();
+                        }
+                    });
+                }
+                if (btnPosponer) {
+                    btnPosponer.addEventListener('click', function () {
+                        if (slaModalValeId) posponerSnooze(slaModalValeId);
+                        if (slaModalInst) slaModalInst.hide();
+                    });
+                }
+            pollSla();
+            setInterval(pollSla, 30000);
+        };
+
+        (function initModuloPinturasCaja() {
+            var btn = document.getElementById('btnHabilitarModuloPinturas');
+            if (!btn) return;
+            var apiUrl = btn.getAttribute('data-api-url');
+            var modalEl = document.getElementById('modalModuloPinturas');
+            var urlInput = document.getElementById('moduloPinturasUrl');
+            var metaEl = document.getElementById('moduloPinturasMeta');
+            var abrirEl = document.getElementById('moduloPinturasAbrir');
+            var copiarEl = document.getElementById('moduloPinturasCopiar');
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' })
+                    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+                    .then(function (res) {
+                        btn.disabled = false;
+                        if (!res.ok || !res.data || !res.data.ok) {
+                            alert((res.data && res.data.error) ? 'No se pudo habilitar: ' + res.data.error : 'Error al habilitar módulo');
+                            return;
+                        }
+                        var url = res.data.url_absoluta || (window.location.origin + (res.data.path || ''));
+                        if (urlInput) urlInput.value = url;
+                        if (metaEl) {
+                            metaEl.textContent = 'Válido ~' + (res.data.ttl_minutos || 20) + ' min · habilitado por ' + (res.data.habilitado_por || 'mostrador');
+                        }
+                        if (abrirEl) abrirEl.href = url;
+                        if (modalEl && typeof bootstrap !== 'undefined') {
+                            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                        }
+                    })
+                    .catch(function () {
+                        btn.disabled = false;
+                        alert('Error de red al habilitar módulo pinturas');
+                    });
+            });
+            if (copiarEl && urlInput) {
+                copiarEl.addEventListener('click', function () {
+                    urlInput.select();
+                    try {
+                        navigator.clipboard.writeText(urlInput.value);
+                    } catch (e) {
+                        document.execCommand('copy');
+                    }
+                });
+            }
+        })();
+    })();
 
 </script>
 {% if request.args.get('ultima_venta') and vuelto_ultima_js > 0 %}

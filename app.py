@@ -25088,6 +25088,7 @@ from blueprints.precios_radar import register_precios_radar_routes
 from blueprints.chilemat_catalogo import register_chilemat_catalogo_routes
 from blueprints.reportes_maestra_costos import register_reportes_maestra_routes
 from blueprints.tienda_publica import register_tienda_publica_routes
+from blueprints.modulo_pinturas import register_modulo_pinturas_routes
 from blueprints.ecommerce import register_ecommerce_routes
 
 register_bodega_routes(app)
@@ -25100,6 +25101,7 @@ register_precios_radar_routes(app)
 register_chilemat_catalogo_routes(app)
 register_reportes_maestra_routes(app)
 register_tienda_publica_routes(app)
+register_modulo_pinturas_routes(app)
 register_ecommerce_routes(app)
 
 
