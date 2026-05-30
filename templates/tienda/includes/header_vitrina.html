@@ -2,13 +2,23 @@
 <header class="tienda-top">
   <div class="tienda-top-accent" aria-hidden="true"></div>
   <div class="tienda-top-inner">
-    <a href="{{ header_home_url }}" class="tienda-brand text-decoration-none d-flex align-items-center gap-3">
-      <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}">
-      <div>
-        <h1>{{ nombre_tienda }}</h1>
+    <div class="tienda-brand d-flex align-items-center gap-3">
+      <a href="{{ header_home_url }}" class="tienda-brand-local text-decoration-none" title="{{ nombre_tienda }}">
+        <img src="{{ url_for('static', filename='img/ferreteria_santo_domingo_logo.png') }}" alt="{{ nombre_tienda }}" class="tienda-brand-logo-mark">
+      </a>
+      <span class="tienda-brand-divider" aria-hidden="true"></span>
+      <div class="tienda-brand-holding">
+        <span class="tienda-holding-label">Asociado a</span>
+        <a href="https://www.chilemat.cl/" class="tienda-chilemat-link" target="_blank" rel="noopener noreferrer" title="Chilemat — Red de ferreterías de Chile">
+          <span class="tienda-chilemat-word">CHILEMAT</span>
+          <span class="tienda-chilemat-tag">Red de ferreterías</span>
+        </a>
+      </div>
+      <div class="tienda-brand-text">
+        <span class="visually-hidden">{{ nombre_tienda }}</span>
         <small>Tienda en línea · Catálogo Chilemat · Stock en tienda</small>
       </div>
-    </a>
+    </div>
     <form class="tienda-search" method="get" action="{{ header_search_action }}">
       {% if header_cat_vtex %}<input type="hidden" name="cat" value="{{ header_cat_vtex }}">{% endif %}
       <input type="hidden" name="menu" value="0">

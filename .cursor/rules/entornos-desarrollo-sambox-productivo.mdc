@@ -1,0 +1,61 @@
+---
+description: Paisaje SAP DEV/QAS/PRD — DESARROLLO, SAMBOX, PRODUCTIVO; OT/TR y TMS
+alwaysApply: true
+---
+
+# Paisaje de sistemas · idioma SAP
+
+Acordado con Mario (SD-1). Comunicación y docs: **idioma SAP** (paisaje, solicitud/orden de transporte, import/export, release).
+
+## Nombres LhexIA ↔ SAP
+
+| LhexIA | Rol SAP | Sistema | Infra / BD |
+|--------|---------|---------|------------|
+| **DESARROLLO** | **DEV** (Development) | Sistema de desarrollo | Postgres local |
+| **SAMBOX** | **QAS** (Quality Assurance) | Sistema de calidad / piloto | Postgres local + Ollama |
+| **PRODUCTIVO** | **PRD** (Production) | Sistema productivo | Render + Neon → servidor propio |
+
+**Paisaje estándar:** `DEV → QAS → PRD`
+
+## Transporte (TMS)
+
+Cada movimiento entre sistemas = **Orden de Transporte (OT)** / **Solicitud de transporte (TR)**.
+
+| Término SAP | Uso LhexIA |
+|-------------|------------|
+| **TR / OT** | Paquete a mover (código +/o datos) |
+| **Release** (liberar) | DESARROLLO cierra cambios y emite OT hacia QAS |
+| **Export** | Generar manifiesto (tag git, dump, `orden.json`) |
+| **Import** | Aplicar OT en sistema destino (`git checkout`, `pg_restore`, sync) |
+| **Manifiesto** | Commit, tag, conteos, dump, checklist QAS |
+| **Importación en PRD** | Solo tras **OK QAS** (sign-off) |
+
+Tipos:
+- **OT-Código / TR workbench:** objetos de desarrollo (git tag → QAS → PRD → deploy Render)
+- **OT-Datos / TR customizing:** datos maestro/BD (dump/sync Postgres)
+
+## Flujo TMS obligatorio
+
+```
+DEV (DESARROLLO)  --release/export/OT-->  QAS (SAMBOX)  --OK/import/OT-->  PRD (PRODUCTIVO)
+```
+
+1. **DEV:** desarrollo + pruebas; **release** OT → **QAS**.
+2. **QAS (SAMBOX):** **import** OT; pruebas integrales (UAT en piso); sign-off.
+3. **PRD (PRODUCTIVO):** **import** OT validada; **operación diaria** del negocio.
+
+Sin sign-off QAS → **no importar en PRD**.
+
+## Reglas operativas
+
+- **PRD** = operación diaria (Neon); no confundir con QAS.
+- **QAS** = validación previa; Postgres local por rendimiento (no mandante prod en la nube).
+- **DEV → QAS:** export OT (paquete / git tag + dump).
+- **QAS → PRD:** import OT (`sync_local_neon_render.py` datos + `git push` Render código) tras OK.
+- **Nunca transportar `.venv`** entre sistemas; reconstruir en destino.
+- Carpetas OT: `respaldos/transporte/OT-*` con `orden.json` (manifiesto).
+
+## Rutas QAS (SAMBOX)
+
+- Repo: `C:\LhexIA\ERP\sistema_ventas_limpio`
+- Staging OT: `C:\LhexIA\respaldos\`

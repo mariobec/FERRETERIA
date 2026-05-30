@@ -71,11 +71,93 @@ body.tienda-vitrina {
   transform: translateY(-1px);
 }
 
-.tienda-brand img {
-  height: 56px;
+.tienda-brand img,
+.tienda-brand-logo-mark {
+  height: 64px;
   width: auto;
-  max-width: 200px;
+  max-width: 240px;
   object-fit: contain;
+}
+
+.tienda-brand-local {
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.tienda-brand-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 52px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 166, 81, 0.35) 18%,
+    rgba(11, 31, 58, 0.2) 50%,
+    rgba(232, 93, 4, 0.35) 82%,
+    transparent 100%
+  );
+  flex-shrink: 0;
+}
+
+.tienda-brand-holding {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tienda-holding-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chm-green-dark);
+  line-height: 1;
+}
+
+.tienda-chilemat-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 118px;
+  padding: 6px 12px 5px;
+  line-height: 1;
+  text-decoration: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f0faf4 0%, #e6f7ed 100%);
+  border: 1.5px solid var(--chm-green);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tienda-chilemat-link:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 4px 14px rgba(0, 166, 81, 0.22);
+}
+
+.tienda-chilemat-word {
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--chm-green);
+}
+
+.tienda-chilemat-tag {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--chm-green-dark);
+}
+
+.tienda-brand-text small {
+  display: block;
+  margin-top: 2px;
 }
 
 .tienda-brand h1 {
@@ -176,6 +258,30 @@ body.tienda-vitrina {
 @media (max-width: 640px) {
   .tienda-nav-wa-label {
     display: none;
+  }
+
+  .tienda-brand {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 8px 10px 8px 8px;
+  }
+
+  .tienda-brand-divider {
+    min-height: 44px;
+  }
+
+  .tienda-chilemat-link {
+    min-width: 104px;
+    padding: 5px 10px 4px;
+  }
+
+  .tienda-chilemat-word {
+    font-size: 0.82rem;
+  }
+
+  .tienda-brand-text {
+    flex: 1 1 100%;
+    order: 3;
   }
 
   .tienda-brand h1 {

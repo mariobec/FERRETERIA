@@ -89,6 +89,7 @@ def main() -> int:
         )
     pg_dump = "pg_dump"
     for candidate in (
+        Path(r"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"),
         Path(r"C:\Program Files\PostgreSQL\17\bin\pg_dump.exe"),
         Path(r"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe"),
         Path(r"C:\Program Files\PostgreSQL\15\bin\pg_dump.exe"),

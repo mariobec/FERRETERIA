@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#fef2f2"/>
+  <rect x="16" y="16" width="368" height="368" fill="none" stroke="#ef4444" stroke-width="4" stroke-dasharray="12 8"/>
+  <circle cx="200" cy="170" r="58" fill="#dc2626"/>
+  <text x="200" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="30" font-weight="800" fill="#991b1b">CARD 1:1 · E</text>
+  <text x="200" y="340" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" fill="#475569">400 × 400 px</text>
+</svg>

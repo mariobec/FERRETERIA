@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=DM+Sans:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260520reco2">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall-cfm.css') }}?v=lhexia20260520reco2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260530-vitrina33">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall-cfm.css') }}?v=lhexia20260530-vitrina33">
 </head>
 <body class="ew-body ew-cfm-v2">
   <div class="ew-bg" aria-hidden="true"></div>
@@ -26,6 +26,12 @@
   </div>
   {% else %}
 
+  {% if vitrina_img_test %}
+  <div id="ewImgTestBanner" class="ew-img-test-banner" role="status">
+    MODO PRUEBA · Imágenes SVG de diagnóstico (carrusel OK = problema es foto catálogo)
+  </div>
+  {% endif %}
+
   {# ——— Shell principal CFM 1920×1080 ——— #}
   <div class="ew-cfm" id="ewShell" role="application" aria-label="Pantalla cliente LhexIA">
 
@@ -40,6 +46,7 @@
           {% if empresa_cfg.get('nombre_comercial') %}
           <div class="ew-cfm-header__store">{{ empresa_cfg.nombre_comercial }}</div>
           {% endif %}
+          <div class="ew-cfm-header__chilemat">Asociado a <strong>CHILEMAT</strong></div>
         </div>
       </div>
 
@@ -65,17 +72,25 @@
         <p>Le atenderemos en el mostrador para el pago y retiro.</p>
       </div>
 
-      {# Idle: sin venta activa o invitación a identificarse #}
-      <div id="ewIdleOverlay" class="ew-cfm-idle d-none" aria-live="polite">
-        <div class="ew-cfm-idle__scan" aria-hidden="true">
-          <span class="ew-cfm-idle__ring"></span>
-          <i class="fas fa-display ew-cfm-idle__icon"></i>
-        </div>
-        <h2 id="ewIdleTitle">Acérquese al monitor</h2>
-        <p id="ewIdleText">para ver recomendaciones personalizadas y su compra en vivo.</p>
+    {# Modo vitrina — catálogo + Chilemat (sin cámara) #}
+    <div id="ewVitrinaStage" class="ew-vitrina d-none" aria-live="polite" aria-label="Vitrina digital">
+      <div class="ew-vitrina__glow" aria-hidden="true"></div>
+      <header class="ew-vitrina__head">
+        <span id="ewVitrinaBadge" class="ew-vitrina__badge">Red Chilemat</span>
+        <h2 id="ewVitrinaTitulo" class="ew-vitrina__title">Bienvenido</h2>
+        <p id="ewVitrinaSub" class="ew-vitrina__sub">Sugerencias del catálogo local</p>
+      </header>
+      <div id="ewVitrinaBody" class="ew-vitrina__body">
+        <div id="ewVitrinaSlides" class="ew-vitrina-slides" aria-live="off"></div>
       </div>
+      <footer class="ew-vitrina__foot">
+        <div class="ew-vitrina-progress" aria-hidden="true"><span id="ewVitrinaProgressBar" class="ew-vitrina-progress__bar"></span></div>
+        <div id="ewVitrinaDots" class="ew-vitrina-dots" role="tablist" aria-label="Escenas vitrina"></div>
+        <p class="ew-vitrina__hint"><i class="fas fa-store me-1"></i>Pida en mostrador · precios referenciales</p>
+      </footer>
+    </div>
 
-      <div id="ewShopping" class="ew-cfm-split">
+    <div id="ewShopping" class="ew-cfm-split">
         {# Columna izquierda: carrito en vivo #}
         <section class="ew-cfm-col ew-cfm-col--cart" aria-labelledby="ewCartHeading">
           <header class="ew-cfm-col__head">
@@ -104,7 +119,7 @@
           <div id="ewRecoIdle" class="ew-cfm-reco-idle d-none" aria-hidden="true">
             <p>Identifíquese en mostrador para recomendaciones con su historial.</p>
           </div>
-          <div id="ewRecoCards" class="ew-cfm-reco-grid" aria-live="polite"></div>
+          <div id="ewRecoCards" class="ew-cfm-reco-carousel d-none" aria-live="polite"></div>
           <div id="ewRecoEmpty" class="ew-cfm-reco-empty">
             <i class="fas fa-lightbulb" aria-hidden="true"></i>
             <p>Las sugerencias aparecerán cuando identifiquemos su compra en mostrador.</p>
@@ -135,9 +150,10 @@
     </div>
   </div>
 
-  <script id="ew-snap-config" type="application/json">{{ {'url': api_snapshot_url} | tojson }}</script>
+  <script id="ew-snap-config" type="application/json">{{ {'url': api_snapshot_url, 'logoUrl': url_for('static', filename='img/lhexia-icon-hex-login.png'), 'vitrinaImgTest': vitrina_img_test} | tojson }}</script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260520reco2"></script>
+  <script src="{{ url_for('static', filename='js/pos-tv-vitrina-carousel.js') }}?v=lhexia20260530-vitrina33"></script>
+  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260530-vitrina33"></script>
   {% endif %}
 </body>
 </html>

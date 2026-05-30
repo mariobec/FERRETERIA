@@ -8,7 +8,7 @@
   <title>{{ nombre_tienda }} — Tienda en línea</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=tienda-shell-14-liz-ui">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=tienda-shell-16-chilemat-holding">
 </head>
 <body class="tienda-vitrina">
   {% set header_home_url = url_for('tienda_vitrina', slug=slug) %}
@@ -71,7 +71,7 @@
 
         <div id="tiendaLizHero" class="tienda-liz-hero d-none" aria-hidden="true">
           <div class="tienda-liz-hero-inner">
-            <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ nombre_tienda }}" class="tienda-liz-hero-logo">
+            <img src="{{ url_for('static', filename='img/ferreteria_santo_domingo_logo.png') }}" alt="{{ nombre_tienda }}" class="tienda-liz-hero-logo">
             <div>
               <p class="tienda-liz-hero-marca mb-0">{{ nombre_tienda }}</p>
               <h2 class="tienda-liz-hero-title mb-1">Productos recomendados</h2>
@@ -129,8 +129,9 @@
         </div>
 
         <p class="tienda-legal">
+          {{ nombre_tienda }} es ferretería asociada a la <strong>Red Chilemat</strong>.
           Precios referenciales según catálogo Chilemat. Stock y precio de cobro final en caja pueden variar.
-          {{ nombre_tienda }} — tienda en línea. Precios referenciales; cobro y stock en mostrador.
+          Tienda en línea — precios referenciales; cobro y stock en mostrador.
         </p>
       </section>
     </div>

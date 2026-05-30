@@ -1338,6 +1338,53 @@
       return "";
     }
 
+    function semaforoChipHtml(it) {
+      const s = String((it && it.semaforo) || "verde").toLowerCase();
+      let txt =
+        s === "amarillo"
+          ? "Bodega"
+          : s === "azul"
+            ? "A pedido"
+            : "Tienda";
+      if (s === "azul" && it && it.dias_entrega_estimado) {
+        txt = "A pedido ~" + String(it.dias_entrega_estimado) + "d";
+      }
+      const label = escapeHtml(it.semaforo_label || txt);
+      return (
+        '<span class="pos-search-card__sem-chip pos-search-card__sem-chip--' +
+        s +
+        '" title="' +
+        label +
+        '"><span class="pos-search-card__sem-dot" aria-hidden="true"></span>' +
+        escapeHtml(txt) +
+        "</span>"
+      );
+    }
+
+    function searchThumbHtml(it) {
+      const img = String((it && it.imagen_url) || "").trim();
+      const pid = (it && (it.producto_id != null ? it.producto_id : it.id)) || "";
+      if (img) {
+        return (
+          '<button type="button" class="pos-search-card__thumb-btn btn-pos-ficha-modal border-0 p-0"' +
+          ' data-producto-id="' +
+          escapeHtml(String(pid)) +
+          '" data-img-fallback="' +
+          escapeHtml(img) +
+          '" title="Ver imagen del producto" aria-label="Ver imagen del producto">' +
+          '<img class="pos-search-card__thumb" src="' +
+          escapeHtml(img) +
+          '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"' +
+          ' onerror="this.closest(\'.pos-search-card__thumb-btn\').classList.add(\'is-broken\');">' +
+          "</button>"
+        );
+      }
+      return (
+        '<div class="pos-search-card__thumb pos-search-card__thumb--empty" aria-hidden="true">' +
+        '<i class="fas fa-box"></i></div>'
+      );
+    }
+
     function semaforoLuzHtml(it) {
       const s = String((it && it.semaforo) || "verde").toLowerCase();
       const txt =
@@ -1404,11 +1451,12 @@
       const tot = Number(it.stock_total != null ? it.stock_total : st + sb);
       const agotado = itemSinStock(it);
       const cls = agotado ? " pos-search-card__stock--agotado" : "";
+      const chip = semaforoChipHtml(it);
+      const sep = '<span class="pos-search-card__stock-sep" aria-hidden="true">·</span>';
+      let body = "";
       if (st > 0 && sb > 0) {
-        return (
-          '<span class="' +
-          cls.trim() +
-          '">Stock: <strong>' +
+        body =
+          "Stock: <strong>" +
           tot +
           " " +
           u +
@@ -1416,36 +1464,15 @@
           st +
           " / Bodega: " +
           sb +
-          ")</span>"
-        );
+          ")";
+      } else if (st > 0) {
+        body = "Stock: <strong>" + st + " " + u + "</strong> (Tienda)";
+      } else if (sb > 0) {
+        body = "Stock: <strong>" + sb + " " + u + "</strong> (Bodega)";
+      } else {
+        body = "Sin stock en tienda ni bodega · <strong>0</strong> " + u;
       }
-      if (st > 0) {
-        return (
-          '<span class="' +
-          cls.trim() +
-          '">Stock: <strong>' +
-          st +
-          " " +
-          u +
-          "</strong> (Tienda)</span>"
-        );
-      }
-      if (sb > 0) {
-        return (
-          '<span class="' +
-          cls.trim() +
-          '">Stock: <strong>' +
-          sb +
-          " " +
-          u +
-          "</strong> (Bodega)</span>"
-        );
-      }
-      return (
-        '<span class="pos-search-card__stock--agotado">Sin stock en tienda ni bodega · <strong>0</strong> ' +
-        u +
-        "</span>"
-      );
+      return chip + sep + '<span class="' + cls.trim() + '">' + body + "</span>";
     }
 
     function renderItems(items, searchMeta) {
@@ -1491,7 +1518,7 @@
             '" aria-selected="' +
             (idx === activeIndex ? "true" : "false") +
             '">' +
-            semaforoLuzHtml(it) +
+            searchThumbHtml(it) +
             '<div class="pos-search-card__main">' +
             '<p class="pos-search-card__title">' +
             escapeHtml(it.nombre || it.text || "") +
@@ -1528,6 +1555,13 @@
       syncPanelBusquedaVisible();
       panel.querySelectorAll(".pos-search-card").forEach(function (card) {
         card.addEventListener("mousedown", function (e) {
+          if (
+            e.target &&
+            e.target.closest &&
+            e.target.closest(".pos-search-card__thumb-btn, .btn-pos-ficha-modal")
+          ) {
+            return;
+          }
           e.preventDefault();
           const idx = parseInt(card.getAttribute("data-idx"), 10);
           if (isNaN(idx)) return;
@@ -1932,6 +1966,7 @@
             : "Agregado: " + nom;
         }
         mostrarPosToast(msg, { delay: esApedido ? 2800 : 1500 });
+        posNotifyExperienceWallRefresh();
         if (document.body.classList.contains("pos-pantalla-vendedora")) {
           clearBusy();
           posSearchPanelCerrar();

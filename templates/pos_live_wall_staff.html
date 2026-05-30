@@ -23,6 +23,9 @@
         <a class="lw-btn" href="{{ url_for('pos_command_deck') }}"><i class="fas fa-layer-group me-1"></i> Command Deck</a>
         {% if cliente_wall_url %}
         <a class="lw-btn lw-btn-primary" href="{{ cliente_wall_url }}" target="_blank" rel="noopener"><i class="fas fa-tv me-1"></i> Abrir TV cliente</a>
+        {% if cliente_wall_test_url %}
+        <a class="lw-btn" href="{{ cliente_wall_test_url }}" target="_blank" rel="noopener" style="border-color:#fcd34d;color:#fcd34d"><i class="fas fa-vial me-1"></i> TV prueba imágenes</a>
+        {% endif %}
         {% endif %}
       </div>
     </div>

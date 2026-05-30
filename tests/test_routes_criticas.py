@@ -610,6 +610,7 @@ class TestRutasAltoTrafico:
             'nombre', 'codigo', 'precio', 'precio_fmt', 'marca',
             'stock_tienda', 'stock_bodega', 'stock_total', 'sin_stock',
             'semaforo', 'semaforo_label', 'permite_venta_verde', 'badges',
+            'imagen_url',
         ):
             assert key in row
         assert row['precio_fmt'].startswith('$')

@@ -1,0 +1,38 @@
+LhexIA — estructura recomendada máquina tienda (disco C:)
+=========================================================
+
+C:\LhexIA\
+  ERP\                          ← Proyecto completo (app.py, .venv, scripts)
+  _piloto\
+    piloto_tienda_pack\         ← Copiado del USB (dump + config)
+  respaldos\                    ← Backups pg_dump diarios (crear vacío)
+
+PASOS RÁPIDOS
+-------------
+1. Copiar del USB:
+     piloto_tienda_pack  →  C:\LhexIA\_piloto\piloto_tienda_pack
+
+2. Copiar proyecto desde D: (o clonar git) a:
+     C:\LhexIA\ERP\
+
+   Debe quedar: C:\LhexIA\ERP\app.py
+                C:\LhexIA\ERP\arrancar_erp.bat
+
+3. Crear carpeta vacía:
+     C:\LhexIA\respaldos\
+
+4. Ejecutar (como administrador no es obligatorio):
+     cd /d C:\LhexIA\ERP
+     scripts\instalar_piloto_tienda.bat
+
+5. Probar:
+     arrancar_erp.bat
+     http://localhost:5000
+
+6. Acceso directo escritorio → C:\LhexIA\ERP\arrancar_erp.bat
+
+7. Cuando funcione → sacar disco D:
+
+BACKUP DIARIO (PowerShell)
+--------------------------
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -Fc -h localhost -U postgres -d ferreteria_local -f "C:\LhexIA\respaldos\backup_$(Get-Date -Format yyyyMMdd).dump"

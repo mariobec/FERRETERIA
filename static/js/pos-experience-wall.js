@@ -8,16 +8,106 @@
   if (!snapEl) return;
 
   let snapUrl;
+  let logoUrl = "/static/img/lhexia-icon-hex-login.png";
+  let vitrinaImgTest = false;
   try {
-    snapUrl = JSON.parse(snapEl.textContent || "{}").url || "";
+    const snapCfg = JSON.parse(snapEl.textContent || "{}");
+    snapUrl = snapCfg.url || "";
+    if (snapCfg.logoUrl) logoUrl = snapCfg.logoUrl;
+    vitrinaImgTest = !!snapCfg.vitrinaImgTest;
   } catch (e) {
     return;
   }
 
+  function vitrinaImgTestFromUrl() {
+    try {
+      const p = new URL(window.location.href).searchParams;
+      for (const key of ["vitrina_img_test", "vitrina_test", "img_test", "test"]) {
+        const v = (p.get(key) || "").trim().toLowerCase();
+        if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
+      }
+    } catch (e) {
+      /* noop */
+    }
+    return false;
+  }
+
+  function ensureSnapUrlImgTest() {
+    if (!vitrinaImgTest || !snapUrl) return;
+    try {
+      const u = new URL(snapUrl, window.location.origin);
+      u.searchParams.set("vitrina_img_test", "1");
+      snapUrl = u.pathname + u.search;
+    } catch (e) {
+      /* noop */
+    }
+  }
+
+  function ensureImgTestBanner() {
+    if (!vitrinaImgTest) return;
+    let b = document.getElementById("ewImgTestBanner");
+    if (!b) {
+      b = document.createElement("div");
+      b.id = "ewImgTestBanner";
+      b.className = "ew-img-test-banner";
+      b.setAttribute("role", "status");
+      b.textContent =
+        "MODO PRUEBA · Imágenes SVG de diagnóstico (si se ven bien, el carrusel OK — revisar fotos catálogo)";
+      document.body.insertBefore(b, document.body.firstChild);
+    }
+  }
+
+  vitrinaImgTest = vitrinaImgTest || vitrinaImgTestFromUrl();
+  ensureSnapUrlImgTest();
+  ensureImgTestBanner();
+
+  const vitrina = globalThis.EwVitrinaCarousel;
+  if (vitrina) vitrina.setLogoUrl(logoUrl);
+
   let lastPaintKey = "";
   let lastRecoPaintKey = "";
   let lastValeEmitShown = null;
+  let lastThanksValeId = null;
   let valeCornerHideTimer = null;
+  let postThanksSince = null;
+  let postEmitVale = null;
+  let thanksTimer = null;
+  /** vitrina | cart | thanks */
+  let ewPhase = "vitrina";
+  let vitrinaOnScreen = false;
+  let thanksVitrinaPaused = false;
+  const POST_THANKS_VITRINA_MS = 4000;
+  const RECO_CAROUSEL_MS = 5200;
+  let recoCarouselItems = [];
+  let recoCarouselIdx = 0;
+  let recoCarouselTimer = null;
+  let recoCarouselSig = "";
+
+  function msSinceThanks() {
+    return postThanksSince ? Date.now() - postThanksSince : 0;
+  }
+
+  function inThanksPhase() {
+    return ewPhase === "thanks" && postThanksSince !== null && msSinceThanks() < POST_THANKS_VITRINA_MS;
+  }
+
+  function vitrinaPayload(d) {
+    return d && d.vitrina_attract ? d.vitrina_attract : null;
+  }
+
+  function vitrinaReady(d) {
+    const va = vitrinaPayload(d);
+    return !!(va && va.activo && va.escenas && va.escenas.length);
+  }
+
+  function scheduleThanksToVitrina() {
+    if (thanksTimer) clearTimeout(thanksTimer);
+    thanksTimer = setTimeout(function () {
+      thanksTimer = null;
+      ewPhase = "vitrina";
+      poll();
+    }, POST_THANKS_VITRINA_MS);
+  }
 
   const fmt = (n) =>
     new Intl.NumberFormat("es-CL", {
@@ -60,11 +150,17 @@
 
   function aplicarTokenTv(nuevoToken) {
     if (!nuevoToken) return;
-    const u = new URL(window.location.href);
-    if (u.searchParams.get("token") === nuevoToken) return;
-    u.searchParams.set("token", nuevoToken);
-    history.replaceState(null, "", u.toString());
-    snapUrl = u.pathname + "?" + u.searchParams.toString();
+    try {
+      const api = new URL(snapUrl, window.location.origin);
+      if (api.searchParams.get("token") === nuevoToken) return;
+      api.searchParams.set("token", nuevoToken);
+      snapUrl = api.pathname + api.search;
+      const page = new URL(window.location.href);
+      page.searchParams.set("token", nuevoToken);
+      history.replaceState(null, "", page.toString());
+    } catch (e) {
+      /* noop */
+    }
   }
 
   function syncBarcode(folioStr, barcodeSvgId, barcodeOpts) {
@@ -315,12 +411,159 @@
       return "empty:" + (d.venta_id || "");
     }
     const itemsSig = rec.items
-      .slice(0, 4)
+      .slice(0, 8)
       .map(function (it) {
         return [it.id, it.precio, it.nombre, it.motivo, it.imagen_url || ""].join(":");
       })
       .join("|");
     return [rec.titulo || "", rec.subtitulo || "", itemsSig].join("~");
+  }
+
+  function stopRecoCarousel() {
+    if (recoCarouselTimer !== null) {
+      clearTimeout(recoCarouselTimer);
+      recoCarouselTimer = null;
+    }
+  }
+
+  function armRecoProgress() {
+    const bar = document.getElementById("ewRecoProgressBar");
+    if (!bar) return;
+    bar.style.setProperty("--ew-reco-dur", RECO_CAROUSEL_MS + "ms");
+    bar.classList.remove("is-running");
+    void bar.offsetWidth;
+    bar.classList.add("is-running");
+  }
+
+  function paintRecoDots() {
+    const dotsEl = document.getElementById("ewRecoDots");
+    if (!dotsEl) return;
+    const n = recoCarouselItems.length;
+    if (n <= 1) {
+      dotsEl.innerHTML = "";
+      dotsEl.classList.add("d-none");
+      return;
+    }
+    dotsEl.classList.remove("d-none");
+    let html = "";
+    for (let i = 0; i < n; i++) {
+      html +=
+        '<span class="' +
+        (i === recoCarouselIdx ? "is-active" : "") +
+        '" aria-hidden="true"></span>';
+    }
+    dotsEl.innerHTML = html;
+  }
+
+  function showRecoSlide(nextIdx, armProgress) {
+    if (!recoCarouselItems.length) return;
+    recoCarouselIdx =
+      ((nextIdx % recoCarouselItems.length) + recoCarouselItems.length) %
+      recoCarouselItems.length;
+    const slides = document.querySelectorAll(".ew-cfm-reco-slide");
+    for (let i = 0; i < slides.length; i++) {
+      slides[i].classList.toggle("is-active", i === recoCarouselIdx);
+    }
+    paintRecoDots();
+    if (armProgress !== false) armRecoProgress();
+  }
+
+  function scheduleRecoCarousel() {
+    stopRecoCarousel();
+    if (recoCarouselItems.length <= 1) {
+      armRecoProgress();
+      return;
+    }
+    armRecoProgress();
+    recoCarouselTimer = globalThis.setTimeout(function () {
+      recoCarouselTimer = null;
+      showRecoSlide(recoCarouselIdx + 1, false);
+      scheduleRecoCarousel();
+    }, RECO_CAROUSEL_MS);
+  }
+
+  function buildRecoMediaHtml(imgUrl) {
+    const inner = imgUrl
+      ? '<img class="ew-cfm-reco-card__img" src="' +
+        esc(imgUrl) +
+        '" alt="" loading="eager" decoding="async" referrerpolicy="no-referrer" />'
+      : '<div class="ew-cfm-reco-card__img ew-cfm-reco-card__img--ph" aria-hidden="true"><i class="fas fa-screwdriver-wrench"></i></div>';
+    return (
+      '<div class="ew-cfm-reco-card__media">' +
+      '<div class="ew-cfm-reco-card__ambient" aria-hidden="true">' +
+      '<span class="ew-cfm-reco-card__orb ew-cfm-reco-card__orb--a"></span>' +
+      '<span class="ew-cfm-reco-card__orb ew-cfm-reco-card__orb--b"></span>' +
+      '<span class="ew-cfm-reco-card__spot"></span></div>' +
+      '<div class="ew-cfm-reco-card__stage">' +
+      '<div class="ew-cfm-reco-card__halo" aria-hidden="true"></div>' +
+      '<div class="ew-cfm-reco-card__frame">' +
+      '<div class="ew-cfm-reco-card__frame-ring" aria-hidden="true"></div>' +
+      '<div class="ew-cfm-reco-card__img-frame">' +
+      inner +
+      "</div>" +
+      '<div class="ew-cfm-reco-card__shine" aria-hidden="true"></div></div>' +
+      '<div class="ew-cfm-reco-card__pedestal" aria-hidden="true"></div></div></div>'
+    );
+  }
+
+  function buildRecoCardHtml(it) {
+    const imgUrl = String(it.imagen_url || "").trim();
+    const media = buildRecoMediaHtml(imgUrl);
+    const motivo = shortMotivo(it.motivo, 90);
+    const motivoHtml = motivo
+      ? '<p class="ew-cfm-reco-card__motivo">' + esc(motivo) + "</p>"
+      : "";
+    return (
+      '<article class="ew-cfm-reco-card">' +
+      media +
+      '<div class="ew-cfm-reco-card__body">' +
+      '<p class="ew-cfm-reco-card__name">' +
+      esc(truncName(it.nombre, 64)) +
+      "</p>" +
+      motivoHtml +
+      "</div>" +
+      '<footer class="ew-cfm-reco-card__foot">' +
+      '<p class="ew-cfm-reco-card__price">' +
+      esc(fmt(it.precio || 0)) +
+      '</p><span class="ew-cfm-reco-card__btn" aria-hidden="true">Pida en mostrador</span></footer></article>'
+    );
+  }
+
+  function mountRecoCarousel(items) {
+    const root = document.getElementById("ewRecoCards");
+    if (!root) return;
+    const list = items.slice(0, 8);
+    const sig = list
+      .map(function (it) {
+        return [it.id, it.precio, it.nombre, it.motivo, it.imagen_url || ""].join(":");
+      })
+      .join("|");
+    if (sig === recoCarouselSig && root.querySelector(".ew-cfm-reco-slide")) {
+      return;
+    }
+    stopRecoCarousel();
+    recoCarouselSig = sig;
+    recoCarouselItems = list;
+    recoCarouselIdx = 0;
+    root.classList.remove("d-none");
+    root.classList.add("ew-cfm-reco-carousel--live");
+    root.innerHTML =
+      '<div class="ew-cfm-reco-slides">' +
+      list
+        .map(function (it, idx) {
+          return (
+            '<div class="ew-cfm-reco-slide' +
+            (idx === 0 ? " is-active" : "") +
+            '">' +
+            buildRecoCardHtml(it) +
+            "</div>"
+          );
+        })
+        .join("") +
+      '</div><div id="ewRecoDots" class="ew-cfm-reco-dots d-none" aria-hidden="true"></div>' +
+      '<div class="ew-cfm-reco-progress"><span id="ewRecoProgressBar" class="ew-cfm-reco-progress__bar"></span></div>';
+    paintRecoDots();
+    scheduleRecoCarousel();
   }
 
   function renderCfmRecommendations(d, abierta) {
@@ -363,55 +606,83 @@
     lastRecoPaintKey = rk;
 
     if (!items.length) {
+      stopRecoCarousel();
+      recoCarouselSig = "";
+      recoCarouselItems = [];
       grid.innerHTML = "";
       grid.classList.add("d-none");
-      grid.classList.remove("ew-cfm-reco-grid--live");
+      grid.classList.remove("ew-cfm-reco-carousel--live");
       if (empty) empty.classList.remove("d-none");
       return;
     }
 
     if (empty) empty.classList.add("d-none");
-    grid.classList.remove("d-none");
-    grid.classList.add("ew-cfm-reco-grid--live");
-    grid.innerHTML = items
-      .slice(0, 4)
-      .map(function (it, idx) {
-        const imgUrl = String(it.imagen_url || "").trim();
-        const media = imgUrl
-          ? '<div class="ew-cfm-reco-card__media"><img class="ew-cfm-reco-card__img" src="' +
-            esc(imgUrl) +
-            '" alt="" loading="lazy" referrerpolicy="no-referrer" /></div>'
-          : '<div class="ew-cfm-reco-card__media"><div class="ew-cfm-reco-card__img ew-cfm-reco-card__img--ph" aria-hidden="true"><i class="fas fa-screwdriver-wrench"></i></div></div>';
-        const motivo = shortMotivo(it.motivo, 68);
-        const motivoHtml = motivo
-          ? '<p class="ew-cfm-reco-card__motivo">' + esc(motivo) + "</p>"
-          : "";
-        return (
-          '<article class="ew-cfm-reco-card" style="--ew-reco-i:' +
-          idx +
-          '">' +
-          media +
-          '<div class="ew-cfm-reco-card__body">' +
-          '<p class="ew-cfm-reco-card__name">' +
-          esc(truncName(it.nombre, 52)) +
-          "</p>" +
-          motivoHtml +
-          "</div>" +
-          '<footer class="ew-cfm-reco-card__foot">' +
-          '<p class="ew-cfm-reco-card__price">' +
-          esc(fmt(it.precio || 0)) +
-          '</p><button type="button" class="ew-cfm-reco-card__btn" tabindex="-1" aria-hidden="true">Pida en mostrador</button></footer></article>'
-        );
-      })
-      .join("");
+    mountRecoCarousel(items);
   }
 
   function renderValeEmitido(ve) {
     if (!ve || !ve.venta_id) return;
     if (lastValeEmitShown === ve.venta_id) return;
     lastValeEmitShown = ve.venta_id;
-
     showValeCornerTicket(ve);
+  }
+
+  function noteValeEmitido(ve) {
+    if (!ve || !ve.venta_id) return;
+    renderValeEmitido(ve);
+    if (lastThanksValeId === ve.venta_id) return;
+    lastThanksValeId = ve.venta_id;
+    postEmitVale = ve;
+    postThanksSince = Date.now();
+    ewPhase = "thanks";
+    lastPaintKey = "";
+    lastRecoPaintKey = "";
+    scheduleThanksToVitrina();
+  }
+
+  function clearPostEmitGrace() {
+    postEmitVale = null;
+    postThanksSince = null;
+    if (thanksTimer) {
+      clearTimeout(thanksTimer);
+      thanksTimer = null;
+    }
+  }
+
+  function showVitrinaVisual(show) {
+    if (!vitrina) return;
+    if (show) vitrina.show();
+    else vitrina.hide();
+  }
+
+  function enterVitrinaMode(payload) {
+    const shell = document.getElementById("ewShell");
+    const shopping = document.getElementById("ewShopping");
+    const thanks = document.getElementById("ewThanks");
+    if (shopping) shopping.classList.add("d-none");
+    if (thanks) thanks.classList.add("d-none");
+    if (shell) shell.classList.add("ew-cfm--vitrina");
+    if (payload && vitrina && vitrina.load(payload)) vitrina.show();
+  }
+
+  function exitVitrinaMode() {
+    const shell = document.getElementById("ewShell");
+    vitrinaOnScreen = false;
+    if (vitrina) vitrina.hide();
+    if (shell) shell.classList.remove("ew-cfm--vitrina");
+  }
+
+  function syncVitrinaVisible(va) {
+    if (!vitrina) return;
+    if (va) vitrina.load(va);
+    if (!vitrinaOnScreen && vitrina.hasSlides()) {
+      vitrina.show();
+      vitrinaOnScreen = true;
+    }
+  }
+
+  function preloadVitrina(payload) {
+    if (payload && vitrina) vitrina.load(payload);
   }
 
   function paintKeyFromSnap(d, lines, total, abierta) {
@@ -420,6 +691,7 @@
     return [
       abierta ? "abierta" : d.estado,
       d.venta_id || "",
+      d.n_lineas != null ? d.n_lineas : (lines || []).length,
       total,
       (lines || []).map((x) => [x.id, x.cantidad, x.subtotal, x.retiro_tag].join(".")).join("|"),
       tv.fecha_hora_txt,
@@ -506,18 +778,22 @@
     }
   }
 
+  function snapshotFetchUrl() {
+    const sep = snapUrl.indexOf("?") >= 0 ? "&" : "?";
+    return snapUrl + sep + "_ts=" + Date.now();
+  }
+
   async function poll() {
     const sub = document.getElementById("ewSub");
     const thanks = document.getElementById("ewThanks");
     const shopping = document.getElementById("ewShopping");
     const itemsEl = document.getElementById("ewItems");
     const totalEl = document.getElementById("ewTotal");
-    const idleOverlay = document.getElementById("ewIdleOverlay");
     const shell = document.getElementById("ewShell");
     if (!sub || !itemsEl || !totalEl) return;
 
     try {
-      const r = await fetch(snapUrl, { credentials: "omit" });
+      const r = await fetch(snapshotFetchUrl(), { credentials: "omit", cache: "no-store" });
       const d = await r.json();
       if (!d.ok) {
         if (d.error === "token_expirado") {
@@ -528,100 +804,109 @@
         return;
       }
       if (d.nuevo_token) aplicarTokenTv(d.nuevo_token);
-      if (d.vale_emitido) renderValeEmitido(d.vale_emitido);
+      if (d.vale_emitido) noteValeEmitido(d.vale_emitido);
 
       const abierta = d.estado === "abierta";
       const sinVenta = d.estado === "sin_venta";
       const lines = abierta ? d.lineas || [] : [];
       const nItems = lines.length;
       const total = abierta ? d.total || 0 : 0;
+      const va = vitrinaPayload(d);
 
-      renderCfmHeader(d, abierta);
-
-      const showThanks = !abierta && !sinVenta;
-      if (thanks) thanks.classList.toggle("d-none", !showThanks);
-      if (shopping) shopping.classList.toggle("d-none", showThanks);
-
-      if (shell) {
-        shell.classList.toggle("ew-cfm--dense", abierta && nItems >= 5);
-        shell.classList.toggle("ew-shell--dense-lines", abierta && nItems >= 4);
-        shell.classList.toggle("ew-shell--compact-total", abierta && nItems >= 5);
-        shell.classList.toggle("ew-shell--mega-dense", abierta && nItems >= 7);
+      // Vale en vivo con productos → carrito (cancela gracias/vitrina post-emisión).
+      if (abierta && nItems > 0) {
+        if (d.venta_id && lastThanksValeId && d.venta_id !== lastThanksValeId) {
+          lastThanksValeId = null;
+        }
+        clearPostEmitGrace();
+        ewPhase = "cart";
+      } else if (ewPhase === "cart") {
+        ewPhase = "vitrina";
+      } else if (ewPhase === "thanks" && !inThanksPhase()) {
+        ewPhase = "vitrina";
+      } else if (ewPhase !== "thanks" && ewPhase !== "cart") {
+        ewPhase = "vitrina";
       }
 
-      if (sinVenta) {
-        sub.textContent = "Esperando la próxima venta en mostrador…";
-        if (lastPaintKey !== "__sin_venta__") {
-          lastPaintKey = "__sin_venta__";
-          lastRecoPaintKey = "";
-          totalEl.textContent = fmt(0);
-          renderLiveProductLines(itemsEl, []);
-          renderCfmHeader(d, false);
-          renderCfmRecommendations(d, false);
-        }
-        if (shell) {
-          shell.classList.remove("ew-shell--dense-lines", "ew-shell--compact-total", "ew-shell--mega-dense", "ew-cfm--dense");
+      // —— Fase gracias (4 s post-emisión); precarga carrusel detrás ——
+      if (ewPhase === "thanks" && inThanksPhase()) {
+        if (!thanksVitrinaPaused && vitrina) {
+          vitrinaOnScreen = false;
+          vitrina.hide();
+          thanksVitrinaPaused = true;
         }
         if (shopping) shopping.classList.add("d-none");
-        if (idleOverlay) {
-          idleOverlay.classList.remove("d-none");
-          const idleTitle = document.getElementById("ewIdleTitle");
-          const idleText = document.getElementById("ewIdleText");
-          if (idleTitle) idleTitle.textContent = "Acérquese al monitor";
-          if (idleText) {
-            idleText.textContent =
-              "para ver recomendaciones personalizadas";
-          }
+        if (shell) shell.classList.remove("ew-cfm--vitrina");
+        if (thanks) thanks.classList.remove("d-none");
+        if (va && va.activo) preloadVitrina(va);
+        sub.textContent =
+          d.mensaje_cliente || "Su pedido va a caja para pago. Gracias por su compra.";
+        if (totalEl && postEmitVale) totalEl.textContent = fmt(postEmitVale.total || 0);
+        const txtThanks = document.getElementById("ewThanksText");
+        if (txtThanks) {
+          txtThanks.textContent =
+            d.mensaje_cliente || "¡Gracias por su compra! Pase a caja para el pago.";
         }
-      } else if (abierta) {
-        const cartCount = document.getElementById("ewCartCount");
-        const cartEmpty = document.getElementById("ewCartEmpty");
-        if (cartCount) {
-          cartCount.textContent =
-            nItems === 1 ? "1 producto" : nItems + " productos";
-        }
-        if (cartEmpty) cartEmpty.classList.toggle("d-none", nItems > 0);
-
-        sub.textContent = nItems
-          ? "Su compra se actualiza en vivo"
-          : "Agregando productos a su vale…";
-
-        const pk = paintKeyFromSnap(d, lines, total, true);
-        const changed = pk !== lastPaintKey;
-        if (changed) {
-          lastPaintKey = pk;
-          totalEl.textContent = fmt(total);
-          bumpTotalEl(totalEl);
-          renderLiveProductLines(itemsEl, lines);
-        }
-        renderCfmRecommendations(d, true);
-
-        const identified = clienteIdentificado(d, d.cliente_vitrina);
-        const showIdle = !identified && nItems === 0;
-        if (idleOverlay) {
-          idleOverlay.classList.toggle("d-none", !showIdle);
-          const idleTitle = document.getElementById("ewIdleTitle");
-          const idleText = document.getElementById("ewIdleText");
-          if (idleTitle) idleTitle.textContent = "Acérquese al monitor";
-          if (idleText) {
-            idleText.textContent =
-              "para ver recomendaciones personalizadas";
-          }
-        }
-        if (shopping) shopping.classList.toggle("d-none", showIdle);
-      } else {
-        sub.textContent = d.mensaje_cliente || "Venta finalizada.";
-        lastPaintKey = "";
-        lastRecoPaintKey = "";
+        renderCfmHeader(d, false);
         renderCfmRecommendations(d, false);
-        if (shell) {
-          shell.classList.remove("ew-shell--dense-lines", "ew-shell--compact-total", "ew-shell--mega-dense");
-        }
-        if (idleOverlay) idleOverlay.classList.add("d-none");
+        return;
       }
 
-      const txtThanks = document.getElementById("ewThanksText");
-      if (txtThanks) txtThanks.textContent = d.mensaje_cliente || "¡Gracias por su compra!";
+      // —— Fase vitrina: idle, post-gracias, borrador vacío ——
+      if (ewPhase === "vitrina") {
+        thanksVitrinaPaused = false;
+        if (thanks) thanks.classList.add("d-none");
+        if (shopping) shopping.classList.add("d-none");
+        if (shell) shell.classList.add("ew-cfm--vitrina");
+        if (vitrinaReady(d)) {
+          syncVitrinaVisible(va);
+        } else if (vitrina && vitrina.hasSlides()) {
+          syncVitrinaVisible(null);
+        } else {
+          sub.textContent = vitrinaImgTest
+            ? "Modo prueba · cargando imágenes SVG…"
+            : "Vitrina digital · cargando catálogo…";
+          return;
+        }
+        if (vitrinaImgTest || (va && va.img_test)) {
+          sub.textContent = "Modo prueba · imágenes SVG de diagnóstico";
+        } else {
+          sub.textContent = "Vitrina digital · Red Chilemat";
+        }
+        return;
+      }
+
+      // —— Carrito en vivo (vale abierto con productos) ——
+      exitVitrinaMode();
+      if (thanks) thanks.classList.add("d-none");
+
+      renderCfmHeader(d, true);
+
+      if (shell) {
+        shell.classList.toggle("ew-cfm--dense", nItems >= 5);
+        shell.classList.toggle("ew-shell--dense-lines", nItems >= 4);
+        shell.classList.toggle("ew-shell--compact-total", nItems >= 5);
+        shell.classList.toggle("ew-shell--mega-dense", nItems >= 7);
+      }
+
+      if (shopping) shopping.classList.remove("d-none");
+      const cartCount = document.getElementById("ewCartCount");
+      const cartEmpty = document.getElementById("ewCartEmpty");
+      if (cartCount) {
+        cartCount.textContent = nItems === 1 ? "1 producto" : nItems + " productos";
+      }
+      if (cartEmpty) cartEmpty.classList.toggle("d-none", nItems > 0);
+
+      sub.textContent = "Su compra se actualiza en vivo";
+
+      const pk = paintKeyFromSnap(d, lines, total, true);
+      if (pk !== lastPaintKey) {
+        lastPaintKey = pk;
+        totalEl.textContent = fmt(total);
+        bumpTotalEl(totalEl);
+        renderLiveProductLines(itemsEl, lines);
+      }
+      renderCfmRecommendations(d, true);
 
       const cat = document.getElementById("ewFoot");
       if (cat && d.catalogo_url) {

@@ -10900,7 +10900,7 @@ def _venta_abierta_por_caja_y_usuario(caja_id, usuario_nombre):
 #   QR despacho ticket: pos_despacho_vale (vista lista por rol; entrega operativa en bodega_plataforma / campos bodega_preparacion_*).
 #
 _POS_LIVE_WALL_TOKEN_MAX_AGE = int(os.environ.get('POS_LIVE_WALL_TOKEN_MAX_AGE', str(9 * 3600)))
-_POS_WALL_VALE_FLASH_TTL = int(os.environ.get('POS_WALL_VALE_FLASH_TTL', '20'))
+_POS_WALL_VALE_FLASH_TTL = int(os.environ.get('POS_WALL_VALE_FLASH_TTL', '45'))
 _POS_WALL_VALE_FLASH = {}
 
 
@@ -10969,7 +10969,18 @@ def _pos_live_wall_resolve_token(token):
         except (TypeError, ValueError):
             return None, {}
         venta = _venta_abierta_por_caja_y_usuario(caja_id, usuario)
-        return venta, {'kind': 'station', 'caja_id': caja_id, 'usuario': usuario}
+        meta = {'kind': 'station', 'caja_id': caja_id, 'usuario': usuario}
+        if not venta:
+            # Piloto mostrador: TV compartida por caja si el token no coincide con el vendedor del vale.
+            venta = (
+                _venta_query_con_detalles_pos()
+                .filter_by(estado='Abierta', caja_id=caja_id)
+                .order_by(Venta.id.desc())
+                .first()
+            )
+            if venta:
+                meta['usuario_fallback_caja'] = True
+        return venta, meta
 
     v = d.get('v')
     if v is None:
@@ -11231,6 +11242,77 @@ def _pos_live_wall_total_mostrable(venta, detalles=None):
     return out
 
 
+_POS_TV_VITRINA_CACHE = {'ts': 0.0, 'payload': None, 'ver': 7}
+_POS_TV_VITRINA_CACHE_TTL = int(os.environ.get('POS_TV_VITRINA_CACHE_TTL', '300'))
+
+
+def _pos_vitrina_img_test_activo(req=None) -> bool:
+    """True si la TV debe usar SVG de prueba (query ?vitrina_img_test=1 o alias)."""
+    req = req or request
+    if os.environ.get('POS_TV_VITRINA_IMG_TEST', '').strip() == '1':
+        return True
+    for key in ('vitrina_img_test', 'vitrina_test', 'img_test', 'test'):
+        val = (req.args.get(key) or '').strip().lower()
+        if val in ('1', 'true', 'yes', 'on', 'si', 'sí'):
+            return True
+    return False
+
+
+def _pos_tv_vitrina_attract_cached(*, img_test: bool = False):
+    """Modo vitrina TV (catálogo + Chilemat). Cache ~5 min para no golpear BD en cada poll."""
+    if img_test:
+        try:
+            from services.pos_tv_vitrina_service import (
+                aplicar_imagenes_prueba_vitrina,
+                construir_vitrina_attract,
+                _vitrina_test_urls,
+            )
+
+            cfg = obtener_config_empresa()
+            cat = None
+            try:
+                cat = _prime_catalogo_link()
+            except Exception:
+                pass
+            payload = construir_vitrina_attract(
+                empresa_nombre=(cfg.get('nombre_comercial') or cfg.get('razon_social') or '')[:80],
+                catalogo_url=cat,
+            )
+            return aplicar_imagenes_prueba_vitrina(payload, urls=_vitrina_test_urls())
+        except Exception as ex:
+            app.logger.debug('vitrina_attract TV img_test: %s', ex)
+            return {'activo': False, 'escenas': [], 'duracion_seg': 6, 'n_escenas': 0, 'img_test': True}
+
+    now = time.time()
+    cached = _POS_TV_VITRINA_CACHE.get('payload')
+    cache_ver = int(_POS_TV_VITRINA_CACHE.get('ver') or 0)
+    if (
+        cached
+        and cache_ver == 7
+        and (now - float(_POS_TV_VITRINA_CACHE.get('ts') or 0)) < _POS_TV_VITRINA_CACHE_TTL
+    ):
+        return cached
+    try:
+        from services.pos_tv_vitrina_service import construir_vitrina_attract
+
+        cfg = obtener_config_empresa()
+        cat = None
+        try:
+            cat = _prime_catalogo_link()
+        except Exception:
+            pass
+        payload = construir_vitrina_attract(
+            empresa_nombre=(cfg.get('nombre_comercial') or cfg.get('razon_social') or '')[:80],
+            catalogo_url=cat,
+        )
+    except Exception as ex:
+        app.logger.debug('vitrina_attract TV: %s', ex)
+        payload = {'activo': False, 'escenas': [], 'duracion_seg': 6, 'n_escenas': 0}
+    _POS_TV_VITRINA_CACHE['ts'] = now
+    _POS_TV_VITRINA_CACHE['payload'] = payload
+    return payload
+
+
 def _pos_live_wall_mensaje_cliente(estado):
     """Mensaje corto para la TV según estado del vale enlazado al token."""
     e = (estado or '').strip().lower()
@@ -11247,7 +11329,7 @@ def _pos_live_wall_mensaje_cliente(estado):
     return 'Gracias por su visita.'
 
 
-def _pos_live_wall_payload(venta, *, staff=False):
+def _pos_live_wall_payload(venta, *, staff=False, vitrina_img_test=False):
     """
     Snapshot JSON para Live Wall. `staff=True` incluye stock por almacén y cliente.
     Ver bloque de comentarios antes de `_POS_LIVE_WALL_TOKEN_MAX_AGE` (flujo venta → entrega).
@@ -11268,7 +11350,15 @@ def _pos_live_wall_payload(venta, *, staff=False):
         }
         if staff:
             out['tienda_kpis'] = _pos_live_wall_tienda_kpis()
+        else:
+            out['vitrina_attract'] = _pos_tv_vitrina_attract_cached(
+                img_test=bool(vitrina_img_test)
+            )
         return out
+
+    venta_fresca = _venta_query_con_detalles_pos().filter_by(id=venta.id).first()
+    if venta_fresca:
+        venta = venta_fresca
 
     detalles = list(venta.detalles or [])
 
@@ -11395,6 +11485,9 @@ def _pos_live_wall_payload(venta, *, staff=False):
             out['n_lineas'] = 0
             out['total'] = 0
             out.pop('tv_ticket', None)
+        out['vitrina_attract'] = _pos_tv_vitrina_attract_cached(
+            img_test=bool(vitrina_img_test)
+        )
     return out
 
 
@@ -11411,16 +11504,24 @@ def pos_live_wall_staff():
     u = _nombre_usuario_pos_actual()
     token = _pos_live_wall_token_para_caja_usuario(caja, u) if caja else None
     cliente_wall_url = None
+    cliente_wall_test_url = None
     if token:
         try:
             cliente_wall_url = url_for('pos_live_wall_cliente', token=token, _external=True)
+            cliente_wall_test_url = url_for(
+                'pos_experience_wall', token=token, vitrina_img_test=1, _external=True
+            )
         except Exception:
             cliente_wall_url = url_for('pos_live_wall_cliente', token=token)
+            cliente_wall_test_url = url_for(
+                'pos_experience_wall', token=token, vitrina_img_test=1
+            )
     return render_template(
         'pos_live_wall_staff.html',
         venta=venta,
         wall_token=token,
         cliente_wall_url=cliente_wall_url,
+        cliente_wall_test_url=cliente_wall_test_url,
     )
 
 
@@ -11435,7 +11536,10 @@ def pos_live_wall_cliente():
         resp.headers['Pragma'] = 'no-cache'
         return resp, 403
     if meta.get('nuevo_token'):
-        r = redirect(url_for('pos_live_wall_cliente', token=meta['nuevo_token']))
+        extra = {}
+        if _pos_vitrina_img_test_activo():
+            extra['vitrina_img_test'] = '1'
+        r = redirect(url_for('pos_live_wall_cliente', token=meta['nuevo_token'], **extra))
         r.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return r
     if meta.get('venta_id') and venta is None:
@@ -11443,13 +11547,18 @@ def pos_live_wall_cliente():
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         return resp, 404
     wall_token = token
+    vitrina_img_test = _pos_vitrina_img_test_activo()
+    snap_qs = {'token': wall_token}
+    if vitrina_img_test:
+        snap_qs['vitrina_img_test'] = '1'
     resp = make_response(
         render_template(
             'pos_live_wall_cliente.html',
             error=None,
             venta_id=venta.id if venta else None,
             wall_token=wall_token,
-            api_snapshot_url=url_for('api_pos_live_wall_snapshot', token=wall_token),
+            vitrina_img_test=vitrina_img_test,
+            api_snapshot_url=url_for('api_pos_live_wall_snapshot', **snap_qs),
         )
     )
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
@@ -11541,20 +11650,34 @@ def api_pos_vincular_cliente():
     })
 
 
+def _pos_live_wall_json_response(payload, status=200):
+    """Snapshot TV: nunca cachear en navegador/proxy."""
+    resp = make_response(jsonify(payload), status)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
 def api_pos_live_wall_snapshot():
     """JSON para polling. Staff: sesión + permiso POS. Cliente: query `token`."""
+    db.session.expire_all()
     token = (request.args.get('token') or '').strip()
     if token:
         venta, meta = _pos_live_wall_resolve_token(token)
         if meta.get('invalid'):
             err = 'token_expirado' if meta.get('reason') == 'expired' else 'token_invalido'
-            return jsonify({'ok': False, 'error': err}), 403
+            return _pos_live_wall_json_response({'ok': False, 'error': err}, 403)
         if not token or (venta is None and not meta):
-            return jsonify({'ok': False, 'error': 'token_invalido'}), 403
+            return _pos_live_wall_json_response({'ok': False, 'error': 'token_invalido'}, 403)
         if meta.get('venta_id') and venta is None:
-            return jsonify({'ok': False, 'error': 'venta_no_encontrada'}), 404
-        payload = _pos_live_wall_payload(venta, staff=False)
+            return _pos_live_wall_json_response({'ok': False, 'error': 'venta_no_encontrada'}, 404)
+        vitrina_img_test = _pos_vitrina_img_test_activo()
+        payload = _pos_live_wall_payload(
+            venta, staff=False, vitrina_img_test=vitrina_img_test
+        )
         payload['modo'] = 'cliente'
+        if vitrina_img_test:
+            payload['vitrina_img_test'] = True
         cid = meta.get('caja_id')
         uname = meta.get('usuario')
         if cid is not None and uname:
@@ -11573,25 +11696,25 @@ def api_pos_live_wall_snapshot():
                 )
             except Exception:
                 payload['nuevo_wall_url'] = url_for('pos_live_wall_cliente', token=meta['nuevo_token'])
-        return jsonify(payload)
+        return _pos_live_wall_json_response(payload)
 
     if not session.get('_user_id'):
-        return jsonify({'ok': False, 'error': 'no_auth'}), 401
+        return _pos_live_wall_json_response({'ok': False, 'error': 'no_auth'}, 401)
     if not current_user.is_authenticated:
-        return jsonify({'ok': False, 'error': 'no_auth'}), 401
+        return _pos_live_wall_json_response({'ok': False, 'error': 'no_auth'}, 401)
     if not usuario_tiene_permiso('pos_emitir_vale'):
-        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+        return _pos_live_wall_json_response({'ok': False, 'error': 'sin_permiso'}, 403)
 
     venta_act, err = _pos_live_wall_venta_abierta_actual()
     if err == 'sin_caja':
-        return jsonify({'ok': False, 'error': 'sin_caja'}), 400
+        return _pos_live_wall_json_response({'ok': False, 'error': 'sin_caja'}, 400)
     if not venta_act:
         payload = _pos_live_wall_payload(None, staff=True)
         payload['modo'] = 'staff'
-        return jsonify(payload)
+        return _pos_live_wall_json_response(payload)
     payload = _pos_live_wall_payload(venta_act, staff=True)
     payload['modo'] = 'staff'
-    return jsonify(payload)
+    return _pos_live_wall_json_response(payload)
 
 
 def _venta_validar_stock_tienda(venta):
@@ -12108,13 +12231,20 @@ def _pos_pagina_context():
             'estado': 'known',
             'resumen': resumen_cli,
         }
-    wall_token = _pos_live_wall_token_para_caja_usuario(caja, vendedor_actual) if venta else None
+    wall_token = _pos_live_wall_token_para_caja_usuario(caja, vendedor_actual) if caja else None
     experience_wall_url = None
+    experience_wall_test_url = None
     if wall_token:
         try:
             experience_wall_url = url_for('pos_experience_wall', token=wall_token, _external=True)
+            experience_wall_test_url = url_for(
+                'pos_experience_wall', token=wall_token, vitrina_img_test=1, _external=True
+            )
         except Exception:
             experience_wall_url = url_for('pos_experience_wall', token=wall_token)
+            experience_wall_test_url = url_for(
+                'pos_experience_wall', token=wall_token, vitrina_img_test=1
+            )
     pos_vale_resume = {
         'show': False,
         'venta_id': None,
@@ -12155,6 +12285,7 @@ def _pos_pagina_context():
         'vendedor_kpis': _pos_vendedor_kpis_hoy(vendedor_actual),
         'wall_token': wall_token,
         'experience_wall_url': experience_wall_url,
+        'experience_wall_test_url': experience_wall_test_url,
         'pos_rut_obligatorio': _pos_rut_obligatorio_session(),
         'pos_retiro_por_linea': _pos_retiro_por_linea_empresa(),
         'pos_autoprint_ticket_emitido': _pos_autoprint_ticket_emitido_empresa(),
@@ -14778,8 +14909,28 @@ def caja_pendientes():
     _asegurar_columnas_ventas_bodega_despacho()
     # Vales emitidos (Pendiente) primero; luego borradores POS con total > 0.
     cola_combined = list(vales) + list(borradores_pos)
+    from services.caja_vale_sla_service import (
+        evaluar_sla_vale,
+        minutos_pendiente_caja,
+        obtener_config_sla_caja,
+    )
+
+    sla_config_caja = obtener_config_sla_caja()
+    ahora_sla_caja = datetime.now()
     for v in cola_combined:
         v.tiene_despacho_bodega = _venta_tiene_despacho_bodega(v)
+        if getattr(v, 'cola_es_borrador', False):
+            v.sla_min = None
+            v.sla_tier = 0
+            v.sla_label = ''
+            v.sla_css = 'sla-ok'
+        else:
+            mins_sla = minutos_pendiente_caja(v.fecha, ahora_sla_caja)
+            sla_row = evaluar_sla_vale(mins_sla, sla_config_caja)
+            v.sla_min = mins_sla
+            v.sla_tier = sla_row['tier']
+            v.sla_label = sla_row['label']
+            v.sla_css = sla_row['css']
     cot_ids = [v.cotizacion_origen_id for v in vales if v.cotizacion_origen_id]
     cot_ids.extend(v.cotizacion_origen_id for v in borradores_pos if v.cotizacion_origen_id)
     cot_ids = list(dict.fromkeys(cot_ids))
@@ -14824,6 +14975,13 @@ def caja_pendientes():
         bc_vales_cierre, bc_tickets_cierre = _documentos_bloquean_cierre_caja(caja_apertura)
     db.session.rollback()
 
+    n_sla_atencion = sum(
+        1 for v in cola_combined if not getattr(v, 'cola_es_borrador', False) and (getattr(v, 'sla_tier', 0) or 0) >= 1
+    )
+    n_sla_modal = sum(
+        1 for v in cola_combined if not getattr(v, 'cola_es_borrador', False) and (getattr(v, 'sla_tier', 0) or 0) >= 2
+    )
+
     return render_template(
         'caja_pendientes.html',
         tickets_emitidos=tickets_emitidos,
@@ -14839,7 +14997,122 @@ def caja_pendientes():
         bloquean_cierre_total=len(bc_vales_cierre) + len(bc_tickets_cierre),
         bloquean_cierre_vales=bc_vales_cierre,
         bloquean_cierre_tickets=bc_tickets_cierre,
+        caja_sla_config=sla_config_caja,
+        n_sla_atencion=n_sla_atencion,
+        n_sla_modal=n_sla_modal,
     )
+
+
+def _anular_vales_sla_auto(ventas_rows, caja, motivo, usr_an):
+    """
+    Anula vales Pendiente vencidos por SLA (sin despacho bodega).
+    ventas_rows: lista de (venta, row_sla dict).
+    Retorna (ok_ids, omitidos).
+    """
+    ok_ids = []
+    omitidos = []
+    if not ventas_rows:
+        return ok_ids, omitidos
+    try:
+        with transaccion_critica():
+            for venta, row in ventas_rows:
+                vid = int(venta.id)
+                try:
+                    if not row.get('elegible_auto_anular'):
+                        omitidos.append({'id': vid, 'motivo': 'No elegible para auto-anulación SLA'})
+                        continue
+                    meta = {
+                        'st': 'Pendiente',
+                        'datos_antes': {
+                            'estado': 'Pendiente',
+                            'minutos_sla': row.get('minutos'),
+                        },
+                        'hubo_despacho': False,
+                        'puede_pendiente': True,
+                    }
+                    _anular_venta_colacaja_mutar(venta, motivo, usr_an, meta)
+                    _audit_log(
+                        'anular_vale_sla_auto',
+                        'venta',
+                        vid,
+                        usuario=usr_an,
+                        datos_antes=meta['datos_antes'],
+                        datos_despues={
+                            'estado': 'Anulada',
+                            'motivo': motivo,
+                            'caja_id': getattr(caja, 'id', None),
+                        },
+                    )
+                    ok_ids.append(vid)
+                except Exception as ex:
+                    omitidos.append({'id': vid, 'motivo': str(ex)[:200]})
+        db.session.commit()
+    except Exception as ex:
+        db.session.rollback()
+        raise ex
+    return ok_ids, omitidos
+
+
+def api_caja_vales_pendientes_sla():
+    """Polling SLA caja: alertas 10/15 min, auto-anulación a los 20 min (solo Pendiente, misma caja)."""
+    db.session.expire_all()
+    caja = obtener_caja_activa()
+    if not caja:
+        return jsonify({'ok': False, 'error': 'sin_caja'}), 400
+
+    from services.caja_vale_sla_service import obtener_config_sla_caja, serializar_vale_sla
+
+    config = obtener_config_sla_caja()
+    ahora = datetime.now()
+    _asegurar_columnas_ventas_bodega_despacho()
+    vales = (
+        Venta.query.filter(
+            Venta.estado == 'Pendiente',
+            Venta.metodo_pago.is_(None),
+            Venta.caja_id == caja.id,
+        )
+        .order_by(Venta.fecha.asc())
+        .all()
+    )
+
+    items = []
+    candidatos_auto = []
+    for venta in vales:
+        dsp = _venta_tiene_despacho_bodega(venta)
+        row = serializar_vale_sla(venta, config, ahora, tiene_despacho_bodega=dsp)
+        if row.get('elegible_auto_anular'):
+            candidatos_auto.append((venta, row))
+        else:
+            items.append(row)
+
+    usr_an = (current_user.nombre or '')[:80] if current_user.is_authenticated else 'SLA-Caja'
+    auto_anulados = []
+    omitidos_auto = []
+    if candidatos_auto:
+        ok_ids, omitidos_auto = _anular_vales_sla_auto(
+            candidatos_auto, caja, config['motivo_auto'], usr_an
+        )
+        auto_anulados = [
+            {'id': int(v.id), 'minutos': row['minutos']}
+            for v, row in candidatos_auto
+            if int(v.id) in ok_ids
+        ]
+
+    n_atencion = sum(1 for x in items if x.get('tier', 0) >= 1)
+    n_modal = sum(1 for x in items if x.get('tier', 0) >= 2)
+    modal_vales = [x for x in items if x.get('tier', 0) >= 2]
+
+    return jsonify({
+        'ok': True,
+        'config': config,
+        'vales': items,
+        'n_atencion': n_atencion,
+        'n_modal': n_modal,
+        'modal_vales': modal_vales,
+        'auto_anulados': auto_anulados,
+        'omitidos_auto': omitidos_auto,
+        'ts': time.time(),
+    })
 
 
 def caja_cambios():
@@ -16480,7 +16753,33 @@ def _buscar_productos_json(
     meta = {}
     if filtro_estricto_stock and n_antes_filtro_stock > 0 and not candidatos:
         meta['filtrados_por_stock'] = True
-    return {'results': candidatos[:out_lim], 'meta': meta}
+
+    results = candidatos[:out_lim]
+    if enriquecido and results:
+        pids_top = []
+        for c in results:
+            try:
+                pids_top.append(int(c.get('producto_id') or c.get('id') or 0))
+            except (TypeError, ValueError):
+                continue
+        pids_top = [x for x in pids_top if x > 0]
+        fichas: dict = {}
+        if pids_top:
+            try:
+                from services.chilemat_ficha_service import fichas_resumen_carrito_por_productos
+
+                fichas = fichas_resumen_carrito_por_productos(pids_top) or {}
+            except Exception:
+                fichas = {}
+        for c in results:
+            try:
+                pid = int(c.get('producto_id') or c.get('id') or 0)
+            except (TypeError, ValueError):
+                pid = 0
+            img = ((fichas.get(pid) or {}).get('imagen_url') or '').strip()
+            c['imagen_url'] = img[:500] if img else None
+
+    return {'results': results, 'meta': meta}
 
 
 def _cotizacion_item_desde_busqueda(row: dict) -> dict:
