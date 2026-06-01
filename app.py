@@ -1866,6 +1866,9 @@ _NAV_MAP = [
             {'label': 'Inyector de Precios', 'icon': 'fa-satellite-dish', 'endpoint': 'precios_radar',
              'permisos': ['radar_precios', 'revision_precios', 'gestionar_usuarios', 'ver_gerencia'],
              'endpoints_activos': ['precios_radar', 'precios_radar_dashboard', 'api_radar_iniciar', 'api_radar_stream', 'api_radar_aplicar']},
+            {'label': 'Carga precios piloto', 'icon': 'fa-barcode', 'endpoint': 'precios_piloto',
+             'permisos': ['revision_precios'],
+             'endpoints_activos': ['precios_piloto', 'api_precios_piloto_buscar', 'api_precios_piloto_guardar']},
             {'label': 'Guardián de Márgenes', 'icon': 'fa-tags', 'endpoint': 'revision_precios',
              'permisos': ['revision_precios'],
              'endpoints_activos': ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision']},
@@ -2086,6 +2089,7 @@ _MODULOS_HUB = [
         'modulo': 'bi',
         'accent': '#0d9488',
         'atajos': [
+            {'label': 'Carga precios piloto', 'endpoint': 'precios_piloto', 'icon': 'fa-barcode', 'permisos': ['revision_precios']},
             {'label': 'Guardián de márgenes', 'endpoint': 'revision_precios', 'icon': 'fa-tags', 'permisos': ['revision_precios']},
             {'label': 'Cargas Chilemat', 'endpoint': 'chilemat_cargas', 'icon': 'fa-cloud-upload-alt', 'permisos': ['revision_precios', 'radar_precios', 'gestionar_usuarios', 'admin_inventario']},
             {'label': 'Universo Chilemat', 'endpoint': 'chilemat_catalogo_explorer', 'icon': 'fa-globe-americas', 'permisos': ['revision_precios', 'radar_precios', 'ver_gerencia']},
@@ -2832,6 +2836,8 @@ class Producto(db.Model):
     precio_compra = db.Column(db.Float)
     precio_venta = db.Column(db.Float)
     precio_mayoreo = db.Column(db.Float)
+    # Precio cobro mostrador Santo Domingo (piloto); POS usa solo este campo si > 0.
+    precio_venta_sd = db.Column(db.Float, nullable=True)
     unidad = db.Column(db.String(20))
     unidad_compra = db.Column(db.String(20))
     unidad_venta = db.Column(db.String(20))
@@ -3197,8 +3203,22 @@ def _producto_marca_desde_row(row, cols):
     return ""
 
 
+def _precio_pos_desde_row_producto(row):
+    """Precio unitario POS desde fila SQL: solo precio_venta_sd."""
+    if row is None:
+        return 0.0
+    if isinstance(row, dict):
+        sd = row.get('precio_venta_sd')
+    else:
+        sd = getattr(row, 'precio_venta_sd', None)
+    return float(sd or 0) if sd else 0.0
+
+
 def _precio_lista_desde_row_producto(row):
-    return max(float(row.get("precio_venta") or 0), float(row.get("precio_mayoreo") or 0))
+    """Referencia lista (legacy nombre): precio_venta del maestro, no precio POS."""
+    if isinstance(row, dict):
+        return float(row.get('precio_venta') or 0)
+    return float(getattr(row, 'precio_venta', None) or 0)
 
 
 def _badges_busqueda_pos(item, precio_min, precio_max):
@@ -3259,10 +3279,11 @@ def _adjuntar_stock_ui(productos):
 
 
 def precio_efectivo_pos_producto(producto):
-    """Precio unitario para POS y filtros: mayor entre precio_venta y precio_mayoreo."""
+    """Precio unitario POS: solo precio_venta_sd (> 0). Lista/mayoreo no se usan en caja."""
     if not producto:
         return 0.0
-    return max(float(producto.precio_venta or 0), float(producto.precio_mayoreo or 0))
+    sd = float(getattr(producto, 'precio_venta_sd', None) or 0)
+    return sd if sd > 0 else 0.0
 
 
 def descontar_stock_venta_tienda(producto, consumo_stock):
@@ -8913,6 +8934,115 @@ def editar_precio_manual_revision(producto_id):
     terminacion = request.form.get('terminacion', 90, type=int)
     return redirect(url_for('revision_precios', q=request.form.get('q'), categoria=request.form.get('categoria'), subcategoria=request.form.get('subcategoria'), margen_obj=margen_obj, terminacion=terminacion, solo_alerta=request.form.get('solo_alerta', '1')))
 
+
+@app.route('/precios/piloto')
+@permisos_required('revision_precios')
+def precios_piloto():
+    """Carga manual precio venta SD — piloto piso (escaneo + bitácora, sin Radar)."""
+    from services.precios_piloto_service import bitacora_reciente_piloto, stats_precios_piloto
+
+    codigo = (request.args.get('codigo') or '').strip()
+    return render_template(
+        'precios_piloto.html',
+        stats=stats_precios_piloto(),
+        cambios_recientes=bitacora_reciente_piloto(20),
+        codigo_inicial=codigo,
+    )
+
+
+@app.route('/api/precios/piloto/buscar')
+@permisos_required('revision_precios')
+def api_precios_piloto_buscar():
+    """Misma búsqueda enriquecida que POS (/buscar_producto), sin exigir caja abierta."""
+    from services.pos_busqueda_service import resolver_filtro_busqueda_pos
+
+    q = (request.args.get('q') or '').strip()
+    if not q:
+        return jsonify({'results': [], 'meta': {}})
+
+    exact = _pos_buscar_producto_por_codigo(q)
+    if len(q) < 2:
+        if exact:
+            item = _item_busqueda_pos_desde_producto(exact)
+            if item:
+                return jsonify({'results': [item], 'meta': {'match': 'codigo_exacto'}})
+        return jsonify({'results': [], 'meta': {}})
+
+    filtro = resolver_filtro_busqueda_pos(request.args)
+    data = _buscar_productos_json(q, filtro_pos=filtro, enriquecido=True)
+    if exact:
+        eid = int(exact.id)
+        results = [r for r in (data.get('results') or []) if int(r.get('producto_id') or 0) != eid]
+        exact_item = _item_busqueda_pos_desde_producto(exact)
+        if exact_item:
+            data['results'] = [exact_item] + results
+            data.setdefault('meta', {})['match'] = 'codigo_exacto'
+    return jsonify(data)
+
+
+@app.route('/api/precios/piloto/producto/<int:producto_id>')
+@permisos_required('revision_precios')
+def api_precios_piloto_producto(producto_id):
+    from services.precios_piloto_service import serializar_producto_precios_piloto
+
+    producto = Producto.query.get(producto_id)
+    if not producto:
+        return jsonify({'ok': False, 'error': 'Producto no encontrado.'}), 404
+    if producto.activo is False:
+        return jsonify({'ok': False, 'error': 'Producto inactivo.'}), 404
+    return jsonify({'ok': True, 'producto': serializar_producto_precios_piloto(producto)})
+
+
+@app.route('/api/precios/piloto/guardar', methods=['POST'])
+@permisos_required('revision_precios')
+def api_precios_piloto_guardar():
+    from services.precios_piloto_service import guardar_precio_piloto
+
+    data = request.get_json(silent=True) or {}
+    try:
+        producto_id = int(data.get('producto_id') or 0)
+    except (TypeError, ValueError):
+        producto_id = 0
+    precio = _parse_clp_monto(data.get('precio_venta'))
+    motivo = (data.get('motivo') or '').strip()
+    if not producto_id:
+        return jsonify({'ok': False, 'error': 'producto_invalido'}), 400
+    if precio is None or precio <= 0:
+        return jsonify({'ok': False, 'error': 'Precio CLP inválido (debe ser > 0).'}), 400
+    if not motivo:
+        return jsonify({'ok': False, 'error': 'Indique un motivo del cambio.'}), 400
+
+    res = guardar_precio_piloto(
+        producto_id=producto_id,
+        precio_nuevo=float(precio),
+        motivo=motivo,
+        usuario=(current_user.nombre if current_user.is_authenticated else None),
+    )
+    if not res.get('ok'):
+        err = res.get('error') or 'error'
+        code = 404 if err == 'producto_no_encontrado' else 400
+        msgs = {
+            'producto_no_encontrado': 'Producto no encontrado.',
+            'producto_inactivo': 'Producto inactivo.',
+            'motivo_requerido': 'Indique un motivo.',
+            'precio_invalido': 'Precio inválido.',
+        }
+        return jsonify({'ok': False, 'error': msgs.get(err, err)}), code
+
+    out = dict(res)
+    if not res.get('sin_cambio'):
+        from datetime import datetime
+
+        p = res.get('producto') or {}
+        out['bitacora_row'] = {
+            'fecha': datetime.now().strftime('%d-%m %H:%M'),
+            'nombre': p.get('nombre') or '—',
+            'precio': f"${int(round(res.get('precio_nuevo') or 0)):,}".replace(',', '.'),
+            'usuario': (current_user.nombre if current_user.is_authenticated else '—'),
+        }
+    return jsonify(out)
+
+
 # filtros rápidos para productos........................................................................
 
 @app.route('/productos/filtro/<string:tipo>')
@@ -11895,6 +12025,11 @@ def _asegurar_columnas_productos_legacy():
                 "ALTER TABLE productos ADD COLUMN pos_descuento_preautorizado_pct NUMERIC(8,2) NULL"
             ))
             cambios = True
+        if 'precio_venta_sd' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE productos ADD COLUMN precio_venta_sd NUMERIC(14,2) NULL"
+            ))
+            cambios = True
         if cambios:
             db.session.commit()
         app.config['_PRODUCTOS_LEGACY_OK'] = True
@@ -13281,7 +13416,12 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
         return {
             'ok': False,
             'error': 'sin_precio',
-            'mensaje': f'«{producto.nombre}» no tiene precio de venta ni mayoreo.',
+            'mensaje': (
+                f'«{producto.nombre}» no tiene precio venta SD. '
+                f'Cárguelo en Precios → Carga precios piloto.'
+            ),
+            'producto_id': producto.id,
+            'codigo': (producto.codigo_barra or producto.codigo_interno or '').strip(),
         }
     venta = _venta_abierta_por_caja_y_usuario(caja.id, vendedor_actual)
     ok_stock, msg_stock, err_stock = _pos_puede_sumar_unidad(
@@ -16641,7 +16781,7 @@ def _buscar_productos_json(
         campos = ['id', 'nombre']
         for c in (
             'codigo_barra', 'codigo_interno', 'codigo_chilemat',
-            'precio_venta', 'precio_mayoreo', 'stock', 'unidad', 'unidad_venta',
+            'precio_venta', 'precio_venta_sd', 'precio_mayoreo', 'stock', 'unidad', 'unidad_venta',
             'marca', 'fabricante', 'categoria', 'subcategoria',
         ):
             if c in cols:
@@ -16741,7 +16881,8 @@ def _buscar_productos_json(
         if enriquecido:
             st_t = int(stock_t_map.get(pid, 0))
             st_b = int(stock_b_map.get(pid, 0))
-            precio = _precio_lista_desde_row_producto(p)
+            precio = _precio_pos_desde_row_producto(p)
+            precio_lista_ref = _precio_lista_desde_row_producto(p)
             unidad = (p.get('unidad_venta') or p.get('unidad') or 'un').strip() or 'un'
             item = enriquecer_item_busqueda_pos(
                 pid=pid,
@@ -16752,11 +16893,14 @@ def _buscar_productos_json(
                 nombre=nombre,
                 codigo=codigo or f'id {pid}',
                 precio=precio,
-                precio_fmt=_fmt_clp_busqueda_pos(precio),
+                precio_fmt=_fmt_clp_busqueda_pos(precio) if precio > 0 else 'Sin precio SD',
                 marca=_producto_marca_desde_row(p, cols),
                 unidad=unidad,
                 cfg=cfg_emp,
             )
+            item['precio_lista_ref'] = int(round(precio_lista_ref))
+            item['precio_lista_fmt'] = _fmt_clp_busqueda_pos(precio_lista_ref) if precio_lista_ref > 0 else ''
+            item['sin_precio_sd'] = precio <= 0
         else:
             item = {
                 'id': str(pid),
@@ -16802,6 +16946,74 @@ def _buscar_productos_json(
             c['imagen_url'] = img[:500] if img else None
 
     return {'results': results, 'meta': meta}
+
+
+def _item_busqueda_pos_desde_producto(producto, cfg_emp=None):
+    """Producto ORM → ítem JSON enriquecido (mismo formato que buscar_producto POS)."""
+    from services.pos_busqueda_service import construir_badges_semaforo, enriquecer_item_busqueda_pos
+
+    if not producto or getattr(producto, 'id', None) is None:
+        return None
+    if not _asegurar_columnas_productos_legacy():
+        return None
+
+    try:
+        insp = sa_inspect(db.engine)
+        cols = {c['name'] for c in insp.get_columns('productos')}
+    except Exception:
+        cols = set()
+
+    row = {}
+    for c in (
+        'id', 'nombre', 'codigo_barra', 'codigo_interno', 'codigo_chilemat',
+        'precio_venta', 'precio_venta_sd', 'precio_mayoreo', 'stock',
+        'unidad', 'unidad_venta', 'marca', 'fabricante', 'categoria', 'subcategoria',
+    ):
+        if hasattr(producto, c):
+            row[c] = getattr(producto, c, None)
+
+    pid = int(producto.id)
+    stock_t_map, stock_b_map = stock_tienda_bodega_por_producto_ids([pid])
+    st_t = int(stock_t_map.get(pid, 0))
+    st_b = int(stock_b_map.get(pid, 0))
+    codigo = (
+        (row.get('codigo_barra') or '').strip()
+        or (row.get('codigo_interno') or '').strip()
+        or (row.get('codigo_chilemat') or '').strip()
+    )
+    nombre = (row.get('nombre') or '').strip()
+    precio = _precio_pos_desde_row_producto(row)
+    precio_lista_ref = _precio_lista_desde_row_producto(row)
+    unidad = (row.get('unidad_venta') or row.get('unidad') or 'un').strip() or 'un'
+    if cfg_emp is None:
+        cfg_emp = obtener_config_empresa()
+    item = enriquecer_item_busqueda_pos(
+        pid=pid,
+        row=row,
+        cols=cols,
+        stock_tienda=st_t,
+        stock_bodega=st_b,
+        nombre=nombre,
+        codigo=codigo or f'id {pid}',
+        precio=precio,
+        precio_fmt=_fmt_clp_busqueda_pos(precio) if precio > 0 else 'Sin precio SD',
+        marca=_producto_marca_desde_row(row, cols),
+        unidad=unidad,
+        cfg=cfg_emp,
+    )
+    item['precio_lista_ref'] = int(round(precio_lista_ref))
+    item['precio_lista_fmt'] = _fmt_clp_busqueda_pos(precio_lista_ref) if precio_lista_ref > 0 else ''
+    item['sin_precio_sd'] = precio <= 0
+    item['badges'] = construir_badges_semaforo(item, precio, precio)
+    try:
+        from services.chilemat_ficha_service import fichas_resumen_carrito_por_productos
+
+        fichas = fichas_resumen_carrito_por_productos([pid]) or {}
+        img = ((fichas.get(pid) or {}).get('imagen_url') or '').strip()
+        item['imagen_url'] = img[:500] if img else None
+    except Exception:
+        item['imagen_url'] = None
+    return item
 
 
 def _cotizacion_item_desde_busqueda(row: dict) -> dict:

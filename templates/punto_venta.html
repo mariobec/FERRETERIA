@@ -576,6 +576,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
         <i class="fas fa-file-circle-plus" aria-hidden="true"></i><span>Nueva venta</span>
       </button>
       <a href="{{ url_for('caja_pendientes') }}" class="pos-nav-dock__link pos-nav-dock__link--primary" title="Ir a caja"><i class="fas fa-cash-register" aria-hidden="true"></i><span>Caja</span></a>
+      {% if usuario_tiene_permiso('revision_precios') %}
+      <a href="{{ url_for('precios_piloto') }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-amber" title="Cargar precio venta SD (piloto)"><i class="fas fa-barcode" aria-hidden="true"></i><span>Precios</span></a>
+      {% endif %}
       {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'pos-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-sky" title="TV cliente"><i class="fas fa-tv" aria-hidden="true"></i><span>TV</span></a>
@@ -627,6 +630,11 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
       <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-success btn-sm">
         <i class="fas fa-file-invoice-dollar me-1"></i> Caja
       </a>
+      {% if usuario_tiene_permiso('revision_precios') %}
+      <a href="{{ url_for('precios_piloto') }}" target="_blank" rel="noopener" class="btn btn-outline-warning btn-sm" title="Cargar precio venta SD (piloto)">
+        <i class="fas fa-barcode me-1"></i> Precios
+      </a>
+      {% endif %}
       {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy POS' %}{% include 'partials/help_screen_link.html' %}
     </div>
   </div>

@@ -102,6 +102,7 @@ def _producto(
         codigo_chilemat=codigo_chilemat or f'SDPR-{slug}',
         precio_compra=float(precio_compra),
         precio_venta=pv,
+        precio_venta_sd=pv,
         precio_mayoreo=max(0, int(round(pv * 0.94 / 10) * 10)),
         stock=int(stock),
         unidad=unidad,
@@ -311,6 +312,8 @@ def upsert_catalogo_casuisticas(db, m):
         else:
             for k, v in row.items():
                 setattr(p, k, v)
+        if not float(getattr(p, 'precio_venta_sd', None) or 0):
+            p.precio_venta_sd = float(p.precio_venta or 0)
         if meta:
             if meta.get('pos_pre') is not None:
                 p.pos_descuento_preautorizado = bool(meta['pos_pre'])

@@ -1429,8 +1429,17 @@
     function precioFmtLista(it) {
       const p = Number(it.precio);
       if (!isNaN(p) && p > 0) return formatoCLP(Math.round(p));
-      if (it.precio_fmt) return String(it.precio_fmt);
-      return formatoCLP(0);
+      if (it.precio_lista_fmt) {
+        return 'Sin SD · ref. ' + String(it.precio_lista_fmt);
+      }
+      if (it.precio_fmt && it.precio_fmt !== 'Sin precio SD') return String(it.precio_fmt);
+      return 'Sin precio SD';
+    }
+
+    function precioEtiquetaBusqueda(it) {
+      const p = Number(it.precio);
+      if (it.sin_precio_sd || !p || p <= 0) return 'SIN PRECIO SD';
+      return 'P. VENTA SD';
     }
 
     function indicePrimeroConStock(items) {
@@ -1531,7 +1540,9 @@
             "</p>" +
             "</div>" +
             '<div class="pos-search-card__right">' +
-            '<div class="pos-search-card__price-label">P. LISTA</div>' +
+            '<div class="pos-search-card__price-label">' +
+            escapeHtml(precioEtiquetaBusqueda(it)) +
+            '</div>' +
             '<div class="pos-search-card__price">' +
             escapeHtml(precioFmtLista(it)) +
             "</div>" +

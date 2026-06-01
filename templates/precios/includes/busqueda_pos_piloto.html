@@ -1,0 +1,46 @@
+{# Buscador igual que POS vendedora (mismos IDs/clases para precios-piloto-busqueda.js) #}
+<div class="pos-unified-search-card mb-3">
+  <div class="m-0" id="formBusquedaPreciosPiloto">
+    <input type="hidden" id="posFiltroBusqueda" value="operativo" autocomplete="off">
+
+    <div class="pos-unified-search-hero">
+      <div class="pos-search-hero__inner">
+        <div class="pos-search-hero__toolbar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+          <div class="pos-search-filter-bar" role="group" aria-label="Filtro listado precios piloto">
+            <button type="button" class="pos-filter-pill pos-filter-pill--active" id="posBtnFiltroOperativo" data-filter="operativo" title="Tienda, bodega y a pedido">
+              <i class="fas fa-layer-group pos-filter-pill__icon" aria-hidden="true"></i>
+              <span class="pos-filter-pill__label">Operativo</span>
+            </button>
+            <button type="button" class="pos-filter-pill" id="posBtnFiltroTienda" data-filter="tienda" title="Solo mostrador con stock en tienda">
+              <i class="fas fa-store pos-filter-pill__icon" aria-hidden="true"></i>
+              <span class="pos-filter-pill__label">Tienda</span>
+            </button>
+            <button type="button" class="pos-filter-pill" id="posBtnFiltroCatalogo" data-filter="catalogo" title="Catálogo completo">
+              <i class="fas fa-book pos-filter-pill__icon" aria-hidden="true"></i>
+              <span class="pos-filter-pill__label">Catálogo</span>
+            </button>
+          </div>
+        </div>
+
+        <label class="visually-hidden" for="posBuscarManual">Buscar o escanear producto</label>
+        <div class="input-group input-group-lg pos-search-hero__field">
+          <span class="input-group-text pos-search-hero__addon" aria-hidden="true">
+            <i class="fas fa-barcode"></i>
+          </span>
+          <input type="text"
+                 id="posBuscarManual"
+                 class="form-control form-control-lg pos-search-input-hero font-monospace"
+                 autocomplete="off"
+                 autocorrect="off"
+                 spellcheck="false"
+                 placeholder="Escanea código o escribe nombre / SKU (2+ letras) — Enter selecciona"
+                 autofocus>
+        </div>
+
+        <p class="pos-search-hero__hint mb-0">Pistola y teclado en el mismo campo. Flechas ↑↓ en sugerencias · Esc cierra.</p>
+
+        <div id="pos-search-suggestions" class="pos-search-suggestions d-none mt-2" role="listbox" aria-label="Sugerencias de productos"></div>
+      </div>
+    </div>
+  </div>
+</div>

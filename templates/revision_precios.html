@@ -10,9 +10,10 @@
   </div>
 
   <div class="alert alert-light border small mb-3 mb-md-4">
-    <strong>Venta actual</strong> es el precio efectivo en POS: el <em>mayor</em> entre precio <em>lista</em> y <em>mayoreo</em>. Si ves <strong>CLP $0</strong>, falta cargar ambos precios o ambos están en cero.
+    <strong>Venta actual (POS)</strong> usa solo <code>precio_venta_sd</code> si está cargado; si no, $0 en caja.
+    <strong>Lista referencia</strong> = <code>precio_venta</code> del maestro (no se modifica en carga piloto).
     <hr class="my-2">
-    <div><strong>Cómo se calcula</strong></div>
+    <div><strong>Guardián de márgenes</strong> (esta pantalla)</div>
     <ul class="mb-0 ps-3">
       <li><strong>Costo</strong> = <code>precio_compra</code> del producto.</li>
       <li><strong>Margen actual</strong> = <code>(venta_actual - costo) / venta_actual</code> (si venta &gt; 0).</li>

@@ -53,19 +53,19 @@ QA_USER = 'QA_TEST'
 # ── Datos semilla ───────────────────────────────────────────────────
 PRODUCTOS_TEST = [
     dict(nombre='TEST Martillo carpintero 16oz Stanley', codigo_barra='TEST-MART-001',
-         codigo_interno='T-MART-001', precio_compra=8500, precio_venta=14990,
+         codigo_interno='T-MART-001', precio_compra=8500, precio_venta=14990, precio_venta_sd=14990,
          stock=50, unidad='Unidad', categoria='Herramientas', subcategoria='Martillos', activo=True),
     dict(nombre='TEST Clavo 2.5" caja 1kg', codigo_barra='TEST-CLAV-002',
-         codigo_interno='T-CLAV-002', precio_compra=1200, precio_venta=2490,
+         codigo_interno='T-CLAV-002', precio_compra=1200, precio_venta=2490, precio_venta_sd=2490,
          stock=200, unidad='Caja', categoria='Fijaciones', subcategoria='Clavos', activo=True),
     dict(nombre='TEST Pintura latex blanco 1gal Sherwin', codigo_barra='TEST-PINT-003',
-         codigo_interno='T-PINT-003', precio_compra=15000, precio_venta=24990,
+         codigo_interno='T-PINT-003', precio_compra=15000, precio_venta=24990, precio_venta_sd=24990,
          stock=30, unidad='Galon', categoria='Pinturas', subcategoria='Latex', activo=True),
     dict(nombre='TEST Cable electrico 2.5mm 100mt', codigo_barra='TEST-CABL-004',
-         codigo_interno='T-CABL-004', precio_compra=22000, precio_venta=38990,
+         codigo_interno='T-CABL-004', precio_compra=22000, precio_venta=38990, precio_venta_sd=38990,
          stock=15, unidad='Rollo', categoria='Electrico', subcategoria='Cables', activo=True),
     dict(nombre='TEST Tornillo madera 6x1.5" 100un', codigo_barra='TEST-TORN-005',
-         codigo_interno='T-TORN-005', precio_compra=800, precio_venta=1690,
+         codigo_interno='T-TORN-005', precio_compra=800, precio_venta=1690, precio_venta_sd=1690,
          stock=300, unidad='Bolsa', categoria='Fijaciones', subcategoria='Tornillos', activo=True),
 ]
 
@@ -463,10 +463,11 @@ def crear_venta_pendiente(productos_cantidades, caja, cliente, punto_retiro='Tie
         else:
             prod, qty = item
             retiro_linea = punto_retiro
+        pu = float(m.precio_efectivo_pos_producto(prod) or prod.precio_venta or 0)
         d = m.DetalleVenta(
             id_venta=venta.id, id_producto=prod.id,
-            cantidad=qty, precio_unitario=prod.precio_venta,
-            subtotal=qty * prod.precio_venta,
+            cantidad=qty, precio_unitario=pu,
+            subtotal=qty * pu,
             punto_retiro_linea=(retiro_linea or punto_retiro or 'Tienda').strip())
         db.session.add(d)
         dets.append(d)
