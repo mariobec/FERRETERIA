@@ -61,6 +61,27 @@
   ensureSnapUrlImgTest();
   ensureImgTestBanner();
 
+  /** Alinea snapUrl con ?token= de la barra (evita 403 si el HTML quedó con token viejo). */
+  function syncSnapUrlFromLocation() {
+    try {
+      const page = new URL(window.location.href);
+      const tok = (page.searchParams.get("token") || "").trim();
+      if (!tok) return;
+      const base =
+        snapUrl && snapUrl.indexOf("/api/pos/live-wall/snapshot") >= 0
+          ? snapUrl.split("?")[0]
+          : "/api/pos/live-wall/snapshot";
+      const api = new URL(base, window.location.origin);
+      api.searchParams.set("token", tok);
+      if (vitrinaImgTest) api.searchParams.set("vitrina_img_test", "1");
+      snapUrl = api.pathname + api.search;
+    } catch (e) {
+      /* noop */
+    }
+  }
+
+  syncSnapUrlFromLocation();
+
   const vitrina = globalThis.EwVitrinaCarousel;
   if (vitrina) vitrina.setLogoUrl(logoUrl);
 
@@ -778,12 +799,28 @@
     }
   }
 
+  let pollStopped = false;
+  let pollIntervalId = null;
+
+  function detenerPollTokenMuerto(mensaje) {
+    if (pollStopped) return;
+    pollStopped = true;
+    if (pollIntervalId) {
+      clearInterval(pollIntervalId);
+      pollIntervalId = null;
+    }
+    const sub = document.getElementById("ewSub");
+    if (sub && mensaje) sub.textContent = mensaje;
+  }
+
   function snapshotFetchUrl() {
     const sep = snapUrl.indexOf("?") >= 0 ? "&" : "?";
     return snapUrl + sep + "_ts=" + Date.now();
   }
 
   async function poll() {
+    if (pollStopped) return;
+    syncSnapUrlFromLocation();
     const sub = document.getElementById("ewSub");
     const thanks = document.getElementById("ewThanks");
     const shopping = document.getElementById("ewShopping");
@@ -794,11 +831,23 @@
 
     try {
       const r = await fetch(snapshotFetchUrl(), { credentials: "omit", cache: "no-store" });
-      const d = await r.json();
-      if (!d.ok) {
-        if (d.error === "token_expirado") {
-          sub.textContent = "Enlace expirado. Pida uno nuevo en el mostrador.";
-        } else {
+      let d;
+      try {
+        d = await r.json();
+      } catch (parseErr) {
+        d = { ok: false };
+      }
+      if (!r.ok || !d.ok) {
+        const err = d.error || (r.status === 403 ? "token_invalido" : "");
+        if (err === "token_expirado") {
+          detenerPollTokenMuerto(
+            "Enlace expirado. Cierre esta pestaña y pida TV nueva en el mostrador."
+          );
+        } else if (err === "token_invalido") {
+          detenerPollTokenMuerto(
+            "Enlace no válido. Cierre esta pestaña y abra TV de nuevo desde el POS."
+          );
+        } else if (sub) {
           sub.textContent = "No se pudo cargar la compra.";
         }
         return;
@@ -937,5 +986,5 @@
 
   poll();
   setTimeout(poll, 300);
-  setInterval(poll, 1500);
+  pollIntervalId = setInterval(poll, 1500);
 })();

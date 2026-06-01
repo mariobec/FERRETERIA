@@ -776,11 +776,12 @@
     if (!item || !item.producto_id) return lines;
     const pid = parseInt(item.producto_id, 10);
     if (!pid) return lines;
+    const addQty = Math.max(1, parseInt(item.cantidad, 10) || 1);
     let merged = false;
     for (let i = 0; i < lines.length; i++) {
       if (parseInt(lines[i].producto_id, 10) === pid) {
         const base = parseInt(lines[i].cantidad, 10) || 1;
-        const next = increment ? base + 1 : Math.max(base, 1);
+        const next = increment ? base + addQty : Math.max(base, addQty);
         lines[i].cantidad = Math.min(next, cartMaxQty());
         merged = true;
         break;
@@ -796,15 +797,17 @@
         imagen_url: item.imagen_url || "",
         disponible: !!item.disponible,
         stock_tienda: parseInt(item.stock_tienda, 10) || 0,
-        cantidad: 1,
+        cantidad: Math.min(addQty, cartMaxQty()),
       });
     }
     return lines;
   }
 
-  function addToCart(item) {
+  function addToCart(item, qty) {
     if (!item || !item.producto_id) return;
-    const lines = mergeCartLine(loadCart(), item, true);
+    const payload = Object.assign({}, item);
+    if (qty != null) payload.cantidad = qty;
+    const lines = mergeCartLine(loadCart(), payload, !qty);
     saveCart(lines);
     if (!item.disponible) {
       showCartToast("Agregado. Sin stock en tienda — lo confirmamos al cotizar.");
@@ -812,6 +815,25 @@
       showCartToast("Producto agregado al carrito");
     }
     setCartOpen(true);
+  }
+
+  function replaceCart(lineas) {
+    const safe = Array.isArray(lineas) ? lineas : [];
+    saveCart(
+      safe.map(function (ln) {
+        return {
+          producto_id: parseInt(ln.producto_id, 10),
+          nombre: ln.nombre || "Producto",
+          referencia: ln.referencia || "",
+          precio: parseInt(ln.precio, 10) || 0,
+          precio_fmt: ln.precio_fmt || "",
+          imagen_url: ln.imagen_url || "",
+          disponible: !!ln.disponible,
+          stock_tienda: parseInt(ln.stock_tienda, 10) || 0,
+          cantidad: Math.max(1, Math.min(parseInt(ln.cantidad, 10) || 1, cartMaxQty())),
+        };
+      }).filter(function (ln) { return ln.producto_id > 0; })
+    );
   }
 
   function addComboToCart(lineas) {
@@ -895,6 +917,11 @@
   window.__tiendaGetCarrito = function () {
     return loadCart();
   };
+
+  window.tiendaCarritoConfig = cartCfg;
+  window.tiendaCarritoAdd = addToCart;
+  window.tiendaCarritoReplace = replaceCart;
+  window.tiendaGenerarValePedido = generarValePedidoWeb;
 
   async function generarValePedidoWeb() {
     const lines = loadCart();

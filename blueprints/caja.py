@@ -32,6 +32,12 @@ def _wrap_anular_vale(fn):
 def register_caja_routes(app):
     m = app_module()
     app.add_url_rule('/caja/vales_pendientes', 'caja_pendientes', _wrap_caja_vale(m.caja_pendientes), methods=['GET'])
+    app.add_url_rule(
+        '/api/caja/vales-pendientes/sla',
+        'api_caja_vales_pendientes_sla',
+        _wrap_caja_vale(m.api_caja_vales_pendientes_sla),
+        methods=['GET'],
+    )
     app.add_url_rule('/caja/cambios', 'caja_cambios', _wrap_caja_vale(m.caja_cambios), methods=['GET', 'POST'])
     app.add_url_rule(
         '/api/cambios/producto/<codigo>',

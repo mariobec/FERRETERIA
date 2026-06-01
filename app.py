@@ -10952,13 +10952,21 @@ def _pos_live_wall_resolve_token(token):
     Resuelve token de TV a la venta a mostrar.
     Tokens `{c, u}`: vale Abierta actual de caja+vendedor.
     Tokens `{v}` legacy: si el vale ya no está Abierta, salta al vale Abierta siguiente.
+    Si el token caducó pero la firma es válida (estación caja), emite `nuevo_token` en meta.
     """
     if not token or not isinstance(token, str):
         return None, {}
+
+    serializer = _pos_live_wall_serializer()
+    token_renovar = False
     try:
-        d = _pos_live_wall_serializer().loads(token, max_age=_POS_LIVE_WALL_TOKEN_MAX_AGE)
+        d = serializer.loads(token, max_age=_POS_LIVE_WALL_TOKEN_MAX_AGE)
     except SignatureExpired:
-        return None, {'invalid': True, 'reason': 'expired'}
+        try:
+            d = serializer.loads(token, max_age=86400 * 365)
+            token_renovar = True
+        except (BadSignature, SignatureExpired, TypeError, ValueError):
+            return None, {'invalid': True, 'reason': 'expired'}
     except (BadSignature, TypeError, ValueError):
         return None, {'invalid': True, 'reason': 'bad'}
 
@@ -10971,7 +10979,6 @@ def _pos_live_wall_resolve_token(token):
         venta = _venta_abierta_por_caja_y_usuario(caja_id, usuario)
         meta = {'kind': 'station', 'caja_id': caja_id, 'usuario': usuario}
         if not venta:
-            # Piloto mostrador: TV compartida por caja si el token no coincide con el vendedor del vale.
             venta = (
                 _venta_query_con_detalles_pos()
                 .filter_by(estado='Abierta', caja_id=caja_id)
@@ -10980,6 +10987,8 @@ def _pos_live_wall_resolve_token(token):
             )
             if venta:
                 meta['usuario_fallback_caja'] = True
+        if token_renovar:
+            meta['nuevo_token'] = pos_live_wall_token_create_station(caja_id, usuario)
         return venta, meta
 
     v = d.get('v')
@@ -10993,7 +11002,10 @@ def _pos_live_wall_resolve_token(token):
     if not venta:
         return None, {'kind': 'venta', 'venta_id': vid}
     if (venta.estado or '') == 'Abierta':
-        return venta, {'kind': 'venta', 'venta_id': vid}
+        meta = {'kind': 'venta', 'venta_id': vid}
+        if token_renovar and venta.caja_id and venta.usuario:
+            meta['nuevo_token'] = pos_live_wall_token_create_station(venta.caja_id, venta.usuario)
+        return venta, meta
     nuevo = None
     if venta.caja_id and venta.usuario:
         nuevo = _venta_abierta_por_caja_y_usuario(venta.caja_id, venta.usuario)
@@ -11004,7 +11016,10 @@ def _pos_live_wall_resolve_token(token):
             'venta_id_anterior': vid,
             'nuevo_token': st_tok,
         }
-    return venta, {'kind': 'venta', 'venta_id': vid, 'cerrada': True}
+    meta = {'kind': 'venta', 'venta_id': vid, 'cerrada': True}
+    if token_renovar and venta.caja_id and venta.usuario:
+        meta['nuevo_token'] = pos_live_wall_token_create_station(venta.caja_id, venta.usuario)
+    return venta, meta
 
 
 _POS_DESPACHO_VALE_TOKEN_MAX_AGE = int(os.environ.get('POS_DESPACHO_VALE_TOKEN_MAX_AGE', str(7 * 24 * 3600)))
@@ -11666,6 +11681,13 @@ def api_pos_live_wall_snapshot():
         venta, meta = _pos_live_wall_resolve_token(token)
         if meta.get('invalid'):
             err = 'token_expirado' if meta.get('reason') == 'expired' else 'token_invalido'
+            app.logger.debug(
+                'live-wall snapshot %s: %s (token_len=%s, remote=%s)',
+                403,
+                err,
+                len(token),
+                request.remote_addr,
+            )
             return _pos_live_wall_json_response({'ok': False, 'error': err}, 403)
         if not token or (venta is None and not meta):
             return _pos_live_wall_json_response({'ok': False, 'error': 'token_invalido'}, 403)
