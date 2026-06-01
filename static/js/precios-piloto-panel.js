@@ -220,7 +220,11 @@
     busquedaApi = window.PreciosPilotoBusqueda.init();
   }
 
-  var q0 = (new URLSearchParams(window.location.search).get('codigo') || {{ codigo_inicial|tojson }}).trim();
+  var q0 = (new URLSearchParams(window.location.search).get('codigo') || '').trim();
+  var codigoInicialEl = document.getElementById('pilotoCodigoInicial');
+  if (!q0 && codigoInicialEl) {
+    q0 = (codigoInicialEl.value || '').trim();
+  }
   if (q0 && busquedaApi && busquedaApi.buscar) {
     var inp = document.getElementById('posBuscarManual');
     if (inp) inp.value = q0;

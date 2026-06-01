@@ -311,7 +311,7 @@
       }
       var params = new URLSearchParams({
         q: q,
-        origen: "pos",
+        origen: "precios_piloto",
         enriquecido: "1",
         filtro_pos: filtroActual(),
       });

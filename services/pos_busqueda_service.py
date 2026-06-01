@@ -145,6 +145,8 @@ def resolver_filtro_busqueda_pos(request_args) -> str:
         return "tienda" if str(raw_sv).strip().lower() in ("1", "true", "si", "yes", "on") else "catalogo"
     if str(request_args.get("origen") or "").strip().lower() == "pos":
         return "operativo"
+    if str(request_args.get("origen") or "").strip().lower() in ("precios_piloto", "precios"):
+        return "catalogo"
     return "operativo"
 
 
