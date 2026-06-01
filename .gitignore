@@ -28,6 +28,7 @@ Thumbs.db
 # Respaldos locales de base de datos (pesados / sensibles)
 backups/
 *.dump
+!release/instalador_tienda/**/*.dump
 
 # Temporales Office / editor en raíz del repo
 ~$*

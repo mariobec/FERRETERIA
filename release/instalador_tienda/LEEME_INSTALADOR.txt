@@ -1,0 +1,32 @@
+﻿LhexIA â€” instalador completo tienda (20260601_001534)
+============================================
+
+Contenido:
+  01_BASE_DATOS/   dump Postgres + erp_stats.txt
+  02_CONFIG/       .env.local.template + .env.example
+  03_INSTRUCCIONES/instalar_tienda_completo.bat  â† EJECUTAR EN TIENDA
+  04_CODIGO/patch/ cambios sin commit (si los hubo en DEV)
+
+Git objetivo:
+  commit: 135e4641bea2636cddb77f2e165075ce738207f2
+  branch: main
+  msg:    fix(caja): estabilizar flujo TV y SLA de vales pendientes
+
+Pasos en mÃ¡quina tienda
+-----------------------
+1. Copiar esta carpeta a:
+   C:\LhexIA\_piloto\instalador_tienda_20260601_001534
+2. Asegurar repo clonado:
+   C:\LhexIA\ERP\sistema_ventas_limpio
+   (git clone https://github.com/mariobec/FERRETERIA.git)
+3. Ejecutar como usuario normal:
+   C:\LhexIA\_piloto\instalador_tienda_20260601_001534\03_INSTRUCCIONES\instalar_tienda_completo.bat
+4. Editar .env.local: DATABASE_URL local + PUBLIC_SITE_URL LAN
+5. arrancar_erp.bat
+
+IMPORTANTE piloto sin pinturas en piso:
+  No activar VITRINA_FABRICA_COLOR_PREVIEW=1
+  Si BuildError modulo pinturas: omitir boton en caja o registrar blueprint opcional
+
+Backup diario tienda:
+  pg_dump -Fc -h localhost -U postgres -d ferreteria_local -f respaldos\backup_YYYYMMDD.dump

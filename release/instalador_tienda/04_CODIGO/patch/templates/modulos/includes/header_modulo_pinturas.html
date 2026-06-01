@@ -1,0 +1,14 @@
+<header class="mp-top">
+  <div class="mp-top-inner">
+    <a href="{{ mp_home_url or '#' }}" class="mp-brand text-decoration-none">
+      <img src="{{ url_for('static', filename='img/ferreteria_santo_domingo_logo.png') }}?v=logo-martillo-1" alt="{{ nombre_tienda }}" width="40" height="40">
+      <span>
+        <strong>Colores en tienda</strong>
+        <small>{{ nombre_tienda }}</small>
+      </span>
+    </a>
+    {% if wa_base %}
+    <a class="btn-wa mp-wa" href="{{ wa_base }}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i></a>
+    {% endif %}
+  </div>
+</header>

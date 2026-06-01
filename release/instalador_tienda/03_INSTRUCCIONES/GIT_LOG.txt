@@ -1,0 +1,5 @@
+﻿135e464 fix(caja): estabilizar flujo TV y SLA de vales pendientes
+475596d feat(modulo-pinturas): Fabrica de Color aislada con lab preview y habilitacion caja
+ec2cf5d feat(pos-tv): vitrina carrusel, recomendaciones premium y miniaturas en buscador POS
+e74241e feat(maestro): pipeline carga Chilemat SD y consolidacion catalogo ERP
+f4e7fbc fix(vitrina): Liz entiende picar tierra y prioriza pala/pico en catalogo
