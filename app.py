@@ -671,6 +671,24 @@ def _pos_ticket_qr_despacho_empresa():
         return False
 
 
+def _pos_impresion_termica_habilitada():
+    try:
+        from services.ticket_impresion_service import pos_impresion_termica_habilitada
+
+        return bool(pos_impresion_termica_habilitada())
+    except Exception:
+        return False
+
+
+def _pos_impresion_browser_habilitada():
+    try:
+        from services.ticket_impresion_service import pos_impresion_browser_habilitada
+
+        return bool(pos_impresion_browser_habilitada())
+    except Exception:
+        return True
+
+
 def _pos_autoprint_ticket_emitido_empresa():
     try:
         v = str(obtener_config_empresa().get('pos_autoprint_ticket_emitido', '0')).strip().lower()
@@ -5546,6 +5564,28 @@ class BitacoraPrecioVenta(db.Model):
     producto = db.relationship('Producto')
 
 
+class BitacoraPilotoMostrador(db.Model):
+    """Bitácora temporal piloto SD: precio + stock tienda/bodega por sector (pre–inventario formal)."""
+    __tablename__ = 'bitacora_piloto_mostrador'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=db.func.current_timestamp())
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    precio_anterior = db.Column(db.Float, nullable=True)
+    precio_nuevo = db.Column(db.Float, nullable=True)
+    stock_tienda_antes = db.Column(db.Integer, nullable=False, default=0)
+    stock_bodega_antes = db.Column(db.Integer, nullable=False, default=0)
+    stock_tienda_despues = db.Column(db.Integer, nullable=False, default=0)
+    stock_bodega_despues = db.Column(db.Integer, nullable=False, default=0)
+    delta_tienda = db.Column(db.Integer, nullable=False, default=0)
+    delta_bodega = db.Column(db.Integer, nullable=False, default=0)
+    modo_stock = db.Column(db.String(24), nullable=False, default='no_tocar')
+    sector_ubicacion = db.Column(db.String(120), nullable=True)
+    usuario = db.Column(db.String(100), nullable=True)
+    motivo = db.Column(db.String(255), nullable=True)
+
+    producto = db.relationship('Producto')
+
+
 class CambioOperacion(db.Model):
     __tablename__ = 'cambios_operacion'
     id = db.Column(db.Integer, primary_key=True)
@@ -8996,7 +9036,7 @@ def api_precios_piloto_producto(producto_id):
 @app.route('/api/precios/piloto/guardar', methods=['POST'])
 @permisos_required('revision_precios')
 def api_precios_piloto_guardar():
-    from services.precios_piloto_service import guardar_precio_piloto
+    from services.precios_piloto_service import guardar_carga_piloto_mostrador, _parse_stock_opcional
 
     data = request.get_json(silent=True) or {}
     try:
@@ -9005,18 +9045,28 @@ def api_precios_piloto_guardar():
         producto_id = 0
     precio = _parse_clp_monto(data.get('precio_venta'))
     motivo = (data.get('motivo') or '').strip()
+    modo_stock = (data.get('modo_stock') or 'no_tocar').strip().lower()
+    sector = (data.get('sector_ubicacion') or data.get('sector') or '').strip()
+    stock_tienda = _parse_stock_opcional(data.get('stock_tienda'))
+    stock_bodega = _parse_stock_opcional(data.get('stock_bodega'))
     if not producto_id:
         return jsonify({'ok': False, 'error': 'producto_invalido'}), 400
-    if precio is None or precio <= 0:
-        return jsonify({'ok': False, 'error': 'Precio CLP inválido (debe ser > 0).'}), 400
     if not motivo:
         return jsonify({'ok': False, 'error': 'Indique un motivo del cambio.'}), 400
+    prod = Producto.query.get(producto_id) if producto_id else None
+    if precio is None or precio <= 0:
+        if not prod or float(precio_efectivo_pos_producto(prod) or 0) <= 0:
+            return jsonify({'ok': False, 'error': 'Precio CLP inválido (debe ser > 0).'}), 400
 
-    res = guardar_precio_piloto(
+    res = guardar_carga_piloto_mostrador(
         producto_id=producto_id,
-        precio_nuevo=float(precio),
+        precio_nuevo=float(precio) if precio and precio > 0 else None,
         motivo=motivo,
         usuario=(current_user.nombre if current_user.is_authenticated else None),
+        modo_stock=modo_stock,
+        stock_tienda=stock_tienda,
+        stock_bodega=stock_bodega,
+        sector_ubicacion=sector,
     )
     if not res.get('ok'):
         err = res.get('error') or 'error'
@@ -9026,6 +9076,9 @@ def api_precios_piloto_guardar():
             'producto_inactivo': 'Producto inactivo.',
             'motivo_requerido': 'Indique un motivo.',
             'precio_invalido': 'Precio inválido.',
+            'modo_stock_invalido': 'Modo de stock inválido.',
+            'stock_requerido': 'Indique stock tienda y/o bodega.',
+            'stock': res.get('mensaje') or 'No se pudo ajustar stock.',
         }
         return jsonify({'ok': False, 'error': msgs.get(err, err)}), code
 
@@ -9034,10 +9087,12 @@ def api_precios_piloto_guardar():
         from datetime import datetime
 
         p = res.get('producto') or {}
+        st = res.get('stock') or {}
         out['bitacora_row'] = {
             'fecha': datetime.now().strftime('%d-%m %H:%M'),
             'nombre': p.get('nombre') or '—',
             'precio': f"${int(round(res.get('precio_nuevo') or 0)):,}".replace(',', '.'),
+            'stock': f"T{st.get('tienda', 0)} B{st.get('bodega', 0)}",
             'usuario': (current_user.nombre if current_user.is_authenticated else '—'),
         }
     return jsonify(out)
@@ -13308,29 +13363,65 @@ def _producto_por_codigo_chilemat_escaneo(cnorm: str):
 
 
 def _pos_buscar_producto_por_codigo(codigo):
-    """Resuelve producto por código de barras, interno o chilemat (misma lógica que el escáner POS)."""
+    """Resuelve producto por código de barras, interno o chilemat (variantes EAN pistola)."""
     if not codigo:
         return None
-    producto = None
-    if codigo:
-        cnorm = codigo.strip().upper()
-        producto = (
+
+    def _por_barra_o_interno(cnorm: str):
+        p = (
             Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
             .first()
         )
-    if not producto and codigo:
-        cnorm = codigo.strip().upper()
-        producto = (
+        if p:
+            return p
+        return (
             Producto.query.filter(
                 Producto.codigo_interno.isnot(None),
                 db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
             )
             .first()
         )
-    if not producto and codigo:
-        cnorm = codigo.strip().upper()
-        producto = _producto_por_codigo_chilemat_escaneo(cnorm)
+
+    from services.pos_codigo_escaneo_service import buscar_producto_por_variantes_codigo
+
+    producto, _variant = buscar_producto_por_variantes_codigo(
+        codigo,
+        buscar_fn=_por_barra_o_interno,
+        buscar_chilemat_fn=_producto_por_codigo_chilemat_escaneo,
+    )
     return producto
+
+
+def _pos_codigo_escaneo_resolvio_variante(codigo_escaneado: str, producto) -> bool:
+    """True si el código guardado en maestro difiere del escaneado (homologación EAN)."""
+    if not producto or not codigo_escaneado:
+        return False
+    esc = (codigo_escaneado or '').strip().upper()
+    guardado = (
+        (producto.codigo_barra or '').strip().upper()
+        or (producto.codigo_interno or '').strip().upper()
+        or (producto.codigo_chilemat or '').strip().upper()
+    )
+    return bool(guardado and esc != guardado)
+
+
+def _pos_resumen_producto_escaneo_json(producto) -> dict:
+    """Payload compacto para modales POS tras escaneo."""
+    if not producto:
+        return {}
+    pu = precio_efectivo_pos_producto(producto)
+    lista = float(producto.precio_venta or 0)
+    return {
+        'id': int(producto.id),
+        'nombre': (producto.nombre or '').strip(),
+        'codigo_barra': (producto.codigo_barra or '').strip(),
+        'codigo_interno': (producto.codigo_interno or '').strip(),
+        'stock_tienda': int(stock_disponible_venta_tienda(producto) or 0),
+        'stock_bodega': int(stock_disponible_bodega(producto) or 0),
+        'precio_sd': float(pu or 0),
+        'precio_lista': lista,
+        'sin_precio_sd': pu <= 0,
+    }
 
 
 def _pos_cantidad_producto_en_venta(venta, producto_id):
@@ -13869,14 +13960,43 @@ def api_pos_escanear_agregar():
     if not producto:
         sugerencias = []
         try:
-            for p in _buscar_productos_texto_stock(codigo, limit=5):
-                sugerencias.append({
-                    'id': p.id,
-                    'nombre': p.nombre,
-                    'codigo_barra': p.codigo_barra or '',
-                    'stock_tienda': stock_disponible_venta_tienda(p),
-                    'precio': precio_efectivo_pos_producto(p),
-                })
+            from services.pos_codigo_escaneo_service import sugerencias_productos_por_codigo_escaneo
+
+            def _q_like(like_pat, limit=15):
+                return (
+                    Producto.query.filter(
+                        Producto.activo == True,
+                        or_(
+                            db.func.lower(db.func.coalesce(Producto.codigo_barra, '')).like(
+                                like_pat.lower()
+                            ),
+                            db.func.lower(db.func.coalesce(Producto.codigo_interno, '')).like(
+                                like_pat.lower()
+                            ),
+                        ),
+                    )
+                    .order_by(Producto.nombre.asc())
+                    .limit(limit)
+                    .all()
+                )
+
+            sugerencias = sugerencias_productos_por_codigo_escaneo(
+                codigo,
+                query_productos=_q_like,
+                stock_tienda_fn=stock_disponible_venta_tienda,
+                precio_pos_fn=precio_efectivo_pos_producto,
+                limit=5,
+            )
+            if not sugerencias:
+                for p in _buscar_productos_texto_stock(codigo, limit=5):
+                    sugerencias.append({
+                        'id': p.id,
+                        'nombre': p.nombre,
+                        'codigo_barra': p.codigo_barra or '',
+                        'stock_tienda': stock_disponible_venta_tienda(p),
+                        'precio': precio_efectivo_pos_producto(p),
+                        'coincidencia': 'texto',
+                    })
         except Exception:
             sugerencias = []
         return jsonify({
@@ -13893,10 +14013,32 @@ def api_pos_escanear_agregar():
         producto, caja, vendedor, a_pedido=a_pedido, punto_retiro_linea=punto_retiro
     )
     if not res.get('ok'):
+        err = res.get('error') or ''
         code = 400
-        if res.get('error') in ('sin_stock', 'en_vale_pendiente', 'mezcla_apedido'):
+        if err in ('sin_stock', 'en_vale_pendiente', 'mezcla_apedido', 'ofrecer_apedido', 'sin_precio'):
             code = 409
+        if err == 'sin_stock' and not a_pedido:
+            from services.pos_busqueda_service import pos_dias_entrega_estimado, pos_permite_venta_verde
+
+            if pos_permite_venta_verde():
+                payload = {
+                    'ok': False,
+                    'error': 'ofrecer_apedido',
+                    'codigo': codigo,
+                    'codigo_homologado': _pos_codigo_escaneo_resolvio_variante(codigo, producto),
+                    'mensaje': res.get('mensaje'),
+                    'producto': _pos_resumen_producto_escaneo_json(producto),
+                    'dias_entrega_estimado': pos_dias_entrega_estimado(),
+                }
+                return jsonify(payload), 409
+        if err == 'sin_precio':
+            res['producto'] = _pos_resumen_producto_escaneo_json(producto)
+            res['codigo'] = codigo
         return jsonify(res), code
+    if codigo and _pos_codigo_escaneo_resolvio_variante(codigo, producto):
+        res['codigo_homologado'] = True
+        res['codigo_escaneado'] = codigo
+        res['codigo_maestro'] = (producto.codigo_barra or producto.codigo_interno or '').strip()
     return jsonify(res)
 
 
@@ -14142,6 +14284,26 @@ def _redirect_tras_ticket_vale_denegado():
     return redirect(url_for('punto_venta'))
 
 
+def api_pos_imprimir_ticket_termica(venta_id):
+    """Reimpresión vale en térmica ESC/POS (XPrinter XP-80T, etc.)."""
+    from services.ticket_impresion_service import imprimir_vale_termica_por_id
+
+    data = request.get_json(silent=True) or {}
+    printer = (data.get('impresora') or request.form.get('impresora') or '').strip() or None
+    res = imprimir_vale_termica_por_id(int(venta_id), printer_name=printer)
+    code = 200 if res.get('ok') else 400
+    if res.get('error') in ('no_venta', 'estado'):
+        code = 404
+    return jsonify(res), code
+
+
+def api_pos_impresora_diagnostico():
+    """Lista impresoras Windows y modo POS_IMPRESION_MODO (.env.local)."""
+    from services.ticket_impresion_service import diagnostico_impresora
+
+    return jsonify({'ok': True, **diagnostico_impresora()})
+
+
 def pos_ticket_vale(venta_id):
     """Ticket HTML tras emitir vale (impresión / bloques retiro por línea)."""
     venta = Venta.query.options(
@@ -14202,6 +14364,7 @@ def pos_ticket_vale(venta_id):
         despacho_ticket_url=despacho_ticket_url,
         pos_ticket_qr_despacho=_pos_ticket_qr_despacho_empresa(),
         ticket_es_borrador=ticket_es_borrador,
+        pos_impresion_termica=_pos_impresion_termica_habilitada(),
     )
 
 
@@ -14495,8 +14658,24 @@ def finalizar_venta():
     _pos_wall_set_vale_emitido(venta, cliente, caja=caja)
 
     flash(f"Vale N°{venta.id} emitido para {cliente.nombre}. Turno {venta.prioridad}.", "success")
+    if _pos_impresion_termica_habilitada():
+        try:
+            from services.ticket_impresion_service import imprimir_vale_termica
+
+            res_imp = imprimir_vale_termica(venta)
+            if res_imp.get('ok'):
+                flash(f"Ticket impreso en {res_imp.get('impresora', 'térmica')}.", "info")
+            else:
+                flash(
+                    f"Ticket térmico no salió: {res_imp.get('mensaje') or res_imp.get('error')}. "
+                    "Revise cable USB y nombre de impresora en .env.local.",
+                    "warning",
+                )
+        except Exception as ex:
+            app.logger.exception('Impresión térmica vale %s: %s', venta.id, ex)
+            flash(f"Impresión térmica falló: {ex}", "warning")
     ep = _pos_emit_origen_redirect_endpoint()
-    if _pos_autoprint_ticket_emitido_empresa():
+    if _pos_autoprint_ticket_emitido_empresa() and _pos_impresion_browser_habilitada():
         return redirect(url_for(ep, ticket_iframe=str(venta.id)))
     return redirect(url_for(ep))
 

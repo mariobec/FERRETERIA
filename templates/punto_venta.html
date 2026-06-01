@@ -1042,13 +1042,46 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
         <p class="mb-2">El código escaneado <strong id="posScanCodigoMostrar" class="font-monospace"></strong> no existe en el catálogo.</p>
         <p class="small text-muted mb-3">Puede darlo de alta en segundos o buscarlo por nombre. La venta sigue abierta.</p>
         <div id="posScanSugerencias" class="mb-3 d-none">
-          <p class="small fw-semibold mb-1">¿Quiso decir?</p>
-          <div id="posScanSugerenciasLista" class="d-flex flex-wrap gap-1"></div>
+          <p class="small fw-semibold mb-1">¿Quiso decir? (código parecido en catálogo)</p>
+          <div id="posScanSugerenciasLista" class="d-grid gap-2"></div>
         </div>
         <div class="d-grid gap-2">
           <button type="button" class="btn btn-ds-primary" id="posBtnAltaRapidaProducto"><i class="fas fa-plus-circle me-1"></i> Alta rápida y agregar al vale</button>
           <button type="button" class="btn btn-outline-primary" id="posBtnBuscarSimilar"><i class="fas fa-search me-1"></i> Buscar por nombre en catálogo</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalPosOfrecerApedido" tabindex="-1" aria-labelledby="modalPosOfrecerApedidoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-primary-subtle">
+        <h5 class="modal-title" id="modalPosOfrecerApedidoLabel"><i class="fas fa-truck-loading me-2"></i>Sin stock — vender a pedido</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1 fw-semibold" id="posApedidoNombre">—</p>
+        <p class="small text-muted mb-2">
+          SKU maestro: <span id="posApedidoSku" class="font-monospace fw-semibold">—</span>
+          <span id="posApedidoHomologadoWrap" class="d-none"> · Escaneado: <span id="posApedidoCodigoEscaneado" class="font-monospace"></span></span>
+        </p>
+        <p class="small mb-2" id="posApedidoStockLinea">—</p>
+        <div id="posApedidoSinPrecio" class="alert alert-warning py-2 small d-none mb-2" role="alert">
+          <i class="fas fa-tag me-1"></i> Sin <strong>precio venta SD</strong>. Cárguelo en
+          <a href="{{ url_for('precios_piloto') }}" target="_blank" rel="noopener">Carga precios piloto</a>
+          antes de agregar al vale.
+        </div>
+        <p class="small text-muted mb-0" id="posApedidoHint">
+          No hace falta contar stock ahora: se surte después (~<span id="posApedidoDias">5</span> días hábiles estimados).
+        </p>
+      </div>
+      <div class="modal-footer flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-ds-primary" id="posBtnConfirmarApedidoEscaneo">
+          <i class="fas fa-cart-plus me-1"></i> Agregar a pedido al vale
+        </button>
       </div>
     </div>
   </div>
