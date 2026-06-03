@@ -6,13 +6,13 @@
   <meta name="description" content="{{ page_meta_description }}">
   <meta name="robots" content="noindex, nofollow">
   <link rel="canonical" href="{{ page_canonical }}">
-  <title>Fábrica de Color — {{ nombre_tienda }}</title>
+  <title>Colores en tienda — {{ nombre_tienda }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=tienda-shell-16-chilemat-holding">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/fabrica-color.css') }}?v=fc-modulo-20260530">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/fabrica-color.css') }}?v=fc-modulo-20260530v">
 </head>
-<body class="tienda-vitrina fabrica-color-page mp-page">
+<body class="tienda-vitrina fabrica-color-page mp-page{% if tv_mode %} fc-tv-mode{% endif %}">
   {% if es_preview_lab %}
   <div class="mp-banner mp-banner--lab" role="status">
     <i class="fas fa-flask me-2"></i> Preview lab — no publicado · solo desarrollo / SAMBOX
@@ -27,22 +27,14 @@
   {% set mp_home_url = fabrica_config.modulo_home_url %}
   {% include 'modulos/includes/header_modulo_pinturas.html' %}
 
-  <main class="fc-main">
-    <header class="fc-hero">
-      <div class="fc-hero-copy">
-        <span class="fc-kicker">LhexIA · Módulo pinturas</span>
-        <h1>Fábrica de Color</h1>
-        <p>Configure ambiente, color y brillo. Calculamos galones con stock real en tienda y complementos sugeridos.</p>
+  <main class="fc-main" id="fcMain" data-step="1">
+    <header class="fc-top">
+      <div class="fc-top__copy">
+        <span class="fc-kicker">LhexIA · Asistente pinturas</span>
+        <h1>Colores en tienda</h1>
         {% if fabrica_config.modulo_home_url %}
         <a href="{{ fabrica_config.modulo_home_url }}" class="fc-link-back"><i class="fas fa-arrow-left me-1"></i> Volver al lab</a>
         {% endif %}
-      </div>
-      <div class="fc-scene" id="fcScene" aria-hidden="true">
-        <div class="fc-scene__wall" id="fcSceneWall"></div>
-        <div class="fc-scene__floor"></div>
-        <div class="fc-scene__furniture fc-scene__furniture--sofa"></div>
-        <div class="fc-scene__furniture fc-scene__furniture--table"></div>
-        <div class="fc-scene__label" id="fcSceneLabel">Vista previa</div>
       </div>
     </header>
 
@@ -52,66 +44,90 @@
         <li class="is-active" data-step="1"><span>1</span> Ambiente</li>
         <li data-step="2"><span>2</span> Color</li>
         <li data-step="3"><span>3</span> Cantidad</li>
-        <li data-step="4"><span>4</span> Calidad</li>
+        <li data-step="4"><span>4</span> Resumen</li>
       </ol>
     </div>
 
-    <div class="fc-wizard">
-      <section class="fc-step is-active" data-step="1">
-        <h2>¿Dónde pintará?</h2>
-        <p class="fc-step-lead">Elija el ambiente para recomendar brillo y tipo de pintura.</p>
-        <div class="fc-ambientes" id="fcAmbientes"></div>
-      </section>
+    <section class="fc-pick is-active" id="fcPick" data-step="1">
+      <h2 class="fc-pick__title">Elige el ambiente que deseas pintar</h2>
+      <p class="fc-pick__lead">Toque una foto para ver colores con stock real en tienda.</p>
+      <div class="fc-amb-grid" id="fcAmbientes"></div>
+    </section>
 
-      <section class="fc-step" data-step="2">
-        <h2>Color y brillo</h2>
-        <p class="fc-step-lead">Paleta referencial y acabado según el uso del espacio.</p>
-        <div class="fc-familias" id="fcFamilias"></div>
-        <div class="fc-paleta" id="fcPaleta"></div>
-        <div class="fc-brillos" id="fcBrillos"></div>
-      </section>
-
-      <section class="fc-step" data-step="3">
-        <h2>Calcular cantidad</h2>
-        <p class="fc-step-lead">Ingrese metros cuadrados a pintar (muro). Estimamos galones a 2 manos.</p>
-        <div class="fc-cantidad-form">
-          <label for="fcM2">Superficie (m²)</label>
-          <div class="fc-m2-row">
-            <input type="number" id="fcM2" min="1" max="500" step="0.5" value="12" inputmode="decimal">
-            <button type="button" class="fc-btn fc-btn--ghost" data-m2="8">8 m²</button>
-            <button type="button" class="fc-btn fc-btn--ghost" data-m2="15">15 m²</button>
-            <button type="button" class="fc-btn fc-btn--ghost" data-m2="25">25 m²</button>
-          </div>
+    <div class="fc-workspace" id="fcWorkspace" hidden>
+      <div class="fc-workspace__preview">
+        <div class="fc-scene fc-scene--canvas" id="fcScene" data-scene="interior" aria-label="Vista previa del ambiente">
+          <canvas class="fc-scene__canvas" id="fcSceneCanvas"></canvas>
+          <div class="fc-scene__swatch" id="fcSceneSwatch"></div>
+          <div class="fc-scene__label" id="fcSceneLabel">Vista previa</div>
+          <p class="fc-scene__disclaimer">Vista referencial · solo muro principal</p>
         </div>
-        <div class="fc-cantidad-resumen" id="fcCantidadResumen"></div>
-      </section>
+        <button type="button" class="fc-change-ambiente" id="fcChangeAmbiente">
+          <i class="fas fa-chevron-up me-1"></i> Mostrar otros ambientes
+        </button>
+      </div>
 
-      <section class="fc-step" data-step="4">
-        <h2>Calidad y cotización</h2>
-        <p class="fc-step-lead">Productos del ERP según tier y stock en tienda Santo Domingo.</p>
-        <div class="fc-calidades" id="fcCalidades"></div>
-        <div class="fc-resultado" id="fcResultado">
-          <p class="text-muted mb-0">Seleccione calidad para ver sugerencia.</p>
+      <div class="fc-workspace__panel">
+        <div class="fc-wizard">
+          <section class="fc-step" data-step="2">
+            <h2>Color disponible en tienda</h2>
+            <p class="fc-step-lead">Solo mostramos pinturas con <strong>stock en tienda hoy</strong> (<span id="fcCartillaCount">0</span> opciones).</p>
+            <div class="fc-panel-section">
+              <h3 class="fc-panel-heading">Colores</h3>
+              <div class="fc-familias" id="fcFamilias"></div>
+              <div class="fc-paleta" id="fcPaleta"></div>
+            </div>
+            <div class="fc-panel-section">
+              <h3 class="fc-panel-heading">Brillo</h3>
+              <div class="fc-brillos" id="fcBrillos"></div>
+            </div>
+          </section>
+
+          <section class="fc-step" data-step="3">
+            <h2>Calcular cantidad</h2>
+            <p class="fc-step-lead">Ingrese metros cuadrados a pintar (muro). Estimamos galones a 2 manos.</p>
+            <div class="fc-cantidad-form">
+              <label for="fcM2">Superficie (m²)</label>
+              <div class="fc-m2-row">
+                <input type="number" id="fcM2" min="1" max="500" step="0.5" value="12" inputmode="decimal">
+                <button type="button" class="fc-btn fc-btn--ghost" data-m2="8">8 m²</button>
+                <button type="button" class="fc-btn fc-btn--ghost" data-m2="15">15 m²</button>
+                <button type="button" class="fc-btn fc-btn--ghost" data-m2="25">25 m²</button>
+              </div>
+            </div>
+            <div class="fc-cantidad-resumen" id="fcCantidadResumen"></div>
+          </section>
+
+          <section class="fc-step" data-step="4">
+            <h2>Su proyecto</h2>
+            <p class="fc-step-lead" id="fcStep4Lead">Producto en stock, cantidad estimada y complementos sugeridos.</p>
+            <div class="fc-calidades d-none" id="fcCalidades"></div>
+            <div class="fc-resultado fc-resultado--hero" id="fcResultado">
+              <p class="text-muted mb-0">Calculando su proyecto…</p>
+            </div>
+            <div class="fc-complementos" id="fcComplementos"></div>
+            <div class="fc-proyecto-total d-none" id="fcProyectoTotal"></div>
+            <div class="fc-acciones" id="fcAcciones"></div>
+          </section>
         </div>
-        <div class="fc-complementos" id="fcComplementos"></div>
-        <div class="fc-acciones" id="fcAcciones"></div>
-      </section>
+
+        <nav class="fc-nav">
+          <button type="button" class="fc-btn fc-btn--ghost" id="fcPrev" disabled>Anterior</button>
+          <button type="button" class="fc-btn fc-btn--primary" id="fcNext">Siguiente</button>
+        </nav>
+      </div>
     </div>
 
-    <nav class="fc-nav">
-      <button type="button" class="fc-btn fc-btn--ghost" id="fcPrev" disabled>Anterior</button>
-      <button type="button" class="fc-btn fc-btn--primary" id="fcNext">Siguiente</button>
-    </nav>
-
     <p class="tienda-legal fc-legal">
-      Precios referenciales. Tinte y mezcla en mostrador. Stock y cobro final en caja pueden variar.
+      Colores según stock ERP en tienda. Precios referenciales. Cobro y despacho final en caja.
     </p>
   </main>
 
   <script id="fabricaColorConfig" type="application/json">{{ fabrica_config|tojson }}</script>
   {% include 'tienda/includes/carrito_vitrina_shell.html' %}
-  {% include 'tienda/includes/liz_asistente.html' %}
-  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=liz-vitrina-17-fix-500"></script>
-  <script src="{{ url_for('static', filename='js/fabrica-color.js') }}?v=fc-modulo-20260530"></script>
+  {% include 'tienda/includes/maylen_asistente.html' %}
+  <script src="{{ url_for('static', filename='js/maylen-avatar-live.js') }}?v=maylen-vitrina-7"></script>
+  <script src="{{ url_for('static', filename='js/tienda-vitrina.js') }}?v=maylen-vitrina-7"></script>
+  <script src="{{ url_for('static', filename='js/fabrica-color.js') }}?v=fc-modulo-20260530v"></script>
 </body>
 </html>

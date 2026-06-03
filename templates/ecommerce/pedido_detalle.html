@@ -1,51 +1,164 @@
 {% extends 'base.html' %}
-{% block body_class %}erp-ops-space{% endblock %}
+{% block body_class %}erp-ops-space page-ecommerce-bandeja{% endblock %}
+{% block extra_css %}
+<style>
+  .ecom-timeline { list-style:none;padding:0;margin:0; }
+  .ecom-timeline li { position:relative;padding:0 0 1.25rem 2rem;border-left:2px solid rgba(74,222,128,.25);margin-left:.65rem; }
+  .ecom-timeline li:last-child { border-left-color:transparent;padding-bottom:0; }
+  .ecom-timeline__dot { position:absolute;left:-.55rem;top:.15rem;width:1rem;height:1rem;border-radius:50%;background:#1e293b;border:2px solid #4ade80;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#4ade80; }
+  .ecom-timeline__title { font-weight:700;color:#f1f5f9;font-size:.9rem; }
+  .ecom-timeline__meta { font-size:.75rem;color:#94a3b8; }
+  .ecom-line-stock-ok { color:#4ade80; }
+  .ecom-line-stock-bad { color:#f87171;font-weight:600; }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 900px;">
+<div class="container-fluid px-0 ecom-bandeja-hud" style="max-width:960px;">
   <div class="mb-3">
-    <a href="{{ url_for('ecommerce_bandeja') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Volver a bandeja</a>
+    <a href="{{ url_for('ecommerce_bandeja') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Bandeja pedidos</a>
   </div>
 
-  <div class="card card-ds mb-3">
-    <div class="card-body">
-      <h3 class="h5 mb-1 font-monospace text-success">{{ fila.ped_web_codigo }}</h3>
-      <p class="text-muted small mb-2">{{ fila.vale_folio }} · Retiro en tienda · {{ fila.contacto or 'Sin datos de contacto en pedido' }}</p>
-      <span class="badge {% if fila.estado_prep == 'PENDIENTE' %}text-bg-warning{% elif fila.estado_prep == 'EN_PREPARACION' %}text-bg-primary{% elif fila.estado_prep == 'LISTO_RETIRO' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-        {{ fila.estado_prep.replace('_', ' ') }}
-      </span>
-      <div class="mt-3 fs-5 font-monospace">${{ '{:,.0f}'.format(venta.monto_total or 0).replace(',', '.') }}</div>
-      <p class="small text-muted mb-0">Total referencial; se confirma en caja al cobrar.</p>
+  <header class="ecom-hdr-premium mb-4">
+    <div class="ecom-hdr-premium__brand">
+      <span class="ecom-hdr-premium__eyebrow"><i class="fas fa-receipt"></i> Detalle pedido web</span>
+      <h1 class="ecom-hdr-premium__title font-monospace">{{ fila.ped_web_codigo }}</h1>
+      <p class="ecom-hdr-premium__meta mb-0">
+        {{ fila.vale_folio }} · Retiro tienda ·
+        {% if fila.contacto_nombre %}{{ fila.contacto_nombre }}{% endif %}
+        {% if fila.contacto_telefono %} · {{ fila.contacto_telefono }}{% endif %}
+      </p>
+    </div>
+    <div class="ecom-hdr-premium__stat">
+      <span class="ecom-hdr-premium__stat-label">Total ref.</span>
+      <span class="ecom-hdr-premium__stat-value">${{ '{:,.0f}'.format(venta.monto_total or 0).replace(',', '.') }}</span>
+    </div>
+  </header>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <article class="ecom-kpi ecom-kpi--nuevo h-100">
+        <div class="ecom-kpi__label mb-1">Preparación</div>
+        <div class="ecom-kpi__value" style="font-size:1.1rem">{{ fila.estado_prep.replace('_', ' ') }}</div>
+        <p class="small text-muted mb-0">{{ venta.bodega_preparacion_usuario or 'Sin operador' }}</p>
+      </article>
+    </div>
+    <div class="col-md-4">
+      <article class="ecom-kpi ecom-kpi--prep h-100">
+        <div class="ecom-kpi__label mb-1">Vale ERP</div>
+        <div class="ecom-kpi__value" style="font-size:1.1rem">{{ fila.estado_venta or venta.estado }}</div>
+        <p class="small text-muted mb-0">Cobro en caja con {{ fila.vale_folio }}</p>
+      </article>
+    </div>
+    <div class="col-md-4">
+      <article class="ecom-kpi ecom-kpi--listo h-100">
+        <div class="ecom-kpi__label mb-1">Entrega QR</div>
+        <div class="ecom-kpi__value" style="font-size:1.1rem">{{ fila.entrega_estado or '—' }}</div>
+        <p class="small text-muted mb-0">Tras cobrar: escanear ticket</p>
+      </article>
     </div>
   </div>
 
-  <div class="card card-ds mb-3">
-    <div class="card-header py-2"><strong>Productos a preparar</strong></div>
-    <ul class="list-group list-group-flush">
-      {% for d in venta.detalles %}
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <div>
-          <div class="fw-semibold">{{ d.producto.nombre if d.producto else 'Producto #' ~ d.id_producto }}</div>
-          <div class="small text-muted">Cantidad: {{ d.cantidad }}</div>
-        </div>
-        <span class="font-monospace">${{ '{:,.0f}'.format(d.subtotal or 0).replace(',', '.') }}</span>
-      </li>
-      {% endfor %}
-    </ul>
+  {% if fila.alerta_stock %}
+  <div class="ecom-alert ecom-alert--warn mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Hay líneas con stock insuficiente en tienda. Revise antes de prometer al cliente.</div>
+  {% endif %}
+
+  <div class="card card-ds ecom-bandeja-card mb-3">
+    <div class="card-header"><h6 class="mb-0">Productos</h6></div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead><tr><th class="ps-3">Producto</th><th class="text-end">Cant.</th><th class="text-end">Stock tienda</th><th class="text-end pe-3">Subtotal</th></tr></thead>
+        <tbody>
+          {% for ln in lineas %}
+          <tr>
+            <td class="ps-3">{{ ln.nombre }}</td>
+            <td class="text-end font-monospace">{{ ln.cantidad }}</td>
+            <td class="text-end font-monospace {% if ln.falta_stock %}ecom-line-stock-bad{% else %}ecom-line-stock-ok{% endif %}">{{ ln.stock_tienda }}</td>
+            <td class="text-end font-monospace pe-3">${{ '{:,.0f}'.format(ln.subtotal or 0).replace(',', '.') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
-  <div class="d-flex flex-wrap gap-2">
+  <div class="card card-ds ecom-bandeja-card mb-4">
+    <div class="card-header"><h6 class="mb-0">Timeline</h6></div>
+    <div class="card-body">
+      <ul class="ecom-timeline">
+        {% for ev in timeline %}
+        <li>
+          <span class="ecom-timeline__dot"><i class="fas {{ ev.icono }}"></i></span>
+          <div class="ecom-timeline__title">{{ ev.titulo }}</div>
+          <div class="ecom-timeline__meta">
+            {% if ev.ts %}{{ ev.ts.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+            {% if ev.detalle %} · {{ ev.detalle }}{% endif %}
+          </div>
+        </li>
+        {% else %}
+        <li class="text-muted small">Sin eventos registrados aún.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    {% if fila.estado_prep == 'PENDIENTE' and fila.puede_anular %}
     <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=venta.id) }}">
       <input type="hidden" name="accion" value="tomar">
       <input type="hidden" name="next" value="{{ url_for('ecommerce_pedido_detalle', vid=venta.id) }}">
       <button type="submit" class="btn btn-primary">Tomar preparación</button>
     </form>
+    {% elif fila.estado_prep == 'EN_PREPARACION' %}
     <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=venta.id) }}">
       <input type="hidden" name="accion" value="listo">
+      <input type="hidden" name="notificar_whatsapp" value="1">
       <input type="hidden" name="next" value="{{ url_for('ecommerce_pedido_detalle', vid=venta.id) }}">
-      <button type="submit" class="btn btn-success">Marcar listo en mesón</button>
+      <button type="submit" class="btn btn-success">Marcar listo retiro</button>
     </form>
-    <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning">Ir a caja (cobrar)</a>
-    <a href="{{ url_for('pos_ticket_vale', venta_id=venta.id) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">Ticket vale</a>
+    <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=venta.id) }}">
+      <input type="hidden" name="accion" value="pendiente">
+      <input type="hidden" name="next" value="{{ url_for('ecommerce_pedido_detalle', vid=venta.id) }}">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Revertir a pendiente</button>
+    </form>
+    {% endif %}
+
+    {% if fila.whatsapp_url and fila.estado_prep == 'LISTO_RETIRO' %}
+    <a href="{{ fila.whatsapp_url }}" class="btn btn-success" target="_blank" rel="noopener"><i class="fab fa-whatsapp me-1"></i>Avisar cliente</a>
+    {% endif %}
+
+    <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning">Ir a caja</a>
+    {% if venta.estado == 'Pendiente' %}
+    <a href="{{ url_for('pos_ticket_vale', venta_id=venta.id) }}" class="btn btn-outline-light btn-sm" target="_blank" rel="noopener">Ticket vale</a>
+    {% endif %}
+
+    {% if fila.puede_anular %}
+    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalAnularPedido">Anular pedido</button>
+    {% endif %}
   </div>
 </div>
+
+{% if fila.puede_anular %}
+<div class="modal fade" id="modalAnularPedido" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-light border-secondary">
+      <form method="post" action="{{ url_for('ecommerce_pedido_anular', vid=venta.id) }}">
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title">Anular {{ fila.ped_web_codigo }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">Solo pedidos web pendientes de cobro. Queda registrado en auditoría.</p>
+          <label class="form-label">Motivo</label>
+          <textarea class="form-control bg-dark text-light border-secondary" name="motivo" rows="3" required>Cliente canceló / duplicado</textarea>
+          <input type="hidden" name="next" value="{{ url_for('ecommerce_bandeja') }}">
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger">Anular pedido</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

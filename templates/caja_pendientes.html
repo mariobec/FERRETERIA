@@ -447,6 +447,21 @@
 
     <!-- 4. COLA DE COBRO -->
     {% set puede_lote_anular = usuario_tiene_permiso('anular_vale_caja') %}
+    <div class="card card-ds mb-3 caja-escaneo-folio-card" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(251, 146, 60, 0.35) !important;">
+        <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-3">
+            <div class="flex-grow-1">
+                <label for="cajaBarcodeWedge" class="form-label small fw-semibold mb-1" style="color: #fb923c !important;">
+                    <i class="fas fa-barcode me-1"></i> Escanear folio del ticket (VL o N° vale)
+                </label>
+                <input type="text" id="cajaBarcodeWedge" class="form-control form-control-sm"
+                       placeholder="VL003131 o 3131 — Enter abre cobro"
+                       autocomplete="off" inputmode="numeric"
+                       style="max-width: 22rem; color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.85) !important;">
+                <span class="small text-muted">Pistola o teclado: escaneo del código de barras del vale → modal de pago.</span>
+            </div>
+        </div>
+    </div>
+    <div id="caja-folio-config" data-buscar-url="{{ url_for('api_caja_vale_por_folio') }}" hidden></div>
     <div id="cajaSlaBannerWrap" class="mb-3{% if n_sla_atencion|default(0) == 0 %} d-none{% endif %}">
         <div id="cajaSlaBanner" class="caja-sla-banner{% if n_sla_modal|default(0) > 0 %} caja-sla-banner--critical{% endif %}" role="status" aria-live="polite">{% if n_sla_modal|default(0) > 0 %}{% if n_sla_modal == 1 %}Hay 1 vale con más de 15 min sin cobrar. Debe cobrar o anular.{% else %}Hay {{ n_sla_modal }} vales con más de 15 min sin cobrar. Debe cobrar o anular.{% endif %}{% elif n_sla_atencion|default(0) > 0 %}{% if n_sla_atencion == 1 %}Hay 1 vale con más de 10 min en cola. Revise si el cliente va a pagar.{% else %}Hay {{ n_sla_atencion }} vales con más de 10 min en cola.{% endif %}{% endif %}</div>
     </div>
@@ -523,7 +538,10 @@
                             </td>
                             {% endif %}
                             <td class="ps-4 caja-celda-principal" style="color: #f1f5f9 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #f1f5f9 !important;">
-                                <span style="color: #f1f5f9 !important; -webkit-text-fill-color: #f1f5f9 !important;" title="{% if v.cola_es_borrador %}Borrador POS{% endif %}{% if v.tiene_despacho_bodega %}{% if v.cola_es_borrador %} · {% endif %}Despachado bodega{% endif %}{% if v.cotizacion_origen_id %}{% if v.cola_es_borrador or v.tiene_despacho_bodega %} · {% endif %}Cotización{% endif %}">#{{ v.id }}</span>
+                                <span style="color: #f1f5f9 !important; -webkit-text-fill-color: #f1f5f9 !important;" title="{% if v.cola_es_borrador %}Borrador POS{% endif %}{% if v.tiene_despacho_bodega %}{% if v.cola_es_borrador %} · {% endif %}Despachado bodega{% endif %}{% if v.cotizacion_origen_id %}{% if v.cola_es_borrador or v.tiene_despacho_bodega %} · {% endif %}Cotización{% endif %}{% if v.es_pedido_web %} · Pedido vitrina PED-WEB{% endif %}">#{{ v.id }}</span>
+                                {% if v.es_pedido_web %}
+                                <span class="badge rounded-pill ms-1" style="font-size:0.65rem;background:rgba(74,222,128,0.2);color:#4ade80;border:1px solid rgba(74,222,128,0.5);">WEB</span>
+                                {% endif %}
                             </td>
                             <td style="color: #cbd5e1 !important; background-color: rgba(15, 23, 42, 0.72) !important; -webkit-text-fill-color: #cbd5e1 !important;">
                                 {{ v.fecha.strftime('%H:%M') }}
@@ -554,9 +572,12 @@
                                     {% endif %}
                                     {% set puede_reimprimir_ticket = usuario_tiene_permiso('caja_cobrar_vale') or usuario_tiene_permiso('pos_emitir_vale') or usuario_tiene_permiso('gestionar_usuarios') %}
                                     {% if puede_reimprimir_ticket %}
-                                    <a href="{{ url_for('pos_ticket_vale', venta_id=v.id) }}" class="btn btn-caja-ghost btn-sm rounded-pill" style="color: #ffffff !important; background-color: rgba(59, 130, 246, 0.2) !important; border: 1px solid rgba(96, 165, 250, 0.65) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #ffffff !important;" title="Imprimir ticket vale">
+                                    <a href="{{ url_for('pos_ticket_vale', venta_id=v.id) }}" target="_blank" rel="noopener" class="btn btn-caja-ghost btn-sm rounded-pill" style="color: #ffffff !important; background-color: rgba(59, 130, 246, 0.2) !important; border: 1px solid rgba(96, 165, 250, 0.65) !important; opacity: 1 !important; filter: none !important; -webkit-text-fill-color: #ffffff !important;" title="Vista previa e impresión navegador">
                                         <i class="fas fa-receipt me-1" style="color: #ffffff !important; opacity: 1 !important;"></i>Ticket
                                     </a>
+                                    <button type="button" class="btn btn-caja-ghost btn-sm rounded-pill btn-caja-termica" data-venta-id="{{ v.id }}" style="color: #ffffff !important; background-color: rgba(74, 222, 128, 0.15) !important; border: 1px solid rgba(74, 222, 128, 0.55) !important; opacity: 1 !important; -webkit-text-fill-color: #4ade80 !important;" title="Impresora térmica XP-80 (ESC/POS)">
+                                        <i class="fas fa-print me-1"></i>Térmica
+                                    </button>
                                     {% endif %}
                                     {% if usuario_tiene_permiso('anular_vale_caja') %}
                                     {% set puede_anular_dsp = (not v.tiene_despacho_bodega) or usuario_tiene_permiso('anular_vale_con_despacho_bodega') or usuario_tiene_permiso('gestionar_usuarios') %}
@@ -1188,4 +1209,6 @@
   });
 </script>
 {% endif %}
+<script src="{{ url_for('static', filename='js/caja-folio-escaneo.js') }}?v=caja-folio-1"></script>
+<script src="{{ url_for('static', filename='js/caja-ticket-termica.js') }}?v=1"></script>
 {% endblock %}

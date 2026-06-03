@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Maylén">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#152a45"/>
+    </linearGradient>
+    <radialGradient id="cheek" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffb4b8" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffb4b8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="62" fill="url(#bg)"/>
+  <!-- cabello castaño -->
+  <ellipse cx="64" cy="52" rx="46" ry="40" fill="#6b4423"/>
+  <ellipse cx="64" cy="58" rx="38" ry="32" fill="#8b5a2b"/>
+  <!-- cuello / blazer -->
+  <path d="M38 98 Q64 108 90 98 L90 128 L38 128 Z" fill="#d4849a"/>
+  <path d="M48 96 Q64 102 80 96 L78 128 L50 128 Z" fill="#f8f4f0"/>
+  <!-- cara redonda -->
+  <ellipse cx="64" cy="68" rx="34" ry="36" fill="#ffd8b8"/>
+  <ellipse cx="42" cy="72" rx="10" ry="7" fill="url(#cheek)"/>
+  <ellipse cx="86" cy="72" rx="10" ry="7" fill="url(#cheek)"/>
+  <!-- ojos -->
+  <ellipse cx="50" cy="66" rx="5" ry="6" fill="#3d2914"/>
+  <ellipse cx="78" cy="66" rx="5" ry="6" fill="#3d2914"/>
+  <circle cx="52" cy="64" r="1.8" fill="#fff" opacity="0.9"/>
+  <circle cx="80" cy="64" r="1.8" fill="#fff" opacity="0.9"/>
+  <!-- sonrisa grande -->
+  <path d="M48 78 Q64 92 80 78" fill="none" stroke="#c45c5c" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M50 79 Q64 88 78 79" fill="#fff5f5"/>
+  <!-- flequillo -->
+  <path d="M32 48 Q64 38 96 48 Q90 58 64 54 Q38 58 32 48" fill="#6b4423"/>
+  <!-- moños / coletas -->
+  <circle cx="28" cy="52" r="12" fill="#6b4423"/>
+  <circle cx="100" cy="52" r="12" fill="#6b4423"/>
+  <circle cx="28" cy="52" r="8" fill="#8b5a2b"/>
+  <circle cx="100" cy="52" r="8" fill="#8b5a2b"/>
+</svg>

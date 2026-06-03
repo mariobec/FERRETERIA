@@ -33,6 +33,12 @@ def register_caja_routes(app):
     m = app_module()
     app.add_url_rule('/caja/vales_pendientes', 'caja_pendientes', _wrap_caja_vale(m.caja_pendientes), methods=['GET'])
     app.add_url_rule(
+        '/api/caja/vale-por-folio',
+        'api_caja_vale_por_folio',
+        _wrap_caja_vale(m.api_caja_vale_por_folio),
+        methods=['GET'],
+    )
+    app.add_url_rule(
         '/api/caja/vales-pendientes/sla',
         'api_caja_vales_pendientes_sla',
         _wrap_caja_vale(m.api_caja_vales_pendientes_sla),

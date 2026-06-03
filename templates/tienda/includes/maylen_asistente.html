@@ -1,0 +1,56 @@
+{# Maylén — recorte sobre fondo ferretería #}
+<script id="tiendaAssistantConfig" type="application/json">
+  {{ assistant_config|tojson }}
+</script>
+<section class="tienda-assistant" id="tiendaAssistant" aria-label="Asistente Maylén">
+  <button type="button" class="tienda-assistant-fab" id="tiendaAssistantToggle" aria-expanded="false" aria-controls="tiendaAssistantPanel">
+    <span class="maylen-avatar-live maylen-avatar-live--fab maylen-avatar-live--idle" id="maylenFabAvatarLive">
+      <img src="{{ url_for('static', filename='img/maylen_avatar_cutout.png') }}?v=7" alt="" class="maylen-avatar-photo maylen-avatar-photo--fab" width="56" height="56">
+    </span>
+    <span class="tienda-assistant-fab-label">Maylén · Asesora obra</span>
+  </button>
+  <div class="tienda-assistant-panel tienda-assistant-panel--maylen d-none" id="tiendaAssistantPanel" role="dialog" aria-labelledby="tiendaMaylenTitle">
+    <header class="tienda-assistant-head tienda-assistant-head--ferreteria">
+      <div class="tienda-assistant-head-ferreteria" aria-hidden="true"></div>
+      <div class="tienda-assistant-head-shade" aria-hidden="true"></div>
+      <div class="tienda-assistant-identity">
+        <div class="maylen-avatar-live maylen-avatar-live--panel maylen-avatar-live--idle" id="maylenAvatarLive">
+          <img src="{{ url_for('static', filename='img/maylen_avatar_cutout.png') }}?v=7" alt="Maylén en Ferretería Santo Domingo" class="maylen-avatar-photo maylen-avatar-photo--hero" width="128" height="160">
+        </div>
+        <div class="tienda-assistant-identity-text">
+          <strong id="tiendaMaylenTitle">Maylén</strong>
+          <span class="tienda-assistant-sub">{{ assistant_config.asistente_subtitulo or 'Agente constructor · ventas y asesoría técnica' }}</span>
+          <span class="tienda-assistant-marca">{{ nombre_tienda }}</span>
+        </div>
+      </div>
+      <button type="button" class="tienda-assistant-reset" id="tiendaAssistantReset" title="Nueva conversación" aria-label="Nueva conversación">
+        <i class="fas fa-redo-alt"></i>
+      </button>
+    </header>
+    {% if wa_base %}
+    <a href="{{ wa_base }}" target="_blank" rel="noopener" class="tienda-assistant-advisor-link" title="WhatsApp ventas en tienda">
+      <i class="fab fa-whatsapp"></i>
+      <span>WhatsApp del mostrador</span>
+    </a>
+    {% endif %}
+    <div class="tienda-assistant-body" id="tiendaAssistantBody">
+      <div class="tienda-assistant-msg bot" data-welcome="1">
+        <p class="mb-1">¡Hola! Soy <strong>Maylén</strong>, tu <strong>agente constructor</strong> en línea: pinturas, electricidad, impermeabilización, herramientas y materiales de obra. También te ayudo con precios de referencia y stock.</p>
+        {% if assistant_producto_id %}
+        <p class="small text-muted mb-0">Pregunta por este producto, alternativas o qué más llevar a la obra.</p>
+        {% else %}
+        <p class="small text-muted mb-0">Ejemplo: <em>gotera en techo de zinc</em>, <em>cable para enchufe</em> o <em>pintura para baño húmedo</em>.</p>
+        {% endif %}
+      </div>
+    </div>
+    <div class="tienda-assistant-chips" id="tiendaAssistantChips">
+      {% for chip in assistant_chips %}
+      <button type="button" class="tienda-assistant-chip" data-chip="{{ chip }}">{{ chip }}</button>
+      {% endfor %}
+    </div>
+    <form id="tiendaAssistantForm" class="tienda-assistant-form">
+      <input type="text" id="tiendaAssistantInput" placeholder="Cuéntame tu proyecto o qué material buscas…" maxlength="180" autocomplete="off" required>
+      <button type="submit" aria-label="Enviar"><i class="fas fa-paper-plane"></i></button>
+    </form>
+  </div>
+</section>

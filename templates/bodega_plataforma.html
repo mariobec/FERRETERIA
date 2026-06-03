@@ -1,8 +1,7 @@
 {% extends 'base.html' %}
-{% block body_class %}erp-ops-space {% endblock %}
+{% block body_class %}erp-ops-space page-bodega-plataforma{% endblock %}
 {% block extra_css %}
 <style>
-  /* ── SLA Priority System ── */
   .sla-pill {
     display: inline-flex;
     align-items: center;
@@ -20,89 +19,133 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .sla-ok       { background: rgba(22,163,74,0.10); color: #16a34a; }
+  .sla-ok       { background: rgba(22,163,74,0.18); color: #4ade80; }
   .sla-ok .sla-dot { background: #16a34a; }
-  .sla-attention { background: rgba(234,179,8,0.14); color: #a16207; }
+  .sla-attention { background: rgba(234,179,8,0.2); color: #fbbf24; }
   .sla-attention .sla-dot { background: #eab308; }
-  .sla-delayed  { background: rgba(249,115,22,0.14); color: #c2410c; }
+  .sla-delayed  { background: rgba(249,115,22,0.2); color: #fb923c; }
   .sla-delayed .sla-dot { background: #f97316; }
-  .sla-critical { background: rgba(220,38,38,0.14); color: #dc2626; }
+  .sla-critical { background: rgba(220,38,38,0.22); color: #f87171; }
   .sla-critical .sla-dot { background: #dc2626; animation: sla-pulse 1.2s ease-in-out infinite; }
-  .sla-none     { background: rgba(148,163,184,0.12); color: #64748b; }
+  .sla-none     { background: rgba(148,163,184,0.15); color: #94a3b8; }
   .sla-none .sla-dot { background: #94a3b8; }
-
   @keyframes sla-pulse {
     0%, 100% { transform: scale(1); opacity: 1; }
     50%      { transform: scale(1.6); opacity: 0.5; }
   }
-
-  /* Row highlight for critical */
-  tr.sla-row-critical { background: rgba(220,38,38,0.04) !important; }
-  tr.sla-row-delayed  { background: rgba(249,115,22,0.03) !important; }
-
+  tr.sla-row-critical { background: rgba(220,38,38,0.08) !important; }
+  tr.sla-row-delayed  { background: rgba(249,115,22,0.06) !important; }
   .sla-timer-label {
     font-size: 0.68rem;
-    color: var(--ds-text-muted);
+    color: #94a3b8;
     margin-top: 1px;
-  }
-
-  /* Estado badges mejorados */
-  .estado-prep {
-    font-size: 0.72rem;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
   }
 </style>
 {% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
-  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
-    <div>
-      <h3 class="page-title"><i class="fas fa-clipboard-list text-success me-2"></i>Plataforma bodega — preparación y retiro</h3>
-      <p class="page-subtitle mb-0">
-        Cola: <strong>{{ cola_retiro_total }}</strong> vale(s) activo(s).
-        Los colores del reloj reflejan la urgencia real: <span class="sla-pill sla-ok" style="font-size:.65rem"><span class="sla-dot"></span>OK</span>
-        <span class="sla-pill sla-attention" style="font-size:.65rem"><span class="sla-dot"></span>Atención</span>
-        <span class="sla-pill sla-delayed" style="font-size:.65rem"><span class="sla-dot"></span>Demorado</span>
-        <span class="sla-pill sla-critical" style="font-size:.65rem"><span class="sla-dot"></span>Urgente</span>
+<!-- UI bodega bandeja v2026-06-01-premium — si no ves header azul/ámbar, reiniciá Flask y Ctrl+F5 -->
+<div class="container-fluid px-0 ecom-bandeja-hud">
+  <header class="ecom-hdr-premium mb-4" role="banner">
+    <div class="ecom-hdr-premium__brand">
+      <span class="ecom-hdr-premium__eyebrow"><i class="fas fa-warehouse" aria-hidden="true"></i> Bodega y despacho</span>
+      <h1 class="ecom-hdr-premium__title">Plataforma de retiro</h1>
+      <p class="ecom-hdr-premium__meta mb-0">
+        Preparación en cola · <strong>entrega al cliente = escanear QR del ticket</strong> (Tienda → Bodega si es mixto) ·
+        <span class="sla-pill sla-ok" style="font-size:.65rem;padding:2px 6px"><span class="sla-dot"></span>OK</span>
+        <span class="sla-pill sla-attention" style="font-size:.65rem;padding:2px 6px"><span class="sla-dot"></span>Atención</span>
+        <span class="sla-pill sla-delayed" style="font-size:.65rem;padding:2px 6px"><span class="sla-dot"></span>Demorado</span>
+        <span class="sla-pill sla-critical" style="font-size:.65rem;padding:2px 6px"><span class="sla-dot"></span>Urgente</span>
       </p>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a href="{{ url_for('bodega_cuadro_mando') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-gauge-high me-1"></i>Cuadro de mando</a>
-      <a href="{{ url_for('bodega_despachos') }}" class="btn btn-outline-secondary btn-sm">Despacho voz</a>
+    <nav class="ecom-nav-dock" aria-label="Accesos bodega">
+      <a href="{{ url_for('bodega_cuadro_mando') }}" class="ecom-nav-dock__link ecom-nav-dock__link--primary">
+        <i class="fas fa-gauge-high" aria-hidden="true"></i><span>Cuadro de mando</span>
+      </a>
+      <a href="{{ url_for('bodega_despachos') }}" class="ecom-nav-dock__link">
+        <i class="fas fa-microphone" aria-hidden="true"></i><span>Despacho voz</span>
+      </a>
+    </nav>
+    <div class="ecom-hdr-premium__stat" aria-live="polite">
+      <span class="ecom-hdr-premium__stat-label">En cola</span>
+      <span class="ecom-hdr-premium__stat-value">{{ contadores.total }}</span>
     </div>
+  </header>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--total h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-clipboard-list"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.total }}</div>
+        <p class="ecom-kpi__label mb-0">Activos</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--nuevo h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-hourglass-start"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.pendiente }}</div>
+        <p class="ecom-kpi__label mb-0">Pendiente</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--prep h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-box-open"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.en_preparacion }}</div>
+        <p class="ecom-kpi__label mb-0">En preparación</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--listo h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-check-circle"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.listo }}</div>
+        <p class="ecom-kpi__label mb-0">Listo retiro</p>
+      </article>
+    </div>
+    {% if contadores.parcial %}
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--parcial h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-truck-loading"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.parcial }}</div>
+        <p class="ecom-kpi__label mb-0">Entrega parcial</p>
+      </article>
+    </div>
+    {% endif %}
   </div>
 
-  <div class="btn-group btn-group-sm flex-wrap mb-3" role="group">
-    <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-outline-primary {% if not filtro_estado %}active{% endif %}">Todos activos</a>
-    <a href="{{ url_for('bodega_plataforma', estado='PENDIENTE') }}" class="btn btn-outline-primary {% if filtro_estado == 'PENDIENTE' %}active{% endif %}">Pendiente</a>
-    <a href="{{ url_for('bodega_plataforma', estado='EN_PREPARACION') }}" class="btn btn-outline-primary {% if filtro_estado == 'EN_PREPARACION' %}active{% endif %}">En preparación</a>
-    <a href="{{ url_for('bodega_plataforma', estado='LISTO_RETIRO') }}" class="btn btn-outline-primary {% if filtro_estado == 'LISTO_RETIRO' %}active{% endif %}">Listo retiro</a>
-    <a href="{{ url_for('bodega_plataforma', estado='ENTREGA_PARCIAL') }}" class="btn btn-outline-primary {% if filtro_estado == 'ENTREGA_PARCIAL' %}active{% endif %}">Entrega parcial</a>
-  </div>
+  <nav class="ecom-filter-bar mb-3" aria-label="Filtrar cola retiro">
+    <a href="{{ url_for('bodega_plataforma') }}" class="ecom-filter-bar__link{% if not filtro_estado %} active{% endif %}">Todos activos</a>
+    <a href="{{ url_for('bodega_plataforma', estado='PENDIENTE') }}" class="ecom-filter-bar__link{% if filtro_estado == 'PENDIENTE' %} active{% endif %}">Pendiente</a>
+    <a href="{{ url_for('bodega_plataforma', estado='EN_PREPARACION') }}" class="ecom-filter-bar__link{% if filtro_estado == 'EN_PREPARACION' %} active{% endif %}">En preparación</a>
+    <a href="{{ url_for('bodega_plataforma', estado='LISTO_RETIRO') }}" class="ecom-filter-bar__link{% if filtro_estado == 'LISTO_RETIRO' %} active{% endif %}">Listo retiro</a>
+    <a href="{{ url_for('bodega_plataforma', estado='ENTREGA_PARCIAL') }}" class="ecom-filter-bar__link{% if filtro_estado == 'ENTREGA_PARCIAL' %} active{% endif %}">Entrega parcial</a>
+  </nav>
 
-  <div class="card card-ds">
+  <div class="card card-ds ecom-bandeja-card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h6 class="mb-0"><i class="fas fa-list me-2"></i>Cola de preparación y retiro</h6>
+      <span class="small text-muted">{{ vales|length }} en vista{% if filtro_estado %} · {{ filtro_estado | replace('_', ' ') }}{% endif %}</span>
+    </div>
     <div class="card-body p-0 table-responsive">
       <table class="table table-hover table-sm align-middle mb-0" id="tblPlataforma">
-        <thead class="table-light">
+        <thead>
           <tr>
-            <th style="width:70px">Vale</th>
+            <th class="ps-3" style="width:70px">Vale</th>
             <th>Cliente</th>
             <th style="width:110px">Tiempo</th>
             <th style="width:120px">Estado</th>
             <th>Operador</th>
             <th class="text-end" style="width:90px">Total</th>
-            <th>Materiales (pendiente)</th>
-            <th style="width:70px"></th>
+            <th>Entrega</th>
+            <th>Materiales pend. (T→B)</th>
+            <th class="text-end pe-3" style="width:140px"></th>
           </tr>
         </thead>
         <tbody>
           {% for v in vales %}
           <tr class="{% if v.sla_tier >= 3 %}sla-row-critical{% elif v.sla_tier >= 2 %}sla-row-delayed{% endif %}"
               data-cobrado="{{ v.sla_cobrado_iso }}" data-estado="{{ v.bodega_preparacion_estado }}">
-            <td class="font-monospace fw-semibold">#{{ v.id }}</td>
+            <td class="ps-3">
+              <span class="ecom-pedido-code">#{{ v.id }}</span>
+            </td>
             <td class="small">{{ v.cliente.nombre if v.cliente else '—' }}</td>
             <td>
               {% if v.sla_min is not none %}
@@ -117,30 +160,56 @@
             </td>
             <td>
               {% set est = v.bodega_preparacion_estado %}
-              <span class="estado-prep badge {% if est == 'PENDIENTE' %}text-bg-warning{% elif est == 'EN_PREPARACION' %}text-bg-primary{% elif est == 'LISTO_RETIRO' %}text-bg-success{% elif est == 'ENTREGA_PARCIAL' %}text-bg-info{% else %}text-bg-secondary{% endif %}">
-                {{ est | replace('_', ' ') | capitalize }}
+              <span class="badge rounded-pill {% if est == 'PENDIENTE' %}text-bg-warning{% elif est == 'EN_PREPARACION' %}text-bg-primary{% elif est == 'LISTO_RETIRO' %}text-bg-success{% elif est == 'ENTREGA_PARCIAL' %}text-bg-info{% else %}text-bg-secondary{% endif %}">
+                {{ est | replace('_', ' ') }}
               </span>
             </td>
             <td class="small">{{ v.bodega_preparacion_usuario or '—' }}</td>
-            <td class="text-end font-monospace small">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
+            <td class="text-end font-monospace fw-semibold">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
             <td class="small">
-              {% for d in (v.detalles or []) %}
-                {% set p = d.producto %}
-                {% set pend = (d.cantidad or 0) - (d.cantidad_entregada_retiro_bodega or 0) %}
-                {% if pend > 0 %}
-                <div>{{ (p.nombre if p else '?')[:40] }}{% if p and (p.nombre|length) > 40 %}…{% endif %}
-                  <span class="text-warning fw-semibold">{{ pend }}</span><span class="text-muted">/{{ d.cantidad }}</span></div>
-                {% endif %}
+              {% set ee = v.entrega_ticket_estado %}
+              {% if ee == 'CERRADO' %}
+              <span class="badge rounded-pill text-bg-success">Entregado</span>
+              {% elif ee == 'PARCIAL' or v.bodega_preparacion_estado == 'ENTREGA_PARCIAL' %}
+              <span class="badge rounded-pill text-bg-info">Parcial</span>
+              {% elif ee == 'PENDIENTE' %}
+              <span class="badge rounded-pill text-bg-warning text-dark">Pend. QR</span>
+              {% else %}
+              <span class="badge rounded-pill text-bg-secondary">{{ ee or '—' }}</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% for ln in v.lineas_pendiente_ordenadas %}
+              <div><span class="text-info">{{ ln.prefijo }}</span> {{ ln.nombre[:36] }}{% if ln.nombre|length > 36 %}…{% endif %}
+                <span class="text-warning fw-semibold">{{ ln.pendiente }}</span><span class="text-muted">/{{ ln.cantidad }}</span></div>
               {% else %}
                 <span class="text-muted">—</span>
               {% endfor %}
             </td>
-            <td class="text-end">
-              <a class="btn btn-sm btn-primary" href="{{ url_for('bodega_vale_retiro', vid=v.id) }}">Abrir</a>
+            <td class="text-end text-nowrap pe-3">
+              {% if v.entrega_qr_url %}
+              <a class="btn btn-success btn-sm" href="{{ v.entrega_qr_url }}" title="Escanear ticket o abrir registro de entrega">
+                <i class="fas fa-qrcode"></i>
+              </a>
+              {% endif %}
+              <a class="btn btn-outline-light btn-sm" href="{{ url_for('bodega_vale_retiro', vid=v.id) }}">Abrir</a>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="8" class="text-center text-muted py-4">No hay vales en esta cola.</td></tr>
+          <tr>
+            <td colspan="9">
+              <div class="ecom-empty">
+                <div class="ecom-empty__icon"><i class="fas fa-clipboard-check"></i></div>
+                <div class="ecom-empty__title">No hay vales en esta cola</div>
+                <p class="ecom-empty__text">
+                  Aparecen vales <strong>Pagados</strong> con retiro en bodega y estado de preparación activo.
+                </p>
+                <a href="{{ url_for('bodega_cuadro_mando') }}" class="ecom-btn-cta">
+                  <i class="fas fa-gauge-high"></i> Ir al cuadro de mando
+                </a>
+              </div>
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>

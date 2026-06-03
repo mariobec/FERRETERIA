@@ -15,19 +15,86 @@
       <span>Total referencial</span>
       <strong id="tiendaCartSubtotal">$0</strong>
     </div>
-    <p class="tienda-cart-hint small text-muted mb-2">Precio y stock se confirman en caja al retirar o pagar.</p>
-    <div class="mb-2">
-      <label class="form-label small mb-1" for="tiendaCartNombre">Tu nombre (opcional)</label>
-      <input type="text" class="form-control form-control-sm" id="tiendaCartNombre" maxlength="80" autocomplete="name" placeholder="Ej. Juan Pérez">
-    </div>
-    <div class="mb-3">
-      <label class="form-label small mb-1" for="tiendaCartTelefono">Teléfono (opcional)</label>
-      <input type="tel" class="form-control form-control-sm" id="tiendaCartTelefono" maxlength="40" autocomplete="tel" placeholder="Ej. +56 9 1234 5678">
-    </div>
-    <a href="#" class="btn btn-success w-100 mb-2" id="tiendaCartWhatsapp" target="_blank" rel="noopener">
-      <i class="fab fa-whatsapp me-1"></i> Enviar pedido por WhatsApp
+    <p class="tienda-cart-hint small text-muted mb-2">Precio IVA incluido · stock sujeto a confirmación.</p>
+    <button type="button" class="btn btn-success btn-lg w-100 mb-2 tienda-cart-pay-btn" id="tiendaCartPagar">
+      <i class="fas fa-credit-card me-2"></i> Ir a pagar
+    </button>
+    <a href="#" class="btn btn-outline-success w-100 mb-2" id="tiendaCartWhatsapp" target="_blank" rel="noopener">
+      <i class="fab fa-whatsapp me-1"></i> Consultar por WhatsApp
     </a>
     <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="tiendaCartVaciar">Vaciar carrito</button>
   </footer>
 </aside>
+
+<div class="tienda-checkout-backdrop d-none" id="tiendaCheckoutBackdrop" aria-hidden="true"></div>
+<div class="tienda-checkout d-none" id="tiendaCheckout" role="dialog" aria-labelledby="tiendaCheckoutTitle">
+  <header class="tienda-checkout__head">
+    <button type="button" class="tienda-checkout__back d-none" id="tiendaCheckoutBack" aria-label="Volver"><i class="fas fa-arrow-left"></i></button>
+    <h2 class="tienda-checkout__title" id="tiendaCheckoutTitle">Pagar pedido</h2>
+    <button type="button" class="tienda-checkout__close" id="tiendaCheckoutClose" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+  </header>
+
+  <div class="tienda-checkout__step" id="tiendaCheckoutStep1">
+    <p class="tienda-checkout__lead">Revisa tu pedido antes de pagar.</p>
+    <ul class="tienda-checkout__lines list-unstyled" id="tiendaCheckoutLines"></ul>
+    <div class="tienda-checkout__totals" id="tiendaCheckoutTotals"></div>
+    <div class="mb-3">
+      <label class="form-label small fw-semibold" for="tiendaCheckoutNombre">Nombre</label>
+      <input type="text" class="form-control" id="tiendaCheckoutNombre" maxlength="80" autocomplete="name" placeholder="Ej. Juan Pérez">
+    </div>
+    <div class="mb-3">
+      <label class="form-label small fw-semibold" for="tiendaCheckoutTelefono">Teléfono</label>
+      <input type="tel" class="form-control" id="tiendaCheckoutTelefono" maxlength="40" autocomplete="tel" placeholder="Ej. +56 9 1234 5678">
+    </div>
+    <div class="mb-3">
+      <span class="form-label small fw-semibold d-block mb-2">Retiro</span>
+      <div class="tienda-checkout-retiro">
+        <button type="button" class="tienda-checkout-retiro-btn is-selected" data-retiro="Tienda"><i class="fas fa-store me-1"></i> Tienda</button>
+        <button type="button" class="tienda-checkout-retiro-btn" data-retiro="Despacho"><i class="fas fa-truck me-1"></i> Despacho</button>
+      </div>
+    </div>
+    <label class="tienda-checkout-confirm mb-3">
+      <input type="checkbox" id="tiendaCheckoutConfirm">
+      <span>Confirmo productos, cantidades y total referencial.</span>
+    </label>
+    <button type="button" class="btn btn-success btn-lg w-100" id="tiendaCheckoutContinuar" disabled>Continuar al pago</button>
+  </div>
+
+  <div class="tienda-checkout__step d-none" id="tiendaCheckoutStep2">
+    <p class="tienda-checkout__lead">Elige cómo quieres pagar.</p>
+    <div class="tienda-checkout-pay-options">
+      {% if carrito_config.webpay_habilitado %}
+      <button type="button" class="tienda-checkout-pay-opt" id="tiendaPayWebpay" data-metodo="webpay">
+        <span class="tienda-checkout-pay-opt__icon"><i class="fas fa-credit-card"></i></span>
+        <span class="tienda-checkout-pay-opt__body">
+          <strong>Pagar con tarjeta</strong>
+          <small>Webpay — débito o crédito</small>
+        </span>
+        <i class="fas fa-chevron-right"></i>
+      </button>
+      {% endif %}
+      <button type="button" class="tienda-checkout-pay-opt" id="tiendaPayTienda" data-metodo="tienda">
+        <span class="tienda-checkout-pay-opt__icon tienda-checkout-pay-opt__icon--store"><i class="fas fa-cash-register"></i></span>
+        <span class="tienda-checkout-pay-opt__body">
+          <strong>Reservar y pagar en tienda</strong>
+          <small>Código PED-WEB · cobras en caja al retirar</small>
+        </span>
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+    <p class="small text-muted mt-3 mb-0">Con tarjeta el pago queda registrado al instante. En tienda presenta tu código en caja.</p>
+  </div>
+
+  <div class="tienda-checkout__step d-none" id="tiendaCheckoutStep3">
+    <div class="tienda-checkout-success">
+      <div class="tienda-checkout-success__icon"><i class="fas fa-check-circle"></i></div>
+      <h3 id="tiendaCheckoutSuccessTitle">¡Pedido registrado!</h3>
+      <p id="tiendaCheckoutSuccessMsg" class="text-muted"></p>
+      <div class="tienda-checkout-success__code d-none" id="tiendaCheckoutSuccessCode"></div>
+      <p class="small text-muted" id="tiendaCheckoutSuccessHint"></p>
+      <button type="button" class="btn btn-success w-100 mt-2" id="tiendaCheckoutDone">Seguir comprando</button>
+    </div>
+  </div>
+</div>
+
 <div class="tienda-cart-toast d-none" id="tiendaCartToast" role="status"></div>

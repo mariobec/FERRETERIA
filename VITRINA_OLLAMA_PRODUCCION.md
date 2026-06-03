@@ -1,4 +1,4 @@
-# Liz + Ollama en producción (lhexia.cl)
+# Maylén + Ollama en producción (lhexia.cl)
 
 Render **no** puede ejecutar Ollama (modelo en RAM/GPU de la PC). El diseño es:
 
@@ -9,7 +9,7 @@ Render **no** puede ejecutar Ollama (modelo en RAM/GPU de la PC). El diseño es:
 | Enlace | Túnel HTTPS (Cloudflare) o red privada (Tailscale) |
 
 El **Operador** (`agente_operador_enrich`) sigue en la PC con `AGENTE_OLLAMA_ENABLED=1` local.  
-**Liz** en la web usa variables `VITRINA_OLLAMA_*` sin activar Ollama del Operador en Render.
+**Maylén** (vitrina) en la web usa variables `VITRINA_OLLAMA_*` sin activar Ollama del Operador en Render.
 
 ---
 

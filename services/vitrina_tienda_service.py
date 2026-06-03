@@ -1,6 +1,7 @@
 """Vitrina pública piloto: catálogo Chilemat + stock ERP (Ferretería Santo Domingo)."""
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -12,6 +13,28 @@ from sqlalchemy import and_, func, or_
 TIENDA_SLUG_SD = 'ferreteria-santo-domingo'
 TIENDA_TITULO_DEFAULT = 'Ferretería Santo Domingo'
 
+# Vendedora vitrina / pedidos web (antes «Liz»)
+ASISTENTE_NOMBRE = 'Maylén'
+ASISTENTE_SUBTITULO = 'Agente constructor · ventas y asesoría técnica'
+ASISTENTE_USUARIO_WEB = 'Maylen-Web'
+ASISTENTE_USUARIO_WEB_LEGACY = ('Liz-Web',)
+
+
+def prefijos_usuario_pedido_web() -> tuple[str, ...]:
+    return (ASISTENTE_USUARIO_WEB,) + ASISTENTE_USUARIO_WEB_LEGACY
+
+
+def es_usuario_pedido_web(usuario: str | None) -> bool:
+    u = (usuario or '').strip()
+    return any(u.startswith(p) for p in prefijos_usuario_pedido_web())
+
+
+def filtro_sql_usuario_pedido_web():
+    """OR ilike para ventas creadas desde vitrina (Maylén o legado Liz-Web)."""
+    from app import Venta
+
+    return or_(*[Venta.usuario.ilike(f'{p}%') for p in prefijos_usuario_pedido_web()])
+
 _TOKENS_RUIDO_ASISTENTE = {
     'busco', 'buscar', 'quiero', 'necesito', 'dame', 'mostrar', 'muestrame', 'muestrame',
     'tienes', 'tenis', 'hay', 'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'unos',
@@ -21,7 +44,7 @@ _TOKENS_RUIDO_ASISTENTE = {
     'que', 'cual', 'cuales', 'como', 'puedo', 'puede', 'usar', 'uso', 'sirve', 'sirven',
     'algo', 'algun', 'alguna', 'este', 'esta', 'estoy', 'tengo', 'hacer', 'hago',
 }
-_SALUDO_SOLO = {'hola', 'buenas', 'buen', 'dia', 'tardes', 'noches', 'ayuda', 'asesor', 'liz', 'tal', 'que'}
+_SALUDO_SOLO = {'hola', 'buenas', 'buen', 'dia', 'tardes', 'noches', 'ayuda', 'asesor', 'liz', 'maylen', 'tal', 'que'}
 _INTENCION_RECOMENDAR = (
     'recomiend', 'recomendar', 'recomendacion', 'suger', 'sugerencia',
     'alternativa', 'alternativas', 'opcion', 'opciones', 'que me recomiendas',
@@ -100,6 +123,18 @@ def _precio_mostrar(chm, prod) -> float:
     if pl is not None and float(pl) > 0:
         return float(pl)
     return float(getattr(prod, 'precio_venta', None) or 0)
+
+
+def _texto_descripcion_producto(desc: str | None) -> str:
+    """Texto plano para ficha (sin HTML crudo ni entidades &oacute; visibles)."""
+    if not desc:
+        return ''
+    t = html.unescape(str(desc))
+    t = re.sub(r'<[^>]+>', ' ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    if len(t) > 2000:
+        t = t[:1999] + '…'
+    return t
 
 
 def _categoria_label(path: str | None) -> str:
@@ -370,12 +405,13 @@ def _reply_maestro_constructor(
     return msg
 
 
-def _liz_prompt_ollama(nombre_tienda: str, *, modo_combo: bool = False) -> str:
-    """Instrucciones de tono Liz (vitrina). Ajustar con VITRINA_LIZ_PROMPT_EXTRA en .env."""
-    extra = (os.getenv('VITRINA_LIZ_PROMPT_EXTRA') or '').strip()
+def _maylen_prompt_ollama(nombre_tienda: str, *, modo_combo: bool = False) -> str:
+    """Instrucciones de tono Maylén (vitrina). VITRINA_MAYLEN_PROMPT_EXTRA o VITRINA_LIZ_PROMPT_EXTRA."""
+    extra = (os.getenv('VITRINA_MAYLEN_PROMPT_EXTRA') or os.getenv('VITRINA_LIZ_PROMPT_EXTRA') or '').strip()
     base = (
-        f"Eres Liz, asistente de ventas de '{nombre_tienda}' (ferreteria en Chile). "
-        'Tutea al cliente, tono cercano y profesional. '
+        f"Eres {ASISTENTE_NOMBRE}, agente constructor y vendedora de '{nombre_tienda}' (ferreteria en Chile). "
+        'Ayudas con pinturas, electricidad, impermeabilizacion, herramientas y materiales de obra. '
+        'Tutea al cliente con tono cariñoso, generoso y profesional (como una colega de confianza en la ferreteria). '
         'PROHIBIDO decir Chilemat, ERP, precio referencial Chilemat o precio referencial. '
         'Para precios di: precio de referencia en la tienda en linea; el valor final se confirma en caja. '
         'NO inventes productos, precios ni stock: solo usa la respuesta base y los candidatos. '
@@ -703,43 +739,71 @@ def _reply_destacado_sodimac(items: list[dict[str, Any]], consulta: str) -> str:
     return msg
 
 
-def _buscar_items_asistente(txt: str) -> tuple[list[dict[str, Any]], int]:
+def buscar_catalogo_vitrina(q_text: str, *, limite: int = 48) -> tuple[list[dict[str, Any]], int]:
     """
-    Busca productos para Liz:
-    1) rubro Chilemat si aplica (pintura → categoría Pinturas),
-    2) texto + tokens,
-    3) ranking (pintura real vs bandeja/rodillo).
+    Búsqueda ágil vitrina: tokens, ranking y pocas queries (header, API y Maylén).
     """
-    normalizado, tokens = _normalizar_consulta_asistente(txt)
-    consulta = normalizado or (txt or '').strip()
+    limite = max(1, min(int(limite or 48), 72))
+    raw = (q_text or '').strip()
+    if not raw:
+        return [], 0
 
-    cat_id = _resolver_cat_vtex_por_intento(tokens) if tokens else None
-    if cat_id:
-        r_cat = listar_productos(
-            page=1, per_page=48, q_text='', cat_vtex_id=cat_id, solo_disponibles=False
+    normalizado, tokens = _normalizar_consulta_asistente(raw)
+    consulta = (normalizado or raw)[:80]
+
+    # Referencia / código de barras (match directo)
+    if 4 <= len(raw) <= 32 and re.match(r'^[\w\-\./]+$', raw, re.I):
+        r_cod = listar_productos(page=1, per_page=limite, q_text=raw, solo_disponibles=False)
+        items_cod = r_cod.get('productos') or []
+        if items_cod:
+            ref_low = raw.lower()
+            exact = [
+                it
+                for it in items_cod
+                if ref_low in (it.get('referencia') or '').lower()
+                or ref_low in (it.get('nombre') or '').lower()
+            ]
+            if exact:
+                return exact[:limite], len(exact)
+            if len(items_cod) <= 12:
+                return items_cod[:limite], len(items_cod)
+
+    if tokens:
+        cat_id = _resolver_cat_vtex_por_intento(tokens)
+        if cat_id and len(tokens) == 1:
+            r_cat = listar_productos(
+                page=1, per_page=limite, q_text='', cat_vtex_id=cat_id, solo_disponibles=False
+            )
+            items_cat = _rankear_y_filtrar_items(r_cat.get('productos') or [], tokens, limite=limite)
+            if items_cat:
+                return items_cat, len(items_cat)
+
+        r_tok = listar_productos(
+            page=1,
+            per_page=min(limite * 2, 72),
+            q_text=consulta if len(tokens) < 2 else '',
+            q_tokens=tokens,
+            solo_disponibles=False,
         )
-        items_cat = _rankear_y_filtrar_items(r_cat.get('productos') or [], tokens, limite=24)
-        if items_cat:
-            return items_cat, len(items_cat)
+        items = _rankear_y_filtrar_items(
+            r_tok.get('productos') or [],
+            tokens,
+            min_score=6 if len(tokens) >= 2 else 4,
+            limite=limite,
+        )
+        if items:
+            return items, len(items)
 
-    lotes: list[list[dict[str, Any]]] = []
-    if consulta:
-        r = listar_productos(page=1, per_page=36, q_text=consulta, solo_disponibles=False)
-        if r.get('productos'):
-            lotes.append(r['productos'])
+    r = listar_productos(page=1, per_page=limite, q_text=consulta, solo_disponibles=False)
+    items = r.get('productos') or []
+    if tokens:
+        items = _rankear_y_filtrar_items(items, tokens, min_score=4, limite=limite)
+    return items, len(items)
 
-    if not tokens:
-        merged = _merge_items_por_producto(*lotes, limite=24)
-        return merged, len(merged)
 
-    for tok in tokens[:3]:
-        r = listar_productos(page=1, per_page=24, q_text=tok, solo_disponibles=False)
-        if r.get('productos'):
-            lotes.append(r['productos'])
-
-    merged = _merge_items_por_producto(*lotes, limite=48)
-    ranked = _rankear_y_filtrar_items(merged, tokens, limite=24)
-    return ranked, len(ranked)
+def _buscar_items_asistente(txt: str) -> tuple[list[dict[str, Any]], int]:
+    """Busca productos para Maylén (misma lógica que buscador header)."""
+    return buscar_catalogo_vitrina(txt, limite=24)
 
 
 def _query_base():
@@ -776,6 +840,7 @@ def _aplicar_filtros(
     q,
     *,
     q_text: str,
+    q_tokens: list[str] | None = None,
     marca: str,
     categoria: str,
     cat_vtex_id: int | None,
@@ -786,7 +851,25 @@ def _aplicar_filtros(
 
     q = _filtrar_cat_vtex(q, cat_vtex_id)
 
-    if q_text:
+    tokens = [t.strip() for t in (q_tokens or []) if t and len(t.strip()) >= 2]
+    if not tokens and q_text:
+        _, tokens_from_q = _normalizar_consulta_asistente(q_text)
+        if len(tokens_from_q) >= 2:
+            tokens = tokens_from_q
+
+    if tokens:
+        for tok in tokens[:5]:
+            like = f'%{tok}%'
+            q = q.filter(
+                or_(
+                    ChilematVtexProducto.nombre.ilike(like),
+                    ChilematVtexProducto.product_reference.ilike(like),
+                    ChilematVtexProducto.brand.ilike(like),
+                    Producto.nombre.ilike(like),
+                    Producto.codigo_barra.ilike(like),
+                )
+            )
+    elif q_text:
         like = f'%{q_text}%'
         q = q.filter(
             or_(
@@ -981,6 +1064,7 @@ def listar_productos(
     page: int = 1,
     per_page: int = 24,
     q_text: str = '',
+    q_tokens: list[str] | None = None,
     marca: str = '',
     categoria: str = '',
     cat_vtex_id: int | None = None,
@@ -997,6 +1081,7 @@ def listar_productos(
     q = _aplicar_filtros(
         _query_base(),
         q_text=(q_text or '').strip(),
+        q_tokens=q_tokens,
         marca=(marca or '').strip(),
         categoria=(categoria or '').strip(),
         cat_vtex_id=cat_vtex_id,
@@ -1079,9 +1164,7 @@ def detalle_producto(producto_id: int) -> dict[str, Any] | None:
     from services.stock_service import stock_disponible_venta_tienda
 
     item = row_a_item(chm, prod, stock_disponible_venta_tienda(prod))
-    desc = (chm.descripcion_corta or chm.descripcion_web or '').strip()
-    if desc and len(desc) > 2000:
-        desc = desc[:1999] + '…'
+    desc = _texto_descripcion_producto(chm.descripcion_corta or chm.descripcion_web)
     item['descripcion'] = desc
     item['sugeridos'] = sugeridos_para_detalle(pid)
     return item
@@ -1246,6 +1329,7 @@ def crear_vale_pedido_web(
     cliente_nombre: str = '',
     cliente_telefono: str = '',
     nombre_tienda: str = TIENDA_TITULO_DEFAULT,
+    punto_retiro: str = 'Tienda',
 ) -> dict[str, Any]:
     """
     Crea venta ERP estado Pendiente desde carrito vitrina (retiro en tienda).
@@ -1258,24 +1342,50 @@ def crear_vale_pedido_web(
     if not lineas:
         return {'ok': False, 'error': 'carrito_vacio', 'mensaje': 'No hay productos válidos en el carrito.'}
 
+    from services.ecommerce_pedidos_service import (
+        requiere_caja_abierta_pedido_web,
+        resolver_cliente_pedido_web,
+        validar_stock_lineas_carrito,
+    )
+
+    bloquear_sin_stock = (os.getenv('ECOM_PEDIDO_BLOQUEAR_SIN_STOCK') or '1').strip().lower() not in (
+        '0',
+        'false',
+        'no',
+    )
+    chk = validar_stock_lineas_carrito(lineas, bloquear=bloquear_sin_stock)
+    if not chk.get('ok'):
+        return {
+            'ok': False,
+            'error': chk.get('error') or 'sin_stock',
+            'mensaje': chk.get('mensaje') or 'Stock insuficiente en tienda.',
+            'faltas': chk.get('faltas') or [],
+        }
+
     from datetime import datetime
 
     from app import DetalleVenta, Producto, Venta, db
 
     try:
-        from app import obtener_caja_activa, obtener_o_crear_cliente_final
+        from app import obtener_caja_activa
     except ImportError:
         return {'ok': False, 'error': 'erp_no_disponible'}
-
-    cliente = obtener_o_crear_cliente_final()
-    if not cliente:
-        return {'ok': False, 'error': 'sin_cliente'}
 
     caja = None
     try:
         caja = obtener_caja_activa()
     except Exception:
         caja = None
+    if requiere_caja_abierta_pedido_web() and not caja:
+        return {
+            'ok': False,
+            'error': 'sin_caja',
+            'mensaje': 'No hay caja abierta. Abra caja antes de generar pedidos web.',
+        }
+
+    cliente = resolver_cliente_pedido_web(cliente_nombre, cliente_telefono)
+    if not cliente:
+        return {'ok': False, 'error': 'sin_cliente'}
 
     notas_contacto = []
     cn = (cliente_nombre or '').strip()[:80]
@@ -1284,9 +1394,13 @@ def crear_vale_pedido_web(
         notas_contacto.append(f'Nombre: {cn}')
     if ct:
         notas_contacto.append(f'Tel: {ct}')
-    usuario_vale = 'Liz-Web'
+    usuario_vale = ASISTENTE_USUARIO_WEB
     if notas_contacto:
-        usuario_vale = f"Liz-Web ({'; '.join(notas_contacto)})"[:50]
+        usuario_vale = f"{ASISTENTE_USUARIO_WEB} ({'; '.join(notas_contacto)})"[:50]
+
+    retiro = (punto_retiro or 'Tienda').strip()[:40] or 'Tienda'
+    if retiro not in ('Tienda', 'Bodega', 'Despacho', 'Mixto'):
+        retiro = 'Tienda'
 
     venta = Venta(
         fecha=datetime.now(),
@@ -1295,7 +1409,7 @@ def crear_vale_pedido_web(
         estado='Pendiente',
         caja_id=int(caja.id) if caja else None,
         cliente_id=int(cliente.id),
-        punto_retiro='Tienda',
+        punto_retiro=retiro,
         metodo_pago=None,
         tipo_documento='Boleta',
     )
@@ -1319,7 +1433,7 @@ def crear_vale_pedido_web(
                 cantidad=qty,
                 precio_unitario=precio,
                 subtotal=qty * precio,
-                punto_retiro_linea='Tienda',
+                punto_retiro_linea=retiro,
             )
         )
         detalles_ok += 1
@@ -1410,8 +1524,8 @@ def _construir_ui_respuesta(
                 'items_count': int(tot.get('items_count') or 0),
                 'lineas_count': int(tot.get('lineas_count') or 0),
                 'subtotal_fmt': tot.get('subtotal_fmt') or '',
-                'cta_label': 'Generar vale PED-WEB (retiro en tienda)',
-                'cta_action': 'generar_vale_web',
+                'cta_label': 'Ir a pagar',
+                'cta_action': 'open_checkout',
             }
         )
 
@@ -1462,12 +1576,12 @@ def chips_asistente(*, producto_id: int | None = None) -> list[str]:
             'Ver productos relacionados',
         ]
     return [
-        'Generar vale de retiro',
         'Gotera en techo de zinc',
-        'Precio pintura impermeabilizante',
-        '¿Hay stock cemento?',
-        'Broca para hormigón',
-        'Cinta masking',
+        'Pintura para baño húmedo',
+        'Cable y enchufe para ampliación',
+        '¿Qué llevo para tabique?',
+        'Precio impermeabilizante',
+        'Ir a pagar',
     ]
 
 
@@ -1498,7 +1612,7 @@ def _respuesta_ollama(
             f"{'Disponible' if c.get('disponible') else 'Sin stock'}"
         )
     contexto = '\n'.join(resumen_cards) if resumen_cards else '- Sin productos sugeridos'
-    system = _liz_prompt_ollama(nombre_tienda, modo_combo=modo_combo)
+    system = _maylen_prompt_ollama(nombre_tienda, modo_combo=modo_combo)
 
     if modo_combo:
         ancla = combo_ctx.get('ancla') or {}
@@ -1722,8 +1836,9 @@ def respuesta_asistente(
         return _emit_respuesta(
             mensaje=txt,
             reply=(
-                'Hola, soy Liz. Dime qué producto necesitas y te muestro opciones '
-                'con precio de referencia y disponibilidad en tienda.'
+                f'¡Hola! Soy {ASISTENTE_NOMBRE}, tu agente constructor en línea. '
+                'Te ayudo con pinturas, electricidad, materiales y a encontrar productos con precio '
+                'de referencia y stock en tienda. Cuéntame tu proyecto o qué necesitas arreglar.'
             ),
             cards=[],
         )

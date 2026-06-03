@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if ok %}Pago confirmado{% else %}Pago no completado{% endif %} · {{ nombre_tienda }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=maylen-vitrina-8">
+</head>
+<body class="tienda-vitrina tienda-pago-resultado">
+  <main class="tienda-pago-resultado__main">
+    <div class="tienda-pago-resultado__card">
+      {% if ok %}
+      <div class="tienda-pago-resultado__icon tienda-pago-resultado__icon--ok"><i class="fas fa-check-circle"></i></div>
+      <h1>Pago confirmado</h1>
+      <p class="lead">{{ mensaje }}</p>
+      {% if ped_web_codigo %}
+      <div class="tienda-pago-resultado__code">{{ ped_web_codigo }}</div>
+      {% endif %}
+      {% if monto_total_fmt %}
+      <p class="text-muted">Total pagado: <strong>{{ monto_total_fmt }}</strong></p>
+      {% endif %}
+      <p class="small text-muted">Te avisaremos cuando tu pedido esté listo para retiro. Guarda tu código.</p>
+      {% else %}
+      <div class="tienda-pago-resultado__icon tienda-pago-resultado__icon--fail"><i class="fas fa-times-circle"></i></div>
+      <h1>Pago no completado</h1>
+      <p class="lead">{{ mensaje }}</p>
+      {% if ped_web_codigo %}
+      <p class="small">Tu reserva: <strong class="font-monospace">{{ ped_web_codigo }}</strong> — puedes pagar en caja.</p>
+      {% endif %}
+      {% endif %}
+      <a href="{{ vitrina_url }}" class="btn btn-success btn-lg mt-3 w-100">Volver al catálogo</a>
+    </div>
+  </main>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</body>
+</html>

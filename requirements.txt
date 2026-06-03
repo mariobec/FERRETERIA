@@ -16,3 +16,4 @@ lxml
 cryptography
 signxml
 zeep
+pywin32; platform_system == "Windows"

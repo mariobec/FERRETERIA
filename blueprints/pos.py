@@ -1,4 +1,7 @@
 """Punto de venta y APIs /api/pos/* (Fase 3)."""
+from functools import wraps
+
+from flask import request
 from flask_login import login_required
 
 from blueprints._app_ref import app_module
@@ -32,10 +35,26 @@ def _wrap_pos_api_emitir(fn):
 
 
 def _wrap_pos_despacho_vale(fn):
+    """Con token QR válido no exige sesión (lector en mesón bodega/tienda)."""
     m = app_module()
-    return m.permisos_required(
+    guarded = m.permisos_required(
         'pos_emitir_vale', 'bodega_operador', 'caja_cobrar_vale', 'gestionar_usuarios'
     )(fn)
+
+    @wraps(fn)
+    def decorated(*args, **kwargs):
+        tok = (request.args.get('t') or '').strip()
+        vid = kwargs.get('vid')
+        if tok and vid is not None:
+            try:
+                vv = m.pos_despacho_vale_token_verify(tok)
+                if vv is not None and int(vv) == int(vid):
+                    return fn(*args, **kwargs)
+            except (TypeError, ValueError):
+                pass
+        return guarded(*args, **kwargs)
+
+    return decorated
 
 
 def _wrap_pos_ticket_vale(fn):
@@ -95,6 +114,30 @@ def register_pos_routes(app):
         'pos_despacho_vale',
         _wrap_pos_despacho_vale(m.pos_despacho_vale),
         methods=['GET'],
+    )
+    app.add_url_rule(
+        '/r/despacho/<int:vid>/<token_qr>',
+        'pos_despacho_vale_qr',
+        m.pos_despacho_vale_qr_short,
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/r/despacho/folio/<int:folio>',
+        'pos_despacho_vale_folio',
+        m.pos_despacho_vale_folio_qr,
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/r/scan',
+        'qr_scan_despacho',
+        m.qr_scan_despacho_redirect,
+        methods=['GET', 'POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/despacho/vale/<int:vid>/registrar-entrega',
+        'api_registrar_entrega_ticket',
+        m.api_registrar_entrega_ticket,
+        methods=['POST'],
     )
     app.add_url_rule('/actualizar_item', 'actualizar_item', _wrap_pos_emitir_caja(m.actualizar_item), methods=['POST'])
     app.add_url_rule(
@@ -216,6 +259,28 @@ def register_pos_routes(app):
         'api_pos_producto_alta_rapida',
         _wrap_pos_api_emitir(m.api_pos_producto_alta_rapida),
         methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/vincular-codigo',
+        'api_pos_vincular_codigo',
+        _wrap_pos_api_emitir(m.api_pos_vincular_codigo),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/imprimir-ticket/<int:venta_id>',
+        'api_pos_imprimir_ticket_termica',
+        login_required(
+            m.permisos_required('pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios')(
+                m.api_pos_imprimir_ticket_termica
+            )
+        ),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/pos/impresora/diagnostico',
+        'api_pos_impresora_diagnostico',
+        login_required(m.permisos_required('gestionar_usuarios', 'pos_emitir_vale')(m.api_pos_impresora_diagnostico)),
+        methods=['GET'],
     )
     app.add_url_rule(
         '/api/pos/mentor/contexto',

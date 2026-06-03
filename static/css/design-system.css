@@ -1454,7 +1454,10 @@ body.pos-hud-search-focus .lhexia-mentor-fab {
     --lhexia-font-display: "Montserrat", "Segoe UI", Roboto, Arial, sans-serif;
 }
 
-body.erp-ops-space {
+/* Gana a style_index.css body:not(.index-body) { background: #f4f7f6 } */
+body.erp-ops-space:not(.index-body),
+body.erp-ops-space.page-bodega-plataforma:not(.index-body),
+body.erp-ops-space.page-ecommerce-bandeja:not(.index-body) {
     --bs-body-bg: var(--bg-main-space);
     --bs-body-color: var(--lhexia-gray-hud);
     --bs-emphasis-color: var(--lhexia-platinum);
@@ -2282,5 +2285,466 @@ body.erp-ops-space.page-caja-pendientes .caja-pendientes-hud .card-header .btn.b
 
     body.erp-ops-space.page-caja-pendientes .caja-nav-dock__link--primary {
         grid-column: 1 / -1;
+    }
+}
+
+/* ── E-commerce — bandeja pedidos web (PED-WEB) ── */
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) auto auto;
+    align-items: center;
+    gap: 1rem 1.35rem;
+    padding: 1.1rem 1.35rem;
+    color: #f8fafc;
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.98) 0%,
+        rgba(234, 88, 12, 0.35) 42%,
+        rgba(22, 101, 52, 0.55) 100%
+    );
+    border: 1px solid rgba(74, 222, 128, 0.22);
+    border-radius: 16px;
+    box-shadow:
+        0 14px 42px rgba(0, 0, 0, 0.32),
+        inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__eyebrow,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(253, 186, 116, 0.9);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__title,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__title {
+    margin: 0 0 0.25rem;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: #fff;
+    text-transform: none;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__meta,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__meta {
+    font-size: 0.875rem;
+    color: rgba(226, 232, 240, 0.85);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-nav-dock,
+body.erp-ops-space.page-bodega-plataforma .ecom-nav-dock {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-nav-dock__link,
+body.erp-ops-space.page-bodega-plataforma .ecom-nav-dock__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 38px;
+    padding: 0 0.9rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
+    color: rgba(248, 250, 252, 0.92);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-nav-dock__link:hover,
+body.erp-ops-space.page-bodega-plataforma .ecom-nav-dock__link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+    transform: translateY(-1px);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-nav-dock__link--primary,
+body.erp-ops-space.page-bodega-plataforma .ecom-nav-dock__link--primary {
+    color: #14532d;
+    background: linear-gradient(180deg, #f8fafc 0%, #bbf7d0 100%);
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-nav-dock__link--caja,
+body.erp-ops-space.page-bodega-plataforma .ecom-nav-dock__link--caja i {
+    color: #fb923c;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__stat,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 8.5rem;
+    padding: 0.55rem 0.9rem;
+    text-align: right;
+    background: rgba(0, 0, 0, 0.26);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__stat-label,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(187, 247, 208, 0.75);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__stat-value,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat-value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #4ade80;
+    line-height: 1.1;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi {
+    position: relative;
+    overflow: hidden;
+    padding: 1rem 1.1rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi::before,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--ecom-kpi-accent, #4ade80);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi:hover,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--ecom-kpi-accent, #4ade80) 40%, rgba(255, 255, 255, 0.12));
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi__icon,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    margin-bottom: 0.65rem;
+    background: color-mix(in srgb, var(--ecom-kpi-accent, #4ade80) 18%, transparent);
+    color: var(--ecom-kpi-accent, #4ade80);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi__value,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi__value {
+    font-size: 1.85rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--ecom-kpi-accent, #f1f5f9);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi__label,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi__label {
+    margin: 0.35rem 0 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(148, 163, 184, 0.95);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi--total,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi--total { --ecom-kpi-accent: #e2e8f0; }
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi--nuevo,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi--nuevo { --ecom-kpi-accent: #fbbf24; }
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi--prep,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi--prep { --ecom-kpi-accent: #60a5fa; }
+body.erp-ops-space.page-ecommerce-bandeja .ecom-kpi--listo,
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi--listo { --ecom-kpi-accent: #4ade80; }
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-filter-bar,
+body.erp-ops-space.page-bodega-plataforma .ecom-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-filter-bar__link,
+body.erp-ops-space.page-bodega-plataforma .ecom-filter-bar__link {
+    padding: 0.45rem 0.95rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: rgba(226, 232, 240, 0.88);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    transition: all 0.15s ease;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-filter-bar__link:hover,
+body.erp-ops-space.page-bodega-plataforma .ecom-filter-bar__link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-filter-bar__link.active,
+body.erp-ops-space.page-bodega-plataforma .ecom-filter-bar__link.active {
+    color: #0f172a;
+    background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+    border-color: rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 18px rgba(74, 222, 128, 0.35);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-alert,
+body.erp-ops-space.page-bodega-plataforma .ecom-alert {
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.65);
+    color: #e2e8f0;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-alert--warn,
+body.erp-ops-space.page-bodega-plataforma .ecom-alert--warn {
+    border-color: rgba(251, 191, 36, 0.45);
+    background: rgba(120, 53, 15, 0.35);
+    color: #fde68a;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-alert--info,
+body.erp-ops-space.page-bodega-plataforma .ecom-alert--info {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: rgba(12, 74, 110, 0.35);
+    color: #bae6fd;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-card > .card-header,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-card > .card-header {
+    background: rgba(0, 0, 0, 0.35) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 0.85rem 1.15rem;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-card .card-header h6,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-card .card-header h6 {
+    margin: 0;
+    font-size: 0.72rem;
+    color: #f1f5f9 !important;
+    letter-spacing: 0.1em;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table > :not(caption) > * > *,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table > :not(caption) > * > * {
+    color: #e2e8f0 !important;
+    background-color: rgba(15, 23, 42, 0.55) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody td,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table tbody td,
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody th,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table tbody th {
+    color: #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table thead th,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table thead th {
+    background: rgba(0, 0, 0, 0.5) !important;
+    color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table-hover > tbody > tr:hover > *,
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table-hover > tbody > tr:hover > * {
+    background-color: rgba(74, 222, 128, 0.08) !important;
+    color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table-hover > tbody > tr:hover > * {
+    background-color: rgba(59, 130, 246, 0.12) !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-pedido-code,
+body.erp-ops-space.page-bodega-plataforma .ecom-pedido-code {
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    color: #4ade80 !important;
+    font-size: 0.95rem;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-empty,
+body.erp-ops-space.page-bodega-plataforma .ecom-empty {
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-empty__icon,
+body.erp-ops-space.page-bodega-plataforma .ecom-empty__icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    color: rgba(74, 222, 128, 0.9);
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.25);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-empty__title,
+body.erp-ops-space.page-bodega-plataforma .ecom-empty__title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.5rem;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-empty__text,
+body.erp-ops-space.page-bodega-plataforma .ecom-empty__text {
+    max-width: 32rem;
+    margin: 0 auto 1.25rem;
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-cta,
+body.erp-ops-space.page-bodega-plataforma .ecom-btn-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: #052e16;
+    background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    text-decoration: none;
+    box-shadow: 0 4px 20px rgba(74, 222, 128, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-cta:hover,
+body.erp-ops-space.page-bodega-plataforma .ecom-btn-cta:hover {
+    color: #052e16;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(74, 222, 128, 0.45);
+}
+
+/* Bodega — misma bandeja premium, acento azul/ámbar */
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.98) 0%,
+        rgba(37, 99, 235, 0.42) 45%,
+        rgba(234, 88, 12, 0.38) 100%
+    );
+    border-color: rgba(96, 165, 250, 0.28);
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__eyebrow {
+    color: rgba(147, 197, 253, 0.95);
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat-label {
+    color: rgba(191, 219, 254, 0.8);
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat-value {
+    color: #60a5fa;
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-filter-bar__link.active {
+    color: #0f172a;
+    background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 100%);
+    box-shadow: 0 0 18px rgba(59, 130, 246, 0.35);
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-pedido-code {
+    color: #93c5fd !important;
+}
+
+body.erp-ops-space.page-bodega-plataforma .ecom-kpi--parcial {
+    --ecom-kpi-accent: #38bdf8;
+}
+
+/* Plataforma bodega — legibilidad si el HTML aún es legacy (card blanca + tabla clara) */
+body.erp-ops-space.page-bodega-plataforma #tblPlataforma.table > :not(caption) > * > *,
+body.erp-ops-space.page-bodega-plataforma .card-ds .table > :not(caption) > * > * {
+    color: #0f172a !important;
+    background-color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-bodega-plataforma #tblPlataforma .table thead th,
+body.erp-ops-space.page-bodega-plataforma .card-ds .table thead th {
+    color: #f8fafc !important;
+    background: #334155 !important;
+}
+
+body.erp-ops-space.page-bodega-plataforma .page-subtitle,
+body.erp-ops-space.page-bodega-plataforma .card-ds .table tbody td,
+body.erp-ops-space.page-bodega-plataforma .card-ds .table tbody td .text-muted {
+    color: #475569 !important;
+}
+
+@media (max-width: 991.98px) {
+    body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium {
+        grid-template-columns: 1fr;
+    }
+    body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium__stat,
+body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat {
+        align-items: flex-start;
+        text-align: left;
+        width: 100%;
     }
 }

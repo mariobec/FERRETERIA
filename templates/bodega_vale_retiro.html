@@ -16,8 +16,21 @@
         Esta página <strong>no se actualiza sola</strong>: después de movimientos de stock en otro módulo usá <kbd>F5</kbd> o volvé a entrar al vale.
       </p>
     </div>
-    <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-outline-secondary btn-sm">Volver a plataforma</a>
+    <div class="d-flex flex-wrap gap-2">
+      {% if entrega_qr_url %}
+      <a href="{{ entrega_qr_url }}" class="btn btn-success btn-sm">
+        <i class="fas fa-qrcode me-1"></i>Registrar entrega (QR ticket)
+      </a>
+      {% endif %}
+      <a href="{{ url_for('bodega_plataforma') }}" class="btn btn-outline-secondary btn-sm">Volver a plataforma</a>
+    </div>
   </div>
+  {% if entrega_ticket_estado %}
+  <p class="small mb-3">
+    Estado entrega ticket: <span class="badge bg-secondary">{{ entrega_ticket_estado }}</span>
+    · Podés retirar <strong>parcial</strong> (menos unidades) y el cliente vuelve otro día; el QR deja trazado lo entregado.
+  </p>
+  {% endif %}
 
   {% if alertas_retiro_stock %}
   <div class="alert alert-warning border-0">

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>POS — Árbol de decisión · Código no registrado</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 11pt;
+      line-height: 1.35;
+      color: #0f172a;
+      margin: 0;
+      padding: 10mm;
+      max-width: 210mm;
+    }
+    h1 {
+      font-size: 15pt;
+      margin: 0 0 4px;
+      color: #0c2340;
+      border-bottom: 3px solid #f5c400;
+      padding-bottom: 6px;
+    }
+    .sub {
+      font-size: 9.5pt;
+      color: #475569;
+      margin: 0 0 14px;
+    }
+    .regla {
+      background: #f0fdf4;
+      border: 2px solid #16a34a;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 14px;
+      font-weight: 600;
+      font-size: 10pt;
+    }
+    .tree {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    .node {
+      border: 2px solid #0c2340;
+      border-radius: 10px;
+      padding: 10px 16px;
+      text-align: center;
+      font-weight: 700;
+      background: #fff;
+      max-width: 92%;
+    }
+    .node--start {
+      background: linear-gradient(135deg, #0c2340, #163a5f);
+      color: #fff;
+      border-color: #0c2340;
+      font-size: 11pt;
+    }
+    .node--pregunta {
+      background: #eff6ff;
+      border-color: #2563eb;
+      font-size: 10.5pt;
+    }
+    .arrow {
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 14px solid #64748b;
+      margin: 2px 0;
+    }
+    .fork {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .fork-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .fork-label {
+      font-size: 8pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+      color: #64748b;
+    }
+    .node--si { border-color: #16a34a; background: #f0fdf4; }
+    .node--no { border-color: #ea580c; background: #fff7ed; }
+    .node--duda { border-color: #7c3aed; background: #f5f3ff; }
+    .accion {
+      font-size: 9pt;
+      font-weight: 600;
+      margin-top: 6px;
+      color: #334155;
+      line-height: 1.25;
+    }
+    .accion strong { color: #0c2340; display: block; font-size: 10pt; margin-bottom: 2px; }
+    .pie {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 8.5pt;
+    }
+    .pie-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+    .pie-box h3 {
+      margin: 0 0 4px;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      color: #0c2340;
+    }
+    .pie-box ul { margin: 0; padding-left: 14px; }
+    .footer {
+      margin-top: 10px;
+      font-size: 7.5pt;
+      color: #94a3b8;
+      text-align: center;
+    }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+    .btn-print {
+      display: block;
+      margin: 0 auto 12px;
+      padding: 8px 20px;
+      font-size: 11pt;
+      cursor: pointer;
+      background: #0c2340;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <button type="button" class="btn-print no-print" onclick="window.print()">Imprimir (Ctrl+P)</button>
+
+  <h1>Punto de venta — Código escaneado</h1>
+  <p class="sub">Ferretería Santo Domingo · LhexIA ERP · Laminar en mostrador</p>
+
+  <div class="regla">
+    Un producto físico = una ficha en el sistema = un solo stock.
+    Los códigos son etiquetas, no productos distintos.
+  </div>
+
+  <div class="tree">
+    <div class="node node--start">Pistoleo en el buscador del POS</div>
+    <div class="arrow"></div>
+    <div class="node node--pregunta">¿El sistema lo reconoce y agrega al vale?</div>
+    <div class="arrow"></div>
+
+    <div class="fork" style="grid-template-columns: 1fr 1fr;">
+      <div class="fork-item">
+        <span class="fork-label" style="color:#16a34a">Sí</span>
+        <div class="node node--si" style="max-width:100%">
+          Listo — siga con la venta
+        </div>
+      </div>
+      <div class="fork-item">
+        <span class="fork-label" style="color:#dc2626">No</span>
+        <div class="node" style="max-width:100%; border-color:#dc2626; background:#fef2f2;">
+          Cuadro «Código no registrado»
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow" style="margin-top:10px"></div>
+    <div class="node node--pregunta" style="max-width:100%">
+      ¿Ya lo vendemos con otro código o nombre?
+    </div>
+    <div class="arrow"></div>
+
+    <div class="fork">
+      <div class="fork-item">
+        <span class="fork-label">Sí · mismo artículo</span>
+        <div class="node node--si" style="max-width:100%">
+          VINCULAR código
+          <div class="accion">
+            <strong>Mismo producto — otro sticker</strong>
+            Botón verde en POS.<br>
+            No duplica stock.
+          </div>
+        </div>
+      </div>
+      <div class="fork-item">
+        <span class="fork-label">No · es nuevo</span>
+        <div class="node node--no" style="max-width:100%">
+          ALTA RÁPIDA
+          <div class="accion">
+            <strong>Producto nuevo en mostrador</strong>
+            Nombre + precio + cuántos trajo.<br>
+            Sí suma stock en tienda.
+          </div>
+        </div>
+      </div>
+      <div class="fork-item">
+        <span class="fork-label">No estoy segura</span>
+        <div class="node node--duda" style="max-width:100%">
+          BUSCAR por nombre
+          <div class="accion">
+            <strong>2+ letras en buscador</strong>
+            ↑↓ Enter · Esc cierra.<br>
+            Pregunte a bodega si duda.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pie">
+    <div class="pie-box">
+      <h3>¿Quiso decir?</h3>
+      <ul>
+        <li>Si coincide → vincular o agregar, <strong>no</strong> alta rápida duplicada.</li>
+      </ul>
+    </div>
+    <div class="pie-box">
+      <h3>No hacer</h3>
+      <ul>
+        <li>Alta rápida si es el mismo tornillo/pintura/cable.</li>
+        <li>Inventar código sin etiqueta.</li>
+      </ul>
+    </div>
+    <div class="pie-box">
+      <h3>Modal no responde</h3>
+      <ul>
+        <li>X o Esc → Ctrl+Shift+R → reintentar.</li>
+      </ul>
+    </div>
+    <div class="pie-box">
+      <h3>Ayuda</h3>
+      <ul>
+        <li>Precio: botón <strong>Precios</strong>.</li>
+        <li>Stock/catálogo: bodega / enrolamiento.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="footer">Manual completo: MANUALES DE OPERACIÓN/POS_CODIGO_NO_REGISTRADO_VENDEDORAS.md · v1.0 · 2026-06-02</p>
+</body>
+</html>

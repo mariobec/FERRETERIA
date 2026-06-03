@@ -110,10 +110,27 @@
             font-weight: 800;
             color: var(--vale-green);
         }
+        .ticket .header .ticket-empresa-meta {
+            margin: 3px 0 0;
+            font-size: 10px;
+            color: #475569;
+            line-height: 1.4;
+        }
         .ticket .info { text-align: center; font-size: 11px; color: #475569; line-height: 1.45; }
         .ticket .info p { margin: 2px 0; }
         .ticket table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        .ticket th, .ticket td { text-align: left; padding: 2px 0; font-size: 11px; }
+        .ticket th, .ticket td { text-align: left; padding: 2px 0; font-size: 11px; vertical-align: top; }
+        .ticket th.col-ct, .ticket td.col-ct {
+            width: 2rem;
+            text-align: center;
+            padding-right: 6px;
+            white-space: nowrap;
+        }
+        .ticket th.col-precio, .ticket td.col-precio {
+            text-align: right;
+            white-space: nowrap;
+            padding-left: 8px;
+        }
         .ticket th { border-bottom: 1px solid #0f172a; font-weight: 600; }
         .ticket .ticket-total {
             text-align: right;
@@ -151,6 +168,20 @@
         .ticket-qr-wrap { text-align: center; margin: 12px 0 6px; }
         .ticket-qr-wrap img { max-width: 140px; height: auto; }
         .ticket-qr-caption { font-size: 10px; color: #475569; margin-top: 4px; }
+        .ticket-qr-footer {
+            text-align: center;
+            margin-top: 14px;
+            padding-top: 10px;
+            border-top: 2px dashed #94a3b8;
+        }
+        .ticket-qr-footer .ticket-qr-phone {
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            margin: 6px 0 8px;
+            color: #0f172a;
+        }
+        .ticket-qr-footer img { max-width: 148px; height: auto; }
         .ticket-picking { margin-top: 10px; font-size: 10px; }
         .ticket-picking th { font-size: 10px; }
 
@@ -158,8 +189,12 @@
             display: none;
         }
 
+        @page {
+            size: 80mm auto;
+            margin: 2mm;
+        }
         @media print {
-            body { background: #fff; }
+            body { background: #fff; margin: 0; }
             .no-print { display: none !important; }
             .vale-emit-wrap {
                 display: block;
@@ -168,12 +203,14 @@
             }
             .vale-ticket-stage { display: block; }
             .ticket {
-                max-width: 300px;
+                max-width: 72mm;
+                width: 72mm;
                 margin: 0 auto;
                 border: none;
                 box-shadow: none;
                 background: #fff;
-                padding: 8px 10px 12px;
+                padding: 4px 6px 8px;
+                font-size: 11px;
             }
             .ticket::before,
             .ticket::after {
@@ -188,6 +225,9 @@
         <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">➕ Nueva venta</a>
         <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">💳 Ir a caja</a>
         <button type="button" class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
+        {% if pos_impresion_termica %}
+        <button type="button" class="btn btn-ghost" id="btnTicketTermica" data-venta-id="{{ venta.id }}">🖨 Térmica XP-80</button>
+        {% endif %}
     </div>
 
     {% set total_fmt = "{:,.0f}".format(venta.monto_total).replace(",", ".") %}
@@ -205,6 +245,12 @@
             <div class="ticket" id="valeTicketAnim">
                 <div class="header">
                     <h2>✔ {{ empresa_nom }}</h2>
+                    {% if ticket_direccion %}
+                    <p class="ticket-empresa-meta">{{ ticket_direccion }}</p>
+                    {% endif %}
+                    {% if ticket_telefono %}
+                    <p class="ticket-empresa-meta"><strong>{{ ticket_telefono }}</strong></p>
+                    {% endif %}
                 </div>
                 <div class="info">
                     <p><strong>VALE N° {{ venta.id }}</strong></p>
@@ -218,12 +264,6 @@
                     <div style="text-align:center;margin:6px 0;">
                         <svg id="barcodeFolio" jsbarcode-format="CODE128" jsbarcode-value="VL{{ '%06d' % venta.id }}" jsbarcode-width="1.6" jsbarcode-height="36" jsbarcode-displayvalue="true" jsbarcode-fontsize="11" jsbarcode-margin="0"></svg>
                     </div>
-                    {% if pos_ticket_qr_despacho and qr_ticket_src %}
-                    <div class="ticket-qr-wrap">
-                      <img src="{{ qr_ticket_src }}" width="132" height="132" alt="Código QR despacho">
-                      <div class="ticket-qr-caption">QR despacho · mismo código para tienda y bodega</div>
-                    </div>
-                    {% endif %}
                 </div>
 
                 {% if usar_bloques_por_retiro %}
@@ -237,17 +277,17 @@
                       <table>
                         <thead>
                           <tr>
+                            <th class="col-ct">Ct</th>
                             <th>Producto</th>
-                            <th>Ct</th>
-                            <th>$</th>
+                            <th class="col-precio">$</th>
                           </tr>
                         </thead>
                         <tbody>
                           {% for d in rows %}
                           <tr>
+                            <td class="col-ct">{{ d.cantidad }}</td>
                             <td>{{ ticket_line_etiqueta.get(d.id, '[T]') }} {{ (d.producto.nombre[:24] ~ ('…' if d.producto.nombre|length > 24 else '')) if d.producto else '—' }}{% if (d.descuento or 0) > 0 %}<br><span class="ticket-line-meta">Dto {{ (d.descuento or 0)|round|int }}%{% if d.supervisor_autorizo %} · Aut: {{ (d.supervisor_autorizo.nombre or '')[:16] }}{% endif %}</span>{% endif %}</td>
-                            <td>{{ d.cantidad }}</td>
-                            <td>{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
+                            <td class="col-precio">{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
                           </tr>
                           {% endfor %}
                         </tbody>
@@ -269,17 +309,17 @@
                 <table>
                     <thead>
                         <tr>
+                            <th class="col-ct">Ct</th>
                             <th>Producto</th>
-                            <th>Ct</th>
-                            <th>$</th>
+                            <th class="col-precio">$</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for d in detalles %}
                         <tr>
+                            <td class="col-ct">{{ d.cantidad }}</td>
                             <td>{{ ticket_line_etiqueta.get(d.id, '') }} {{ d.producto.nombre[:26] }}{% if d.producto.nombre|length > 26 %}…{% endif %}{% if (d.descuento or 0) > 0 %}<br><span class="ticket-line-meta">Dto {{ (d.descuento or 0)|round|int }}%{% if d.supervisor_autorizo %} · Aut: {{ (d.supervisor_autorizo.nombre or '')[:16] }}{% endif %}</span>{% endif %}</td>
-                            <td>{{ d.cantidad }}</td>
-                            <td>{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
+                            <td class="col-precio">{{ "{:,.0f}".format(d.subtotal or (d.cantidad * d.precio_unitario)).replace(",", ".") }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -313,6 +353,16 @@
                 {% else %}
                 <div class="pendiente">*** PENDIENTE DE COBRO EN CAJA ***</div>
                 {% endif %}
+                {% if pos_ticket_qr_despacho and qr_ticket_src %}
+                <div class="ticket-qr-footer">
+                  <div class="ticket-sep">ESCANEO BODEGA</div>
+                  <img src="{{ qr_ticket_src }}" width="148" height="148" alt="Código QR despacho bodega">
+                  <div class="ticket-qr-caption">QR retiro · escanear tras cobrar en caja</div>
+                  {% if despacho_ticket_url %}
+                  <div class="ticket-qr-caption font-monospace" style="font-size:9px;word-break:break-all">{{ despacho_ticket_url }}</div>
+                  {% endif %}
+                </div>
+                {% endif %}
             </div>
         </section>
     </div>
@@ -329,6 +379,41 @@
         });
       })();
     </script>
+{% if pos_impresion_termica %}
+    <script>
+      (function () {
+        var vid = {{ venta.id | tojson }};
+        function imprimirTermica(manual) {
+          return fetch('/api/pos/imprimir-ticket/' + encodeURIComponent(vid), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: '{}',
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (manual) {
+                alert(data.ok ? 'Enviado a impresora: ' + (data.impresora || '') : (data.mensaje || data.error || 'Error'));
+              }
+              return data;
+            })
+            .catch(function () {
+              if (manual) alert('Error de red al imprimir.');
+            });
+        }
+        var btn = document.getElementById('btnTicketTermica');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            btn.disabled = true;
+            imprimirTermica(true).finally(function () { btn.disabled = false; });
+          });
+        }
+        window.addEventListener('load', function () {
+          setTimeout(function () { imprimirTermica(false); }, 400);
+        });
+      })();
+    </script>
+{% endif %}
 {% if request.args.get('pos_autoprint') == '1' %}
     <script>
       (function () {

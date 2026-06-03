@@ -1,0 +1,98 @@
+---
+description: E-commerce vitrina Maylén — checkout, Webpay DEV, PED-WEB, assets y env (2026-06-02)
+alwaysApply: true
+---
+
+# E-commerce vitrina + Maylén (estado acordado DEV)
+
+## Producto
+
+- **Vitrina:** `/tienda/ferreteria-santo-domingo` — catálogo Chilemat + stock ERP tienda.
+- **Asistente:** **Maylén** (reemplaza Liz en vitrina/e-commerce). Usuario ERP pedidos web: `Maylen-Web` (legado `Liz-Web` en bandeja).
+- **Constantes:** `services/vitrina_tienda_service.py` — `ASISTENTE_NOMBRE`, `ASISTENTE_USUARIO_WEB`, helpers `es_usuario_pedido_web()`.
+
+## Maylén UI (avatar ferretería)
+
+- Avatar 3D recortado: `static/img/maylen_avatar_cutout.png` (regenerar con `python scripts/chroma_maylen_avatar.py` tras cambiar `maylen_avatar.png`).
+- Fondo pasillo: `static/img/maylen_ferreteria_fondo.png`.
+- Template: `templates/tienda/includes/maylen_asistente.html` — capas fondo ferretería + cutout + degradado texto.
+- CSS/JS cache bust: `maylen-vitrina-8` en `tienda-vitrina.css`, `tienda-vitrina.js`, `maylen-avatar-live.js`.
+
+## Checkout y pago (implementado 2026-06-02)
+
+- Carrito: botón principal **«Ir a pagar»** (`#tiendaCartPagar`).
+- Overlay checkout 3 pasos: revisión → método de pago → éxito.
+- **Pagar en tienda:** `POST /api/tienda/<slug>/carrito/checkout` con `metodo: tienda` → `PED-WEB-######` (venta `Pendiente`) → cobro caja `VL######`.
+- **Webpay:** `metodo: webpay` → redirect Transbank → retorno `/tienda/<slug>/pago/webpay/retorno` → cobro automático si caja abierta.
+- API unificada checkout: `tienda_api_carrito_checkout` en `blueprints/tienda_publica.py`.
+- Servicio Webpay: `services/webpay_service.py`.
+- Cobro post-Webpay: `ecommerce_pedidos_service.cobrar_pedido_web_tarjeta()`.
+- Bandeja incluye pedidos web **Pagado + Webpay** pendientes de preparación.
+
+## Flujo operativo
+
+```
+Catálogo → carrito → Ir a pagar
+  ├─ Tarjeta (Webpay) → Pagado → /ecommerce/pedidos (preparar) → retiro QR
+  └─ Pagar en tienda → PED-WEB Pendiente → bandeja → caja cobra → preparar → retiro
+```
+
+## Archivos clave
+
+| Área | Archivos |
+|------|----------|
+| Vitrina | `blueprints/tienda_publica.py`, `services/vitrina_tienda_service.py` |
+| Bandeja ERP | `blueprints/ecommerce.py`, `services/ecommerce_pedidos_service.py` |
+| UI | `templates/tienda/includes/carrito_vitrina_shell.html`, `static/js/tienda-vitrina.js`, `static/css/tienda-vitrina.css` |
+| Pago resultado | `templates/tienda/pago_resultado.html` |
+| Plan | `PLAN_ECOM_PILOTO_v0.md` |
+| Tests smoke | `tests/test_tienda_publica.py`, `tests/test_ecommerce_bandeja.py` (17 smoke) |
+
+## Variables DEV (habilitado para pruebas)
+
+Carga en `app.py` → `_load_env_archivos()`:
+1. `env_qa.txt` (local, gitignore)
+2. `.env.qa` (gitignore)
+3. `.env.local` (gitignore, overrides Mario)
+4. **`env_dev_ecommerce.txt`** (repo, setdefault — rellena faltantes)
+
+### `env_dev_ecommerce.txt` (defaults repo)
+
+```
+VITRINA_TIENDA_HABILITADA=1
+VITRINA_PEDIDO_WEB_HABILITADO=1
+ECOM_PEDIDO_BLOQUEAR_SIN_STOCK=1
+ECOM_PEDIDO_REQUIERE_CAJA=0
+PUBLIC_SITE_URL=http://127.0.0.1:5000
+WEBPAY_ENABLED=1
+WEBPAY_ENV=integration
+WEBPAY_COMMERCE_CODE=597055555532
+WEBPAY_API_SECRET=579B532A7440BB0C9079DEDCF7031791518E971285711964709F93767E94B376
+WHATSAPP_VENTAS=56923739904
+VITRINA_OLLAMA_ENABLED=1
+VITRINA_OLLAMA_BASE_URL=http://127.0.0.1:11434
+```
+
+### `.env.local` Mario (override Ollama tienda)
+
+- `VITRINA_OLLAMA_BASE_URL=http://192.168.1.4:11434`
+- Mismo bloque e-commerce/Webpay activo.
+
+**Reiniciar Flask** tras cambiar env (o `ERP_RELOAD_ENV_FILES=1`).
+
+## Webpay sandbox (Transbank integration)
+
+- Tarjeta prueba VISA: `4051885600441123` · CVV `123` · fecha futura.
+- RUT: `11.111.111-1` · clave `123`.
+- Retorno debe coincidir con `PUBLIC_SITE_URL` (local: `http://127.0.0.1:5000`).
+
+## Comandos QA
+
+```bash
+pytest tests/test_tienda_publica.py tests/test_ecommerce_bandeja.py -m smoke -q
+python scripts/chroma_maylen_avatar.py
+```
+
+## Pendiente operación (no código)
+
+OT DEV → QAS → PRD, UAT piso, curar 80–150 SKU, capacitar bandeja vs caja.

@@ -7,14 +7,14 @@
   <title>Lab · Módulo pinturas — {{ nombre_tienda }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/fabrica-color.css') }}?v=fc-modulo-20260530">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/fabrica-color.css') }}?v=fc-modulo-20260530e">
 </head>
 <body class="mp-lab-page">
   <div class="mp-banner mp-banner--lab"><i class="fas fa-flask me-2"></i> Preview lab · módulo pinturas (no indexar)</div>
   <main class="mp-lab-main">
     <img src="{{ url_for('static', filename='img/ferreteria_santo_domingo_logo.png') }}?v=logo-martillo-1" alt="" width="56" height="56" class="mb-3">
-    <h1>Módulo Fábrica de Color</h1>
-    <p class="lead">Entorno de prueba aislado del catálogo web. En piso, el cajero habilita el wizard para el cliente desde caja.</p>
+    <h1>Colores en tienda</h1>
+    <p class="lead">Asistente de pinturas con stock ERP. En piso, el cajero habilita la pantalla para el cliente desde caja.</p>
     <div class="d-flex flex-wrap gap-2 mt-4">
       <a href="{{ wizard_url }}" class="fc-btn fc-btn--primary text-decoration-none">
         <i class="fas fa-palette me-1"></i> Abrir wizard (lab)

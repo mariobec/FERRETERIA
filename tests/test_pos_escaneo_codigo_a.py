@@ -30,6 +30,39 @@ def test_pos_buscar_resuelve_ean13_vs_maestro_14(app_ctx, productos_con_stock):
 
 
 @pytest.mark.smoke
+def test_api_escanear_con_stock_tienda_no_ofrece_apedido(app_client, productos_con_stock, caja_abierta):
+    """Con stock en tienda debe agregar al vale, no modal a pedido."""
+    p = productos_con_stock[3]
+    old = p.codigo_barra
+    scan_code = f'88877766{(int(p.id) % 100000):05d}'
+    master_code = scan_code + '0'
+    p.codigo_barra = master_code
+    p.precio_venta_sd = 1990
+    aid_t = m.id_almacen_tienda()
+    if aid_t:
+        m.fijar_stock_almacen(p.id, aid_t, 1)
+    db.session.commit()
+    for dv in m.DetalleVenta.query.filter_by(id_producto=p.id).all():
+        v = m.Venta.query.get(dv.id_venta)
+        if v and (v.estado or '').strip() in ('Pendiente', 'Abierta'):
+            db.session.delete(dv)
+    db.session.commit()
+    try:
+        r = app_client.post(
+            '/api/pos/escanear-agregar',
+            json={'codigo': scan_code},
+            content_type='application/json',
+        )
+        data = r.get_json()
+        assert r.status_code == 200, data
+        assert data.get('ok') is True
+        assert data.get('error') != 'ofrecer_apedido'
+    finally:
+        p.codigo_barra = old
+        db.session.commit()
+
+
+@pytest.mark.smoke
 def test_api_escanear_ofrecer_apedido_sin_stock(app_client, productos_con_stock, caja_abierta):
     p = productos_con_stock[4]
     old = p.codigo_barra

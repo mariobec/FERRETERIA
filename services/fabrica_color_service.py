@@ -1,15 +1,36 @@
 """
-Fábrica de Color LhexIA — wizard pinturas (vitrina web Santo Domingo).
-Paleta curada + productos ERP rubro Pinturas + complementos producto_relacion.
+Fábrica de Color LhexIA — wizard pinturas (módulo cliente Santo Domingo).
+Cartilla Kölor/Topex + productos ERP rubro Pinturas + complementos producto_relacion.
 """
 from __future__ import annotations
 
 import math
+import os
+import re
 from typing import Any
+
+from services import pintura_cartilla_service as cartilla
+from services import pintura_stock_palette_service as stock_palette
 
 RENDIMIENTO_M2_GALON = 35.0
 MANOS_DEFAULT = 2
 LITROS_POR_GALON = 3.785
+
+_SCENE_BG = {
+    'interior': 'img/fabrica-color/scene-living.svg',
+    'bano': 'img/fabrica-color/scene-bano.svg',
+    'cocina': 'img/fabrica-color/scene-cocina.svg',
+    'fachada': 'img/fabrica-color/scene-fachada.svg',
+}
+
+
+def _ambiente_photo(ambiente_id: str) -> str:
+    return f'img/fabrica-color/ambientes/{ambiente_id}.jpg'
+
+
+def _ambiente_mask(ambiente_id: str) -> str:
+    return f'img/fabrica-color/masks/{ambiente_id}.png'
+
 
 AMBIENTES: list[dict[str, Any]] = [
     {
@@ -17,42 +38,126 @@ AMBIENTES: list[dict[str, Any]] = [
         "nombre": "Comedor",
         "icono": "fa-utensils",
         "uso": "interior",
+        "scene": "interior",
+        "scene_bg": _SCENE_BG['interior'],
+        "photo": _ambiente_photo('comedor'),
+        "mask": _ambiente_mask('comedor'),
+        "grid_class": "fc-amb-card--hero",
+        "wall_polygons": [
+            [[0.0, 0.0], [1.0, 0.0], [1.0, 0.48], [0.0, 0.48]],
+        ],
+        "wall_exclusions": [
+            [0.50, 0.78, 0.42, 0.18],
+            [0.15, 0.82, 0.12, 0.10],
+        ],
         "tip": "Ideal para espacios de reunión con buena luz natural.",
-    },
-    {
-        "id": "dormitorio",
-        "nombre": "Dormitorio",
-        "icono": "fa-bed",
-        "uso": "interior",
-        "tip": "Prefiera tonos suaves y acabado mate para descanso.",
-    },
-    {
-        "id": "living",
-        "nombre": "Living",
-        "icono": "fa-couch",
-        "uso": "interior",
-        "tip": "Combine color de acento en muro principal.",
-    },
-    {
-        "id": "bano",
-        "nombre": "Baño",
-        "icono": "fa-bath",
-        "uso": "interior",
-        "tip": "Use pintura lavable o satinada por humedad.",
-    },
-    {
-        "id": "fachada",
-        "nombre": "Fachada",
-        "icono": "fa-house-chimney",
-        "uso": "exterior",
-        "tip": "Elija pintura exterior con protección UV.",
     },
     {
         "id": "cocina",
         "nombre": "Cocina",
         "icono": "fa-kitchen-set",
         "uso": "interior",
+        "scene": "cocina",
+        "scene_bg": _SCENE_BG['cocina'],
+        "photo": _ambiente_photo('cocina'),
+        "mask": _ambiente_mask('cocina'),
+        "wall_polygons": [
+            [[0.0, 0.0], [1.0, 0.0], [1.0, 0.40], [0.0, 0.40]],
+        ],
+        "wall_exclusions": [
+            [0.70, 0.65, 0.22, 0.30],
+            [0.30, 0.72, 0.25, 0.20],
+        ],
         "tip": "Satinado facilita limpieza de salpicaduras.",
+    },
+    {
+        "id": "dormitorio",
+        "nombre": "Dormitorio",
+        "icono": "fa-bed",
+        "uso": "interior",
+        "scene": "interior",
+        "scene_bg": _SCENE_BG['interior'],
+        "photo": _ambiente_photo('dormitorio'),
+        "mask": _ambiente_mask('dormitorio'),
+        "wall_polygons": [
+            [[0.0, 0.0], [0.79, 0.0], [0.79, 0.66], [0.46, 0.62], [0.0, 0.52]],
+            [[0.74, 0.0], [1.0, 0.0], [1.0, 0.92], [0.74, 0.92]],
+            [[0.44, 0.44], [0.66, 0.44], [0.66, 0.70], [0.44, 0.70]],
+        ],
+        "wall_exclusions": [
+            [0.30, 0.78, 0.40, 0.18],
+            [0.62, 0.80, 0.16, 0.18],
+        ],
+        "smart_wall_tint": True,
+        "wall_tint": {"lum_min": 58, "sat_max": 255},
+        "tip": "Prefiera tonos suaves y acabado mate para descanso.",
+    },
+    {
+        "id": "bano",
+        "nombre": "Baño",
+        "icono": "fa-bath",
+        "uso": "interior",
+        "scene": "bano",
+        "scene_bg": _SCENE_BG['bano'],
+        "photo": _ambiente_photo('bano'),
+        "mask": _ambiente_mask('bano'),
+        "wall_polygons": [
+            # Muro fondo detrás de la tina
+            [[0.12, 0.0], [0.66, 0.0], [0.66, 0.47], [0.12, 0.47]],
+            # Muro izquierdo (toallero)
+            [[0.0, 0.0], [0.13, 0.0], [0.13, 0.40], [0.0, 0.40]],
+            # Franja sobre ventana
+            [[0.66, 0.0], [0.79, 0.0], [0.79, 0.28], [0.66, 0.28]],
+            # Franja sobre espejo (derecha)
+            [[0.79, 0.0], [1.0, 0.0], [1.0, 0.24], [0.79, 0.24]],
+        ],
+        "wall_exclusions": [
+            [0.055, 0.27, 0.04, 0.085],
+            [0.055, 0.39, 0.04, 0.075],
+        ],
+        "tip": "Use pintura lavable o satinada por humedad.",
+    },
+    {
+        "id": "living",
+        "nombre": "Living",
+        "icono": "fa-couch",
+        "uso": "interior",
+        "scene": "interior",
+        "scene_bg": _SCENE_BG['interior'],
+        "photo": _ambiente_photo('living'),
+        "mask": _ambiente_mask('living'),
+        "wall_polygons": [
+            [[0.0, 0.0], [1.0, 0.0], [1.0, 0.34], [0.0, 0.34]],
+            [[0.0, 0.0], [0.14, 0.0], [0.14, 0.58], [0.0, 0.58]],
+            [[0.86, 0.0], [1.0, 0.0], [1.0, 0.50], [0.86, 0.50]],
+        ],
+        "wall_exclusions": [
+            [0.22, 0.14, 0.08, 0.07],
+            [0.50, 0.11, 0.10, 0.07],
+            [0.42, 0.56, 0.52, 0.36],
+            [0.58, 0.74, 0.24, 0.14],
+            [0.10, 0.60, 0.14, 0.20],
+        ],
+        "tip": "Combine color de acento en muro principal.",
+    },
+    {
+        "id": "fachada",
+        "nombre": "Fachada",
+        "icono": "fa-house-chimney",
+        "uso": "exterior",
+        "scene": "fachada",
+        "scene_bg": _SCENE_BG['fachada'],
+        "photo": _ambiente_photo('fachada'),
+        "mask": _ambiente_mask('fachada'),
+        "wall_polygons": [
+            [[0.12, 0.22], [0.88, 0.22], [0.88, 0.76], [0.12, 0.76]],
+        ],
+        "wall_exclusions": [
+            [0.50, 0.52, 0.08, 0.14],
+            [0.28, 0.58, 0.06, 0.10],
+            [0.72, 0.58, 0.06, 0.10],
+        ],
+        "tip": "Elija pintura exterior con protección UV.",
     },
 ]
 
@@ -83,26 +188,16 @@ CALIDADES: list[dict[str, Any]] = [
     {"id": "premium", "nombre": "Premium", "badge": "Máxima cobertura"},
 ]
 
-# Paleta referencial (códigos tipo cartilla). hex para visualizador.
-_PALETA: list[dict[str, Any]] = [
-    {"id": "v-055", "codigo": "V-055", "nombre": "Bangalore", "familia": "amarillo", "hex": "#D4E157", "marca": "Kolor"},
-    {"id": "v-010", "codigo": "V-010", "nombre": "Limón suave", "familia": "amarillo", "hex": "#FFF59D", "marca": "Kolor"},
-    {"id": "b-001", "codigo": "B-001", "nombre": "Blanco nieve", "familia": "blanco", "hex": "#FAFAFA", "marca": "Topex"},
-    {"id": "b-012", "codigo": "B-012", "nombre": "Blanco hueso", "familia": "blanco", "hex": "#F5F0E6", "marca": "Topex"},
-    {"id": "g-040", "codigo": "G-040", "nombre": "Gris urbano", "familia": "gris", "hex": "#9E9E9E", "marca": "Kolor"},
-    {"id": "g-028", "codigo": "G-028", "nombre": "Gris perla", "familia": "gris", "hex": "#ECEFF1", "marca": "Topex"},
-    {"id": "a-018", "codigo": "A-018", "nombre": "Azul pacífico", "familia": "azul", "hex": "#64B5F6", "marca": "Kolor"},
-    {"id": "a-032", "codigo": "A-032", "nombre": "Azul noche", "familia": "azul", "hex": "#1A237E", "marca": "Topex"},
-    {"id": "vd-015", "codigo": "VD-015", "nombre": "Verde sage", "familia": "verde", "hex": "#A5D6A7", "marca": "Kolor"},
-    {"id": "vd-022", "codigo": "VD-022", "nombre": "Verde bosque", "familia": "verde", "hex": "#2E7D32", "marca": "Topex"},
-    {"id": "r-008", "codigo": "R-008", "nombre": "Terracota", "familia": "rojo", "hex": "#D84315", "marca": "Kolor"},
-    {"id": "r-003", "codigo": "R-003", "nombre": "Rosa empolvado", "familia": "rojo", "hex": "#F8BBD0", "marca": "Topex"},
-    {"id": "n-001", "codigo": "N-001", "nombre": "Negro grafito", "familia": "neutro", "hex": "#37474F", "marca": "Topex"},
-    {"id": "be-010", "codigo": "BE-010", "nombre": "Beige arena", "familia": "beige", "hex": "#D7CCC8", "marca": "Kolor"},
-    {"id": "be-018", "codigo": "BE-018", "nombre": "Arena cálida", "familia": "beige", "hex": "#EFEBE9", "marca": "Topex"},
-]
+_FAMILIAS_INTERIOR = ('blanco', 'beige', 'amarillo', 'verde', 'azul', 'gris', 'rojo', 'neutro')
 
-_FAMILIAS_ORDEN = ("blanco", "beige", "amarillo", "verde", "azul", "gris", "rojo", "neutro")
+
+def _fuente_colores() -> str:
+    """stock_erp = solo productos con stock tienda (fase 1). cartilla = tintometría (fase 2)."""
+    return (os.getenv('FABRICA_COLOR_FUENTE', 'stock_erp') or 'stock_erp').strip().lower()
+
+
+def _modo_stock() -> bool:
+    return _fuente_colores() in ('stock', 'stock_erp', 'erp', 'inventario')
 
 
 def _fmt_clp(n: float) -> str:
@@ -114,11 +209,11 @@ def _fmt_clp(n: float) -> str:
 
 
 def _color_por_id(color_id: str) -> dict[str, Any] | None:
-    cid = (color_id or "").strip().lower()
-    for c in _PALETA:
-        if c["id"] == cid:
-            return dict(c)
-    return None
+    if _modo_stock():
+        c = stock_palette.color_por_id(color_id)
+        if c:
+            return c
+    return cartilla.color_por_id(color_id)
 
 
 def _ambiente_por_id(ambiente_id: str) -> dict[str, Any] | None:
@@ -137,27 +232,51 @@ def _brillo_por_id(brillo_id: str) -> dict[str, Any] | None:
     return None
 
 
-def familias_colores() -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for fam in _FAMILIAS_ORDEN:
-        cols = [c for c in _PALETA if c.get("familia") == fam]
-        if cols:
-            out.append({"id": fam, "nombre": fam.capitalize(), "colores": cols})
-    return out
+def familias_colores(*, uso: str = 'interior') -> list[dict[str, Any]]:
+    if _modo_stock():
+        return stock_palette.familias_desde_stock(uso=uso, solo_con_stock=True)
+    return cartilla.familias_colores(uso=uso)
 
 
-def payload_inicial() -> dict[str, Any]:
+def _paleta_default_id(uso: str = 'interior') -> str:
+    fams = familias_colores(uso=uso)
+    if fams and fams[0].get('colores'):
+        return fams[0]['colores'][0]['id']
+    if _modo_stock():
+        return ''
+    cols = cartilla.paleta_completa()
+    return cols[0]['id'] if cols else ''
+
+
+def payload_inicial(*, uso: str = 'interior') -> dict[str, Any]:
+    fams_int = familias_colores(uso='interior')
+    fams_ext = familias_colores(uso='exterior')
+    fams = fams_ext if uso == 'exterior' else fams_int
+    if _modo_stock():
+        cols = stock_palette.paleta_desde_stock(uso=uso, solo_con_stock=True)
+        meta = stock_palette.resumen_stock()
+    else:
+        cols = cartilla.paleta_completa(solo_exterior=True if uso == 'exterior' else False)
+        meta = cartilla.meta_cartilla()
+    sin_stock = _modo_stock() and len(cols) == 0
     return {
+        "modo": "stock_erp" if _modo_stock() else "cartilla",
         "ambientes": AMBIENTES,
         "brillos": BRILLOS,
-        "calidades": CALIDADES,
-        "familias": familias_colores(),
-        "colores": list(_PALETA),
+        "calidades": [] if _modo_stock() else CALIDADES,
+        "familias": fams,
+        "familias_interior": fams_int,
+        "familias_exterior": fams_ext,
+        "colores": cols,
+        "cartilla": meta,
+        "sin_stock": sin_stock,
         "defaults": {
             "manos": MANOS_DEFAULT,
             "rendimiento_m2_galon": RENDIMIENTO_M2_GALON,
             "litros_por_galon": LITROS_POR_GALON,
+            "color_id": _paleta_default_id(uso=uso),
         },
+        "scene_assets": dict(_SCENE_BG),
     }
 
 
@@ -183,16 +302,32 @@ def calcular_cantidad(*, m2: float, manos: int | None = None, rendimiento: float
 
 
 def _es_pintura_row(prod) -> bool:
+    if stock_palette.es_pintura_con_color(prod):
+        return True
     nombre = (prod.nombre or "").lower()
     cat = (prod.categoria or "").lower()
     sub = (prod.subcategoria or "").lower()
-    if any(x in nombre for x in ("rodillo", "brocha", "bandeja", "cinta masking", "lija", "thinner", "diluyente")):
+    if any(x in nombre for x in ("rodillo", "brocha", "bandeja", "cinta masking", "lija", "thinner", "diluyente", "cinta", "fibra")):
         return False
     if "pintur" in cat or "pintur" in sub or "esmalte" in nombre or "latex" in nombre or "látex" in nombre:
         return True
     if nombre.startswith("pintura ") or " pintura " in nombre:
         return True
     return False
+
+
+def _producto_pintura_por_id(producto_id: int) -> dict[str, Any] | None:
+    from app import ChilematVtexProducto, Producto
+    from services.stock_service import stock_tienda_por_producto_ids
+
+    p = Producto.query.get(int(producto_id))
+    if not p or not p.activo:
+        return None
+    st = stock_tienda_por_producto_ids([p.id]).get(p.id, 0)
+    chm = ChilematVtexProducto.query.filter_by(producto_id=p.id).first()
+    if _modo_stock():
+        return stock_palette._serializar_item(p, int(st or 0), chm)
+    return _serializar_producto_pintura(p, chm, int(st or 0))
 
 
 def _serializar_producto_pintura(prod, chm=None, stock: int = 0) -> dict[str, Any]:
@@ -220,7 +355,13 @@ def _serializar_producto_pintura(prod, chm=None, stock: int = 0) -> dict[str, An
     }
 
 
-def productos_pintura_por_calidad(*, calidad_id: str, uso: str = "interior", limite: int = 12) -> list[dict[str, Any]]:
+def productos_pintura_por_calidad(
+    *,
+    calidad_id: str,
+    uso: str = "interior",
+    limite: int = 12,
+    marca_preferida: str | None = None,
+) -> list[dict[str, Any]]:
     from app import ChilematVtexProducto, Producto
     from services.stock_service import stock_tienda_por_producto_ids
 
@@ -248,6 +389,15 @@ def productos_pintura_por_calidad(*, calidad_id: str, uso: str = "interior", lim
         candidatos = rows[:80]
 
     candidatos.sort(key=lambda p: float(p.precio_venta or p.precio_mayoreo or 0))
+    marca_pref = (marca_preferida or '').strip().lower()
+    if marca_pref:
+        con_marca = [
+            p for p in candidatos
+            if marca_pref in (getattr(p, 'marca', None) or '').lower()
+            or marca_pref in (p.nombre or '').lower()
+        ]
+        if con_marca:
+            candidatos = con_marca + [p for p in candidatos if p not in con_marca]
     n = len(candidatos)
     if n == 0:
         return []
@@ -292,11 +442,13 @@ def complementos_pintura(producto_id: int | None, *, limite: int = 4) -> list[di
             p = Producto.query.get(int(it["id"]))
             if not p:
                 continue
+            precio = int(round(float(it.get("precio") or p.precio_venta or 0)))
             out.append(
                 {
                     "producto_id": p.id,
                     "nombre": (it.get("nombre") or p.nombre or "")[:100],
-                    "precio_fmt": _fmt_clp(it.get("precio") or p.precio_venta or 0),
+                    "precio": precio,
+                    "precio_fmt": _fmt_clp(precio),
                     "stock_tienda": int(stocks.get(p.id, 0)),
                     "disponible": int(stocks.get(p.id, 0)) > 0,
                 }
@@ -316,31 +468,62 @@ def cotizar_proyecto(
     producto_id: int | None = None,
 ) -> dict[str, Any]:
     amb = _ambiente_por_id(ambiente_id) or AMBIENTES[0]
-    color = _color_por_id(color_id) or _PALETA[0]
+    color = _color_por_id(color_id)
+    if not color and _modo_stock():
+        color = {'nombre': 'Pintura', 'codigo': '', 'marca': '', 'hex': '#B0BEC5'}
+    elif not color:
+        color = cartilla.paleta_completa()[0]
     brillo = _brillo_por_id(brillo_id) or BRILLOS[0]
     cant = calcular_cantidad(m2=m2)
 
-    productos = productos_pintura_por_calidad(calidad_id=calidad_id, uso=amb.get("uso", "interior"))
+    pid_color = stock_palette.producto_id_desde_color(color_id) if _modo_stock() else None
+    if pid_color:
+        producto_id = pid_color
     elegido = None
     if producto_id:
-        for p in productos:
-            if int(p["producto_id"]) == int(producto_id):
-                elegido = p
-                break
-    if not elegido and productos:
-        con_stock = [p for p in productos if p.get("disponible")]
-        elegido = (con_stock or productos)[0]
+        raw = _producto_pintura_por_id(int(producto_id))
+        if raw:
+            elegido = {
+                'producto_id': raw['producto_id'],
+                'nombre': raw.get('nombre_completo') or raw['nombre'],
+                'precio': raw['precio'],
+                'precio_fmt': raw['precio_fmt'],
+                'imagen_url': raw.get('imagen_url'),
+                'referencia': raw.get('referencia') or raw.get('codigo'),
+                'marca': raw.get('marca'),
+                'stock_tienda': raw.get('stock_tienda', 0),
+                'disponible': raw.get('disponible', False),
+            }
+
+    productos: list[dict[str, Any]] = []
+    if not elegido:
+        productos = productos_pintura_por_calidad(
+            calidad_id=calidad_id,
+            uso=amb.get("uso", "interior"),
+            marca_preferida=color.get("marca"),
+        )
+        if producto_id:
+            for p in productos:
+                if int(p["producto_id"]) == int(producto_id):
+                    elegido = p
+                    break
+        if not elegido and productos:
+            con_stock = [p for p in productos if p.get("disponible")]
+            elegido = (con_stock or productos)[0]
 
     comps = complementos_pintura(elegido["producto_id"] if elegido else None)
 
-    titulo = f"Proyecto {amb['nombre']} · {color['nombre']}"
+    titulo = f"Proyecto {amb['nombre']} · {color.get('nombre') or 'Pintura'}"
+    codigo_ref = color.get('codigo') or (elegido or {}).get('referencia') or ''
+    marca_ref = color.get('marca') or (elegido or {}).get('marca') or ''
     resumen = (
         f"{cant['galones_sugeridos_fmt']} gal (≈{cant['m2']} m² × {cant['manos']} manos) · "
-        f"{color['codigo']} {color['marca']} · {brillo['nombre']}"
+        f"{codigo_ref} {marca_ref} · {brillo['nombre']}"
     )
 
     liz_prompt = (
-        f"Estoy configurando pintura para {amb['nombre']}: color {color['nombre']} ({color['codigo']}), "
+        f"Estoy configurando pintura para {amb['nombre']}: "
+        f"{color.get('nombre') or 'pintura'} ({codigo_ref}), "
         f"acabado {brillo['nombre']}, {cant['m2']} m². ¿Qué más debería llevar?"
     )
 
@@ -351,6 +534,12 @@ def cotizar_proyecto(
     if elegido:
         wa_lineas.append(f"Base sugerida: {elegido['nombre']} ({elegido['precio_fmt']})")
     wa_lineas.append("Retiro en tienda Santo Domingo.")
+
+    galones_qty = int(cant.get("galones_sugeridos") or 1)
+    precio_pintura = int(elegido["precio"]) if elegido else 0
+    subtotal_pintura = precio_pintura * galones_qty
+    subtotal_comps = sum(int(c.get("precio") or 0) for c in comps)
+    total_proyecto = subtotal_pintura + subtotal_comps
 
     return {
         "ok": True,
@@ -366,4 +555,128 @@ def cotizar_proyecto(
         "complementos": comps,
         "liz_prompt": liz_prompt,
         "mensaje_whatsapp": "\n".join(wa_lineas),
+        "modo": "stock_erp" if _modo_stock() else "cartilla",
+        "totales": {
+            "galones": galones_qty,
+            "subtotal_pintura": subtotal_pintura,
+            "subtotal_pintura_fmt": _fmt_clp(subtotal_pintura),
+            "subtotal_complementos": subtotal_comps,
+            "subtotal_complementos_fmt": _fmt_clp(subtotal_comps),
+            "total_proyecto": total_proyecto,
+            "total_proyecto_fmt": _fmt_clp(total_proyecto),
+        },
+        "tinte": {
+            "codigo": codigo_ref,
+            "nombre": color.get("nombre"),
+            "marca": marca_ref,
+            "hex": color.get("hex"),
+            "modo": "stock_erp" if _modo_stock() else "cartilla",
+        },
+        "bases_erp": [] if _modo_stock() else cartilla.bases_pintura_erp(marca=color.get("marca"), limite=4),
     }
+
+
+def _tip_reglas(
+    *,
+    step: int,
+    ambiente_id: str,
+    color_id: str,
+    brillo_id: str,
+    m2: float,
+) -> str:
+    amb = _ambiente_por_id(ambiente_id) or AMBIENTES[0]
+    color = _color_por_id(color_id)
+    brillo = _brillo_por_id(brillo_id)
+    try:
+        superficie = max(1.0, float(m2 or 0))
+    except (TypeError, ValueError):
+        superficie = 12.0
+
+    if step == 1:
+        if amb.get('id') == 'bano':
+            return 'En baños recomiendo satinado: aguanta humedad y se limpia con paño húmedo.'
+        if amb.get('id') == 'fachada':
+            return 'Para fachada elija colores marcados para exterior y pintura con filtro UV.'
+        if amb.get('id') == 'dormitorio':
+            return 'Tonos suaves y mate ayudan a un ambiente de descanso.'
+        return amb.get('tip') or 'Elija el ambiente y vea la vista previa con su color.'
+
+    if step == 2:
+        if amb.get('id') == 'bano' and brillo_id == 'mate':
+            return 'En baño el mate puede marcar manchas. Satinado es la opción más usada en ferretería.'
+        if amb.get('id') == 'cocina' and brillo_id == 'mate':
+            return 'Cocina + satinado = menos grasa adherida. Fácil de pasar paño después de cocinar.'
+        if color and color.get('exterior') and amb.get('uso') != 'exterior':
+            return f'{color.get("codigo")} es tono exterior; para interior elija otro de la cartilla.'
+        if brillo:
+            return brillo.get('ideal', '') + '. Cambie brillo y mire la vista previa arriba.'
+        if _modo_stock():
+            return 'Elija un color de los que hay hoy en tienda. Cada muestra es un producto con stock real.'
+        return 'Combine color Kölor/Topex con el brillo según el uso del espacio.'
+
+    if step == 3:
+        cant = calcular_cantidad(m2=superficie)
+        if superficie <= 10:
+            return f'~{cant["galones_sugeridos_fmt"]} galones para {superficie} m². Típico de dormitorio pequeño.'
+        if superficie >= 25:
+            return f'Proyecto grande: {cant["galones_sugeridos_fmt"]} gal estimados. Considere margen para repasos.'
+        return f'Con {superficie} m² calculamos {cant["galones_sugeridos_fmt"]} gal a 2 manos. Ajuste si incluye cielo.'
+
+    return ''
+
+
+def _sanitizar_tip(txt: str) -> str:
+    t = re.sub(r'\s+', ' ', (txt or '').strip())
+    t = t.replace('\n', ' ')
+    if len(t) > 320:
+        t = t[:317].rstrip() + '…'
+    return t
+
+
+def liz_tip_wizard(
+    *,
+    step: int,
+    ambiente_id: str,
+    color_id: str,
+    brillo_id: str,
+    m2: float,
+) -> dict[str, Any]:
+    """Tip corto Liz — Ollama vitrina con fallback reglas SD."""
+    regla = _tip_reglas(
+        step=step,
+        ambiente_id=ambiente_id,
+        color_id=color_id,
+        brillo_id=brillo_id,
+        m2=m2,
+    )
+    if step >= 4 or step < 1:
+        return {'ok': True, 'tip': '', 'fuente': 'reglas'}
+
+    amb = _ambiente_por_id(ambiente_id) or AMBIENTES[0]
+    color = _color_por_id(color_id)
+    brillo = _brillo_por_id(brillo_id)
+    cant = calcular_cantidad(m2=m2)
+
+    try:
+        from services.ollama_client import generar_chat_vitrina, ollama_disponible_vitrina
+
+        if ollama_disponible_vitrina(requiere_modelo=False):
+            system = (
+                'Eres Liz, asesora de pinturas en ferretería Santo Domingo (Chile). '
+                'Responde UN solo consejo práctico en español chileno, máximo 2 oraciones, sin saludo. '
+                'No inventes precios ni stock. Solo recomienda según ambiente, brillo y m². '
+                'Los colores mostrados ya son productos con stock en tienda (no tintometría aún).'
+            )
+            user = (
+                f'Paso wizard {step}/4. Ambiente: {amb.get("nombre")}. '
+                f'Color: {color.get("codigo") if color else "?"} {color.get("nombre") if color else ""} '
+                f'({color.get("marca") if color else ""}). Brillo: {brillo.get("nombre") if brillo else "?"}. '
+                f'Superficie: {cant.get("m2")} m², ~{cant.get("galones_sugeridos_fmt")} galones.'
+            )
+            out = generar_chat_vitrina(system=system, user=user, timeout=25)
+            if out.get('ok') and out.get('texto'):
+                return {'ok': True, 'tip': _sanitizar_tip(out['texto']), 'fuente': 'ollama'}
+    except Exception:
+        pass
+
+    return {'ok': True, 'tip': regla, 'fuente': 'reglas'}

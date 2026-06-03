@@ -180,7 +180,8 @@ def _limpiar_datos_qa():
             db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
 
         pids = [r[0] for r in db.session.execute(
-            sa_text("SELECT id FROM productos WHERE codigo_barra LIKE 'TEST-%'")).fetchall()]
+            sa_text("SELECT id FROM productos WHERE codigo_barra LIKE 'TEST-%' OR codigo_barra LIKE '99988877760%'")
+        ).fetchall()]
         if pids:
             pt = tuple(pids)
             dv_vids = [r[0] for r in db.session.execute(
@@ -197,6 +198,20 @@ def _limpiar_datos_qa():
                     sa_text("DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': dvt})
                 db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': dvt})
             db.session.execute(sa_text("DELETE FROM movimientos_inventario WHERE id_producto IN :p"), {'p': pt})
+            try:
+                db.session.execute(
+                    sa_text("DELETE FROM bitacora_piloto_mostrador WHERE producto_id IN :p"),
+                    {'p': pt},
+                )
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(
+                    sa_text("DELETE FROM bitacora_precios_venta WHERE producto_id IN :p"),
+                    {'p': pt},
+                )
+            except Exception:
+                db.session.rollback()
             db.session.execute(sa_text("DELETE FROM stock_por_almacen WHERE id_producto IN :p"), {'p': pt})
             db.session.execute(sa_text("DELETE FROM detalle_recepcion WHERE producto_id IN :p"), {'p': pt})
             db.session.execute(sa_text("DELETE FROM detalle_orden_compra WHERE producto_id IN :p"), {'p': pt})

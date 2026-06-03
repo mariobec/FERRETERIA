@@ -22,7 +22,7 @@
     <form class="tienda-search" method="get" action="{{ header_search_action }}">
       {% if header_cat_vtex %}<input type="hidden" name="cat" value="{{ header_cat_vtex }}">{% endif %}
       <input type="hidden" name="menu" value="0">
-      <input type="search" name="q" value="{{ header_search_q or '' }}" placeholder="Buscar productos..." autocomplete="off">
+      <input type="search" name="q" value="{{ header_search_q or '' }}" placeholder="Buscar producto, marca o código…" autocomplete="off" enterkeyhint="search">
       <button type="submit" aria-label="Buscar"><i class="fas fa-search"></i></button>
     </form>
     <div class="tienda-nav-actions d-flex align-items-center gap-2">

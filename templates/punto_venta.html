@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-hdr-reloj-20260527c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-modal-scan-20260602">
 {% if pos_layout_fullwidth %}
 <style id="pos-hdr-nav-fix-inline">
 body.pos-pantalla-vendedora .app-sidebar,
@@ -582,9 +582,6 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
       {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'pos-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-sky" title="TV cliente"><i class="fas fa-tv" aria-hidden="true"></i><span>TV</span></a>
-      {% if experience_wall_test_url %}
-      <a href="{{ experience_wall_test_url }}" target="_blank" rel="noopener" class="pos-nav-dock__link" title="TV con imágenes de prueba SVG" style="color:#fcd34d"><i class="fas fa-vial" aria-hidden="true"></i><span>TV prueba</span></a>
-      {% endif %}
       {% endif %}
       <button type="button" class="pos-nav-dock__link pos-nav-dock__link--suggest {% if pos_cross_sell_enabled %}is-on{% else %}is-off{% endif %}" id="posToggleCrossSellBtn" data-enabled="{{ 1 if pos_cross_sell_enabled else 0 }}" title="Sugerencias de venta">
         <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span id="posToggleCrossSellText">{% if pos_cross_sell_enabled %}Sugerencias{% else %}Sugerencias off{% endif %}</span>
@@ -612,11 +609,6 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="btn btn-info btn-sm text-white" title="Abrir pantalla del cliente en TV">
         <i class="fas fa-tv me-1"></i> TV Cliente
       </a>
-      {% if experience_wall_test_url %}
-      <a href="{{ experience_wall_test_url }}" target="_blank" rel="noopener" class="btn btn-warning btn-sm" title="TV con imágenes SVG de prueba">
-        <i class="fas fa-vial me-1"></i> TV prueba imágenes
-      </a>
-      {% endif %}
       {% endif %}
       <a href="{{ url_for('pos_live_wall_staff') }}" target="_blank" rel="noopener" class="btn btn-dark btn-sm" title="Monitor vendedor: stock y enlace TV">
         <i class="fas fa-display me-1"></i> Live Wall
@@ -1040,14 +1032,15 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
       </div>
       <div class="modal-body">
         <p class="mb-2">El código escaneado <strong id="posScanCodigoMostrar" class="font-monospace"></strong> no existe en el catálogo.</p>
-        <p class="small text-muted mb-3">Puede darlo de alta en segundos o buscarlo por nombre. La venta sigue abierta.</p>
+        <p class="small text-muted mb-3">Producto nuevo, mismo artículo con otro código, o buscar por nombre. La venta sigue abierta.</p>
         <div id="posScanSugerencias" class="mb-3 d-none">
           <p class="small fw-semibold mb-1">¿Quiso decir? (código parecido en catálogo)</p>
           <div id="posScanSugerenciasLista" class="d-grid gap-2"></div>
         </div>
         <div class="d-grid gap-2">
-          <button type="button" class="btn btn-ds-primary" id="posBtnAltaRapidaProducto"><i class="fas fa-plus-circle me-1"></i> Alta rápida y agregar al vale</button>
-          <button type="button" class="btn btn-outline-primary" id="posBtnBuscarSimilar"><i class="fas fa-search me-1"></i> Buscar por nombre en catálogo</button>
+          <button type="button" class="btn btn-ds-primary" id="posBtnAltaRapidaProducto"><i class="fas fa-plus-circle me-1"></i> Producto nuevo — alta rápida</button>
+          <button type="button" class="btn btn-success" id="posBtnVincularProducto"><i class="fas fa-link me-1"></i> Mismo producto — vincular código</button>
+          <button type="button" class="btn btn-outline-primary" id="posBtnBuscarSimilar"><i class="fas fa-search me-1"></i> Buscar por nombre</button>
         </div>
       </div>
     </div>
@@ -1081,6 +1074,42 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-ds-primary" id="posBtnConfirmarApedidoEscaneo">
           <i class="fas fa-cart-plus me-1"></i> Agregar a pedido al vale
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modalPosVincularCodigo" tabindex="-1" aria-labelledby="modalPosVincularCodigoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header bg-success-subtle">
+        <h5 class="modal-title" id="modalPosVincularCodigoLabel"><i class="fas fa-link me-2"></i>Vincular código al catálogo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small mb-2">El código <strong id="posVincularCodigoMostrar" class="font-monospace"></strong> se ligará al producto que elija. <strong>No duplica stock.</strong></p>
+        <div id="posVincularError" class="alert alert-danger py-2 small d-none"></div>
+        <label class="form-label fw-bold" for="posVincularBuscar">Buscar producto existente</label>
+        <input type="text" class="form-control mb-2" id="posVincularBuscar" placeholder="Nombre, SKU o código que ya conoce…" autocomplete="off">
+        <div id="posVincularLista" class="list-group mb-2" style="max-height:min(42vh,320px);overflow-y:auto"></div>
+        <div id="posVincularSeleccion" class="alert alert-light border py-2 small d-none mb-2">
+          <span class="text-muted">Seleccionado:</span> <strong id="posVincularSeleccionNombre">—</strong>
+          <span class="d-block text-muted font-monospace small" id="posVincularSeleccionSku"></span>
+        </div>
+        <div id="posVincularPrecioWrap" class="d-none border-top pt-3">
+          <label class="form-label fw-bold mb-1" for="posVincularPrecio">Precio venta SD <span class="text-danger">*</span></label>
+          <p class="small text-muted mb-2" id="posVincularPrecioHint">El producto está en tienda pero sin precio de mostrador. Indique el precio de venta para agregar al vale.</p>
+          <div class="input-group" style="max-width:14rem">
+            <span class="input-group-text">$</span>
+            <input type="number" class="form-control" id="posVincularPrecio" min="1" step="1" placeholder="990" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="posBtnConfirmarVincularCodigo" disabled>
+          <i class="fas fa-check me-1"></i> Vincular y agregar al vale
         </button>
       </div>
     </div>
@@ -1331,6 +1360,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
     'carrito_html': url_for('api_pos_carrito_html'),
     'retiro_linea': url_for('api_pos_retiro_linea'),
     'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
+    'vincular_codigo': url_for('api_pos_vincular_codigo'),
     'vales_hoy': url_for('api_pos_vales_hoy'),
     'pedidos_apedido': url_for('api_pos_pedidos_apedido'),
     'cotizacion_nueva': url_for('cotizacion_nueva'),
@@ -1352,7 +1382,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
   'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct,
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-search-thumb-20260530"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-vincular-precio-20260602"></script>
 <script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-4"></script>
 <script>
 (function () {

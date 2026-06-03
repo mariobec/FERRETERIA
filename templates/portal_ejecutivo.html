@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block body_class %}portal-sd-constructor{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/portal-ejecutivo.css') }}?v=20260602">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-lg-4 portal-wrap" id="portalSdRoot"
+     data-marca="{{ portal_marca }}"
+     data-periodo="{{ periodo_inicial }}">
+  <header class="portal-hero">
+    <div>
+      <p class="portal-eyebrow mb-1">Gerencia · Dueños</p>
+      <h1 class="portal-title">{{ portal_marca }}</h1>
+      <p class="portal-subtitle mb-0">Pulse ejecutivo — lectura desde el ERP en vivo (sin datos ficticios).</p>
+    </div>
+    <div class="portal-periodo" role="group" aria-label="Período">
+      <button type="button" class="btn btn-portal-periodo active" data-periodo="mes">Mes</button>
+      <button type="button" class="btn btn-portal-periodo" data-periodo="trim">Trimestre</button>
+      <button type="button" class="btn btn-portal-periodo" data-periodo="anio">Año</button>
+    </div>
+  </header>
+
+  <ul class="nav nav-tabs portal-tabs" id="portalTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-resumen" data-bs-toggle="tab" data-bs-target="#pane-resumen" type="button" role="tab">Resumen</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-activos" data-bs-toggle="tab" data-bs-target="#pane-activos" type="button" role="tab">Activos</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link disabled" type="button" tabindex="-1" title="Fase P2">Márgenes</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link disabled" type="button" tabindex="-1" title="Fase P2">Flujo</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link disabled" type="button" tabindex="-1" title="Fase P3">Proyección</button>
+    </li>
+  </ul>
+
+  <div class="tab-content portal-tab-content">
+    <div class="tab-pane fade show active" id="pane-resumen" role="tabpanel">
+      <p class="portal-periodo-label text-muted" id="portalPeriodoLabel">—</p>
+      <div class="row g-3" id="portalKpiResumen">
+        <div class="col-6 col-lg-3"><div class="portal-kpi"><span class="kpi-label">Ventas</span><span class="kpi-value" data-kpi="ventas">—</span></div></div>
+        <div class="col-6 col-lg-3"><div class="portal-kpi"><span class="kpi-label">Margen bruto</span><span class="kpi-value" data-kpi="margen">—</span></div></div>
+        <div class="col-6 col-lg-3"><div class="portal-kpi"><span class="kpi-label">Gasto operacional</span><span class="kpi-value" data-kpi="gastos">—</span></div></div>
+        <div class="col-6 col-lg-3"><div class="portal-kpi portal-kpi-accent"><span class="kpi-label">Resultado operativo est.</span><span class="kpi-value" data-kpi="utilidad">—</span></div></div>
+      </div>
+      <div class="row g-3 mt-1">
+        <div class="col-lg-7">
+          <div class="portal-card">
+            <h3 class="portal-card-title">Inversión operativa</h3>
+            <p class="portal-big" id="portalInversionTotal">—</p>
+            <ul class="portal-list" id="portalDesgloseInversion"></ul>
+          </div>
+          <div class="portal-card mt-3">
+            <h3 class="portal-card-title">Ventas por semana (últimas 4)</h3>
+            <div id="portalVentasSemanales" class="portal-bars"></div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="portal-card">
+            <h3 class="portal-card-title">Comprometido compras</h3>
+            <p class="portal-big" id="portalComprometido">—</p>
+            <p class="text-muted small mb-0" id="portalOcCount"></p>
+          </div>
+          <div class="portal-card mt-3">
+            <h3 class="portal-card-title">Notas metodología</h3>
+            <ul class="portal-notes small text-muted" id="portalNotasResumen"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="pane-activos" role="tabpanel">
+      <div class="row g-3" id="portalKpiActivos">
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Inventario (costo)</span><span class="kpi-value" data-act="inventario">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">CxC clientes</span><span class="kpi-value" data-act="cxc">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Caja abierta</span><span class="kpi-value" data-act="caja">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Activos fijos (config)</span><span class="kpi-value" data-act="fijos">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Rotación inventario</span><span class="kpi-value" data-act="rotacion">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Días stock (DSI)</span><span class="kpi-value" data-act="dsi">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Días CxC est.</span><span class="kpi-value" data-act="dias_cxc">—</span></div></div>
+        <div class="col-6 col-md-4"><div class="portal-kpi"><span class="kpi-label">Apalancamiento op.</span><span class="kpi-value" data-act="apal">—</span></div></div>
+      </div>
+      <div class="portal-card mt-3">
+        <h3 class="portal-card-title">Notas</h3>
+        <ul class="portal-notes small text-muted" id="portalNotasActivos"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="portal-loading d-none" id="portalLoading" aria-live="polite">
+    <div class="spinner-border text-light" role="status"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/portal-ejecutivo.js') }}?v=20260602"></script>
+{% endblock %}

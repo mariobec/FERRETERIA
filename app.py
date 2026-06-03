@@ -133,6 +133,15 @@ def _load_env_archivos(force_local_overwrite=False):
                     else:
                         os.environ.setdefault(k, v)
 
+    # DEV: vitrina + PED-WEB + Webpay sandbox — rellena claves faltantes tras .env.local
+    path_dev_ecom = os.path.join(root, 'env_dev_ecommerce.txt')
+    if os.path.isfile(path_dev_ecom):
+        with open(path_dev_ecom, encoding='utf-8-sig', errors='replace') as f:
+            for raw in f:
+                k, v = _parse_line(raw.strip())
+                if k:
+                    os.environ.setdefault(k, v)
+
 
 try:
     _load_env_archivos()
@@ -193,6 +202,15 @@ if db_uri.startswith('postgresql'):
     # Refuerzo a nivel libpq por si la conexion se establece antes de aplicar client_encoding.
     os.environ.setdefault('PGCLIENTENCODING', 'UTF8')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
+_INSECURE_KEYS = {'clave_secreta_segura', 'dev', 'secret', 'changeme', 'insecure', ''}
+if app.config['SECRET_KEY'] in _INSECURE_KEYS:
+    import warnings as _warnings
+    _warnings.warn(
+        "SEGURIDAD: SECRET_KEY usa el valor por defecto inseguro. "
+        "Define SECRET_KEY en tu .env antes de ir a producción.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
 app.config.setdefault('SESSION_COOKIE_HTTPONLY', True)
 app.config.setdefault('SESSION_COOKIE_SAMESITE', os.getenv('SESSION_COOKIE_SAMESITE', 'Lax'))
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(
@@ -582,6 +600,11 @@ def _config_empresa_default():
         "operacion_un_local": "1",
         # Solo copy/vista red hasta CRUD sucursales (SD-2); no crea locales en BD
         "operacion_sucursales_red_n": "3",
+        # Portal ejecutivo SD Constructor (gerencia / dueños)
+        "portal_marca": "SD Constructor",
+        "portal_gastos_op_mensual_clp": "0",
+        "portal_activos_fijos_clp": "0",
+        "portal_meta_ventas_anual_clp": "0",
     }
 
 
@@ -669,6 +692,13 @@ def _pos_ticket_qr_despacho_empresa():
         return v in ('1', 'true', 'si', 'on', 'yes')
     except Exception:
         return False
+
+
+def _ticket_telefono_vale_display(empresa_cfg=None) -> str:
+    from services.ticket_impresion_service import telefono_ticket_display
+
+    cfg = empresa_cfg if isinstance(empresa_cfg, dict) else obtener_config_empresa()
+    return telefono_ticket_display((cfg or {}).get('telefono'))
 
 
 def _pos_impresion_termica_habilitada():
@@ -855,10 +885,21 @@ def _sql_filtro_venta_cola_bodega():
     return or_(pr == 'BODEGA', and_(pr == 'MIXTO', Venta.id.in_(sub_mixto)))
 
 
+_CONFIG_EMPRESA_CACHE: dict | None = None
+_CONFIG_EMPRESA_CACHE_AT: float = 0.0
+_CONFIG_EMPRESA_TTL_S: float = 60.0  # máximo 1 re-lectura por minuto por proceso
+
+
 def obtener_config_empresa():
+    global _CONFIG_EMPRESA_CACHE, _CONFIG_EMPRESA_CACHE_AT
+    now = time.time()
+    if _CONFIG_EMPRESA_CACHE is not None and (now - _CONFIG_EMPRESA_CACHE_AT) < _CONFIG_EMPRESA_TTL_S:
+        return dict(_CONFIG_EMPRESA_CACHE)
     ruta = _ruta_config_empresa()
     cfg = _config_empresa_default()
     if not os.path.exists(ruta):
+        _CONFIG_EMPRESA_CACHE = dict(cfg)
+        _CONFIG_EMPRESA_CACHE_AT = now
         return cfg
     try:
         with open(ruta, 'r', encoding='utf-8') as f:
@@ -867,16 +908,38 @@ def obtener_config_empresa():
             cfg.update({k: (str(v).strip() if v is not None else "") for k, v in data.items() if k in cfg})
     except Exception:
         return cfg
+    _CONFIG_EMPRESA_CACHE = dict(cfg)
+    _CONFIG_EMPRESA_CACHE_AT = now
     return cfg
 
 
 def guardar_config_empresa(data):
+    global _CONFIG_EMPRESA_CACHE, _CONFIG_EMPRESA_CACHE_AT
     # Parte desde config actual para no perder llaves adicionales al guardar.
     cfg = obtener_config_empresa()
     cfg.update({k: (str(v).strip() if v is not None else "") for k, v in data.items() if k in cfg})
     with open(_ruta_config_empresa(), 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=2)
+    _CONFIG_EMPRESA_CACHE = dict(cfg)
+    _CONFIG_EMPRESA_CACHE_AT = time.time()
     return cfg
+
+
+def _normalizar_monto_clp_config(valor, default='0'):
+    """Entero CLP ≥ 0 para campos de config (acepta 8.000.000 o 8000000)."""
+    s = str(valor if valor is not None else default).strip()
+    if not s:
+        return default
+    s = s.replace('$', '').replace(' ', '')
+    if ',' in s and '.' in s:
+        s = s.replace('.', '').replace(',', '.')
+    else:
+        s = s.replace('.', '').replace(',', '')
+    try:
+        n = int(float(s))
+        return str(max(0, n))
+    except (TypeError, ValueError):
+        return default
 
 
 CANALES_COMPRA_VALIDOS = (
@@ -1806,7 +1869,7 @@ _NAV_MAP = [
         'items': [
             {'label': 'Bandeja pedidos web', 'icon': 'fa-inbox', 'endpoint': 'ecommerce_bandeja',
              'permisos': ['ecommerce_pedidos', 'bodega_operador', 'caja_cobrar_vale'],
-             'endpoints_activos': ['ecommerce_bandeja', 'ecommerce_pedido_detalle', 'ecommerce_pedido_estado']},
+             'endpoints_activos': ['ecommerce_bandeja', 'ecommerce_pedido_detalle', 'ecommerce_pedido_estado', 'ecommerce_pedido_anular', 'ecommerce_export_csv', 'api_ecommerce_pedidos']},
         ],
     },
     {
@@ -1886,7 +1949,10 @@ _NAV_MAP = [
              'endpoints_activos': ['precios_radar', 'precios_radar_dashboard', 'api_radar_iniciar', 'api_radar_stream', 'api_radar_aplicar']},
             {'label': 'Carga precios piloto', 'icon': 'fa-barcode', 'endpoint': 'precios_piloto',
              'permisos': ['revision_precios'],
-             'endpoints_activos': ['precios_piloto', 'api_precios_piloto_buscar', 'api_precios_piloto_guardar']},
+             'endpoints_activos': [
+                 'precios_piloto', 'precios_piloto_informe_facturas', 'precios_piloto_informe_facturas_csv',
+                 'api_precios_piloto_buscar', 'api_precios_piloto_guardar',
+             ]},
             {'label': 'Guardián de Márgenes', 'icon': 'fa-tags', 'endpoint': 'revision_precios',
              'permisos': ['revision_precios'],
              'endpoints_activos': ['revision_precios', 'aplicar_precio_sugerido', 'aplicar_precio_sugerido_masivo', 'editar_precio_manual_revision']},
@@ -1908,6 +1974,9 @@ _NAV_MAP = [
             {'label': 'Panel ejecutivo', 'icon': 'fa-chart-pie', 'endpoint': 'panel_dueno',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
              'endpoints_activos': ['panel_dueno']},
+            {'label': 'SD Constructor · Portal', 'icon': 'fa-gauge-high', 'endpoint': 'portal_ejecutivo_index',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios'],
+             'endpoints_activos': ['portal_ejecutivo_index']},
             {'label': 'Inteligencia de costos', 'icon': 'fa-fire', 'endpoint': 'reportes_maestra_hub',
              'permisos': ['ver_gerencia', 'panel_gerencia', 'revision_precios', 'gestionar_usuarios'],
              'endpoints_activos': ['reportes_maestra_hub', 'reporte_fuga_costos', 'reporte_fuga_detalle', 'reporte_inflacion_compras']},
@@ -2034,13 +2103,13 @@ _MODULOS_HUB = [
             {'label': 'Cerrar caja', 'endpoint': 'cerrar_caja', 'icon': 'fa-door-closed', 'permisos': ['caja_cerrar']},
             {'label': 'Movimientos', 'endpoint': 'movimiento_caja', 'icon': 'fa-exchange-alt', 'permisos': ['caja_movimientos']},
             {'label': 'Cambios / devoluciones', 'endpoint': 'caja_cambios', 'icon': 'fa-rotate', 'permisos': ['caja_cobrar_vale']},
-            {'label': 'Pedidos web (Liz)', 'endpoint': 'ecommerce_bandeja', 'icon': 'fa-inbox', 'permisos': ['ecommerce_pedidos', 'bodega_operador']},
+            {'label': 'Pedidos web (Maylén)', 'endpoint': 'ecommerce_bandeja', 'icon': 'fa-inbox', 'permisos': ['ecommerce_pedidos', 'bodega_operador']},
         ],
     },
     {
         'id': 'ecommerce_pedidos',
         'titulo': 'E-commerce',
-        'subtitulo': 'Pedidos vitrina Liz — preparar antes de caja',
+        'subtitulo': 'Pedidos vitrina Maylén — preparar antes de caja',
         'icon': 'fa-store',
         'endpoint': 'ecommerce_bandeja',
         'permisos': ['ecommerce_pedidos', 'bodega_operador', 'caja_cobrar_vale'],
@@ -2124,6 +2193,8 @@ _MODULOS_HUB = [
         'accent': '#be185d',
         'atajos': [
             {'label': 'Panel del día', 'endpoint': 'inicio', 'icon': 'fa-gauge-high'},
+            {'label': 'Portal SD Constructor', 'endpoint': 'portal_ejecutivo_index', 'icon': 'fa-chart-line',
+             'permisos': ['ver_gerencia', 'panel_gerencia', 'gestionar_usuarios']},
             {'label': 'Guardián móvil', 'endpoint': 'owner_mobile', 'icon': 'fa-mobile-screen', 'permisos': ['ver_gerencia', 'panel_gerencia']},
             {'label': 'Facturación electrónica', 'endpoint': 'admin_facturacion_cola', 'icon': 'fa-file-invoice', 'permisos': ['gestionar_usuarios']},
             {'label': 'Consola IA (Ollama)', 'endpoint': 'admin_control_center', 'icon': 'fa-tower-broadcast', 'permisos': ['gestionar_usuarios', 'ver_gerencia', 'panel_gerencia']},
@@ -2396,7 +2467,16 @@ def load_user(user_id):
     ultimo_error = None
     for intento in range(3):
         try:
-            usuario = db.session.get(Usuario, uid)
+            # joinedload evita N+1 en permisos_required: carga Rol → RolPermiso → Permiso
+            # en una sola query JOIN en lugar de una lazy-load por permiso.
+            usuario = (
+                db.session.query(Usuario)
+                .options(
+                    joinedload(Usuario.rol).joinedload(Rol.rol_permisos).joinedload(RolPermiso.permiso)
+                )
+                .filter_by(id=uid)
+                .first()
+            )
             if usuario is not None:
                 return usuario
             if intento == 0:
@@ -2732,6 +2812,7 @@ def forzar_cambio_clave_si_corresponde():
         and app.config.get('_VENTAS_BODEGA_DSP_COL_OK')
         and app.config.get('_BODEGA_RETIRO_COL_OK')
         and app.config.get('_BODEGA_SUGERIDO_COL_OK')
+        and app.config.get('_ENTREGA_TICKET_COL_OK')
         and app.config.get('_FE_PHASE1_OK')
         and app.config.get('_AGENTE_EJECUCIONES_TABLE_OK')
         and app.config.get('_ACADEMY_ARTICLES_TABLE_OK')
@@ -2754,6 +2835,7 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_tabla_cobranza_whatsapp_log()
                     _asegurar_tabla_erp_audit_log()
                     _asegurar_tabla_producto_codigo_proveedor()
+                    _asegurar_tabla_producto_codigo_escaneo()
                     _asegurar_tablas_chilemat_relaciones()
                     _asegurar_tabla_agente_ejecuciones()
                     _asegurar_tabla_academy_articles()
@@ -2762,6 +2844,7 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_columnas_ventas_bodega_despacho()
                     _asegurar_columnas_bodega_retiro()
                     _asegurar_columnas_bodega_sugerido_preparar()
+                    _asegurar_columnas_entrega_ticket()
             except (SATimeoutError, OperationalError) as ex:
                 app.config['_SCHEMA_ENSURE_BACKOFF_UNTIL'] = time.time() + float(
                     os.getenv('SCHEMA_ENSURE_BACKOFF_SEC', '45')
@@ -2861,7 +2944,7 @@ class Producto(db.Model):
     unidad_venta = db.Column(db.String(20))
     factor_conversion = db.Column(db.Float, default=1.0)
     stock = db.Column(db.Integer)
-    categoria = db.Column(db.String(50))
+    categoria = db.Column(db.String(50), index=True)
     subcategoria = db.Column(db.String(50))
     subcategoria_catalogo_id = db.Column(
         db.Integer,
@@ -2871,7 +2954,7 @@ class Producto(db.Model):
     ubicacion_pasillo = db.Column(db.String(12))
     ubicacion_estante = db.Column(db.String(12))
     ubicacion_nivel = db.Column(db.String(12))
-    activo = db.Column(db.Boolean, default=True)
+    activo = db.Column(db.Boolean, default=True, index=True)
     # POS: descuento en catálogo preaprobado (sin tarjeta supervisor hasta el tope %)
     pos_descuento_preautorizado = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     pos_descuento_preautorizado_pct = db.Column(db.Float, nullable=True)
@@ -3304,6 +3387,60 @@ def precio_efectivo_pos_producto(producto):
     return sd if sd > 0 else 0.0
 
 
+def _pos_aplicar_precio_sd_desde_pos(producto, data=None, precio_sd_override=None):
+    """
+    Asigna precio_venta_sd si el producto aún no tiene precio POS.
+    Orden: precio explícito en payload → precio lista (precio_venta) del maestro.
+    No sobrescribe un precio SD ya cargado.
+    """
+    if not producto:
+        return {'ok': False, 'error': 'no_producto', 'mensaje': 'Producto no válido.'}
+    if precio_efectivo_pos_producto(producto) > 0:
+        return {'ok': True, 'aplicado': False, 'ya_tenia_precio_sd': True}
+    pv = None
+    if precio_sd_override is not None:
+        try:
+            pv = float(precio_sd_override)
+        except (TypeError, ValueError):
+            pv = 0.0
+    elif data is not None:
+        try:
+            pv = float(
+                data.get('precio_venta_sd')
+                or data.get('precio')
+                or data.get('precio_venta')
+                or 0
+            )
+        except (TypeError, ValueError):
+            pv = 0.0
+    origen = 'pos_vinculo'
+    if not pv or pv <= 0:
+        lista = float(producto.precio_venta or 0)
+        if lista > 0:
+            pv = lista
+            origen = 'lista_auto'
+        else:
+            return {
+                'ok': False,
+                'error': 'precio_sd_requerido',
+                'mensaje': (
+                    f'«{producto.nombre}» no tiene precio venta SD. '
+                    f'Indíquelo en el cuadro de vinculación o en Carga precios piloto.'
+                ),
+                'sin_precio_sd': True,
+            }
+    producto.precio_venta_sd = float(pv)
+    if float(producto.precio_venta or 0) <= 0:
+        producto.precio_venta = float(pv)
+    db.session.flush()
+    return {
+        'ok': True,
+        'aplicado': True,
+        'precio_venta_sd': float(pv),
+        'origen_precio_sd': origen,
+    }
+
+
 def descontar_stock_venta_tienda(producto, consumo_stock):
     """
     Descuenta stock de venta (almacén TIENDA). Mantiene productos.stock como suma por almacén.
@@ -3489,10 +3626,10 @@ class Venta(db.Model):
     __tablename__ = 'ventas'
 
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.DateTime, default=db.func.current_timestamp())
+    fecha = db.Column(db.DateTime, default=db.func.current_timestamp(), index=True)
     monto_total = db.Column(db.Float, nullable=False, default=0.0)
     usuario = db.Column(db.String(50))
-    estado = db.Column(db.String(20), default="Pendiente")
+    estado = db.Column(db.String(20), default="Pendiente", index=True)
     
     # --- NUEVOS CAMPOS TRIBUTARIOS ---
     tipo_documento = db.Column(db.String(20), default="Boleta")  # Boleta o Factura (UI / lógica interna)
@@ -3531,16 +3668,19 @@ class Venta(db.Model):
     # Fase 3 — SLA bodega: timestamps para medir tiempos de preparación.
     bodega_preparacion_cobrado_at = db.Column(db.DateTime, nullable=True)
     bodega_preparacion_cerrado_at = db.Column(db.DateTime, nullable=True)
+    # Seguimiento entrega ticket QR (tienda / bodega / despacho) post-cobro.
+    entrega_ticket_estado = db.Column(db.String(24), nullable=True)
+    entrega_ticket_cerrado_at = db.Column(db.DateTime, nullable=True)
     # Fase 2 — sugerido preparar (solo informativo; vale Pendiente + retiro Bodega; no reserva stock).
     bodega_sugerido_preparar = db.Column(db.SmallInteger, nullable=False, default=0, server_default='0')
     bodega_sugerido_preparar_at = db.Column(db.DateTime, nullable=True)
     bodega_sugerido_preparar_usuario = db.Column(db.String(80), nullable=True)
 
     # Relaciones
-    caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True)
+    caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=True, index=True)
     caja = db.relationship('Caja', back_populates='ventas')
 
-    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True, index=True)
     cliente = db.relationship('Cliente', backref='ventas')
     caf = db.relationship('Caf', foreign_keys=[caf_id], backref=db.backref('ventas', lazy='dynamic'))
 
@@ -3994,6 +4134,13 @@ def _asegurar_tabla_producto_codigo_proveedor():
         db.session.rollback()
         app.logger.warning('No se pudo crear tabla producto_codigo_proveedor: %s', ex)
         return False
+
+
+def _asegurar_tabla_producto_codigo_escaneo():
+    """Alias código escaneado POS → producto."""
+    from services.producto_codigo_escaneo_service import asegurar_tabla_producto_codigo_escaneo
+
+    return asegurar_tabla_producto_codigo_escaneo(app, db)
 
 
 def _asegurar_tablas_chilemat_relaciones():
@@ -5003,12 +5150,14 @@ class DetalleVenta(db.Model):
     __tablename__ = 'detalle_ventas'   # nombre exacto de la tabla en MySQL
 
     id = db.Column(db.Integer, primary_key=True)
-    id_venta = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=False)
-    id_producto = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    id_venta = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=False, index=True)
+    id_producto = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False, index=True)
 
     cantidad = db.Column(db.Integer, default=1)
     # Unidades de venta (ej. sacos) ya retiradas en bodega; el stock se descuenta al confirmar cada retiro.
     cantidad_entregada_retiro_bodega = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    # Unidades de venta entregadas en mostrador (stock tienda ya bajó al cobrar).
+    cantidad_entregada_retiro_tienda = db.Column(db.Integer, nullable=False, default=0, server_default='0')
     # Si empresa activa pos_retiro_por_linea: Tienda | Bodega | Despacho por línea (NULL = heredar al emitir → Tienda).
     punto_retiro_linea = db.Column(db.String(30), nullable=True)
     # Venta en verde: sin descuento de stock tienda al cobrar hasta abastecimiento.
@@ -5139,7 +5288,7 @@ class Caja(db.Model):
     observacion_cierre = db.Column(db.String(255), nullable=True)
     supervisor_cierre = db.Column(db.String(80), nullable=True)
     modo_cierre_arqueo = db.Column(db.String(16), nullable=True)
-    estado = db.Column(db.String(20), default="Abierta")
+    estado = db.Column(db.String(20), default="Abierta", index=True)
     usuario_apertura = db.Column(db.String(50))
     usuario_cierre = db.Column(db.String(50))
 
@@ -5154,7 +5303,7 @@ class Caja(db.Model):
 class MovimientoCaja(db.Model):
     __tablename__ = 'movimiento_caja'
     id = db.Column(db.Integer, primary_key=True)
-    caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=False)
+    caja_id = db.Column(db.Integer, db.ForeignKey('caja.id'), nullable=False, index=True)
     fecha = db.Column(db.DateTime, default=db.func.current_timestamp())
     tipo = db.Column(db.String(20))
     concepto = db.Column(db.String(255))
@@ -5182,10 +5331,10 @@ class OrdenCompra(db.Model):
     __table_args__ = (UniqueConstraint('proveedor_id', 'numero', name='uq_oc_proveedor_numero'),)
 
     id = db.Column(db.Integer, primary_key=True)
-    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=False)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=False, index=True)
     numero = db.Column(db.String(50), nullable=False)
     fecha_emision = db.Column(db.Date, nullable=False)
-    estado = db.Column(db.String(20), nullable=False, default='Borrador')
+    estado = db.Column(db.String(20), nullable=False, default='Borrador', index=True)
     observacion = db.Column(db.String(500))
     usuario_creador = db.Column(db.String(100))
     fecha_creacion = db.Column(db.DateTime, default=db.func.current_timestamp())
@@ -5231,7 +5380,7 @@ class Cliente(db.Model):
     ciudad = db.Column(db.String(80))
 
     # --- CAMPOS PREMIUM PARA CRÉDITO ---
-    saldo_deudor = db.Column(db.Float, default=0.0)      # Cuánto debe actualmente
+    saldo_deudor = db.Column(db.Float, default=0.0, index=True)   # Cuánto debe actualmente
     limite_credito = db.Column(db.Float, default=500000.0) # Máximo que le podemos fiar
     estado_credito = db.Column(db.String(20), default="Activo") # Activo o Bloqueado
 
@@ -5492,6 +5641,24 @@ class ProductoCodigoProveedor(db.Model):
     producto = db.relationship('Producto', backref='codigos_factura_proveedor')
 
 
+class ProductoCodigoEscaneo(db.Model):
+    """Alias de código pistola en mostrador → producto maestro (sin duplicar stock)."""
+    __tablename__ = 'producto_codigo_escaneo'
+    __table_args__ = (
+        db.UniqueConstraint('codigo', name='uq_prod_codigo_escaneo'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(50), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    tipo = db.Column(db.String(32), nullable=False, default='pos_vinculo')
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
+    origen = db.Column(db.String(32), nullable=False, default='pos')
+    usuario = db.Column(db.String(100), nullable=True)
+    creado_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    producto = db.relationship('Producto', backref=db.backref('codigos_escaneo', lazy='dynamic'))
+
+
 class ProductoRelacion(db.Model):
     """Sugerencias POS: producto ancla → relacionado (Chilemat VTEX, histórico SD, manual)."""
     __tablename__ = 'producto_relacion'
@@ -5580,6 +5747,8 @@ class BitacoraPilotoMostrador(db.Model):
     delta_bodega = db.Column(db.Integer, nullable=False, default=0)
     modo_stock = db.Column(db.String(24), nullable=False, default='no_tocar')
     sector_ubicacion = db.Column(db.String(120), nullable=True)
+    numero_factura = db.Column(db.String(64), nullable=True)
+    numero_guia = db.Column(db.String(64), nullable=True)
     usuario = db.Column(db.String(100), nullable=True)
     motivo = db.Column(db.String(255), nullable=True)
 
@@ -8990,6 +9159,53 @@ def precios_piloto():
     )
 
 
+@app.route('/precios/piloto/informe-facturas')
+@permisos_required('revision_precios')
+def precios_piloto_informe_facturas():
+    """Informe de cargas piloto agrupadas por Nº factura proveedor."""
+    from services.precios_piloto_service import (
+        detalle_informe_factura_piloto,
+        resumen_facturas_piloto,
+    )
+
+    q = (request.args.get('q') or '').strip()
+    factura = (request.args.get('factura') or '').strip()
+    detalle = detalle_informe_factura_piloto(factura) if factura else None
+    resumen = resumen_facturas_piloto(q=q)
+    return render_template(
+        'precios_piloto_informe_facturas.html',
+        q=q,
+        factura_seleccionada=factura if detalle else '',
+        detalle=detalle,
+        resumen=resumen,
+    )
+
+
+@app.route('/precios/piloto/informe-facturas.csv')
+@permisos_required('revision_precios')
+def precios_piloto_informe_facturas_csv():
+    from services.precios_piloto_service import filas_csv_informe_facturas_piloto
+
+    q = (request.args.get('q') or '').strip()
+    factura = (request.args.get('factura') or '').strip()
+    headers, filas = filas_csv_informe_facturas_piloto(numero_factura=factura or None, q=q or None)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    for row in filas:
+        writer.writerow(row)
+    if factura:
+        safe = ''.join(c if c.isalnum() or c in '-_' else '_' for c in factura)[:40]
+        nombre = f'piloto_factura_{safe}.csv'
+    else:
+        nombre = 'piloto_facturas_resumen.csv'
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename={nombre}'},
+    )
+
+
 @app.route('/api/precios/piloto/buscar')
 @permisos_required('revision_precios')
 def api_precios_piloto_buscar():
@@ -9001,15 +9217,19 @@ def api_precios_piloto_buscar():
         return jsonify({'results': [], 'meta': {}})
 
     exact = _pos_buscar_producto_por_codigo(q)
-    if len(q) < 2:
-        if exact:
-            item = _item_busqueda_pos_desde_producto(exact)
-            if item:
+    if exact:
+        item = _item_busqueda_pos_desde_producto(exact)
+        if item:
+            if len(q) < 2 or (q.isdigit() and len(q) >= 8):
                 return jsonify({'results': [item], 'meta': {'match': 'codigo_exacto'}})
-        return jsonify({'results': [], 'meta': {}})
 
     filtro = resolver_filtro_busqueda_pos(request.args)
-    data = _buscar_productos_json(q, filtro_pos=filtro, enriquecido=True)
+    data = _buscar_productos_json(
+        q,
+        filtro_pos=filtro,
+        enriquecido=True,
+        requiere_precio_lista=False,
+    )
     if exact:
         eid = int(exact.id)
         results = [r for r in (data.get('results') or []) if int(r.get('producto_id') or 0) != eid]
@@ -9017,6 +9237,9 @@ def api_precios_piloto_buscar():
         if exact_item:
             data['results'] = [exact_item] + results
             data.setdefault('meta', {})['match'] = 'codigo_exacto'
+    meta = data.setdefault('meta', {})
+    if not (data.get('results') or []) and not exact and q and not any(ch.isspace() for ch in q):
+        meta['codigo_no_encontrado'] = True
     return jsonify(data)
 
 
@@ -9047,6 +9270,8 @@ def api_precios_piloto_guardar():
     motivo = (data.get('motivo') or '').strip()
     modo_stock = (data.get('modo_stock') or 'no_tocar').strip().lower()
     sector = (data.get('sector_ubicacion') or data.get('sector') or '').strip()
+    numero_factura = (data.get('numero_factura') or data.get('factura') or '').strip()
+    numero_guia = (data.get('numero_guia') or data.get('guia') or '').strip()
     stock_tienda = _parse_stock_opcional(data.get('stock_tienda'))
     stock_bodega = _parse_stock_opcional(data.get('stock_bodega'))
     if not producto_id:
@@ -9067,6 +9292,8 @@ def api_precios_piloto_guardar():
         stock_tienda=stock_tienda,
         stock_bodega=stock_bodega,
         sector_ubicacion=sector,
+        numero_factura=numero_factura,
+        numero_guia=numero_guia,
     )
     if not res.get('ok'):
         err = res.get('error') or 'error'
@@ -9088,11 +9315,16 @@ def api_precios_piloto_guardar():
 
         p = res.get('producto') or {}
         st = res.get('stock') or {}
+        doc = ''
+        if res.get('numero_factura'):
+            doc += ' F ' + str(res.get('numero_factura'))[:24]
+        if res.get('numero_guia'):
+            doc += ' G ' + str(res.get('numero_guia'))[:24]
         out['bitacora_row'] = {
             'fecha': datetime.now().strftime('%d-%m %H:%M'),
             'nombre': p.get('nombre') or '—',
             'precio': f"${int(round(res.get('precio_nuevo') or 0)):,}".replace(',', '.'),
-            'stock': f"T{st.get('tienda', 0)} B{st.get('bodega', 0)}",
+            'stock': f"T{st.get('tienda', 0)} B{st.get('bodega', 0)}{doc}",
             'usuario': (current_user.nombre if current_user.is_authenticated else '—'),
         }
     return jsonify(out)
@@ -10975,6 +11207,61 @@ def _asegurar_columnas_bodega_retiro():
         return False
 
 
+def _asegurar_columnas_entrega_ticket():
+    """Columnas entrega ticket QR (tienda + estado vale)."""
+    if app.config.get('_ENTREGA_TICKET_COL_OK'):
+        return True
+    ok = _asegurar_columnas_bodega_retiro()
+    if not ok:
+        return False
+    try:
+        insp = sa_inspect(db.engine)
+        dn = (db.engine.dialect.name or '').lower()
+        tables = set(insp.get_table_names())
+        if 'ventas' in tables:
+            vcols = {c['name'] for c in insp.get_columns('ventas')}
+            for col_sql_pg, col_sql_my, col_name in (
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS entrega_ticket_estado VARCHAR(24) NULL',
+                    'ALTER TABLE ventas ADD COLUMN entrega_ticket_estado VARCHAR(24) NULL',
+                    'entrega_ticket_estado',
+                ),
+                (
+                    'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS entrega_ticket_cerrado_at TIMESTAMP NULL',
+                    'ALTER TABLE ventas ADD COLUMN entrega_ticket_cerrado_at DATETIME NULL',
+                    'entrega_ticket_cerrado_at',
+                ),
+            ):
+                if col_name in vcols:
+                    continue
+                db.session.execute(text(col_sql_pg if dn == 'postgresql' else col_sql_my))
+            db.session.commit()
+        if 'detalle_ventas' in tables:
+            dcols = {c['name'] for c in insp.get_columns('detalle_ventas')}
+            if 'cantidad_entregada_retiro_tienda' not in dcols:
+                if dn == 'postgresql':
+                    db.session.execute(
+                        text(
+                            'ALTER TABLE detalle_ventas ADD COLUMN IF NOT EXISTS '
+                            'cantidad_entregada_retiro_tienda INTEGER NOT NULL DEFAULT 0'
+                        )
+                    )
+                else:
+                    db.session.execute(
+                        text(
+                            'ALTER TABLE detalle_ventas ADD COLUMN cantidad_entregada_retiro_tienda '
+                            'INT NOT NULL DEFAULT 0'
+                        )
+                    )
+                db.session.commit()
+        app.config['_ENTREGA_TICKET_COL_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('No se pudo asegurar columnas entrega ticket: %s', ex)
+        return False
+
+
 def _asegurar_columnas_bodega_sugerido_preparar():
     """Fase 2: marcador sugerido preparar (pendiente de pago + retiro bodega)."""
     if app.config.get('_BODEGA_SUGERIDO_COL_OK'):
@@ -11777,6 +12064,8 @@ def api_pos_vincular_cliente():
     if not caja:
         return jsonify({'ok': False, 'error': 'sin_caja'}), 400
     venta = _venta_abierta_por_caja_y_usuario(caja.id, _nombre_usuario_pos_actual())
+    if not venta:
+        venta = _pos_preparar_venta_abierta(caja, _nombre_usuario_pos_actual())
     if not venta:
         return jsonify({'ok': False, 'error': 'sin_venta_abierta'}), 400
 
@@ -13363,9 +13652,21 @@ def _producto_por_codigo_chilemat_escaneo(cnorm: str):
 
 
 def _pos_buscar_producto_por_codigo(codigo):
-    """Resuelve producto por código de barras, interno o chilemat (variantes EAN pistola)."""
+    """Resuelve producto por alias POS, código de barras, interno o chilemat (variantes EAN pistola)."""
     if not codigo:
         return None
+
+    from services.producto_codigo_escaneo_service import buscar_producto_por_alias
+
+    p_alias = buscar_producto_por_alias(
+        codigo,
+        Producto=Producto,
+        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+        db=db,
+        app=app,
+    )
+    if p_alias:
+        return p_alias
 
     def _por_barra_o_interno(cnorm: str):
         p = (
@@ -13424,14 +13725,26 @@ def _pos_resumen_producto_escaneo_json(producto) -> dict:
     }
 
 
-def _pos_cantidad_producto_en_venta(venta, producto_id):
+def _pos_debe_ofrecer_apedido_escaneo(producto) -> bool:
+    """Solo venta en verde si no hay unidades físicas en tienda ni bodega."""
+    if not producto:
+        return False
+    st_t = int(stock_disponible_venta_tienda(producto) or 0)
+    st_b = int(stock_disponible_bodega(producto) or 0)
+    return st_t <= 0 and st_b <= 0
+
+
+def _pos_cantidad_producto_en_venta(venta, producto_id, excluir_a_pedido=False):
     """Unidades de venta del producto ya cargadas en el vale abierto."""
     if not venta:
         return 0
     total = 0
     for d in list(venta.detalles or []):
-        if int(d.id_producto) == int(producto_id):
-            total += int(d.cantidad or 0)
+        if int(d.id_producto) != int(producto_id):
+            continue
+        if excluir_a_pedido and getattr(d, 'a_pedido', False):
+            continue
+        total += int(d.cantidad or 0)
     return total
 
 
@@ -13452,7 +13765,7 @@ def _pos_puede_sumar_unidad(producto, venta, caja_id=None, a_pedido=False):
     factor = _factor_venta_a_stock(producto)
     if factor <= 0:
         return False, f'Conversión inválida para {producto.nombre}.', 'conversion'
-    qty_prev = _pos_cantidad_producto_en_venta(venta, producto.id)
+    qty_prev = _pos_cantidad_producto_en_venta(venta, producto.id, excluir_a_pedido=True)
     cons_new = int(round((qty_prev + 1) * factor))
     disp = stock_disponible_venta_tienda(producto)
     excluir = getattr(venta, 'id', None)
@@ -14020,7 +14333,7 @@ def api_pos_escanear_agregar():
         if err == 'sin_stock' and not a_pedido:
             from services.pos_busqueda_service import pos_dias_entrega_estimado, pos_permite_venta_verde
 
-            if pos_permite_venta_verde():
+            if pos_permite_venta_verde() and _pos_debe_ofrecer_apedido_escaneo(producto):
                 payload = {
                     'ok': False,
                     'error': 'ofrecer_apedido',
@@ -14090,6 +14403,7 @@ def api_pos_producto_alta_rapida():
                 nombre=nombre,
                 codigo_barra=codigo[:50],
                 precio_venta=precio,
+                precio_venta_sd=precio,
                 precio_mayoreo=0,
                 stock=0,
                 activo=True,
@@ -14129,6 +14443,109 @@ def api_pos_producto_alta_rapida():
         res['agregado_vale'] = True
         return jsonify(res)
     return jsonify({'ok': True, 'creado': True, 'producto_id': p.id, 'agregado_vale': False})
+
+
+def api_pos_vincular_codigo():
+    """
+    Vincula código escaneado a producto existente (alias mostrador). Sin movimiento de stock.
+    JSON: codigo_escaneado|codigo, producto_id, agregar_vale (default true),
+    precio_venta_sd|precio (si el ítem no tiene precio SD: mostrador o lista auto).
+    """
+    if not usuario_tiene_permiso('pos_emitir_vale'):
+        return jsonify({'ok': False, 'error': 'sin_permiso'}), 403
+    data = request.get_json(silent=True) or {}
+    codigo = data.get('codigo_escaneado') or data.get('codigo') or ''
+    try:
+        producto_id = int(data.get('producto_id'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'producto_invalido'}), 400
+    agregar = data.get('agregar_vale', True)
+    if str(agregar).lower() in ('0', 'false', 'off', 'no'):
+        agregar = False
+    from services.producto_codigo_escaneo_service import vincular_codigo_a_producto
+
+    usr = _nombre_usuario_pos_actual()
+    try:
+        res = vincular_codigo_a_producto(
+            codigo,
+            producto_id,
+            Producto=Producto,
+            ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+            db=db,
+            app=app,
+            usuario=usr,
+            tipo=(data.get('tipo') or 'pos_vinculo')[:32],
+            origen='pos',
+        )
+        if not res.get('ok'):
+            code = 409 if res.get('error') == 'barras_duplicado' else 400
+            return jsonify(res), code
+        _audit_log(
+            'pos_vinculo_codigo',
+            'producto',
+            producto_id,
+            usuario=usr,
+            datos_despues={
+                'codigo_escaneado': res.get('codigo'),
+                'producto_id': producto_id,
+                'producto_nombre': res.get('producto_nombre'),
+            },
+        )
+        p = Producto.query.get(producto_id)
+        if not p:
+            db.session.rollback()
+            return jsonify({'ok': False, 'error': 'producto_no_encontrado'}), 404
+        if agregar or data.get('precio_venta_sd') or data.get('precio'):
+            precio_res = _pos_aplicar_precio_sd_desde_pos(p, data)
+            if not precio_res.get('ok'):
+                db.session.rollback()
+                code = 400 if precio_res.get('error') == 'precio_sd_requerido' else 400
+                return jsonify({**res, **precio_res}), code
+            if precio_res.get('aplicado'):
+                res['precio_sd_aplicado'] = precio_res.get('precio_venta_sd')
+                res['origen_precio_sd'] = precio_res.get('origen_precio_sd')
+                _audit_log(
+                    'pos_precio_sd_vinculo',
+                    'producto',
+                    producto_id,
+                    usuario=usr,
+                    datos_despues={
+                        'precio_venta_sd': precio_res.get('precio_venta_sd'),
+                        'origen': precio_res.get('origen_precio_sd'),
+                        'codigo_escaneado': res.get('codigo'),
+                    },
+                )
+        if not agregar:
+            db.session.commit()
+            res['agregado_vale'] = False
+            return jsonify(res)
+        caja = obtener_caja_activa()
+        if not caja:
+            db.session.commit()
+            res['agregado_vale'] = False
+            res['error_caja'] = 'sin_caja'
+            return jsonify(res)
+        db.session.refresh(p)
+        add_res = _pos_agregar_producto_a_venta_abierta(p, caja, usr)
+        if not add_res.get('ok'):
+            db.session.rollback()
+            res['agregado_vale'] = False
+            res['mensaje_agregar'] = add_res.get('mensaje')
+            res['error_agregar'] = add_res.get('error')
+            code = 409 if add_res.get('error') in (
+                'sin_stock', 'en_vale_pendiente', 'ofrecer_apedido', 'sin_precio'
+            ) else 400
+            return jsonify({**res, **add_res}), code
+        db.session.commit()
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('POS vincular codigo')
+        return jsonify({'ok': False, 'error': 'no_pudo_vincular', 'mensaje': str(ex)[:200]}), 500
+    out = {**res, **add_res}
+    out['vinculado'] = True
+    out['agregado_vale'] = True
+    out['codigo_vinculado'] = res.get('codigo')
+    return jsonify(out)
 
 
 def agregar_producto_venta():
@@ -14340,9 +14757,11 @@ def pos_ticket_vale(venta_id):
     if not ticket_es_borrador and _pos_ticket_qr_despacho_empresa():
         tok = pos_despacho_vale_token_create(venta.id)
         if tok:
-            despacho_ticket_url = url_for('pos_despacho_vale', vid=venta.id, t=tok, _external=True)
+            from services.despacho_qr_service import url_despacho_qr_corta
+
+            despacho_ticket_url = url_despacho_qr_corta(venta.id, tok)
             try:
-                qr_ticket_src = _qr_data_uri_png(despacho_ticket_url, box_size=3, border=1)
+                qr_ticket_src = _qr_data_uri_png(despacho_ticket_url, box_size=4, border=1)
             except Exception:
                 qr_ticket_src = None
 
@@ -14365,11 +14784,55 @@ def pos_ticket_vale(venta_id):
         pos_ticket_qr_despacho=_pos_ticket_qr_despacho_empresa(),
         ticket_es_borrador=ticket_es_borrador,
         pos_impresion_termica=_pos_impresion_termica_habilitada(),
+        ticket_telefono=_ticket_telefono_vale_display(empresa_cfg),
+        ticket_direccion=((empresa_cfg or {}).get('direccion') or '').strip(),
     )
 
 
+def pos_despacho_vale_qr_short(vid, token_qr):
+    """Entrada QR térmica: path sin ? ni : (mejor para lectores tipo teclado)."""
+    from services.despacho_qr_service import token_desde_qr_path
+
+    tok = token_desde_qr_path(token_qr)
+    if not _entrega_ticket_token_valido(vid, tok):
+        flash('Código QR del vale inválido o caducado. Vuelva a imprimir el ticket.', 'warning')
+        return redirect(url_for('inicio'))
+    return redirect(url_for('pos_despacho_vale', vid=vid, t=tok))
+
+
+def pos_despacho_vale_folio_qr(folio):
+    """Respaldo: QR solo con folio VL (requiere usuario logueado con permiso)."""
+    venta = Venta.query.get_or_404(int(folio))
+    if not current_user.is_authenticated:
+        flash('Escanee el QR completo del ticket o inicie sesión.', 'warning')
+        return redirect(url_for('login'))
+    tok = pos_despacho_vale_token_create(venta.id)
+    if not tok:
+        flash('No se pudo abrir el vale.', 'warning')
+        return redirect(url_for('inicio'))
+    return redirect(url_for('pos_despacho_vale', vid=venta.id, t=tok))
+
+
+def qr_scan_despacho_redirect():
+    """Normaliza texto corrupto del lector y redirige al despacho."""
+    from services.despacho_qr_service import resolver_url_despacho_desde_escaneo
+
+    raw = (request.args.get('q') or request.args.get('d') or request.args.get('data') or '').strip()
+    if not raw and request.method == 'POST':
+        raw = (request.get_data(as_text=True) or '').strip()[:2000]
+    dest = resolver_url_despacho_desde_escaneo(raw) if raw else None
+    if dest:
+        return render_template('qr_scan_despacho.html', dest=dest)
+    if raw:
+        flash(
+            'No se reconoció el código. Configure el lector en modo URL (teclado US) o reimprima el ticket.',
+            'warning',
+        )
+    return render_template('qr_scan_despacho.html', dest=None)
+
+
 def pos_despacho_vale(vid):
-    """Vista QR ticket: listado por canal (tienda/bodega/despacho) según permiso. Solo lectura; entrega en bodega_plataforma."""
+    """Vista QR ticket: guía por canal + modal registro de entrega."""
     tok = (request.args.get('t') or '').strip()
     venta = Venta.query.options(
         joinedload(Venta.cliente),
@@ -14390,15 +14853,42 @@ def pos_despacho_vale(vid):
         flash('Este vale no está disponible para despacho.', 'info')
         return redirect(url_for('inicio'))
 
+    _asegurar_columnas_entrega_ticket()
     buckets, subtotales, orden_retiro = _ticket_agrupar_detalles_por_retiro(venta)
-    ver_canal_tienda = usuario_tiene_permiso('pos_emitir_vale') or usuario_tiene_permiso('caja_cobrar_vale')
-    ver_canal_bodega = usuario_tiene_permiso('bodega_operador')
+    ver_canal_tienda, ver_canal_bodega = _despacho_visibilidad_canales(venta.id, tok)
 
     tiene_lineas = False
     if ver_canal_tienda:
         tiene_lineas = tiene_lineas or bool(buckets.get('Tienda') or buckets.get('Despacho'))
     if ver_canal_bodega:
         tiene_lineas = tiene_lineas or bool(buckets.get('Bodega') or buckets.get('Despacho'))
+
+    from services.entrega_ticket_service import lineas_entrega_para_vale, venta_entrega_resumen
+
+    entrega_lineas = lineas_entrega_para_vale(
+        venta,
+        retiro_por_linea=_pos_retiro_por_linea_empresa(),
+        ver_tienda=ver_canal_tienda,
+        ver_bodega=ver_canal_bodega,
+    )
+    entrega_resumen = venta_entrega_resumen(entrega_lineas)
+    entrega_estado = (getattr(venta, 'entrega_ticket_estado', None) or '').strip()
+    auto_abrir_entrega = (
+        st == 'Pagado'
+        and not entrega_resumen.get('completa')
+        and bool(entrega_lineas)
+        and (ver_canal_tienda or ver_canal_bodega)
+    )
+
+    import json as _json
+
+    entrega_config = {
+        'token': tok,
+        'registrarUrl': url_for('api_registrar_entrega_ticket', vid=venta.id),
+        'autoAbrirModal': auto_abrir_entrega,
+        'estadoPagado': st == 'Pagado',
+        'entregaCompleta': bool(entrega_resumen.get('completa')),
+    }
 
     return render_template(
         'pos/despacho_vale.html',
@@ -14412,6 +14902,10 @@ def pos_despacho_vale(vid):
         despacho_sin_lineas_visibles=(not tiene_lineas) and (ver_canal_tienda or ver_canal_bodega),
         empresa_cfg=obtener_config_empresa(),
         etiqueta_retiro_linea={'Tienda': '[T]', 'Bodega': '[B]', 'Despacho': '[D]'},
+        entrega_lineas=entrega_lineas,
+        entrega_resumen=entrega_resumen,
+        entrega_estado=entrega_estado or ('PENDIENTE' if st == 'Pagado' else '—'),
+        entrega_config_json=_json.dumps(entrega_config, ensure_ascii=False),
     )
 
 
@@ -15176,6 +15670,7 @@ def _aplicar_mov_saldo_favor(cliente_id, cambio_id, tipo, monto, observacion):
 
 # CAJA vales pendientes (ruta registrada en blueprints/caja.py)
 def caja_pendientes():
+    _asegurar_columnas_entrega_ticket()
     _redondear_montos_ventas_pendientes()
     db.session.rollback()
     hoy = datetime.now().date()
@@ -15246,6 +15741,9 @@ def caja_pendientes():
         v.saldo_favor_disponible = _saldo_favor_actual(v.cliente_id) if v.cliente_id else 0.0
         v.cola_es_borrador = False
         v.monto_cobro_ui = _monto_cobro_venta_ui(v)
+        from services.vitrina_tienda_service import es_usuario_pedido_web
+
+        v.es_pedido_web = es_usuario_pedido_web(v.usuario)
 
     _asegurar_columnas_ventas_bodega_despacho()
     # Vales emitidos (Pendiente) primero; luego borradores POS con total > 0.
@@ -15341,6 +15839,7 @@ def caja_pendientes():
         caja_sla_config=sla_config_caja,
         n_sla_atencion=n_sla_atencion,
         n_sla_modal=n_sla_modal,
+        pos_impresion_termica=_pos_impresion_termica_habilitada(),
     )
 
 
@@ -16773,6 +17272,18 @@ def procesar_cobro_caja(id):
                     venta.bodega_preparacion_usuario = None
                     venta.bodega_preparacion_at = None
                     venta.bodega_preparacion_cobrado_at = datetime.now()
+                _venta_inicializar_entrega_ticket_post_cobro(venta)
+
+            # Re-validar stock DENTRO del savepoint (defensa en profundidad contra TOCTOU).
+            # Relee la venta para obtener datos frescos y detecta si otro cobro concurrente
+            # ya agotó el stock entre la validación previa y este punto.
+            venta = Venta.query.options(joinedload(Venta.detalles)).filter_by(id=venta.id).first()
+            faltantes_final = _venta_validar_stock_tienda(venta)
+            if faltantes_final:
+                raise ValueError(
+                    'Stock insuficiente al cobrar (validación final): '
+                    + '; '.join(faltantes_final[:3])
+                )
 
             stock_cobro_svc.aplicar_descontos(
                 venta.id,
@@ -16927,6 +17438,7 @@ def _buscar_productos_json(
     filtro_pos: str = 'catalogo',
     enriquecido: bool = True,
     out_lim: int | None = None,
+    requiere_precio_lista: bool | None = None,
 ):
     """
     Búsqueda unificada POS / cotizaciones (nombre, códigos, marca, stock tienda+bodega).
@@ -16949,6 +17461,8 @@ def _buscar_productos_json(
     if filtro_pos not in ('operativo', 'tienda', 'catalogo'):
         filtro_pos = 'catalogo'
     filtro_estricto_stock = filtro_pos in ('operativo', 'tienda')
+    if requiere_precio_lista is None:
+        requiere_precio_lista = filtro_estricto_stock
     fetch_limit = 260 if filtro_estricto_stock else 80
 
     try:
@@ -16999,7 +17513,7 @@ def _buscar_productos_json(
         where_parts = [f"({' OR '.join(filtros)})"]
         if 'activo' in cols:
             where_parts.insert(0, '(activo IS NULL OR activo = TRUE)')
-        if filtro_estricto_stock:
+        if filtro_estricto_stock and requiere_precio_lista:
             precio_exprs = []
             if 'precio_venta' in cols:
                 precio_exprs.append('COALESCE(precio_venta, 0)')
@@ -17225,8 +17739,15 @@ def _cotizacion_item_desde_busqueda(row: dict) -> dict:
 @caja_requerida
 def buscar_producto():
     q = (request.args.get('q') or '').strip()
+    if not q:
+        return jsonify({'results': [], 'meta': {}})
     if len(q) < 2:
-        return jsonify({'results': []})
+        exact = _pos_buscar_producto_por_codigo(q)
+        if exact:
+            item = _item_busqueda_pos_desde_producto(exact)
+            if item:
+                return jsonify({'results': [item], 'meta': {'match': 'codigo_exacto'}})
+        return jsonify({'results': [], 'meta': {}})
     from services.pos_busqueda_service import resolver_filtro_busqueda_pos
 
     filtro_pos = resolver_filtro_busqueda_pos(request.args)
@@ -17234,6 +17755,14 @@ def buscar_producto():
         '1', 'true', 'si', 'yes', 'on',
     )
     data = _buscar_productos_json(q, filtro_pos=filtro_pos, enriquecido=enriquecido)
+    exact = _pos_buscar_producto_por_codigo(q)
+    if exact:
+        eid = int(exact.id)
+        results = [r for r in (data.get('results') or []) if int(r.get('producto_id') or 0) != eid]
+        exact_item = _item_busqueda_pos_desde_producto(exact)
+        if exact_item:
+            data['results'] = [exact_item] + results
+            data.setdefault('meta', {})['match'] = 'codigo_exacto'
     return jsonify(data)
 
 # proceso de apertura de caja desde pantalla de caja........................................................................
@@ -18594,6 +19123,16 @@ def admin_empresa():
             data['operacion_sucursales_red_n'] = str(max(1, min(99, n_suc)))
         except (TypeError, ValueError):
             data['operacion_sucursales_red_n'] = '3'
+        data['portal_marca'] = (request.form.get('portal_marca') or 'SD Constructor').strip() or 'SD Constructor'
+        data['portal_gastos_op_mensual_clp'] = _normalizar_monto_clp_config(
+            request.form.get('portal_gastos_op_mensual_clp'), '0'
+        )
+        data['portal_activos_fijos_clp'] = _normalizar_monto_clp_config(
+            request.form.get('portal_activos_fijos_clp'), '0'
+        )
+        data['portal_meta_ventas_anual_clp'] = _normalizar_monto_clp_config(
+            request.form.get('portal_meta_ventas_anual_clp'), '0'
+        )
         if not (data["nombre_comercial"] or '').strip():
             flash("El nombre comercial es obligatorio.", "warning")
             return redirect(url_for('admin_empresa'))
@@ -21635,6 +22174,279 @@ def _venta_actualizar_estado_plataforma_retiro(venta):
             venta.bodega_preparacion_estado = 'ENTREGA_PARCIAL'
 
 
+def _detalle_canal_entrega(detalle, venta):
+    return (_detalle_punto_retiro_efectivo(detalle, venta) or 'Tienda').strip()
+
+
+def _detalle_pendiente_entrega_tienda_unidades(detalle, venta):
+    canal = _detalle_canal_entrega(detalle, venta).lower()
+    if canal == 'bodega':
+        return 0
+    ent = int(getattr(detalle, 'cantidad_entregada_retiro_tienda', None) or 0)
+    vend = int(detalle.cantidad or 0)
+    return max(0, vend - ent)
+
+
+def _venta_tiene_lineas_entregables(venta):
+    for d in venta.detalles or []:
+        if getattr(d, 'a_pedido', False):
+            continue
+        if _detalle_pendiente_entrega_tienda_unidades(d, venta) > 0:
+            return True
+        if _detalle_pendiente_retiro_bodega_unidades(d) > 0:
+            return True
+    return False
+
+
+def _venta_inicializar_entrega_ticket_post_cobro(venta):
+    _asegurar_columnas_entrega_ticket()
+    if (venta.estado or '').strip() != 'Pagado':
+        return
+    if not _venta_tiene_lineas_entregables(venta):
+        venta.entrega_ticket_estado = 'CERRADO'
+        venta.entrega_ticket_cerrado_at = datetime.now()
+        return
+    cur = (getattr(venta, 'entrega_ticket_estado', None) or '').strip()
+    if not cur:
+        venta.entrega_ticket_estado = 'PENDIENTE'
+
+
+def _venta_actualizar_estado_entrega_ticket(venta):
+    _asegurar_columnas_entrega_ticket()
+    if (venta.estado or '').strip() != 'Pagado':
+        return
+    if not _venta_tiene_lineas_entregables(venta):
+        venta.entrega_ticket_estado = 'CERRADO'
+        if not getattr(venta, 'entrega_ticket_cerrado_at', None):
+            venta.entrega_ticket_cerrado_at = datetime.now()
+        return
+    venta.entrega_ticket_estado = 'PARCIAL'
+    for d in venta.detalles or []:
+        if getattr(d, 'a_pedido', False):
+            continue
+        if _detalle_pendiente_entrega_tienda_unidades(d, venta) > 0:
+            return
+        if _detalle_pendiente_retiro_bodega_unidades(d) > 0:
+            return
+    venta.entrega_ticket_estado = 'CERRADO'
+    venta.entrega_ticket_cerrado_at = datetime.now()
+
+
+def _usuario_puede_registrar_entrega_ticket():
+    return (
+        usuario_tiene_permiso('bodega_operador')
+        or usuario_tiene_permiso('caja_cobrar_vale')
+        or usuario_tiene_permiso('pos_emitir_vale')
+        or usuario_tiene_permiso('gestionar_usuarios')
+    )
+
+
+def _entrega_ticket_token_valido(venta_id, token):
+    if not token:
+        return False
+    vv = pos_despacho_vale_token_verify(token)
+    return vv is not None and int(vv) == int(venta_id)
+
+
+def _despacho_visibilidad_canales(venta_id, token=None):
+    """
+    Qué canales muestra despacho/entrega QR.
+    Con token QR válido (sin login) se muestran tienda y bodega para poder registrar.
+    """
+    tok = (token or '').strip()
+    if tok and _entrega_ticket_token_valido(venta_id, tok):
+        return True, True
+    if usuario_tiene_permiso('gestionar_usuarios'):
+        return True, True
+    ver_tienda = usuario_tiene_permiso('pos_emitir_vale') or usuario_tiene_permiso('caja_cobrar_vale')
+    ver_bodega = usuario_tiene_permiso('bodega_operador')
+    return ver_tienda, ver_bodega
+
+
+def _registrar_entrega_linea_ticket(venta, detalle, cantidad, usuario):
+    """Registra entrega de una línea (tienda/despacho sin stock; bodega descuenta stock)."""
+    canal = _detalle_canal_entrega(detalle, venta).lower()
+    cant = int(cantidad or 0)
+    if cant <= 0:
+        raise ValueError('Cantidad inválida.')
+    if canal == 'bodega':
+        pend = _detalle_pendiente_retiro_bodega_unidades(detalle)
+        if cant > pend:
+            raise ValueError(f'Cantidad mayor al pendiente bodega ({pend}).')
+        producto = Producto.query.get(detalle.id_producto)
+        if not producto:
+            raise ValueError('Producto no encontrado.')
+        factor = _factor_venta_a_stock(producto)
+        consumo = int(round(cant * factor))
+        if consumo <= 0:
+            raise ValueError('Conversión de unidades inválida.')
+        err_st = descontar_stock_venta_bodega(producto, consumo)
+        if err_st:
+            raise ValueError(err_st)
+        ent_antes = int(getattr(detalle, 'cantidad_entregada_retiro_bodega', None) or 0)
+        detalle.cantidad_entregada_retiro_bodega = ent_antes + cant
+        aid_b = id_almacen_bodega() or 1
+        registrar_movimiento_kardex(
+            producto.id,
+            'SALIDA',
+            consumo,
+            f'Entrega QR bodega vale #{venta.id} ({cant} {producto.unidad_venta_final}) por {usuario}',
+            usuario=usuario,
+            id_almacen=aid_b,
+            referencia_tipo='venta_retiro_bodega',
+            referencia_id=venta.id,
+            stock_saldo=None,
+        )
+        _venta_actualizar_estado_plataforma_retiro(venta)
+    else:
+        pend = _detalle_pendiente_entrega_tienda_unidades(detalle, venta)
+        if cant > pend:
+            raise ValueError(f'Cantidad mayor al pendiente ({pend}).')
+        ent_antes = int(getattr(detalle, 'cantidad_entregada_retiro_tienda', None) or 0)
+        detalle.cantidad_entregada_retiro_tienda = ent_antes + cant
+    _venta_actualizar_estado_entrega_ticket(venta)
+    _audit_log(
+        'entrega_ticket_linea',
+        'venta',
+        venta.id,
+        usuario=(usuario or '')[:120],
+        datos_despues={
+            'detalle_id': detalle.id,
+            'canal': canal,
+            'cantidad': cant,
+            'entrega_ticket_estado': getattr(venta, 'entrega_ticket_estado', None),
+        },
+    )
+
+
+def api_caja_vale_por_folio():
+    """JSON: busca vale en cola de cobro por folio escaneado (VL / número)."""
+    q = (request.args.get('q') or '').strip()
+    from services.entrega_ticket_service import parse_folio_vale
+
+    folio = parse_folio_vale(q)
+    if folio is None:
+        return jsonify(ok=False, mensaje=f'Folio inválido: {q or "—"}'), 400
+    venta = Venta.query.options(joinedload(Venta.detalles)).get(folio)
+    if not venta:
+        return jsonify(ok=False, mensaje=f'No existe vale #{folio}.'), 404
+    st = (venta.estado or '').strip()
+    if st == 'Anulada':
+        return jsonify(ok=False, mensaje=f'Vale #{folio} está anulado.'), 400
+    if st == 'Pagado':
+        return jsonify(
+            ok=True,
+            venta_id=folio,
+            en_cola=False,
+            mensaje=f'Vale #{folio} ya está pagado. Use ticket de retiro o QR entrega.',
+        )
+    if st not in ('Pendiente', 'Abierta'):
+        return jsonify(ok=False, mensaje=f'Vale #{folio} no está en cola de cobro ({st}).'), 400
+    if venta.metodo_pago is not None:
+        return jsonify(ok=False, mensaje=f'Vale #{folio} ya tiene método de pago registrado.'), 400
+    falt = _venta_validar_stock_tienda(venta)
+    cobrable = len(falt) == 0 and (_monto_cobro_venta_ui(venta) or 0) > 0
+    return jsonify(
+        ok=True,
+        venta_id=folio,
+        en_cola=True,
+        cobrable=cobrable,
+        stock_alerta='; '.join(falt[:2]) if falt else '',
+        mensaje='Listo para cobrar.' if cobrable else 'Vale en cola pero no cobrable (sin stock o $0).',
+    )
+
+
+def api_registrar_entrega_ticket(vid):
+    """JSON: registrar entrega desde modal QR (línea o todo)."""
+    _asegurar_columnas_entrega_ticket()
+    data = request.get_json(silent=True) or {}
+    token = (data.get('token') or request.args.get('t') or '').strip()
+    if not current_user.is_authenticated:
+        if not _entrega_ticket_token_valido(vid, token):
+            return jsonify(ok=False, mensaje='Sesión o token QR inválido.'), 401
+    elif not _usuario_puede_registrar_entrega_ticket():
+        return jsonify(ok=False, mensaje='Sin permiso para registrar entrega.'), 403
+    elif token and not _entrega_ticket_token_valido(vid, token):
+        return jsonify(ok=False, mensaje='Token QR inválido o caducado.'), 403
+
+    venta = (
+        Venta.query.options(joinedload(Venta.detalles).joinedload(DetalleVenta.producto))
+        .get_or_404(int(vid))
+    )
+    if (venta.estado or '').strip() != 'Pagado':
+        return jsonify(ok=False, mensaje='Solo vales pagados admiten registro de entrega.'), 400
+
+    usr = ((current_user.nombre or '').strip() if current_user.is_authenticated else '') or 'Entrega QR'
+    accion = (data.get('accion') or '').strip().lower()
+    ver_tienda, ver_bodega = _despacho_visibilidad_canales(vid, token)
+    if not ver_tienda and not ver_bodega:
+        return jsonify(ok=False, mensaje='Sin permiso para ver canales de entrega.'), 403
+
+    detalle_obj = None
+    cantidad_obj = None
+    if accion != 'entregar_todo':
+        try:
+            detalle_obj = int(data.get('detalle_id'))
+            cantidad_obj = int(data.get('cantidad'))
+        except (TypeError, ValueError):
+            return jsonify(ok=False, mensaje='detalle_id y cantidad requeridos.'), 400
+        detalle_obj = DetalleVenta.query.filter_by(id=detalle_obj, id_venta=venta.id).first()
+        if not detalle_obj:
+            return jsonify(ok=False, mensaje='Línea no pertenece a este vale.'), 400
+        canal_chk = _detalle_canal_entrega(detalle_obj, venta).lower()
+        if canal_chk == 'bodega' and not ver_bodega:
+            return jsonify(ok=False, mensaje='Sin permiso para entregar líneas de bodega.'), 403
+        if canal_chk != 'bodega' and not ver_tienda:
+            return jsonify(ok=False, mensaje='Sin permiso para entregar líneas de tienda.'), 403
+
+    try:
+        with transaccion_critica():
+            if accion == 'entregar_todo':
+                for d in list(venta.detalles or []):
+                    if getattr(d, 'a_pedido', False):
+                        continue
+                    canal = _detalle_canal_entrega(d, venta).lower()
+                    if canal == 'bodega' and not ver_bodega:
+                        continue
+                    if canal != 'bodega' and not ver_tienda:
+                        continue
+                    if canal == 'bodega':
+                        pend = _detalle_pendiente_retiro_bodega_unidades(d)
+                    else:
+                        pend = _detalle_pendiente_entrega_tienda_unidades(d, venta)
+                    if pend > 0:
+                        _registrar_entrega_linea_ticket(venta, d, pend, usr)
+            else:
+                _registrar_entrega_linea_ticket(venta, detalle_obj, cantidad_obj, usr)
+        db.session.commit()
+    except ValueError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 400
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_registrar_entrega_ticket vale #%s', vid)
+        return jsonify(ok=False, mensaje=str(ex)[:300]), 500
+
+    from services.entrega_ticket_service import lineas_entrega_para_vale, venta_entrega_resumen
+
+    venta = Venta.query.options(joinedload(Venta.detalles).joinedload(DetalleVenta.producto)).get(int(vid))
+    lineas = lineas_entrega_para_vale(
+        venta,
+        retiro_por_linea=_pos_retiro_por_linea_empresa(),
+        ver_tienda=ver_tienda,
+        ver_bodega=ver_bodega,
+    )
+    res = venta_entrega_resumen(lineas)
+    estado = (getattr(venta, 'entrega_ticket_estado', None) or '').strip() or 'PENDIENTE'
+    return jsonify(
+        ok=True,
+        mensaje='Entrega registrada.',
+        lineas=lineas,
+        estado=estado,
+        completa=bool(res.get('completa')),
+    )
+
+
 def _bodega_sla_minutos(dt_inicio, dt_fin=None):
     """Calcula minutos entre dos datetimes; si dt_fin es None usa ahora."""
     if not dt_inicio:
@@ -21671,6 +22483,34 @@ def _bodega_sla_prioridad(minutos, estado):
     return 0, 'sla-ok', 'En tiempo'
 
 
+_BODEGA_CANAL_ORDEN = {'Tienda': 0, 'Bodega': 1, 'Despacho': 2}
+
+
+def _bodega_lineas_pendiente_ordenadas(venta):
+    """Líneas con pendiente de entrega, orden Tienda → Bodega → Despacho (mixto)."""
+    out = []
+    for d in venta.detalles or []:
+        canal = (_detalle_punto_retiro_efectivo(d, venta) or 'Tienda').strip()
+        if canal.lower() == 'bodega':
+            pend = _detalle_pendiente_retiro_bodega_unidades(d)
+        else:
+            pend = _detalle_pendiente_entrega_tienda_unidades(d, venta)
+        if pend <= 0:
+            continue
+        nom = (d.producto.nombre if d.producto else '?') or '—'
+        out.append(
+            {
+                'canal': canal,
+                'prefijo': {'Tienda': '[T]', 'Bodega': '[B]', 'Despacho': '[D]'}.get(canal, ''),
+                'nombre': nom,
+                'pendiente': pend,
+                'cantidad': int(d.cantidad or 0),
+            }
+        )
+    out.sort(key=lambda x: (_BODEGA_CANAL_ORDEN.get(x['canal'], 9), x['nombre'].lower()))
+    return out
+
+
 def _bodega_enriquecer_vales_sla(vales, ahora=None):
     """Agrega atributos SLA a una lista de vales (para templates)."""
     ahora = ahora or datetime.now()
@@ -21684,6 +22524,15 @@ def _bodega_enriquecer_vales_sla(vales, ahora=None):
         setattr(v, 'sla_css', css)
         setattr(v, 'sla_label', label)
         setattr(v, 'sla_cobrado_iso', cob.isoformat() if cob else '')
+        setattr(v, 'lineas_pendiente_ordenadas', _bodega_lineas_pendiente_ordenadas(v))
+        tok = pos_despacho_vale_token_create(v.id)
+        if tok:
+            from services.despacho_qr_service import url_despacho_qr_corta
+
+            setattr(v, 'entrega_qr_url', url_despacho_qr_corta(v.id, tok))
+        else:
+            setattr(v, 'entrega_qr_url', None)
+        setattr(v, 'entrega_ticket_estado', (getattr(v, 'entrega_ticket_estado', None) or '').strip())
 
 
 def bodega_cuadro_mando():
@@ -21924,8 +22773,39 @@ def api_bodega_retiros_cola_snapshot():
     })
 
 
+def _bodega_contadores_plataforma():
+    """KPIs cola retiro bodega (misma base que plataforma, sin filtro de estado)."""
+    filt = (
+        Venta.estado == 'Pagado',
+        _sql_filtro_venta_cola_bodega(),
+        Venta.bodega_preparacion_estado.isnot(None),
+        Venta.bodega_preparacion_estado != 'CERRADO',
+    )
+    rows = (
+        db.session.query(Venta.bodega_preparacion_estado, db.func.count(Venta.id))
+        .filter(*filt)
+        .group_by(Venta.bodega_preparacion_estado)
+        .all()
+    )
+    out = {'total': 0, 'pendiente': 0, 'en_preparacion': 0, 'listo': 0, 'parcial': 0}
+    for est, cnt in rows:
+        n = int(cnt or 0)
+        out['total'] += n
+        e = (est or 'PENDIENTE').strip().upper()
+        if e == 'PENDIENTE':
+            out['pendiente'] += n
+        elif e == 'EN_PREPARACION':
+            out['en_preparacion'] += n
+        elif e == 'LISTO_RETIRO':
+            out['listo'] += n
+        elif e == 'ENTREGA_PARCIAL':
+            out['parcial'] += n
+    return out
+
+
 def bodega_plataforma():
     _asegurar_columnas_bodega_retiro()
+    _asegurar_columnas_entrega_ticket()
     q_estado = (request.args.get('estado') or '').strip().upper()
     base = (
         Venta.query.options(
@@ -21943,11 +22823,13 @@ def bodega_plataforma():
         base = base.filter(Venta.bodega_preparacion_estado == q_estado)
     vales = base.order_by(Venta.fecha.asc()).limit(300).all()
     _bodega_enriquecer_vales_sla(vales)
+    contadores = _bodega_contadores_plataforma()
     return render_template(
         'bodega_plataforma.html',
         vales=vales,
         filtro_estado=q_estado,
-        cola_retiro_total=len(vales),
+        contadores=contadores,
+        cola_retiro_total=contadores['total'],
     )
 
 
@@ -22006,11 +22888,20 @@ def bodega_vale_retiro(vid):
                 f"{p.nombre}: pendiente {pend_uv} u. venta → {nec_base} u.base en bodega; hay {disp}."
                 + (f" (en tienda hay {tienda_disp})" if usa_multi and tienda_disp else "")
             )
+    tok = pos_despacho_vale_token_create(venta.id)
+    if tok:
+        from services.despacho_qr_service import url_despacho_qr_corta
+
+        entrega_qr_url = url_despacho_qr_corta(venta.id, tok)
+    else:
+        entrega_qr_url = None
     return render_template(
         'bodega_vale_retiro.html',
         venta=venta,
         usa_multi_almacen=usa_multi,
         alertas_retiro_stock=alertas_retiro_stock,
+        entrega_qr_url=entrega_qr_url,
+        entrega_ticket_estado=(getattr(venta, 'entrega_ticket_estado', None) or '').strip(),
     )
 
 
@@ -22146,6 +23037,7 @@ def bodega_vale_retiro_linea_post(vid):
             ent_antes = int(getattr(d, 'cantidad_entregada_retiro_bodega', None) or 0)
             d.cantidad_entregada_retiro_bodega = ent_antes + int(cant)
             _venta_actualizar_estado_plataforma_retiro(venta)
+            _venta_actualizar_estado_entrega_ticket(venta)
             aid_b = id_almacen_bodega() or 1
             registrar_movimiento_kardex(
                 producto.id,
@@ -25503,6 +26395,7 @@ from blueprints.reportes_maestra_costos import register_reportes_maestra_routes
 from blueprints.tienda_publica import register_tienda_publica_routes
 from blueprints.modulo_pinturas import register_modulo_pinturas_routes
 from blueprints.ecommerce import register_ecommerce_routes
+from blueprints.portal_ejecutivo import register_portal_ejecutivo_routes
 
 register_bodega_routes(app)
 register_caja_routes(app)
@@ -25516,6 +26409,7 @@ register_reportes_maestra_routes(app)
 register_tienda_publica_routes(app)
 register_modulo_pinturas_routes(app)
 register_ecommerce_routes(app)
+register_portal_ejecutivo_routes(app)
 
 
 # --- Pre-warm: ejecutar auto-migraciones una vez al arrancar (no en cada request) ---
@@ -25545,6 +26439,7 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_ventas_bodega_despacho()
         _asegurar_columnas_bodega_retiro()
         _asegurar_columnas_bodega_sugerido_preparar()
+        _asegurar_columnas_entrega_ticket()
         try:
             db.session.execute(text('CREATE EXTENSION IF NOT EXISTS pg_trgm'))
             db.session.commit()
@@ -25565,6 +26460,7 @@ def _schema_ensure_on_startup():
 
 # ─── Ejecutivo Comercial IA (demo) ──────────────────────────────────
 @app.route('/demo/ejecutivo-comercial')
+@login_required
 def demo_ejecutivo_comercial():
     cfg = obtener_config_empresa()
     vcfg = obtener_liz_voice_config()
@@ -25572,6 +26468,7 @@ def demo_ejecutivo_comercial():
 
 
 @app.route('/api/demo/ofertas')
+@login_required
 def api_demo_ofertas():
     """Devuelve 6 productos en oferta con descuento simulado."""
     try:
@@ -25608,6 +26505,7 @@ def api_demo_ofertas():
 
 
 @app.route('/api/demo/recomendaciones')
+@login_required
 def api_demo_recomendaciones():
     """Devuelve productos para el ejecutivo comercial demo."""
     q = (request.args.get('q') or '').strip()
@@ -25642,6 +26540,7 @@ def api_demo_recomendaciones():
 
 
 @app.route('/api/demo/productos-enriquecidos')
+@login_required
 def api_demo_productos_enriquecidos():
     """Busca productos con fuzzy matching y enriquece con Gemini si disponible."""
     q = (request.args.get('q') or '').strip()
@@ -25682,6 +26581,7 @@ def api_demo_productos_enriquecidos():
 
 
 @app.route('/api/demo/categorias')
+@login_required
 def api_demo_categorias():
     try:
         cats = db.session.query(Producto.categoria).filter(
@@ -25802,6 +26702,7 @@ def extraer_rut_desde_lectura_carnet(texto):
 
 
 @app.route('/api/demo/cliente')
+@login_required
 def api_demo_cliente():
     """Busca cliente por RUT o nombre y devuelve perfil + historial de compras."""
     q_raw = (request.args.get('q') or '').strip()
@@ -25907,6 +26808,7 @@ def api_demo_cliente():
 
 
 @app.route('/api/demo/stats')
+@login_required
 def api_demo_stats():
     try:
         total_prods = Producto.query.filter_by(activo=True).count()
@@ -25953,11 +26855,13 @@ def obtener_liz_voice_config():
 
 
 @app.route('/api/demo/voice-config', methods=['GET'])
+@login_required
 def api_liz_voice_config_get():
     return jsonify({'ok': True, **obtener_liz_voice_config()})
 
 
 @app.route('/api/demo/voice-config', methods=['POST'])
+@login_required
 def api_liz_voice_config_save():
     data = request.get_json(silent=True) or {}
     cfg = obtener_liz_voice_config()
@@ -26601,6 +27505,7 @@ _LIZ_LAST_PRODUCTS = {}
 
 
 @app.route('/api/demo/chat', methods=['POST'])
+@login_required
 def api_demo_chat():
     """Agente Liz: Function Calling (3 funciones) con degradacion elegante."""
     data = request.get_json(silent=True) or {}
@@ -26834,6 +27739,7 @@ def api_demo_chat():
 
 
 @app.route('/api/demo/checkout', methods=['POST'])
+@login_required
 def api_demo_checkout():
     """
     Emite un VALE PENDIENTE desde el asistente comercial (Liz).
@@ -26952,6 +27858,7 @@ def api_demo_checkout():
 
 
 @app.route('/api/demo/vale/<int:venta_id>')
+@login_required
 def api_demo_vale_lookup(venta_id):
     """Consulta vale pendiente (QR que escanea la cajera). Requiere firma ?s= del checkout."""
     try:
@@ -26980,6 +27887,7 @@ def api_demo_vale_lookup(venta_id):
 
 
 @app.route('/api/demo/chat/reset', methods=['POST'])
+@login_required
 def api_demo_chat_reset():
     """Reinicia el historial de conversacion."""
     data = request.get_json(silent=True) or {}
@@ -26989,6 +27897,7 @@ def api_demo_chat_reset():
 
 
 @app.route('/api/demo/test/force-fallback', methods=['POST'])
+@login_required
 def api_demo_test_force_fallback():
     """Prueba de estres: activa/desactiva simulacion de error 429."""
     global _FORCE_FALLBACK

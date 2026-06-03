@@ -12,6 +12,9 @@
     .tag-t { color: #4ade80; font-weight: 800; width: 2rem; }
     .tag-b { color: #facc15; font-weight: 800; width: 2rem; }
     .tag-d { color: #38bdf8; font-weight: 800; width: 2rem; }
+    .modal-content { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; }
+    .modal-header, .modal-footer { border-color: #334155; }
+    .table-entrega th, .table-entrega td { vertical-align: middle; }
   </style>
 </head>
 <body>
@@ -20,16 +23,36 @@
     <div>
       <span class="badge bg-light text-dark">DESPACHO</span>
       <h1 class="h4 mt-2 mb-0">Vale N°{{ venta.id }}</h1>
-      <p class="muted small mb-0">Turno {{ venta.prioridad }} · {{ venta.estado }}</p>
+      <p class="muted small mb-0">Turno {{ venta.prioridad }} · {{ venta.estado }}
+        · Entrega: <span id="entregaEstadoBadge" class="badge {% if entrega_resumen.completa %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ entrega_estado }}</span>
+      </p>
     </div>
     <a class="btn btn-outline-light btn-sm" href="{{ url_for('inicio') }}">Inicio</a>
   </div>
   {% if cliente %}
   <p class="small mb-3"><strong>Cliente:</strong> {{ cliente.nombre }}</p>
   {% endif %}
-  <p class="muted small mb-4">
-    Mismo QR para todos: según rol se muestran bloques — POS/caja: tienda y despacho · Bodeguero/a: bodega y despacho.
-  </p>
+
+  {% if venta.estado == 'Pagado' and entrega_lineas %}
+  <div class="mb-3 d-flex flex-wrap gap-2">
+    <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalEntregaTicket">
+      Registrar entrega
+    </button>
+    {% if not entrega_resumen.completa %}
+    <button type="button" class="btn btn-outline-light btn-sm" id="btnEntregaTodo">Entregar todo pendiente</button>
+    {% endif %}
+  </div>
+  <p class="muted small">Al escanear el QR con usuario de tienda o bodega, se abre el registro de entrega. Corchetee la boleta Klap al entregar.</p>
+  {% elif venta.estado == 'Pendiente' %}
+  <div class="alert alert-warning text-dark small">
+    <strong>Vale pendiente de cobro en caja.</strong> Primero cobre con folio <span class="font-monospace">VL{{ '%06d'|format(venta.id) }}</span>;
+    después el mismo QR permitirá <strong>Registrar entrega</strong>.
+  </div>
+  {% elif venta.estado == 'Pagado' and not entrega_lineas %}
+  <div class="alert alert-info text-dark small">
+    No hay líneas pendientes de entrega en su canal, o el vale ya fue entregado por completo.
+  </div>
+  {% endif %}
 
   {% macro bloque(canal_key, titulo, tag_class) %}
     {% set rows = ticket_buckets.get(canal_key) %}
@@ -77,5 +100,63 @@
     <p class="muted">No hay líneas en tus canales visibles para este vale.</p>
   {% endif %}
 </div>
+
+{% if venta.estado == 'Pagado' and entrega_lineas %}
+<div class="modal fade" id="modalEntregaTicket" tabindex="-1" aria-labelledby="modalEntregaTicketTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalEntregaTicketTitle">Registro de entrega — Vale #{{ venta.id }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Confirme la entrega al cliente. Boleta Klap: corchetee al pasar mercadería.</p>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm table-entrega mb-0">
+            <thead>
+              <tr>
+                <th>Canal</th>
+                <th>Producto</th>
+                <th class="text-end">Ped.</th>
+                <th class="text-end entrega-col-entregada-h">Ent.</th>
+                <th class="text-end entrega-col-pendiente-h">Pend.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ln in entrega_lineas %}
+              <tr data-detalle-id="{{ ln.detalle_id }}">
+                <td><span class="small">{{ ln.prefijo }} {{ ln.canal }}</span></td>
+                <td>{{ ln.nombre[:40] }}{% if ln.nombre|length > 40 %}…{% endif %}</td>
+                <td class="text-end">{{ ln.cantidad }}</td>
+                <td class="text-end entrega-col-entregada">{{ ln.entregada }}</td>
+                <td class="text-end entrega-col-pendiente">{{ ln.pendiente }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-success btn-entrega-linea"
+                          data-detalle-id="{{ ln.detalle_id }}"
+                          data-pendiente="{{ ln.pendiente }}"
+                          {% if ln.pendiente <= 0 %}disabled{% endif %}>
+                    {% if ln.pendiente > 0 %}Entregar {{ ln.pendiente }}{% else %}Listo{% endif %}
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2">
+        {% if not entrega_resumen.completa %}
+        <button type="button" class="btn btn-success" id="btnEntregaTodo">Entregar todo pendiente</button>
+        {% endif %}
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script id="despachoEntregaConfig" type="application/json">{{ entrega_config_json|safe }}</script>
+<script src="{{ url_for('static', filename='js/bootstrap.bundle.js') }}"></script>
+<script src="{{ url_for('static', filename='js/despacho-entrega-modal.js') }}?v=entrega-1"></script>
+{% endif %}
 </body>
 </html>

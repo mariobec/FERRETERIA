@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escanear ticket — LhexIA</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.css') }}">
+  <style>
+    body { background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .box { max-width: 520px; margin: 2rem auto; padding: 1.5rem; }
+    .card { background: #1e293b; border: 1px solid #334155; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="card p-4 shadow">
+      <h1 class="h5 mb-3">Escanear ticket de retiro</h1>
+      {% if dest %}
+      <p class="small text-muted">Abriendo registro de entrega…</p>
+      <div class="d-grid">
+        <a class="btn btn-success" href="{{ dest }}">Continuar manualmente</a>
+      </div>
+      <script>window.location.replace({{ dest|tojson }});</script>
+      {% else %}
+      <p class="small text-muted mb-3">
+        El lector debe abrir el navegador en esta página, o pegue aquí lo que leyó el escáner.
+      </p>
+      <form method="get" action="{{ url_for('qr_scan_despacho') }}">
+        <label class="form-label small">Texto del QR / código</label>
+        <textarea class="form-control mb-3" name="q" rows="4" placeholder="Pegar código…"></textarea>
+        <button type="submit" class="btn btn-success w-100">Abrir vale</button>
+      </form>
+      <p class="small text-muted mt-3 mb-0">
+        Tras <strong>cobrar en caja</strong>, el QR abre la lista por tienda/bodega y el botón
+        <strong>Registrar entrega</strong>.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

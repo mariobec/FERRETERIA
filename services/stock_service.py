@@ -359,6 +359,8 @@ def stock_ui_producto(producto):
 def ajustar_stock_almacen(producto_id, id_almacen, delta, allow_negative=False):
     """
     delta > 0 suma stock en el almacén; delta < 0 resta.
+    Usa UPDATE atómico (PostgreSQL) para eliminar la condición de carrera
+    read-modify-write bajo concurrencia POS/caja/e-commerce.
     Devuelve (nuevo_stock_almacén|None, error_str|None).
     """
     import app as m
@@ -372,17 +374,43 @@ def ajustar_stock_almacen(producto_id, id_almacen, delta, allow_negative=False):
         return None, 'Delta de stock inválido.'
     pid = int(producto_id)
     aid = int(id_almacen)
-    actual = stock_producto_en_almacen(pid, aid)
-    if actual is None:
-        actual = 0
-    nuevo = actual + d
-    if not allow_negative and nuevo < 0:
-        return actual, 'Stock insuficiente en almacén.'
-    row = StockPorAlmacen.query.filter_by(id_producto=pid, id_almacen=aid).first()
-    if row:
-        row.cantidad = int(nuevo)
+
+    # UPDATE atómico: elimina la ventana de carrera entre SELECT y UPDATE.
+    # allow_negative=False → la cláusula AND impide resultado negativo sin SELECT previo.
+    if allow_negative:
+        sql = text(
+            'UPDATE stock_por_almacen SET cantidad = cantidad + :d '
+            'WHERE id_producto = :pid AND id_almacen = :aid '
+            'RETURNING cantidad'
+        )
     else:
-        m.db.session.add(StockPorAlmacen(id_producto=pid, id_almacen=aid, cantidad=int(nuevo)))
+        sql = text(
+            'UPDATE stock_por_almacen SET cantidad = cantidad + :d '
+            'WHERE id_producto = :pid AND id_almacen = :aid '
+            '  AND (cantidad + :d) >= 0 '
+            'RETURNING cantidad'
+        )
+    updated = m.db.session.execute(sql, {'d': d, 'pid': pid, 'aid': aid}).fetchone()
+    if updated is not None:
+        return int(updated[0]), None
+
+    # Sin fila actualizada: la fila no existe aún, o resultaría negativa.
+    existing = m.db.session.execute(
+        text(
+            'SELECT cantidad FROM stock_por_almacen '
+            'WHERE id_producto = :pid AND id_almacen = :aid LIMIT 1'
+        ),
+        {'pid': pid, 'aid': aid},
+    ).scalar()
+    if existing is not None:
+        # La fila existe pero el delta la dejaría en negativo.
+        return int(existing), 'Stock insuficiente en almacén.'
+
+    # Primera asignación de stock en este almacén: INSERT.
+    nuevo = d
+    if not allow_negative and nuevo < 0:
+        return 0, 'Stock insuficiente en almacén.'
+    m.db.session.add(StockPorAlmacen(id_producto=pid, id_almacen=aid, cantidad=int(nuevo)))
     return int(nuevo), None
 
 
@@ -543,6 +571,8 @@ def consumo_stock_comprometido_tienda_producto(producto, excluir_venta_id=None, 
         q = q.filter(Venta.id != int(excluir_venta_id))
     total = 0
     for det, venta in q.all():
+        if getattr(det, 'a_pedido', False):
+            continue
         total += _consumo_tienda_linea(venta, det, factor)
     return int(total)
 

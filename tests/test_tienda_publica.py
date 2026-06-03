@@ -29,12 +29,18 @@ def test_menu_mega_construye(app_ctx):
 
 
 @pytest.mark.smoke
-def test_tienda_vitrina_incluye_liz(app_client):
+def test_tienda_vitrina_incluye_maylen(app_client):
     r = app_client.get('/tienda/ferreteria-santo-domingo')
     assert r.status_code == 200
-    assert b'Liz' in r.data
+    assert b'Mayl' in r.data
+    assert b'agente constructor' in r.data.lower()
     assert b'tienda-assistant' in r.data
-    assert b'liz_avatar' in r.data
+    assert b'maylen-avatar-live' in r.data
+    assert b'maylen_avatar_cutout' in r.data
+    assert b'maylen_ferreteria_fondo' in r.data or b'tienda-assistant-head-ferreteria' in r.data
+    assert b'tiendaCartPagar' in r.data
+    assert b'tiendaCheckout' in r.data
+    assert b'Ir a pagar' in r.data
 
 
 @pytest.mark.smoke
@@ -130,7 +136,7 @@ def test_asistente_cierre_carrito_ui(app_client, monkeypatch):
     blocks = data.get('ui', {}).get('blocks') or []
     assert any(b.get('type') == 'cart_summary' for b in blocks)
     assert 'carrito' in (data.get('reply') or '').lower() or 'listo' in (data.get('reply') or '').lower()
-    assert 'liz' in (data.get('reply') or '').lower() or data.get('motor')
+    assert 'mayl' in (data.get('reply') or '').lower() or data.get('motor')
 
 
 def test_normalizar_consulta_asistente_remueve_ruido():
@@ -172,6 +178,13 @@ def test_tienda_api_catalogo_q(app_client):
     data = r.get_json()
     assert data.get('ok') is True
     assert 'productos' in data
+
+
+@pytest.mark.smoke
+def test_buscar_catalogo_vitrina_tokens(app_ctx, productos_con_stock):
+    items, total = vt.buscar_catalogo_vitrina('busco pintura latex')
+    assert isinstance(items, list)
+    assert total == len(items)
 
 
 def test_rankear_prefiere_pintura_sobre_bandeja():
@@ -458,3 +471,118 @@ def test_api_carrito_whatsapp_ok(monkeypatch, app_client):
     assert data.get('ok') is True
     assert 'wa.me' in (data.get('url') or '')
     assert 'Broca' in (data.get('mensaje') or '')
+
+
+@pytest.mark.smoke
+def test_api_carrito_vale_vacio(app_client):
+    r = app_client.post(
+        '/api/tienda/ferreteria-santo-domingo/carrito/vale',
+        json={'lineas': []},
+    )
+    assert r.status_code == 400
+    assert r.get_json().get('error') == 'carrito_vacio'
+
+
+@pytest.mark.smoke
+def test_api_carrito_vale_crea_ped_web(app_client, app_ctx, productos_con_stock, caja_abierta):
+    """Flujo vitrina → PED-WEB en ERP → visible en bandeja e-commerce."""
+    from app import Venta, db
+
+    from services import ecommerce_pedidos_service as ecom
+    from services.vitrina_tienda_service import codigo_pedido_web
+
+    p = productos_con_stock[0]
+    precio = int(p.precio_venta or 1990)
+    r = app_client.post(
+        '/api/tienda/ferreteria-santo-domingo/carrito/vale',
+        json={
+            'lineas': [
+                {
+                    'producto_id': p.id,
+                    'nombre': p.nombre,
+                    'referencia': p.codigo_barra or '',
+                    'precio': precio,
+                    'precio_fmt': f'${precio:,}'.replace(',', '.'),
+                    'cantidad': 1,
+                    'disponible': True,
+                }
+            ],
+            'cliente_nombre': 'Cliente Web QA',
+            'cliente_telefono': '912345678',
+        },
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get('ok') is True
+    codigo = data.get('ped_web_codigo') or ''
+    assert codigo.startswith('PED-WEB-')
+    vid = int(data['venta_id'])
+    assert codigo == codigo_pedido_web(vid)
+
+    v = db.session.get(Venta, vid)
+    assert v is not None
+    assert ecom.es_pedido_web(v)
+    assert (v.usuario or '').startswith('Maylen-Web')
+    assert v.estado == 'Pendiente'
+    assert (v.bodega_preparacion_estado or '').upper() == 'PENDIENTE'
+    assert v.cliente_id is not None
+
+    rows = ecom.listar_pedidos_web(estado='ACTIVOS')
+    assert vid in {int(x.id) for x in rows}
+
+    ui = data.get('ui') or {}
+    assert ui.get('version') == 1
+    emitido = [b for b in (ui.get('blocks') or []) if b.get('type') == 'vale_emitido']
+    assert emitido and emitido[0].get('ped_web_codigo') == codigo
+
+
+@pytest.mark.smoke
+def test_api_carrito_checkout_tienda(app_client, app_ctx, productos_con_stock, caja_abierta):
+    """Checkout modo tienda — mismo flujo PED-WEB vía /carrito/checkout."""
+    p = productos_con_stock[0]
+    precio = int(p.precio_venta or 1990)
+    r = app_client.post(
+        '/api/tienda/ferreteria-santo-domingo/carrito/checkout',
+        json={
+            'metodo': 'tienda',
+            'punto_retiro': 'Tienda',
+            'lineas': [
+                {
+                    'producto_id': p.id,
+                    'nombre': p.nombre,
+                    'referencia': p.codigo_barra or '',
+                    'precio': precio,
+                    'cantidad': 1,
+                    'disponible': True,
+                }
+            ],
+            'cliente_nombre': 'Checkout QA',
+            'cliente_telefono': '912345678',
+        },
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data.get('ok') is True
+    assert data.get('modo') == 'tienda'
+    assert (data.get('ped_web_codigo') or '').startswith('PED-WEB-')
+
+
+@pytest.mark.smoke
+def test_api_carrito_vale_deshabilitado(app_client, monkeypatch):
+    monkeypatch.setenv('VITRINA_PEDIDO_WEB_HABILITADO', '0')
+    r = app_client.post(
+        '/api/tienda/ferreteria-santo-domingo/carrito/vale',
+        json={
+            'lineas': [
+                {
+                    'producto_id': 1,
+                    'nombre': 'Test',
+                    'precio': 1000,
+                    'cantidad': 1,
+                    'disponible': True,
+                }
+            ],
+        },
+    )
+    assert r.status_code == 503
+    assert r.get_json().get('error') == 'pedido_web_disabled'

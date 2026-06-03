@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" width="800" height="480">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b3e5fc"/>
+      <stop offset="100%" stop-color="#e1f5fe"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bcaaa4"/>
+      <stop offset="100%" stop-color="#8d6e63"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="480" fill="url(#sky)"/>
+  <rect y="320" width="800" height="160" fill="url(#floor)"/>
+  <rect y="80" width="800" height="240" fill="#e0e0e0"/>
+  <rect x="580" y="110" width="120" height="90" rx="4" fill="#90caf9" opacity="0.45" stroke="#fff" stroke-width="4"/>
+  <rect x="80" y="300" width="220" height="70" rx="12" fill="#546e7a"/>
+  <rect x="100" y="280" width="180" height="30" rx="8" fill="#455a64"/>
+  <rect x="520" y="310" width="90" height="55" rx="6" fill="#795548"/>
+  <circle cx="650" cy="200" r="28" fill="#ffb74d" opacity="0.9"/>
+  <rect x="636" y="200" width="28" height="90" fill="#ffb74d" opacity="0.7"/>
+</svg>

@@ -105,6 +105,7 @@
                 <strong>Abrir cuadro de impresión al emitir vale (automático)</strong>
                 <span class="d-block small text-muted mt-1">
                   Si está activo, al emitir vale el navegador abre la ventana de impresión en segundo plano. Desactive si prefiere solo mostrar mensaje en pantalla y reimprimir desde Caja («Ticket vale»).
+                  Para <strong>XPrinter XP-80T</strong> por USB use <code>POS_IMPRESION_MODO=escpos</code> en <code>.env.local</code> (ver <code>docs/operacion/IMPRESORA_XPRINTER_XP80T.md</code>).
                 </span>
               </span>
             </label>
@@ -170,6 +171,41 @@
                   <strong>Modo visible</strong> (clásico)
                   <span class="d-block small text-muted">Muestra resumen por medio y efectivo esperado en gaveta antes de declarar el conteo.</span>
                 </label>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <hr>
+            <label class="form-label fw-semibold mb-2">Portal ejecutivo · SD Constructor</label>
+            <p class="small text-muted mb-3">
+              Parámetros del pulse gerencial (<a href="{{ url_for('portal_ejecutivo_index') }}">abrir portal</a>).
+              Acceso: gerencia y dueños con permiso <code>panel_gerencia</code> / <code>ver_gerencia</code>.
+            </p>
+            <div class="row g-3 border rounded p-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Marca en el portal</label>
+                <input type="text" name="portal_marca" class="form-control"
+                       value="{{ empresa.portal_marca or 'SD Constructor' }}" placeholder="SD Constructor">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Gasto operacional fijo (mensual, CLP)</label>
+                <input type="text" name="portal_gastos_op_mensual_clp" class="form-control" inputmode="numeric"
+                       value="{{ empresa.portal_gastos_op_mensual_clp or '0' }}" placeholder="Ej: 8000000">
+                <span class="d-block small text-muted mt-1">
+                  Se resta del margen bruto en Resumen (×1 mes, ×3 trimestre o ×12 año según período).
+                </span>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Activos fijos (valor manual, CLP)</label>
+                <input type="text" name="portal_activos_fijos_clp" class="form-control" inputmode="numeric"
+                       value="{{ empresa.portal_activos_fijos_clp or '0' }}" placeholder="0">
+                <span class="d-block small text-muted mt-1">Hasta existir módulo de activos fijos en el ERP.</span>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Meta ventas anual (CLP, opcional)</label>
+                <input type="text" name="portal_meta_ventas_anual_clp" class="form-control" inputmode="numeric"
+                       value="{{ empresa.portal_meta_ventas_anual_clp or '0' }}" placeholder="0">
+                <span class="d-block small text-muted mt-1">Referencia semanal en el gráfico de ventas (÷ 52).</span>
               </div>
             </div>
           </div>

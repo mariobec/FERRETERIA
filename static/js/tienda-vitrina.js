@@ -44,7 +44,7 @@
   const initial = document.querySelector(".tienda-mega-root.is-active");
   if (initial) setActiveRoot(initial.dataset.megaRoot);
 
-  /* —— Liz asistente —— */
+  /* —— Maylén asistente vitrina —— */
   const cfgEl = document.getElementById("tiendaAssistantConfig");
   const panel = document.getElementById("tiendaAssistantPanel");
   const toggle = document.getElementById("tiendaAssistantToggle");
@@ -61,6 +61,7 @@
   } catch (_e) {
     cfg = null;
   }
+  const ASISTENTE_NOMBRE = (cfg && cfg.asistente_nombre) || "Maylén";
 
   function esc(s) {
     const d = document.createElement("div");
@@ -251,6 +252,8 @@
       return;
     }
     area.classList.add("tienda-catalogo-loading");
+    const searchForm = document.querySelector("header .tienda-search");
+    if (searchForm) searchForm.classList.add("is-searching");
     try {
       const url =
         cfg.catalogo_api_url + "?q=" + encodeURIComponent(q) + "&menu=0";
@@ -267,8 +270,63 @@
       }
     } finally {
       area.classList.remove("tienda-catalogo-loading");
+      const searchForm = document.querySelector("header .tienda-search");
+      if (searchForm) searchForm.classList.remove("is-searching");
+      const pager = document.getElementById("tiendaPager");
+      if (pager) pager.classList.add("d-none");
     }
   }
+
+  window.__tiendaBuscarCatalogo = actualizarGrillaCatalogo;
+
+  function initTiendaHeaderSearch() {
+    const searchForm = document.querySelector("header .tienda-search");
+    if (!searchForm || !cfg || !cfg.catalogo_api_url || !cfg.slug) return;
+    const inp = searchForm.querySelector("input[name='q']");
+    let debounceTimer = null;
+    const DEBOUNCE_MS = 280;
+    const MIN_LIVE = 2;
+
+    function runSearch(q) {
+      const qs = (q || "").trim();
+      if (!qs) return;
+      actualizarGrillaCatalogo(
+        qs,
+        "/tienda/" + cfg.slug + "?q=" + encodeURIComponent(qs) + "&menu=0"
+      );
+      const mega = document.getElementById("tiendaMegaWrap");
+      if (mega) mega.classList.remove("is-open");
+      const btnMenu = document.getElementById("tiendaBtnMenu");
+      if (btnMenu) btnMenu.setAttribute("aria-expanded", "false");
+    }
+
+    searchForm.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      const q = inp ? inp.value.trim() : "";
+      if (q.length >= 1) runSearch(q);
+    });
+
+    if (inp) {
+      inp.addEventListener("input", function () {
+        const q = inp.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < MIN_LIVE) return;
+        debounceTimer = setTimeout(function () {
+          runSearch(q);
+        }, DEBOUNCE_MS);
+      });
+      inp.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          clearTimeout(debounceTimer);
+          const q = inp.value.trim();
+          if (q.length >= 1) runSearch(q);
+        }
+      });
+    }
+  }
+
+  initTiendaHeaderSearch();
 
   function appendMsg(htmlOrText, kind) {
     if (!body) return null;
@@ -286,8 +344,8 @@
 
   function appendSearching() {
     return appendMsg(
-      '<div class="tienda-assistant-typing" aria-label="Liz está escribiendo">' +
-      '<span class="tienda-assistant-typing-text">Liz está escribiendo</span>' +
+      '<div class="tienda-assistant-typing" aria-label="' + esc(ASISTENTE_NOMBRE) + ' está escribiendo">' +
+      '<span class="tienda-assistant-typing-text">' + esc(ASISTENTE_NOMBRE) + ' está escribiendo</span>' +
       '<span class="tienda-assistant-typing-dots" aria-hidden="true">' +
       "<i></i><i></i><i></i>" +
       "</span>" +
@@ -532,7 +590,7 @@
       }
     } catch (_err) {
       if (statusEl && statusEl.parentNode) statusEl.parentNode.removeChild(statusEl);
-      appendMsg("No pude conectar con Liz. Revisa tu conexión e intenta otra vez.", "bot");
+      appendMsg("No pude conectar con " + ASISTENTE_NOMBRE + ". Revisa tu conexión e intenta otra vez.", "bot");
     } finally {
       if (input) {
         input.disabled = false;
@@ -551,13 +609,36 @@
     if (input) input.focus();
   }
 
-  function setLizOpen(open) {
+  function triggerMaylenWave() {
+    if (typeof window.playMaylenWave === "function") {
+      window.playMaylenWave();
+      return;
+    }
+    const stage = document.getElementById("maylenAvatarLive");
+    const fab = document.getElementById("maylenFabAvatarLive");
+    [stage, fab].forEach(function (el) {
+      if (!el) return;
+      el.classList.remove("is-waving");
+      void el.offsetWidth;
+      el.classList.add("is-waving");
+      window.setTimeout(function () {
+        el.classList.remove("is-waving");
+      }, 1400);
+    });
+  }
+
+  function setMaylenOpen(open) {
     if (!panel || !toggle) return;
     panel.classList.toggle("d-none", !open);
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
     document.body.classList.toggle("tienda-assistant-open", open);
-    if (open && input) input.focus();
+    if (open) {
+      triggerMaylenWave();
+      if (input) input.focus();
+    }
   }
+
+  var setLizOpen = setMaylenOpen;
 
   if (toggle && panel) {
     toggle.addEventListener("click", function () {
@@ -565,7 +646,7 @@
       if (willOpen && typeof window.__tiendaSetCartOpen === "function") {
         window.__tiendaSetCartOpen(false);
       }
-      setLizOpen(willOpen);
+      setMaylenOpen(willOpen);
     });
   }
 
@@ -605,11 +686,31 @@
   const cartSubtotal = document.getElementById("tiendaCartSubtotal");
   const cartWhatsapp = document.getElementById("tiendaCartWhatsapp");
   const cartVaciar = document.getElementById("tiendaCartVaciar");
-  const cartNombre = document.getElementById("tiendaCartNombre");
-  const cartTelefono = document.getElementById("tiendaCartTelefono");
+  const cartPagar = document.getElementById("tiendaCartPagar");
   const cartToast = document.getElementById("tiendaCartToast");
+  const checkoutEl = document.getElementById("tiendaCheckout");
+  const checkoutBackdrop = document.getElementById("tiendaCheckoutBackdrop");
+  const checkoutClose = document.getElementById("tiendaCheckoutClose");
+  const checkoutBack = document.getElementById("tiendaCheckoutBack");
+  const checkoutStep1 = document.getElementById("tiendaCheckoutStep1");
+  const checkoutStep2 = document.getElementById("tiendaCheckoutStep2");
+  const checkoutStep3 = document.getElementById("tiendaCheckoutStep3");
+  const checkoutLines = document.getElementById("tiendaCheckoutLines");
+  const checkoutTotals = document.getElementById("tiendaCheckoutTotals");
+  const checkoutNombre = document.getElementById("tiendaCheckoutNombre");
+  const checkoutTelefono = document.getElementById("tiendaCheckoutTelefono");
+  const checkoutConfirm = document.getElementById("tiendaCheckoutConfirm");
+  const checkoutContinuar = document.getElementById("tiendaCheckoutContinuar");
+  const checkoutDone = document.getElementById("tiendaCheckoutDone");
+  const checkoutSuccessTitle = document.getElementById("tiendaCheckoutSuccessTitle");
+  const checkoutSuccessMsg = document.getElementById("tiendaCheckoutSuccessMsg");
+  const checkoutSuccessCode = document.getElementById("tiendaCheckoutSuccessCode");
+  const checkoutSuccessHint = document.getElementById("tiendaCheckoutSuccessHint");
+  const payTienda = document.getElementById("tiendaPayTienda");
+  const payWebpay = document.getElementById("tiendaPayWebpay");
   let cartCfg = null;
   let cartToastTimer = null;
+  let checkoutRetiro = "Tienda";
 
   try {
     cartCfg = cartCfgEl ? JSON.parse(cartCfgEl.textContent || "{}") : null;
@@ -879,6 +980,150 @@
     );
   }
 
+  function clienteCheckoutDatos() {
+    return {
+      cliente_nombre: checkoutNombre ? checkoutNombre.value.trim() : "",
+      cliente_telefono: checkoutTelefono ? checkoutTelefono.value.trim() : "",
+    };
+  }
+
+  function checkoutShowStep(n) {
+    if (!checkoutStep1 || !checkoutStep2 || !checkoutStep3) return;
+    checkoutStep1.classList.toggle("d-none", n !== 1);
+    checkoutStep2.classList.toggle("d-none", n !== 2);
+    checkoutStep3.classList.toggle("d-none", n !== 3);
+    if (checkoutBack) checkoutBack.classList.toggle("d-none", n <= 1);
+  }
+
+  function renderCheckoutReview() {
+    const lines = loadCart();
+    const tot = calcSubtotal(lines);
+    if (!checkoutLines || !checkoutTotals) return;
+    let html = "";
+    lines.forEach(function (ln) {
+      const qty = Math.max(1, parseInt(ln.cantidad, 10) || 1);
+      const precio = parseInt(ln.precio, 10) || 0;
+      html +=
+        '<li class="tienda-checkout-line">' +
+        '<span class="tienda-checkout-line__name">' +
+        esc(ln.nombre || "Producto") +
+        " × " +
+        qty +
+        "</span>" +
+        '<span class="tienda-checkout-line__price">' +
+        fmtClp(precio * qty) +
+        "</span></li>";
+    });
+    checkoutLines.innerHTML = html;
+    const neto = Math.round(tot.subtotal / 1.19);
+    const iva = tot.subtotal - neto;
+    checkoutTotals.innerHTML =
+      '<div class="tienda-checkout-total-row"><span>Neto</span><span>' +
+      fmtClp(neto) +
+      "</span></div>" +
+      '<div class="tienda-checkout-total-row"><span>IVA (19%)</span><span>' +
+      fmtClp(iva) +
+      "</span></div>" +
+      '<div class="tienda-checkout-total-row tienda-checkout-total-row--grand"><span>Total a pagar</span><strong>' +
+      fmtClp(tot.subtotal) +
+      "</strong></div>";
+  }
+
+  function syncCheckoutConfirm() {
+    if (!checkoutContinuar || !checkoutConfirm) return;
+    checkoutContinuar.disabled = !checkoutConfirm.checked;
+  }
+
+  function setCheckoutOpen(open) {
+    if (!checkoutEl || !checkoutBackdrop) return;
+    if (open) {
+      setCartOpen(false);
+      renderCheckoutReview();
+      checkoutShowStep(1);
+      if (checkoutConfirm) checkoutConfirm.checked = false;
+      syncCheckoutConfirm();
+      document.querySelectorAll(".tienda-checkout-retiro-btn").forEach(function (btn) {
+        btn.classList.toggle("is-selected", (btn.getAttribute("data-retiro") || "Tienda") === checkoutRetiro);
+      });
+    }
+    checkoutEl.classList.toggle("d-none", !open);
+    checkoutBackdrop.classList.toggle("d-none", !open);
+    document.body.classList.toggle("tienda-checkout-open", open);
+  }
+
+  window.tiendaOpenCheckout = function () {
+    if (!loadCart().length) {
+      showCartToast("Agrega productos al carrito primero");
+      return;
+    }
+    setCheckoutOpen(true);
+  };
+
+  async function ejecutarCheckout(metodo) {
+    const lines = loadCart();
+    if (!lines.length) {
+      showCartToast("El carrito está vacío");
+      return;
+    }
+    const api = cartCfg && (cartCfg.checkout_api_url || cartCfg.vale_api_url);
+    if (!api) {
+      showCartToast("Checkout no disponible");
+      return;
+    }
+    const payload = Object.assign(
+      {
+        lineas: lines,
+        metodo: metodo || "tienda",
+        punto_retiro: checkoutRetiro || "Tienda",
+      },
+      clienteCheckoutDatos()
+    );
+    showCartToast(metodo === "webpay" ? "Redirigiendo a Webpay…" : "Registrando pedido…");
+    try {
+      const res = await fetch(cartCfg.checkout_api_url || cartCfg.vale_api_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data || !data.ok) {
+        showCartToast((data && data.mensaje) || "No se pudo completar el pago");
+        return;
+      }
+      if (data.modo === "webpay" && data.webpay_url) {
+        saveCart([]);
+        window.location.href = data.webpay_url;
+        return;
+      }
+      checkoutShowStep(3);
+      if (checkoutSuccessTitle) checkoutSuccessTitle.textContent = "¡Pedido registrado!";
+      if (checkoutSuccessMsg) {
+        checkoutSuccessMsg.textContent =
+          data.mensaje || "Presenta tu código en caja para pagar y retirar.";
+      }
+      if (checkoutSuccessCode && data.ped_web_codigo) {
+        checkoutSuccessCode.textContent = data.ped_web_codigo;
+        checkoutSuccessCode.classList.remove("d-none");
+      }
+      if (checkoutSuccessHint) {
+        checkoutSuccessHint.textContent =
+          "Folio caja " +
+          (data.vale_folio || "") +
+          ". Te avisaremos cuando esté listo para retiro.";
+      }
+      saveCart([]);
+      if (body && data.ui) {
+        const msgEl = appendMsg(
+          "<p class=\"mb-0\">" + esc(data.mensaje || "Pedido registrado.") + "</p>",
+          "bot"
+        );
+        renderUiBlocks(data.ui, msgEl);
+      }
+    } catch (_chkErr) {
+      showCartToast("Error de conexión. Intenta de nuevo.");
+    }
+  }
+
   async function enviarWhatsapp() {
     const lines = loadCart();
     if (!lines.length) {
@@ -894,11 +1139,9 @@
       const res = await fetch(cartCfg.whatsapp_api_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lineas: lines,
-          cliente_nombre: cartNombre ? cartNombre.value.trim() : "",
-          cliente_telefono: cartTelefono ? cartTelefono.value.trim() : "",
-        }),
+        body: JSON.stringify(
+          Object.assign({ lineas: lines }, clienteCheckoutDatos())
+        ),
       });
       const data = await res.json();
       if (!data || !data.ok || !data.url) {
@@ -921,55 +1164,12 @@
   window.tiendaCarritoConfig = cartCfg;
   window.tiendaCarritoAdd = addToCart;
   window.tiendaCarritoReplace = replaceCart;
-  window.tiendaGenerarValePedido = generarValePedidoWeb;
+  window.tiendaGenerarValePedido = function () {
+    window.tiendaOpenCheckout();
+  };
 
   async function generarValePedidoWeb() {
-    const lines = loadCart();
-    if (!lines.length) {
-      showCartToast("Agrega productos al carrito primero");
-      return;
-    }
-    const api = cartCfg && cartCfg.vale_api_url;
-    if (!api) {
-      showCartToast("Generación de vale no disponible");
-      return;
-    }
-    showCartToast("Generando vale PED-WEB…");
-    try {
-      const res = await fetch(api, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lineas: lines,
-          cliente_nombre: cartNombre ? cartNombre.value.trim() : "",
-          cliente_telefono: cartTelefono ? cartTelefono.value.trim() : "",
-        }),
-      });
-      const data = await res.json();
-      if (!data || !data.ok) {
-        showCartToast((data && data.mensaje) || "No se pudo generar el vale");
-        return;
-      }
-      if (body && data.ui) {
-        const msgEl = appendMsg(
-          "<p class=\"mb-0\">" + esc(data.mensaje || data.reply || "Vale generado.") + "</p>",
-          "bot"
-        );
-        renderUiBlocks(data.ui, msgEl);
-        setLizOpen(true);
-      } else if (data.ped_web_codigo) {
-        appendMsg(
-          "<p class=\"mb-0\">Vale <strong>" +
-            esc(data.ped_web_codigo) +
-            "</strong> creado. Preséntalo en caja.</p>",
-          "bot"
-        );
-        setLizOpen(true);
-      }
-      showCartToast("Vale " + (data.ped_web_codigo || "") + " listo");
-    } catch (_valeErr) {
-      showCartToast("Error de conexión al generar vale");
-    }
+    window.tiendaOpenCheckout();
   }
 
   if (cartCfg && cartToggle) {
@@ -992,6 +1192,47 @@
         enviarWhatsapp();
       });
     }
+    if (cartPagar) {
+      cartPagar.addEventListener("click", function () {
+        window.tiendaOpenCheckout();
+      });
+    }
+    if (checkoutClose) checkoutClose.addEventListener("click", function () { setCheckoutOpen(false); });
+    if (checkoutBackdrop) checkoutBackdrop.addEventListener("click", function () { setCheckoutOpen(false); });
+    if (checkoutBack) {
+      checkoutBack.addEventListener("click", function () {
+        checkoutShowStep(1);
+      });
+    }
+    if (checkoutConfirm) checkoutConfirm.addEventListener("change", syncCheckoutConfirm);
+    if (checkoutContinuar) {
+      checkoutContinuar.addEventListener("click", function () {
+        checkoutShowStep(2);
+      });
+    }
+    if (checkoutDone) {
+      checkoutDone.addEventListener("click", function () {
+        setCheckoutOpen(false);
+      });
+    }
+    if (payTienda) {
+      payTienda.addEventListener("click", function () {
+        ejecutarCheckout("tienda");
+      });
+    }
+    if (payWebpay) {
+      payWebpay.addEventListener("click", function () {
+        ejecutarCheckout("webpay");
+      });
+    }
+    document.querySelectorAll(".tienda-checkout-retiro-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        checkoutRetiro = btn.getAttribute("data-retiro") || "Tienda";
+        document.querySelectorAll(".tienda-checkout-retiro-btn").forEach(function (b) {
+          b.classList.toggle("is-selected", b === btn);
+        });
+      });
+    });
     document.addEventListener("click", function (ev) {
       const comboBtn = ev.target.closest("[data-add-combo-carrito]");
       if (comboBtn) {
@@ -1009,14 +1250,16 @@
       const lizCta = ev.target.closest("[data-liz-cart-cta]");
       if (lizCta) {
         ev.preventDefault();
-        const action = lizCta.getAttribute("data-liz-cart-cta") || "generar_vale_web";
+        const action = lizCta.getAttribute("data-liz-cart-cta") || "open_checkout";
         if (action === "open_cart_whatsapp") {
           setCartOpen(true);
           if (cartWhatsapp && !cartWhatsapp.classList.contains("disabled")) {
             cartWhatsapp.focus();
           }
+        } else if (action === "open_checkout" || action === "generar_vale_web") {
+          window.tiendaOpenCheckout();
         } else {
-          generarValePedidoWeb();
+          window.tiendaOpenCheckout();
         }
         return;
       }

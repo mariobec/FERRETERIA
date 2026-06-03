@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header">
+    <div>
+      <h3 class="page-title">
+        <i class="fas fa-file-invoice text-primary me-2"></i>Informe cargas piloto por factura
+      </h3>
+      <p class="page-subtitle mb-0">
+        Productos registrados en <strong>Carga precios piloto</strong> con Nº factura proveedor.
+        La suma de precios SD es referencial (no reemplaza el monto del SII).
+      </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{{ url_for('precios_piloto') }}" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-barcode me-1"></i>Carga piloto
+      </a>
+      {% if detalle %}
+      <a href="{{ url_for('precios_piloto_informe_facturas_csv', factura=detalle.numero_factura) }}"
+         class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i>CSV detalle
+      </a>
+      {% else %}
+      <a href="{{ url_for('precios_piloto_informe_facturas_csv', q=q) }}"
+         class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i>CSV resumen
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if resumen.sin_factura_lineas > 0 and not detalle %}
+  <div class="alert alert-warning border-0 small py-2 mb-3">
+    <i class="fas fa-exclamation-triangle me-1"></i>
+    Hay <strong>{{ resumen.sin_factura_lineas }}</strong> línea(s) en bitácora <em>sin</em> Nº factura.
+    Revise en carga piloto o filtre solo facturas con número en este informe.
+  </div>
+  {% endif %}
+
+  {% if detalle %}
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('precios_piloto_informe_facturas', q=q) }}">Todas las facturas</a>
+      </li>
+      <li class="breadcrumb-item active font-monospace" aria-current="page">{{ detalle.numero_factura }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <div class="text-muted small">Ítems cargados</div>
+          <div class="fs-3 fw-bold">{{ detalle.resumen.lineas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body">
+          <div class="text-muted small">Productos distintos</div>
+          <div class="fs-3 fw-bold">{{ detalle.resumen.productos }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100 border-primary">
+        <div class="card-body">
+          <div class="text-muted small">Suma precios SD</div>
+          <div class="fs-4 fw-bold text-primary">
+            ${{ "{:,.0f}".format(detalle.resumen.suma_precio_sd or 0).replace(",", ".") }}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card card-ds h-100">
+        <div class="card-body small">
+          <div class="text-muted">Período carga</div>
+          <div>{{ detalle.resumen.fecha_primera }} → {{ detalle.resumen.fecha_ultima }}</div>
+          {% if detalle.resumen.guias %}
+          <div class="mt-2 text-muted">Guía(s)</div>
+          <div class="font-monospace">{% for g in detalle.resumen.guias %}{{ g }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+          {% endif %}
+          {% if detalle.resumen.usuarios %}
+          <div class="mt-1 text-muted">Usuario(s): {{ detalle.resumen.usuarios | join(', ') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold">Detalle factura <span class="font-monospace">{{ detalle.numero_factura }}</span></div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle table-ds">
+        <thead class="table-light">
+          <tr>
+            <th>Fecha</th>
+            <th>Código</th>
+            <th>Producto</th>
+            <th class="text-end">Precio SD</th>
+            <th class="text-center">Stock T/B</th>
+            <th class="text-center">Δ T/B</th>
+            <th>Guía</th>
+            <th>Sector</th>
+            <th>Quién</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ln in detalle.lineas %}
+          <tr>
+            <td class="text-nowrap small">{{ ln.fecha }}</td>
+            <td class="font-monospace small">{{ ln.codigo }}</td>
+            <td class="small">{{ ln.nombre }}</td>
+            <td class="text-end text-nowrap small">
+              {% if ln.precio_anterior > 0 and ln.precio_anterior != ln.precio_nuevo %}
+              <span class="text-muted text-decoration-line-through">${{ "{:,.0f}".format(ln.precio_anterior).replace(",", ".") }}</span>
+              {% endif %}
+              <strong>${{ "{:,.0f}".format(ln.precio_nuevo or 0).replace(",", ".") }}</strong>
+            </td>
+            <td class="text-center small">T{{ ln.stock_tienda_despues }} B{{ ln.stock_bodega_despues }}</td>
+            <td class="text-center small text-muted">
+              {% if ln.delta_tienda or ln.delta_bodega %}+{{ ln.delta_tienda }}/+{{ ln.delta_bodega }}{% else %}—{% endif %}
+            </td>
+            <td class="font-monospace small">{{ ln.numero_guia }}</td>
+            <td class="small text-muted">{{ ln.sector }}</td>
+            <td class="small text-muted">{{ ln.usuario }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% else %}
+
+  <div class="card card-ds mb-3">
+    <div class="card-body py-3">
+      <form method="get" action="{{ url_for('precios_piloto_informe_facturas') }}" class="row g-2 align-items-end">
+        <div class="col-12 col-lg-8">
+          <label class="form-label fw-bold mb-1" for="filtro-factura-piloto">
+            <i class="fas fa-search me-1"></i> Buscar Nº factura
+          </label>
+          <input type="search" id="filtro-factura-piloto" name="q" class="form-control font-monospace"
+                 value="{{ q }}" placeholder="Folio, número proveedor o parte del texto"
+                 autocomplete="off"{% if not q %} autofocus{% endif %}>
+        </div>
+        <div class="col-12 col-lg-4 d-flex gap-2">
+          <button type="submit" class="btn btn-primary flex-grow-1">
+            <i class="fas fa-search me-1"></i> Buscar
+          </button>
+          <a href="{{ url_for('precios_piloto_informe_facturas') }}" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+      <span>Facturas con cargas piloto{% if q %} <span class="text-muted fw-normal">· filtro «{{ q }}»</span>{% endif %}</span>
+      <span class="badge bg-secondary">{{ resumen.total_facturas }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle table-ds">
+        <thead class="table-light">
+          <tr>
+            <th>Nº factura</th>
+            <th>Guía</th>
+            <th class="text-center">Ítems</th>
+            <th class="text-center">Productos</th>
+            <th>Última carga</th>
+            <th class="text-end">Suma precios SD</th>
+            <th>Usuario</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in resumen.facturas %}
+          <tr>
+            <td class="font-monospace fw-semibold">
+              <a href="{{ url_for('precios_piloto_informe_facturas', factura=f.numero_factura, q=q) }}">
+                {{ f.numero_factura }}
+              </a>
+            </td>
+            <td class="font-monospace small">{{ f.numero_guia or '—' }}</td>
+            <td class="text-center">{{ f.lineas }}</td>
+            <td class="text-center">{{ f.productos }}</td>
+            <td class="text-nowrap small">{{ f.fecha_ultima }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(f.suma_precio_sd or 0).replace(",", ".") }}</td>
+            <td class="small text-muted">{{ f.usuario_reciente }}</td>
+            <td class="text-end">
+              <a href="{{ url_for('precios_piloto_informe_facturas', factura=f.numero_factura, q=q) }}"
+                 class="btn btn-outline-primary btn-sm py-0">Ver</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">
+              {% if q %}
+              No hay facturas que coincidan con «{{ q }}».
+              {% else %}
+              Aún no hay cargas piloto con Nº factura. Regístrela en <a href="{{ url_for('precios_piloto') }}">Carga piloto</a>.
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% endif %}
+</div>
+{% endblock %}

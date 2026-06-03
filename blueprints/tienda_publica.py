@@ -23,7 +23,10 @@ def _wa_base():
 
 
 def _carrito_template_ctx(slug: str, nombre_tienda: str):
+    from services import webpay_service as wp
+
     dig = ''.join(c for c in (os.getenv('WHATSAPP_VENTAS', '') or '') if c.isdigit())
+    pedido_web = vt.pedido_web_habilitado()
     return {
         'carrito_config': {
             'storage_key': vt.CARRITO_STORAGE_KEY,
@@ -32,12 +35,15 @@ def _carrito_template_ctx(slug: str, nombre_tienda: str):
             'nombre_tienda': nombre_tienda,
             'whatsapp_api_url': url_for('tienda_api_carrito_whatsapp', slug=slug),
             'vale_api_url': url_for('tienda_api_carrito_vale', slug=slug),
+            'checkout_api_url': url_for('tienda_api_carrito_checkout', slug=slug),
+            'pedido_web_habilitado': pedido_web,
+            'webpay_habilitado': wp.webpay_habilitado() and pedido_web,
         },
     }
 
 
 def _assistant_template_ctx(slug: str, *, producto_id: int | None = None):
-    """Contexto compartido del widget Liz en vitrina."""
+    """Contexto compartido del widget Maylén en vitrina."""
     _cfg, nombre = _empresa_ctx()
     return {
         'assistant_producto_id': producto_id,
@@ -48,6 +54,8 @@ def _assistant_template_ctx(slug: str, *, producto_id: int | None = None):
             'slug': slug,
             'producto_id': producto_id,
             'nombre_tienda': nombre,
+            'asistente_nombre': vt.ASISTENTE_NOMBRE,
+            'asistente_subtitulo': vt.ASISTENTE_SUBTITULO,
         },
         **_carrito_template_ctx(slug, nombre),
     }
@@ -91,17 +99,29 @@ def tienda_vitrina(slug: str):
     else:
         menu_abierto = (menu_param != '0') and (not q_text)
 
-    listado = vt.listar_productos(
-        page=page,
-        q_text=q_text,
-        marca=marca,
-        categoria=categoria,
-        cat_vtex_id=cat_vtex,
-        precio_min=precio_min,
-        precio_max=precio_max,
-        orden=orden,
-        solo_disponibles=solo_disp,
-    )
+    if q_text:
+        productos, total = vt.buscar_catalogo_vitrina(q_text, limite=48)
+        listado = {
+            'productos': productos,
+            'total': total,
+            'page': 1,
+            'pages': 1,
+            'per_page': max(len(productos), 1),
+            'has_prev': False,
+            'has_next': False,
+        }
+    else:
+        listado = vt.listar_productos(
+            page=page,
+            q_text=q_text,
+            marca=marca,
+            categoria=categoria,
+            cat_vtex_id=cat_vtex,
+            precio_min=precio_min,
+            precio_max=precio_max,
+            orden=orden,
+            solo_disponibles=solo_disp,
+        )
     facetas = vt.facetas_filtro()
     menu_nav = vt.construir_menu_mega(slug=slug, cat_activa=cat_vtex)
     panel_activo = next((p for p in (menu_nav.get('paneles') or []) if p.get('visible')), None)
@@ -174,7 +194,7 @@ def tienda_api_catalogo(slug: str):
     orden = (request.args.get('orden') or 'recomendados').strip()
     solo_disp = request.args.get('solo_disponibles', '') in ('1', 'true', 'si', 'on')
     if q_text:
-        items, total = vt._buscar_items_asistente(q_text)
+        items, total = vt.buscar_catalogo_vitrina(q_text, limite=48)
         return jsonify(
             {
                 'ok': True,
@@ -308,9 +328,15 @@ def tienda_api_carrito_vale(slug: str):
         cliente_nombre=(data.get('cliente_nombre') or '').strip(),
         cliente_telefono=(data.get('cliente_telefono') or '').strip(),
         nombre_tienda=nombre,
+        punto_retiro=(data.get('punto_retiro') or 'Tienda').strip(),
     )
     if not res.get('ok'):
-        code = 400 if res.get('error') in ('carrito_vacio', 'sin_productos_validos') else 503
+        err = res.get('error') or ''
+        code = 503
+        if err in ('carrito_vacio', 'sin_productos_validos', 'sin_stock'):
+            code = 400
+        elif err == 'sin_caja':
+            code = 503
         return jsonify(res), code
     ui = vt._construir_ui_respuesta(
         reply=res.get('mensaje') or 'Vale generado.',
@@ -319,6 +345,151 @@ def tienda_api_carrito_vale(slug: str):
         vale_pedido=res,
     )
     return jsonify({'ok': True, **res, 'ui': ui})
+
+
+def _url_publica(endpoint: str, **kwargs) -> str:
+    base = (os.getenv('PUBLIC_SITE_URL') or os.getenv('PUBLIC_BASE_URL') or '').strip().rstrip('/')
+    if base:
+        return base + url_for(endpoint, _external=False, **kwargs)
+    return url_for(endpoint, _external=True, **kwargs)
+
+
+def tienda_api_carrito_checkout(slug: str):
+    """Checkout vitrina: reservar pedido (caja) o iniciar Webpay."""
+    if not vt.tienda_habilitada() or slug != vt.TIENDA_SLUG_SD:
+        return jsonify({'ok': False, 'error': 'not_found'}), 404
+    if not vt.pedido_web_habilitado():
+        return jsonify({'ok': False, 'error': 'pedido_web_disabled'}), 503
+
+    from services import ecommerce_pedidos_service as ecom
+    from services import webpay_service as wp
+
+    data = request.get_json(silent=True) or {}
+    lineas = _sanitizar_lineas_carrito(data.get('lineas') or data.get('carrito'))
+    if not lineas:
+        return jsonify({'ok': False, 'error': 'carrito_vacio'}), 400
+
+    metodo = (data.get('metodo') or data.get('metodo_pago') or 'tienda').strip().lower()
+    _cfg, nombre = _empresa_ctx()
+    res = vt.crear_vale_pedido_web(
+        lineas,
+        cliente_nombre=(data.get('cliente_nombre') or '').strip(),
+        cliente_telefono=(data.get('cliente_telefono') or '').strip(),
+        nombre_tienda=nombre,
+        punto_retiro=(data.get('punto_retiro') or 'Tienda').strip(),
+    )
+    if not res.get('ok'):
+        err = res.get('error') or ''
+        code = 503
+        if err in ('carrito_vacio', 'sin_productos_validos', 'sin_stock'):
+            code = 400
+        return jsonify(res), code
+
+    if metodo in ('tienda', 'caja', 'retiro', 'store'):
+        ui = vt._construir_ui_respuesta(
+            reply=res.get('mensaje') or 'Pedido registrado.',
+            cierre_carrito=True,
+            vale_pedido=res,
+        )
+        return jsonify({'ok': True, 'modo': 'tienda', **res, 'ui': ui})
+
+    if metodo in ('webpay', 'tarjeta', 'card'):
+        if not wp.webpay_habilitado():
+            return jsonify({'ok': False, 'error': 'webpay_disabled', 'mensaje': 'Pago con tarjeta no disponible.'}), 503
+        vid = int(res.get('venta_id') or 0)
+        monto = int(res.get('monto_total') or 0)
+        if vid <= 0 or monto <= 0:
+            return jsonify({'ok': False, 'error': 'monto_invalido'}), 400
+        retorno = _url_publica('tienda_webpay_retorno', slug=slug)
+        tx = wp.crear_transaccion(
+            buy_order=f'WEB{vid:08d}',
+            session_id=f'PED{vid:08d}',
+            amount=monto,
+            return_url=retorno,
+        )
+        if not tx.get('ok'):
+            return jsonify(tx), 502
+        return jsonify(
+            {
+                'ok': True,
+                'modo': 'webpay',
+                'venta_id': vid,
+                'ped_web_codigo': res.get('ped_web_codigo'),
+                'monto_total': monto,
+                'monto_total_fmt': res.get('monto_total_fmt'),
+                'webpay_url': tx.get('url'),
+                'webpay_token': tx.get('token'),
+            }
+        )
+
+    return jsonify({'ok': False, 'error': 'metodo_invalido'}), 400
+
+
+def tienda_webpay_retorno(slug: str):
+    """Retorno Transbank → confirma pago y redirige a pantalla resultado."""
+    if not vt.tienda_habilitada() or slug != vt.TIENDA_SLUG_SD:
+        abort(404)
+
+    from services import ecommerce_pedidos_service as ecom
+    from services import webpay_service as wp
+
+    token = (request.args.get('token_ws') or request.form.get('token_ws') or '').strip()
+    _cfg, nombre = _empresa_ctx()
+    ctx = {
+        'slug': slug,
+        'nombre_tienda': nombre,
+        'vitrina_url': url_for('tienda_vitrina', slug=slug),
+    }
+    if not token:
+        return render_template('tienda/pago_resultado.html', ok=False, mensaje='Token de pago no recibido.', **ctx)
+
+    commit = wp.confirmar_transaccion(token)
+    if not commit.get('ok'):
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje=commit.get('mensaje') or 'No se pudo confirmar el pago.',
+            **ctx,
+        )
+    if not commit.get('approved'):
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje='El pago fue rechazado o cancelado. Puedes intentar de nuevo desde el carrito.',
+            **ctx,
+        )
+
+    buy_order = (commit.get('buy_order') or '').strip()
+    venta_id = 0
+    if buy_order.upper().startswith('WEB') and buy_order[3:].isdigit():
+        venta_id = int(buy_order[3:])
+    if venta_id <= 0:
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje='Pago aprobado pero no se pudo vincular al pedido. Contacte a la tienda.',
+            **ctx,
+        )
+
+    cobro = ecom.cobrar_pedido_web_tarjeta(venta_id, metodo_pago='Webpay')
+    ped_codigo = vt.codigo_pedido_web(venta_id)
+    if not cobro.get('ok') and not cobro.get('ya_cobrado'):
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje=cobro.get('mensaje') or 'Pago aprobado; confirme en caja con su código.',
+            ped_web_codigo=ped_codigo,
+            **ctx,
+        )
+
+    return render_template(
+        'tienda/pago_resultado.html',
+        ok=True,
+        mensaje='¡Pago recibido! Estamos preparando tu pedido.',
+        ped_web_codigo=ped_codigo,
+        monto_total_fmt=vt._fmt_clp(commit.get('amount')),
+        **ctx,
+    )
 
 
 def register_tienda_publica_routes(app) -> None:
@@ -358,4 +529,16 @@ def register_tienda_publica_routes(app) -> None:
         view_func=tienda_api_carrito_vale,
         methods=['POST'],
         endpoint='tienda_api_carrito_vale',
+    )
+    app.add_url_rule(
+        '/api/tienda/<slug>/carrito/checkout',
+        view_func=tienda_api_carrito_checkout,
+        methods=['POST'],
+        endpoint='tienda_api_carrito_checkout',
+    )
+    app.add_url_rule(
+        '/tienda/<slug>/pago/webpay/retorno',
+        view_func=tienda_webpay_retorno,
+        methods=['GET', 'POST'],
+        endpoint='tienda_webpay_retorno',
     )

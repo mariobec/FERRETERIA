@@ -527,6 +527,18 @@
     document.body.appendChild(modalEl);
   }
 
+  /** Bootstrap a veces deja backdrop/modal-open tras cerrar → pantalla congelada. */
+  function posModalLimpiarBackdrop() {
+    document.body.classList.remove("modal-open");
+    document.body.style.removeProperty("overflow");
+    document.body.style.removeProperty("padding-right");
+    document.querySelectorAll(".modal-backdrop").forEach(function (el) {
+      try {
+        el.remove();
+      } catch (e) {}
+    });
+  }
+
   async function posIniciarNuevaVenta(urlNuevaVenta) {
     if (!urlNuevaVenta) {
       mostrarPosToast("Nueva venta no disponible.", { variant: "danger" });
@@ -1886,8 +1898,17 @@
   let posUltimoCodigoEscaneado = "";
   let posModalProductoNoEncontrado = null;
   let posModalProductoAltaRapida = null;
+  let posModalVincularCodigo = null;
   let posModalOfrecerApedido = null;
   let posApedidoPendiente = null;
+  let posVincularSeleccion = null;
+
+  /** Pantalla vendedora: modal dentro de .app-content desalinea clics vs. lo que se ve. */
+  function posPrepararModalEscaneo(modalEl) {
+    if (!modalEl || !document.body.classList.contains("pos-pantalla-vendedora")) return;
+    posSearchPanelCerrar();
+    posAnclarModalEnBody(modalEl);
+  }
 
   function openPosProductoNoEncontradoModal(codigo, sugerencias) {
     const el = document.getElementById("modalPosProductoNoEncontrado");
@@ -1895,6 +1916,7 @@
       mostrarPosToast("Producto no encontrado: " + (codigo || ""));
       return;
     }
+    posPrepararModalEscaneo(el);
     posUltimoCodigoEscaneado = codigo || "";
     const show = document.getElementById("posScanCodigoMostrar");
     if (show) show.textContent = codigo || "";
@@ -1926,7 +1948,35 @@
             if (posModalProductoNoEncontrado) posModalProductoNoEncontrado.hide();
             posEscanearYAgregar(String(s.id), true);
           });
-          lista.appendChild(b);
+          const bVinc = document.createElement("button");
+          bVinc.type = "button";
+          bVinc.className = "btn btn-sm btn-outline-success";
+          bVinc.innerHTML = '<i class="fas fa-link me-1"></i> Vincular código aquí y agregar';
+          bVinc.addEventListener("click", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const itemSug = {
+              id: s.id,
+              producto_id: s.id,
+              nombre: s.nombre,
+              codigo_barra: s.codigo_barra,
+              stock_tienda: s.stock_tienda,
+              precio: s.precio,
+              sin_precio_sd: !(Number(s.precio || 0) > 0),
+              precio_lista_ref: Number(s.precio_lista_ref || 0),
+            };
+            if (posVincularNecesitaPrecio(itemSug)) {
+              openPosVincularCodigoModal(posUltimoCodigoEscaneado);
+              posVincularSetSeleccion(itemSug);
+              return;
+            }
+            posVincularCodigoYAgregar(posUltimoCodigoEscaneado, s.id, itemSug);
+          });
+          const wrapBtn = document.createElement("div");
+          wrapBtn.className = "d-grid gap-1";
+          wrapBtn.appendChild(b);
+          wrapBtn.appendChild(bVinc);
+          lista.appendChild(wrapBtn);
         });
       } else {
         wrap.classList.add("d-none");
@@ -1941,6 +1991,7 @@
   function openPosProductoAltaRapidaModal(codigo) {
     const el = document.getElementById("modalPosProductoAltaRapida");
     if (!el) return;
+    posPrepararModalEscaneo(el);
     const c = document.getElementById("posAltaCodigo");
     const n = document.getElementById("posAltaNombre");
     const err = document.getElementById("posProductoAltaError");
@@ -1960,12 +2011,347 @@
     posModalProductoAltaRapida.show();
   }
 
+  function posVincularNecesitaPrecio(item) {
+    if (!item) return false;
+    if (!item.sin_precio_sd) return false;
+    const lista = Number(item.precio_lista_ref || 0);
+    return !(lista > 0);
+  }
+
+  function posVincularPrecioSugerido(item) {
+    if (!item) return 0;
+    const sd = Number(item.precio || item.precio_sd || 0);
+    if (sd > 0) return Math.round(sd);
+    const lista = Number(item.precio_lista_ref || 0);
+    return lista > 0 ? Math.round(lista) : 0;
+  }
+
+  function posVincularLeerPrecioPayload(item) {
+    if (!item || !posVincularNecesitaPrecio(item)) return {};
+    const inp = document.getElementById("posVincularPrecio");
+    const v = parseFloat((inp && inp.value) || "0");
+    if (v > 0) return { precio_venta_sd: v };
+    return {};
+  }
+
+  function posVincularActualizarBotonConfirmar() {
+    const btnOk = document.getElementById("posBtnConfirmarVincularCodigo");
+    const item = posVincularSeleccion;
+    if (!btnOk) return;
+    if (!item) {
+      btnOk.disabled = true;
+      return;
+    }
+    if (posVincularNecesitaPrecio(item)) {
+      const inp = document.getElementById("posVincularPrecio");
+      const v = parseFloat((inp && inp.value) || "0");
+      btnOk.disabled = !(v > 0);
+      return;
+    }
+    btnOk.disabled = false;
+  }
+
+  async function posVincularCodigoYAgregar(codigo, productoId, itemOpt) {
+    const cfg = readPosConfig();
+    const url = cfg && cfg.urls && cfg.urls.vincular_codigo;
+    if (!url || !productoId) return;
+    const item = itemOpt || posVincularSeleccion;
+    if (posVincularNecesitaPrecio(item)) {
+      const precioPayload = posVincularLeerPrecioPayload(item);
+      if (!precioPayload.precio_venta_sd) {
+        const errEl = document.getElementById("posVincularError");
+        if (errEl) {
+          errEl.textContent = "Indique el precio venta SD para agregar al vale.";
+          errEl.classList.remove("d-none");
+        }
+        return;
+      }
+    }
+    const btnOk = document.getElementById("posBtnConfirmarVincularCodigo");
+    if (btnOk) btnOk.disabled = true;
+    const body = {
+      codigo_escaneado: codigo || posUltimoCodigoEscaneado,
+      producto_id: productoId,
+      agregar_vale: true,
+    };
+    Object.assign(body, posVincularLeerPrecioPayload(item));
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(function () { return {}; });
+      if (res.ok && data.ok && data.agregado_vale !== false) {
+        if (posModalVincularCodigo) posModalVincularCodigo.hide();
+        if (posModalProductoNoEncontrado) posModalProductoNoEncontrado.hide();
+        const nom = data.producto_nombre || "producto";
+        let toastMsg = data.ya_era_maestro
+          ? "Agregado: " + nom
+          : "Código vinculado y agregado: " + nom;
+        if (data.precio_sd_aplicado) {
+          toastMsg += " · Precio SD " + formatoCLP(Math.round(data.precio_sd_aplicado));
+        }
+        mostrarPosToast(toastMsg, { delay: 2400 });
+        posNotifyExperienceWallRefresh();
+        if (document.body.classList.contains("pos-pantalla-vendedora")) {
+          posSearchPanelCerrar();
+          const okCart = await posRefrescarCarritoVendedor();
+          if (!okCart) window.location.reload();
+          return;
+        }
+        posScrollGuardar();
+        window.location.reload();
+        return;
+      }
+      if (data.error === "ofrecer_apedido") {
+        if (posModalVincularCodigo) posModalVincularCodigo.hide();
+        openPosOfrecerApedidoModal(data);
+        return;
+      }
+      const errEl = document.getElementById("posVincularError");
+      const msg = data.mensaje || data.mensaje_agregar || data.error || "No se pudo vincular.";
+      const modalVincEl = document.getElementById("modalPosVincularCodigo");
+      if (modalVincEl && modalVincEl.classList.contains("show")) {
+        if (errEl) {
+          errEl.textContent = msg;
+          errEl.classList.remove("d-none");
+        }
+      } else {
+        mostrarPosToast(msg, { variant: "warning", delay: 3200 });
+      }
+    } catch (e) {
+      mostrarPosToast("Error de red al vincular código.", { variant: "danger" });
+    }
+    posVincularActualizarBotonConfirmar();
+  }
+
+  function posVincularSetSeleccion(item) {
+    posVincularSeleccion = item || null;
+    const wrap = document.getElementById("posVincularSeleccion");
+    const nom = document.getElementById("posVincularSeleccionNombre");
+    const sku = document.getElementById("posVincularSeleccionSku");
+    const precioWrap = document.getElementById("posVincularPrecioWrap");
+    const precioInp = document.getElementById("posVincularPrecio");
+    const precioHint = document.getElementById("posVincularPrecioHint");
+    if (!item) {
+      if (wrap) wrap.classList.add("d-none");
+      if (precioWrap) precioWrap.classList.add("d-none");
+      if (precioInp) precioInp.value = "";
+      posVincularActualizarBotonConfirmar();
+      return;
+    }
+    if (wrap) wrap.classList.remove("d-none");
+    if (nom) nom.textContent = item.nombre || item.text || "—";
+    if (sku) {
+      const listaFmt = item.precio_lista_fmt ? " · Lista " + item.precio_lista_fmt : "";
+      sku.textContent =
+        "SKU " +
+        (item.codigo || item.codigo_barra || "") +
+        " · Tienda " +
+        (item.stock_tienda != null ? item.stock_tienda : "—") +
+        listaFmt;
+    }
+    const necesita = posVincularNecesitaPrecio(item);
+    const listaRef = Number(item.precio_lista_ref || 0);
+    const sugerido = posVincularPrecioSugerido(item);
+    if (precioWrap) {
+      if (!item.sin_precio_sd) {
+        precioWrap.classList.add("d-none");
+      } else if (listaRef > 0) {
+        precioWrap.classList.remove("d-none");
+        precioWrap.classList.add("border-0", "pt-0");
+      } else {
+        precioWrap.classList.remove("d-none", "border-0", "pt-0");
+        precioWrap.classList.add("border-top", "pt-3");
+      }
+    }
+    if (precioInp) {
+      if (!necesita) {
+        precioInp.value = "";
+        if (precioInp.closest(".input-group")) {
+          precioInp.closest(".input-group").classList.add("d-none");
+        }
+      } else {
+        if (precioInp.closest(".input-group")) {
+          precioInp.closest(".input-group").classList.remove("d-none");
+        }
+        precioInp.value = sugerido > 0 ? String(sugerido) : "";
+      }
+    }
+    if (precioHint) {
+      if (!item.sin_precio_sd) {
+        precioHint.textContent = "";
+      } else if (listaRef > 0 && !necesita) {
+        precioHint.textContent =
+          "Sin precio SD. Al vincular se usará el precio lista del catálogo (" +
+          (item.precio_lista_fmt || formatoCLP(listaRef)) +
+          ").";
+      } else if (necesita && sugerido > 0) {
+        precioHint.textContent =
+          "Sin precio de mostrador (SD). Se sugiere el precio lista; confirme o corríjalo.";
+      } else if (necesita) {
+        precioHint.textContent =
+          "Sin precio SD ni lista en el maestro. Indique el precio de venta en mostrador para agregar al vale.";
+      }
+    }
+    const errEl = document.getElementById("posVincularError");
+    if (errEl) errEl.classList.add("d-none");
+    posVincularActualizarBotonConfirmar();
+    if (necesita && precioInp) {
+      setTimeout(function () { precioInp.focus(); }, 120);
+    }
+  }
+
+  function wirePosVincularCodigoModal(buscarUrl) {
+    const inp = document.getElementById("posVincularBuscar");
+    const lista = document.getElementById("posVincularLista");
+    const btnOk = document.getElementById("posBtnConfirmarVincularCodigo");
+    if (!inp || !lista || !buscarUrl) return;
+    let debounceT = null;
+    let fetchCtrl = null;
+
+    function renderVincularLista(items) {
+      if (!items.length) {
+        lista.innerHTML = '<div class="list-group-item text-muted small">Sin coincidencias. Escriba otro término.</div>';
+        posVincularSetSeleccion(null);
+        return;
+      }
+      lista.innerHTML = items
+        .map(function (it) {
+          const pid = it.producto_id != null ? it.producto_id : it.id;
+          const precio = it.precio_fmt || (it.precio ? formatoCLP(Math.round(it.precio)) : "");
+          return (
+            '<button type="button" class="list-group-item list-group-item-action text-start pos-vincular-pick" data-pid="' +
+            escapeHtmlPosJs(String(pid)) +
+            '">' +
+            '<span class="d-block fw-semibold">' +
+            escapeHtmlPosJs((it.nombre || it.text || "").slice(0, 80)) +
+            "</span>" +
+            '<span class="d-block small text-muted">SKU ' +
+            escapeHtmlPosJs(it.codigo || it.codigo_barra || "") +
+            (precio && precio !== "Sin precio SD" ? " · " + escapeHtmlPosJs(precio) : "") +
+            (it.sin_precio_sd && it.precio_lista_fmt
+              ? " · Lista " + escapeHtmlPosJs(it.precio_lista_fmt)
+              : it.sin_precio_sd
+                ? " · Sin precio SD"
+                : "") +
+            "</span></button>"
+          );
+        })
+        .join("");
+      lista.querySelectorAll(".pos-vincular-pick").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          const pid = parseInt(btn.getAttribute("data-pid"), 10);
+          const it = items.find(function (x) {
+            const xid = x.producto_id != null ? x.producto_id : x.id;
+            return parseInt(xid, 10) === pid;
+          });
+          lista.querySelectorAll(".pos-vincular-pick").forEach(function (el) {
+            el.classList.remove("active");
+          });
+          btn.classList.add("active");
+          const picked =
+            it ||
+            {
+              producto_id: pid,
+              nombre: btn.textContent,
+              sin_precio_sd: true,
+            };
+          posVincularSetSeleccion(picked);
+        });
+      });
+    }
+
+    function buscarVincular(term) {
+      const q = (term || "").trim();
+      if (q.length < 2) {
+        lista.innerHTML = "";
+        posVincularSetSeleccion(null);
+        return;
+      }
+      if (fetchCtrl) fetchCtrl.abort();
+      fetchCtrl = new AbortController();
+      lista.innerHTML = '<div class="list-group-item text-muted small"><i class="fas fa-spinner fa-spin me-1"></i> Buscando…</div>';
+      const params = new URLSearchParams({ q: q, origen: "pos", enriquecido: "1", filtro_pos: "catalogo" });
+      fetch(buscarUrl + "?" + params.toString(), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" },
+        signal: fetchCtrl.signal,
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("http");
+          return r.json();
+        })
+        .then(function (data) {
+          const items = data && Array.isArray(data.results) ? data.results : [];
+          renderVincularLista(items.slice(0, 12));
+        })
+        .catch(function (err) {
+          if (err && err.name === "AbortError") return;
+          lista.innerHTML = '<div class="list-group-item text-danger small">Error al buscar.</div>';
+        });
+    }
+
+    inp.addEventListener("input", function () {
+      clearTimeout(debounceT);
+      debounceT = setTimeout(function () {
+        buscarVincular(inp.value);
+      }, 280);
+    });
+
+    const precioInp = document.getElementById("posVincularPrecio");
+    if (precioInp) {
+      precioInp.addEventListener("input", posVincularActualizarBotonConfirmar);
+    }
+    if (btnOk) {
+      btnOk.addEventListener("click", function () {
+        if (!posVincularSeleccion) return;
+        const pid = posVincularSeleccion.producto_id != null
+          ? posVincularSeleccion.producto_id
+          : posVincularSeleccion.id;
+        posVincularCodigoYAgregar(posUltimoCodigoEscaneado, pid, posVincularSeleccion);
+      });
+    }
+  }
+
+  function openPosVincularCodigoModal(codigo) {
+    const el = document.getElementById("modalPosVincularCodigo");
+    if (!el) return;
+    posPrepararModalEscaneo(el);
+    const cod = codigo || posUltimoCodigoEscaneado || "";
+    const show = document.getElementById("posVincularCodigoMostrar");
+    const inp = document.getElementById("posVincularBuscar");
+    const lista = document.getElementById("posVincularLista");
+    const errEl = document.getElementById("posVincularError");
+    if (show) show.textContent = cod;
+    if (inp) inp.value = "";
+    if (lista) lista.innerHTML = "";
+    if (errEl) {
+      errEl.classList.add("d-none");
+      errEl.textContent = "";
+    }
+    posVincularSetSeleccion(null);
+    const precioWrap = document.getElementById("posVincularPrecioWrap");
+    if (precioWrap) precioWrap.classList.add("d-none");
+    if (!posModalVincularCodigo) {
+      posModalVincularCodigo = bootstrap.Modal.getOrCreateInstance(el);
+    }
+    if (posModalProductoNoEncontrado) posModalProductoNoEncontrado.hide();
+    posModalVincularCodigo.show();
+    setTimeout(function () {
+      if (inp) inp.focus();
+    }, 220);
+  }
+
   function openPosOfrecerApedidoModal(data) {
     const el = document.getElementById("modalPosOfrecerApedido");
     if (!el || typeof bootstrap === "undefined" || !data || !data.producto) {
       mostrarPosToast((data && data.mensaje) || "Sin stock en tienda.");
       return;
     }
+    posPrepararModalEscaneo(el);
     const p = data.producto;
     posApedidoPendiente = {
       producto_id: p.id,
@@ -2116,6 +2502,7 @@
           codigo_barra: codigo,
           nombre: nombre.trim(),
           precio_venta: precio,
+          precio_venta_sd: precio,
           stock_tienda: stock,
           agregar_vale: true,
         }),
@@ -2621,6 +3008,7 @@
   }
 
   let posClienteNuevoModalInst = null;
+  let posClienteGuardando = false;
 
   function posClienteModalError(msg) {
     const el = document.getElementById("posClienteModalError");
@@ -2637,6 +3025,7 @@
   function openPosClienteNuevoModal(resumen) {
     const modalEl = document.getElementById("modalPosClienteNuevo");
     if (!modalEl || typeof bootstrap === "undefined") return false;
+    posAnclarModalEnBody(modalEl);
     const rutVal = (resumen && resumen.rut) || getClienteRutForSearch();
     const rutIn = document.getElementById("posClienteModalRut");
     const nomIn = document.getElementById("posClienteModalNombre");
@@ -2655,6 +3044,7 @@
   }
 
   async function guardarPosClienteNuevoModal() {
+    if (posClienteGuardando) return false;
     const nomIn = document.getElementById("posClienteModalNombre");
     const telIn = document.getElementById("posClienteModalTelefono");
     const rutIn = document.getElementById("posClienteModalRut");
@@ -2668,14 +3058,27 @@
     }
     posClienteModalError("");
     const btn = document.getElementById("posBtnGuardarClienteNuevo");
-    if (btn) btn.disabled = true;
-    const res = await vincularClienteEnVale({
-      cliente_rut: rut,
-      registrar: true,
-      nombre: nombre,
-      telefono: telefono,
-    });
-    if (btn) btn.disabled = false;
+    const btnLabel = btn ? btn.innerHTML : "";
+    posClienteGuardando = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Guardando…';
+    }
+    let res = null;
+    try {
+      res = await vincularClienteEnVale({
+        cliente_rut: rut,
+        registrar: true,
+        nombre: nombre,
+        telefono: telefono,
+      });
+    } finally {
+      posClienteGuardando = false;
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = btnLabel;
+      }
+    }
     if (!res || !res.ok) {
       const err = (res && res.error) || "no_pudo_registrar";
       const msgs = {
@@ -2683,7 +3086,7 @@
         rut_invalido: "RUT inválido.",
         cliente_no_existe: "No se pudo registrar el cliente.",
         no_pudo_registrar: "Error al guardar en la base de datos.",
-        sin_venta_abierta: "No hay vale abierto.",
+        sin_venta_abierta: "No hay vale abierto. Escanee un producto e intente de nuevo.",
         sin_caja: "Debe abrir caja.",
         sin_permiso: "Sin permiso para esta acción.",
       };
@@ -2701,7 +3104,15 @@
       cliente_id: cli.id,
       credito: cli.credito || null,
     });
-    if (posClienteNuevoModalInst) posClienteNuevoModalInst.hide();
+    if (posClienteNuevoModalInst) {
+      posClienteNuevoModalInst.hide();
+    } else {
+      const modalEl = document.getElementById("modalPosClienteNuevo");
+      if (modalEl && typeof bootstrap !== "undefined") {
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      }
+    }
+    setTimeout(posModalLimpiarBackdrop, 280);
     renderPosTvClienteBadge(res.cliente_vitrina);
     posNotifyExperienceWallRefresh();
     mostrarPosToast("Cliente registrado y vinculado al vale.");
@@ -3993,6 +4404,15 @@
         openPosProductoAltaRapidaModal(posUltimoCodigoEscaneado);
       });
     }
+    const btnVincularProd = document.getElementById("posBtnVincularProducto");
+    if (btnVincularProd) {
+      btnVincularProd.addEventListener("click", function () {
+        openPosVincularCodigoModal(posUltimoCodigoEscaneado);
+      });
+    }
+    if (u.buscar_producto) {
+      wirePosVincularCodigoModal(u.buscar_producto);
+    }
     const btnBuscarSim = document.getElementById("posBtnBuscarSimilar");
     if (btnBuscarSim) {
       btnBuscarSim.addEventListener("click", function () {
@@ -4089,13 +4509,14 @@
     }
 
     const btnGuardarClienteNuevo = document.getElementById("posBtnGuardarClienteNuevo");
+    const modalClienteNuevoEl = document.getElementById("modalPosClienteNuevo");
     if (btnGuardarClienteNuevo) {
       btnGuardarClienteNuevo.addEventListener("click", function () {
         guardarPosClienteNuevoModal();
       });
     }
-    const modalClienteNuevoEl = document.getElementById("modalPosClienteNuevo");
     if (modalClienteNuevoEl) {
+      posAnclarModalEnBody(modalClienteNuevoEl);
       modalClienteNuevoEl.addEventListener("keydown", function (e) {
         if (e.key === "Enter" && e.target && e.target.id === "posClienteModalTelefono") {
           e.preventDefault();
@@ -4103,6 +4524,7 @@
         }
       });
       modalClienteNuevoEl.addEventListener("hidden.bs.modal", function () {
+        setTimeout(posModalLimpiarBackdrop, 80);
         if (posClienteUiEstado !== "new") return;
         const nombre = document.getElementById("cliente_nombre");
         if (nombre && (nombre.value || "").trim()) return;

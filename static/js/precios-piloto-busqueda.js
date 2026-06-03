@@ -3,8 +3,19 @@
  * Dispara window event 'piloto:producto-seleccionado' con { producto } al elegir ítem.
  */
 (function () {
+  var FORM_ID = "formBusquedaPreciosPiloto";
   var BUSCAR_URL = "/api/precios/piloto/buscar";
   var PRODUCTO_URL = "/api/precios/piloto/producto/";
+
+  function formPiloto() {
+    return document.getElementById(FORM_ID);
+  }
+
+  function elEnForm(id) {
+    var form = formPiloto();
+    if (!form || !id) return null;
+    return form.querySelector("#" + id);
+  }
 
   function escapeHtml(s) {
     return String(s || "")
@@ -24,44 +35,127 @@
     return !/\s/.test(s);
   }
 
-  function filtroActual() {
-    var hid = document.getElementById("posFiltroBusqueda");
-    var v = hid ? String(hid.value || "").trim().toLowerCase() : "";
-    if (v === "operativo" || v === "tienda" || v === "catalogo") return v;
-    return "operativo";
+  function pareceSoloEan(q) {
+    var s = (q || "").trim().replace(/\s/g, "");
+    return s.length >= 8 && /^\d+$/.test(s);
   }
 
-  function setFiltro(modo) {
-    var hid = document.getElementById("posFiltroBusqueda");
+  function redirigirCodigoABuscador(digits, api) {
+    var inp = elEnForm("posBuscarManual");
+    if (!inp || !digits) return;
+    inp.value = digits;
+    inp.focus();
+    if (api && api.buscar) {
+      api.buscar(digits, { autoSeleccionar: true, permitirCorto: true });
+    }
+  }
+
+  function enlazarRedireccionCodigoSecundario(api) {
+    var ids = [
+      "inpPrecioSd",
+      "inpNumeroFacturaPiloto",
+      "inpNumeroGuiaPiloto",
+      "inpSectorPiloto",
+      "inpMotivoPiloto",
+      "inpStockTienda",
+      "inpStockBodega",
+    ];
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("input", function () {
+        var raw = String(el.value || "").trim();
+        if (!pareceSoloEan(raw)) return;
+        el.value = "";
+        redirigirCodigoABuscador(raw, api);
+      });
+      el.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter") return;
+        var raw = String(el.value || "").trim();
+        if (!pareceCodigoBarras(raw) || raw.length < 4) return;
+        ev.preventDefault();
+        el.value = "";
+        redirigirCodigoABuscador(raw, api);
+      });
+    });
+  }
+
+  function filtroActual(form) {
+    var hid = form ? form.querySelector("#posFiltroBusqueda") : null;
+    var v = hid ? String(hid.value || "").trim().toLowerCase() : "";
+    if (v === "operativo" || v === "tienda" || v === "catalogo") return v;
+    return "catalogo";
+  }
+
+  function setFiltro(form, modo) {
+    var hid = form ? form.querySelector("#posFiltroBusqueda") : null;
     if (hid) hid.value = modo;
-    document.querySelectorAll(".pos-filter-pill[data-filter]").forEach(function (btn) {
+    if (!form) return;
+    form.querySelectorAll(".pos-filter-pill[data-filter]").forEach(function (btn) {
       var f = (btn.getAttribute("data-filter") || "").trim();
       btn.classList.toggle("pos-filter-pill--active", f === modo);
     });
   }
 
-  function initFiltros(onRefetch) {
-    var bOp = document.getElementById("posBtnFiltroOperativo");
-    var bTi = document.getElementById("posBtnFiltroTienda");
-    var bCat = document.getElementById("posBtnFiltroCatalogo");
+  function initFiltros(form, onRefetch) {
+    if (!form || form.getAttribute("data-filtros-bound") === "1") {
+      setFiltro(form, filtroActual(form));
+      return;
+    }
+    var bOp = form.querySelector("#posBtnFiltroOperativo");
+    var bTi = form.querySelector("#posBtnFiltroTienda");
+    var bCat = form.querySelector("#posBtnFiltroCatalogo");
     function aplicar(modo) {
-      setFiltro(modo);
-      var inp = document.getElementById("posBuscarManual");
+      setFiltro(form, modo);
+      var inp = form.querySelector("#posBuscarManual");
       var q = inp ? String(inp.value || "").trim() : "";
-      if (q.length >= 2 && onRefetch) onRefetch(q);
-      else if (onRefetch && onRefetch.hidePanel) onRefetch.hidePanel();
+      if (q.length >= 1 && onRefetch) {
+        onRefetch(q, { permitirCorto: q.length < 2 || pareceCodigoBarras(q), autoSeleccionar: pareceCodigoBarras(q) });
+      } else if (onRefetch && onRefetch.hidePanel) {
+        onRefetch.hidePanel();
+      }
     }
     if (bOp) bOp.addEventListener("click", function () { aplicar("operativo"); });
     if (bTi) bTi.addEventListener("click", function () { aplicar("tienda"); });
     if (bCat) bCat.addEventListener("click", function () { aplicar("catalogo"); });
-    setFiltro(filtroActual());
+    form.setAttribute("data-filtros-bound", "1");
+    setFiltro(form, filtroActual(form));
+  }
+
+  function debeAutoSeleccionar(q, data, items, opts) {
+    if (!items || !items.length) return false;
+    if (data && data.meta && data.meta.match === "codigo_exacto") return true;
+    if (items.length === 1 && (pareceCodigoBarras(q) || (opts && opts.autoSeleccionar))) return true;
+    if (pareceSoloEan(q) && items.length === 1) return true;
+    if (opts && opts.autoSeleccionar && items.length === 1) return true;
+    return false;
+  }
+
+  function mensajeSinResultadosCodigo(q, data) {
+    if (pareceCodigoBarras(q) || pareceSoloEan(q)) {
+      return (
+        'Código <strong class="font-monospace">' +
+        escapeHtml(q) +
+        "</strong> no encontrado. Pruebe filtro <strong>Catálogo</strong> o busque por nombre."
+      );
+    }
+    return null;
   }
 
   function initBusqueda() {
-    var panel = document.getElementById("pos-search-suggestions");
-    var input = document.getElementById("posBuscarManual");
-    var hero = document.querySelector(".pos-unified-search-hero");
-    if (!panel || !input) return null;
+    var form = formPiloto();
+    if (!form) return null;
+    var panel = form.querySelector("#pos-search-suggestions");
+    var input = form.querySelector("#posBuscarManual");
+    var hero = form.querySelector(".pos-unified-search-hero");
+    if (!panel || !input) {
+      console.warn("[piloto] Buscador: falta panel o input en", FORM_ID);
+      return null;
+    }
+
+    if (input.getAttribute("data-piloto-buscar-bound") === "1" && window.__preciosPilotoBusquedaApi) {
+      return window.__preciosPilotoBusquedaApi;
+    }
 
     var activeIndex = -1;
     var lastItems = [];
@@ -178,7 +272,7 @@
     }
 
     function mensajeSinCoincidencias(data) {
-      var filtro = filtroActual();
+      var filtro = filtroActual(form);
       var filtroLabel = filtro === "tienda" ? "Solo tienda" : filtro === "catalogo" ? "Catálogo" : "Operativo";
       var msg = "Sin coincidencias en modo <strong>" + escapeHtml(filtroLabel) + "</strong>. Pruebe otro término";
       if (filtro !== "catalogo") msg += " o pulse <strong>Catálogo</strong>";
@@ -210,7 +304,7 @@
     function seleccionarItem(idx) {
       var it = lastItems[idx];
       if (!it || it.producto_id == null) return;
-      cargarProducto(it.producto_id).catch(function () {
+      return cargarProducto(it.producto_id).catch(function () {
         window.dispatchEvent(
           new CustomEvent("piloto:busqueda-error", { detail: { message: "No se pudo cargar el producto." } })
         );
@@ -226,15 +320,23 @@
       if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
     }
 
-    function renderItems(items, searchMeta) {
+    function renderItems(items, searchMeta, qTerm) {
       if (!items.length) {
+        var extraCodigo = qTerm ? mensajeSinResultadosCodigo(qTerm, searchMeta) : null;
         panel.innerHTML =
           '<div class="pos-search-suggestions__head">Asistente de precios</div>' +
           '<div class="pos-search-suggestions__empty">' +
-          (searchMeta ? mensajeSinCoincidencias(searchMeta) : "Sin coincidencias.") +
+          (extraCodigo || (searchMeta ? mensajeSinCoincidencias(searchMeta) : "Sin coincidencias.")) +
           "</div>";
         panel.classList.remove("d-none");
         setSuggestOpen(true);
+        if (extraCodigo) {
+          window.dispatchEvent(
+            new CustomEvent("piloto:busqueda-error", {
+              detail: { message: "Código no encontrado. Revise Catálogo o busque por nombre." },
+            })
+          );
+        }
         return;
       }
       var html = items
@@ -296,6 +398,8 @@
     function ejecutarBusqueda(term, opts) {
       var q = (term || "").trim();
       opts = opts || {};
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
       if (q.length < 2 && !opts.permitirCorto) {
         hidePanel();
         return Promise.resolve(null);
@@ -313,7 +417,7 @@
         q: q,
         origen: "precios_piloto",
         enriquecido: "1",
-        filtro_pos: filtroActual(),
+        filtro_pos: filtroActual(form),
       });
       return fetch(BUSCAR_URL + "?" + params.toString(), {
         credentials: "same-origin",
@@ -324,13 +428,10 @@
         .then(function (data) {
           lastItems = data && Array.isArray(data.results) ? data.results : [];
           activeIndex = indicePrimeroConStock(lastItems);
-          if (opts.autoSeleccionar && lastItems.length === 1) {
-            return seleccionarItem(0);
+          if (debeAutoSeleccionar(q, data, lastItems, opts)) {
+            return seleccionarItem(activeIndex >= 0 ? activeIndex : 0);
           }
-          if (opts.autoSeleccionar && data && data.meta && data.meta.match === "codigo_exacto" && lastItems.length) {
-            return seleccionarItem(0);
-          }
-          renderItems(lastItems, data);
+          renderItems(lastItems, data, q);
           return data;
         })
         .catch(function (err) {
@@ -358,6 +459,8 @@
         if (e.key === "Enter") {
           var q = (input.value || "").trim();
           e.preventDefault();
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
           if (pareceCodigoBarras(q)) {
             ejecutarBusqueda(q, { autoSeleccionar: true, permitirCorto: q.length >= 1 });
             return;
@@ -380,19 +483,29 @@
       }
     }
 
-    input.addEventListener("input", function () {
+    function onBuscarInput() {
       clearTimeout(debounceTimer);
       var term = (input.value || "").trim();
-      if (term.length < 2) {
+      if (!term) {
         hidePanel();
         return;
       }
+      var esCodigo = pareceCodigoBarras(term);
+      var delay = esCodigo ? 120 : 280;
+      var buscarOpts = {
+        permitirCorto: term.length < 2 || esCodigo,
+        autoSeleccionar: esCodigo,
+      };
       debounceTimer = setTimeout(function () {
-        ejecutarBusqueda(term);
-      }, 280);
-    });
+        ejecutarBusqueda(term, buscarOpts);
+      }, delay);
+    }
 
+    input.addEventListener("input", onBuscarInput);
     input.addEventListener("keydown", onInputKeydown);
+    input.addEventListener("paste", function () {
+      setTimeout(onBuscarInput, 0);
+    });
 
     document.addEventListener("click", function (e) {
       if (!hero) return;
@@ -401,18 +514,54 @@
       hidePanel();
     });
 
+    function prepararEscaneo() {
+      if (fetchCtrl) {
+        try {
+          fetchCtrl.abort();
+        } catch (e) { /* ignore */ }
+        fetchCtrl = null;
+      }
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+      input.value = "";
+      hidePanel();
+      input.focus();
+    }
+
     var api = {
       hidePanel: hidePanel,
       buscar: ejecutarBusqueda,
+      prepararEscaneo: prepararEscaneo,
       focus: function () {
         input.focus();
       },
     };
 
-    initFiltros(api);
+    initFiltros(form, api);
+    enlazarRedireccionCodigoSecundario(api);
+    input.setAttribute("data-piloto-buscar-bound", "1");
 
     return api;
   }
 
-  window.PreciosPilotoBusqueda = { init: initBusqueda };
+  function initBusquedaOnce() {
+    var api = initBusqueda();
+    if (api) {
+      window.__preciosPilotoBusquedaApi = api;
+    }
+    return api;
+  }
+
+  window.PreciosPilotoBusqueda = { init: initBusquedaOnce };
+
+  function boot() {
+    if (!formPiloto()) return;
+    initBusquedaOnce();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 })();

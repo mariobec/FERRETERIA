@@ -1,108 +1,167 @@
 {% extends 'base.html' %}
-{% block body_class %}erp-ops-space{% endblock %}
+{% block body_class %}erp-ops-space page-ecommerce-bandeja{% endblock %}
+{% block extra_css %}
+<style>
+  .ecom-sla-pill { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:600; }
+  .ecom-sla-pill.sla-ok { background:rgba(22,163,74,.18);color:#4ade80; }
+  .ecom-sla-pill.sla-attention { background:rgba(234,179,8,.2);color:#fbbf24; }
+  .ecom-sla-pill.sla-delayed { background:rgba(249,115,22,.2);color:#fb923c; }
+  .ecom-sla-pill.sla-critical { background:rgba(220,38,38,.22);color:#f87171; }
+</style>
+{% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
-  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-    <div>
-      <h3 class="page-title"><i class="fas fa-store text-success me-2"></i>E-commerce — bandeja de pedidos</h3>
-      <p class="page-subtitle mb-0">
-        Pedidos desde la vitrina (Liz / <span class="font-monospace">PED-WEB</span>).
-        Prepará aquí; el cliente paga en caja con el mismo código.
+<div class="container-fluid px-0 ecom-bandeja-hud" id="ecomBandejaRoot"
+     data-refresh-url="{{ url_for('api_ecommerce_pedidos', vista=vista, estado=filtro_estado, extra=filtro_extra or '') }}">
+  <header class="ecom-hdr-premium mb-4" role="banner">
+    <div class="ecom-hdr-premium__brand">
+      <span class="ecom-hdr-premium__eyebrow"><i class="fas fa-store" aria-hidden="true"></i> Módulo e-commerce</span>
+      <h1 class="ecom-hdr-premium__title">Pedidos web</h1>
+      <p class="ecom-hdr-premium__meta mb-0">
+        Vitrina Maylén · <span class="font-monospace">PED-WEB</span> → preparación → caja <span class="font-monospace">VL######</span> → entrega QR
       </p>
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-primary btn-sm">
-        <i class="fas fa-cash-register me-1"></i>Caja — vales pendientes
+    <nav class="ecom-nav-dock" aria-label="Accesos e-commerce">
+      {% if vitrina_url and pedido_web_habilitado %}
+      <a href="{{ vitrina_url }}" class="ecom-nav-dock__link ecom-nav-dock__link--primary" target="_blank" rel="noopener">
+        <i class="fas fa-external-link-alt"></i><span>Vitrina</span>
       </a>
+      {% endif %}
+      <a href="{{ url_for('caja_pendientes') }}" class="ecom-nav-dock__link ecom-nav-dock__link--caja">
+        <i class="fas fa-cash-register"></i><span>Caja</span>
+      </a>
+      <a href="{{ url_for('ecommerce_export_csv', vista=vista, estado=filtro_estado) }}" class="ecom-nav-dock__link">
+        <i class="fas fa-file-csv"></i><span>Export CSV</span>
+      </a>
+    </nav>
+    <div class="ecom-hdr-premium__stat" aria-live="polite">
+      <span class="ecom-hdr-premium__stat-label">{% if vista == 'historial' %}Historial 7d{% else %}En bandeja{% endif %}</span>
+      <span class="ecom-hdr-premium__stat-value" id="ecomStatTotal">{% if vista == 'historial' %}{{ pedidos|length }}{% else %}{{ contadores.total }}{% endif %}</span>
+    </div>
+  </header>
+
+  {% if not pedido_web_habilitado %}
+  <div class="ecom-alert ecom-alert--warn mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Pedido web deshabilitado (<code>VITRINA_PEDIDO_WEB_HABILITADO=0</code>).</div>
+  {% endif %}
+  {% if sin_caja_abierta %}
+  <div class="ecom-alert ecom-alert--info mb-3"><i class="fas fa-info-circle me-2"></i>Sin caja abierta{% if requiere_caja %} — la vitrina no podrá crear PED-WEB{% else %}; abra caja antes del cobro{% endif %}.</div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--total h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-inbox"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.total }}</div>
+        <p class="ecom-kpi__label mb-0">Activos</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--nuevo h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-bell"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.pendiente }}</div>
+        <p class="ecom-kpi__label mb-0">Nuevos</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--prep h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-box-open"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.en_preparacion }}</div>
+        <p class="ecom-kpi__label mb-0">Preparación</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--listo h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-check-circle"></i></div>
+        <div class="ecom-kpi__value">{{ contadores.listo }}</div>
+        <p class="ecom-kpi__label mb-0">Listos</p>
+      </article>
+    </div>
+    <div class="col-6 col-md">
+      <article class="ecom-kpi ecom-kpi--parcial h-100">
+        <div class="ecom-kpi__icon"><i class="fas fa-chart-line"></i></div>
+        <div class="ecom-kpi__value">{{ metricas.tasa_cobro_pct }}%</div>
+        <p class="ecom-kpi__label mb-0">Cobro 7d · {{ metricas.pedidos_hoy }} hoy</p>
+      </article>
     </div>
   </div>
 
-  <div class="row g-2 mb-3">
-    <div class="col-6 col-md-3">
-      <div class="card card-ds h-100"><div class="card-body py-2">
-        <div class="small text-muted">En bandeja</div>
-        <div class="fs-4 fw-bold">{{ contadores.total }}</div>
-      </div></div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="card card-ds h-100 border-warning"><div class="card-body py-2">
-        <div class="small text-muted">Nuevos</div>
-        <div class="fs-4 fw-bold text-warning">{{ contadores.pendiente }}</div>
-      </div></div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="card card-ds h-100 border-primary"><div class="card-body py-2">
-        <div class="small text-muted">En preparación</div>
-        <div class="fs-4 fw-bold text-primary">{{ contadores.en_preparacion }}</div>
-      </div></div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="card card-ds h-100 border-success"><div class="card-body py-2">
-        <div class="small text-muted">Listos retiro</div>
-        <div class="fs-4 fw-bold text-success">{{ contadores.listo }}</div>
-      </div></div>
-    </div>
-  </div>
+  <nav class="ecom-filter-bar mb-2" aria-label="Vista">
+    <a href="{{ url_for('ecommerce_bandeja', vista='activos', estado=filtro_estado) }}" class="ecom-filter-bar__link{% if vista != 'historial' %} active{% endif %}">Bandeja activa</a>
+    <a href="{{ url_for('ecommerce_bandeja', vista='historial') }}" class="ecom-filter-bar__link{% if vista == 'historial' %} active{% endif %}">Historial (7 días)</a>
+  </nav>
 
-  <div class="btn-group btn-group-sm flex-wrap mb-3" role="group">
-    <a href="{{ url_for('ecommerce_bandeja', estado='ACTIVOS') }}" class="btn btn-outline-primary {% if filtro_estado == 'ACTIVOS' %}active{% endif %}">Activos</a>
-    <a href="{{ url_for('ecommerce_bandeja', estado='NUEVOS') }}" class="btn btn-outline-primary {% if filtro_estado == 'NUEVOS' %}active{% endif %}">Nuevos</a>
-    <a href="{{ url_for('ecommerce_bandeja', estado='PENDIENTE') }}" class="btn btn-outline-primary {% if filtro_estado == 'PENDIENTE' %}active{% endif %}">Pendiente</a>
-    <a href="{{ url_for('ecommerce_bandeja', estado='EN_PREPARACION') }}" class="btn btn-outline-primary {% if filtro_estado == 'EN_PREPARACION' %}active{% endif %}">En preparación</a>
-    <a href="{{ url_for('ecommerce_bandeja', estado='LISTO_RETIRO') }}" class="btn btn-outline-primary {% if filtro_estado == 'LISTO_RETIRO' %}active{% endif %}">Listo retiro</a>
-  </div>
+  {% if vista != 'historial' %}
+  <nav class="ecom-filter-bar mb-3" aria-label="Filtrar pedidos">
+    <a href="{{ url_for('ecommerce_bandeja', estado='ACTIVOS') }}" class="ecom-filter-bar__link{% if filtro_estado == 'ACTIVOS' %} active{% endif %}">Activos</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='NUEVOS') }}" class="ecom-filter-bar__link{% if filtro_estado == 'NUEVOS' %} active{% endif %}">Nuevos</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='PENDIENTE') }}" class="ecom-filter-bar__link{% if filtro_estado == 'PENDIENTE' %} active{% endif %}">Pendiente</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='EN_PREPARACION') }}" class="ecom-filter-bar__link{% if filtro_estado == 'EN_PREPARACION' %} active{% endif %}">En preparación</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='LISTO_RETIRO') }}" class="ecom-filter-bar__link{% if filtro_estado == 'LISTO_RETIRO' %} active{% endif %}">Listo retiro</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='ACTIVOS', extra='urgente') }}" class="ecom-filter-bar__link{% if filtro_extra == 'urgente' %} active{% endif %}">Urgentes</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='ACTIVOS', extra='sin_stock') }}" class="ecom-filter-bar__link{% if filtro_extra == 'sin_stock' %} active{% endif %}">Sin stock</a>
+    <a href="{{ url_for('ecommerce_bandeja', estado='ACTIVOS', extra='sin_caja') }}" class="ecom-filter-bar__link{% if filtro_extra == 'sin_caja' %} active{% endif %}">Sin caja</a>
+  </nav>
+  {% endif %}
 
-  <div class="card card-ds">
+  <div class="card card-ds ecom-bandeja-card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <h6 class="mb-0"><i class="fas fa-list me-2 text-success"></i>{% if vista == 'historial' %}Historial cobrados / anulados{% else %}Pedidos pendientes de preparación{% endif %}</h6>
+      <span class="small text-muted">{{ pedidos|length }} en vista · <span id="ecomRefreshHint">auto 30s</span></span>
+    </div>
     <div class="card-body p-0 table-responsive">
-      <table class="table table-hover table-sm align-middle mb-0">
-        <thead class="table-light">
+      <table class="table table-hover table-sm align-middle mb-0" id="tblEcomPedidos">
+        <thead>
           <tr>
-            <th>Pedido</th>
-            <th>Hora</th>
+            <th class="ps-3">Pedido</th>
+            <th>SLA</th>
             <th>Estado</th>
             <th>Ítems</th>
             <th class="text-end">Total ref.</th>
             <th>Operador</th>
-            <th class="text-end">Acciones</th>
+            <th class="text-end pe-3">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for p in pedidos %}
           {% set v = p.venta %}
+          {% set est = p.estado_prep %}
           <tr>
-            <td>
-              <span class="font-monospace fw-bold text-success">{{ p.ped_web_codigo }}</span>
-              <div class="small text-muted">{{ p.vale_folio }} · {{ p.contacto or 'Cliente web' }}</div>
+            <td class="ps-3">
+              <span class="ecom-pedido-code">{{ p.ped_web_codigo }}</span>
+              <div class="small text-muted mt-1">{{ p.vale_folio }} · {{ p.contacto_nombre or p.contacto or 'Cliente web' }}</div>
+              {% if p.alerta_stock %}<span class="badge text-bg-danger mt-1">Sin stock</span>{% endif %}
+              {% if p.sin_caja %}<span class="badge text-bg-secondary mt-1">Sin caja</span>{% endif %}
             </td>
             <td class="small">
-              {% if v.fecha %}{{ v.fecha.strftime('%d/%m %H:%M') }}{% else %}—{% endif %}
-              {% if p.minutos is not none %}<div class="text-muted">{{ p.minutos }} min</div>{% endif %}
+              {% if p.minutos is not none %}
+              <span class="ecom-sla-pill {{ p.sla_css }}">{{ p.minutos }} min · {{ p.sla_label }}</span>
+              {% else %}—{% endif %}
             </td>
             <td>
-              {% set est = p.estado_prep %}
-              <span class="badge {% if est == 'PENDIENTE' %}text-bg-warning{% elif est == 'EN_PREPARACION' %}text-bg-primary{% elif est == 'LISTO_RETIRO' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+              <span class="badge rounded-pill {% if est == 'PENDIENTE' %}text-bg-warning{% elif est == 'EN_PREPARACION' %}text-bg-primary{% elif est == 'LISTO_RETIRO' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
                 {{ est.replace('_', ' ') }}
               </span>
+              {% if p.estado_venta == 'Pagado' %}<div class="small text-success">Pagado</div>{% elif p.estado_venta == 'Anulada' %}<div class="small text-danger">Anulado</div>{% endif %}
             </td>
             <td class="small">
-              {{ p.unidades }} u.
+              <strong>{{ p.unidades }}</strong> u.
               {% for ln in p.lineas_resumen[:2] %}
               <div class="text-muted">{{ ln.cantidad }}× {{ ln.nombre }}</div>
               {% endfor %}
             </td>
-            <td class="text-end font-monospace">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
+            <td class="text-end font-monospace fw-semibold">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
             <td class="small">{{ v.bodega_preparacion_usuario or '—' }}</td>
-            <td class="text-end text-nowrap">
-              <a href="{{ url_for('ecommerce_pedido_detalle', vid=v.id) }}" class="btn btn-outline-secondary btn-sm">Ver</a>
-              {% if est == 'PENDIENTE' %}
+            <td class="text-end text-nowrap pe-3">
+              <a href="{{ url_for('ecommerce_pedido_detalle', vid=v.id) }}" class="btn btn-outline-light btn-sm">Ver</a>
+              {% if vista != 'historial' and est == 'PENDIENTE' %}
               <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=v.id) }}" class="d-inline">
                 <input type="hidden" name="accion" value="tomar">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
                 <button type="submit" class="btn btn-primary btn-sm">Preparar</button>
               </form>
-              {% elif est == 'EN_PREPARACION' %}
+              {% elif vista != 'historial' and est == 'EN_PREPARACION' %}
               <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=v.id) }}" class="d-inline">
                 <input type="hidden" name="accion" value="listo">
+                <input type="hidden" name="notificar_whatsapp" value="1">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
                 <button type="submit" class="btn btn-success btn-sm">Listo</button>
               </form>
@@ -110,11 +169,45 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="text-center text-muted py-4">No hay pedidos web en esta bandeja.</td></tr>
+          <tr>
+            <td colspan="7">
+              <div class="ecom-empty">
+                <div class="ecom-empty__icon"><i class="fas fa-shopping-bag"></i></div>
+                <div class="ecom-empty__title">No hay pedidos en esta vista</div>
+                {% if vitrina_url and pedido_web_habilitado and vista != 'historial' %}
+                <a href="{{ vitrina_url }}" class="ecom-btn-cta" target="_blank" rel="noopener"><i class="fas fa-store"></i> Abrir vitrina</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  var root = document.getElementById('ecomBandejaRoot');
+  if (!root) return;
+  var url = root.getAttribute('data-refresh-url');
+  var hint = document.getElementById('ecomRefreshHint');
+  function tick(){
+    if (!url || document.hidden) return;
+    fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || !d.ok) return;
+        var el = document.getElementById('ecomStatTotal');
+        if (el && d.contadores) el.textContent = d.contadores.total;
+        if (hint) hint.textContent = 'actualizado ' + new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+      })
+      .catch(function(){});
+  }
+  setInterval(tick, 30000);
+})();
+</script>
 {% endblock %}
