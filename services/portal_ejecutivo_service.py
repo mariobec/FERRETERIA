@@ -146,24 +146,33 @@ def _caja_snapshot() -> int:
 
 def _comprometido_compras() -> tuple[int, int]:
     """Monto y cantidad OC pendientes (estimado, no AP contable).
-    Una sola query SQL: evita la descincronización entre count total y sum parcial (bug original).
+    total_estimado es un @property Python (cantidad×precio_unitario por línea),
+    así que lo calculamos vía JOIN SQL directo sobre detalle_orden_compra.
     """
     m = _m()
     if not m._tablas_orden_compra_existen():
         return 0, 0
+    from sqlalchemy import text as _text
     oc_estados = ('Borrador', 'Enviada', 'Parcial')
-    fil = m.OrdenCompra.estado.in_(oc_estados)
-    row = (
-        m.db.session.query(
-            func.count(m.OrdenCompra.id),
-            func.sum(m.OrdenCompra.total_estimado),
-        )
-        .filter(fil)
-        .first()
-    )
-    count = int(row[0] or 0)
-    monto = float(row[1] or 0)
-    return _int_clp(monto), count
+    try:
+        row = m.db.session.execute(
+            _text(
+                """
+                SELECT
+                    COUNT(DISTINCT oc.id),
+                    COALESCE(SUM(d.cantidad * d.precio_unitario), 0)
+                FROM ordenes_compra oc
+                LEFT JOIN detalle_orden_compra d ON d.orden_compra_id = oc.id
+                WHERE oc.estado IN :estados
+                """
+            ),
+            {'estados': tuple(oc_estados)},
+        ).first()
+        count = int(row[0] or 0)
+        monto = float(row[1] or 0)
+        return _int_clp(monto), count
+    except Exception:
+        return 0, 0
 
 
 def _ventas_semanales_ultimas(n: int = 4) -> list[dict[str, Any]]:

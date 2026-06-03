@@ -222,6 +222,13 @@ def _limpiar_datos_qa():
                 )
             except Exception:
                 db.session.rollback()
+            try:
+                db.session.execute(
+                    sa_text("DELETE FROM producto_codigo_escaneo WHERE producto_id IN :p"),
+                    {'p': pt},
+                )
+            except Exception:
+                db.session.rollback()
             db.session.execute(sa_text("DELETE FROM productos WHERE id IN :p"), {'p': pt})
 
         prvs = [r[0] for r in db.session.execute(
