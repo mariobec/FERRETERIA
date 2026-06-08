@@ -1479,6 +1479,32 @@ class TestHubModulosUrls:
         assert pos.get('url')
         assert pos['url'].rstrip('/').endswith('/punto_venta')
         assert 'layout=' not in pos['url']
+        caja = next((x for x in mods if x.get('id') == 'caja_tesoreria'), None)
+        assert caja is not None
+        assert len(caja.get('atajos') or []) <= 3
+        assert len(caja.get('atajos_extra') or []) >= 3
+        ecom = next((x for x in mods if x.get('id') == 'ecommerce_pedidos'), None)
+        assert ecom is not None
+        labels = [a.get('label') for a in (ecom.get('atajos') or [])]
+        assert 'Bandeja pedidos web' in labels
+        inv = next((x for x in mods if x.get('id') == 'inventario_stock'), None)
+        assert inv is not None
+        compras = next((x for x in mods if x.get('id') == 'compras_abastecimiento'), None)
+        assert compras is not None
+        assert not any(a.get('label') == 'Órdenes de compra' for a in (inv.get('atajos') or []))
+        cargas = next((x for x in mods if x.get('id') == 'cargas_datos'), None)
+        assert cargas is not None
+        carga_urls = [a.get('url') or '' for a in (cargas.get('atajos') or []) + (cargas.get('atajos_extra') or [])]
+        assert any('#carga-masiva' in u for u in carga_urls)
+
+    def test_hub_html_tres_secciones_modulos(self, app_client, caja_abierta):
+        r = app_client.get('/hub')
+        assert r.status_code == 200
+        assert b'Operaci' in r.data and b'diaria' in r.data
+        assert b'Gesti' in r.data and b'datos' in r.data
+        assert b'Stock e inventario' in r.data
+        assert b'Compras y abastecimiento' in r.data
+        assert b'Cargas de datos' in r.data
 
 
 # Como correr solo estos tests

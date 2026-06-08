@@ -4,52 +4,49 @@
 
 {% block extra_css %}
 <style>
+  /* ── Fondo general ── */
   .hub-page .app-main {
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(30, 58, 138, 0.12), transparent 55%),
-      linear-gradient(180deg, #f1f5f9 0%, #e8eef5 100%);
+    background: #eef2f7;
     min-height: calc(100vh - 56px);
   }
 
   .hub-shell {
-    max-width: 1320px;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 0.25rem 0 2rem;
+    padding: 0 0 2.5rem;
   }
 
+  /* ── Hero banner ── */
   .hub-hero {
     position: relative;
     overflow: hidden;
-    border-radius: 1.25rem;
-    padding: 1.6rem 1.75rem;
+    border-radius: 0 0 1.5rem 1.5rem;
+    padding: 1.6rem 2rem;
     color: #f8fafc;
-    background: linear-gradient(128deg, #0b0f19 0%, #1e3a8a 48%, #0f172a 100%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
-    margin-bottom: 1.75rem;
+    background: linear-gradient(120deg, #0b1120 0%, #1e3a8a 55%, #0f172a 100%);
+    margin-bottom: 2rem;
+    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
   }
 
   .hub-hero::before {
     content: '';
     position: absolute;
-    top: -50%;
-    right: -5%;
-    width: 280px;
-    height: 280px;
+    top: -60%;
+    right: -3%;
+    width: 320px; height: 320px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(234, 88, 12, 0.35), transparent 70%);
+    background: radial-gradient(circle, rgba(234, 88, 12, 0.3), transparent 68%);
     pointer-events: none;
   }
 
   .hub-hero::after {
     content: '';
     position: absolute;
-    bottom: -40%;
-    left: 10%;
-    width: 200px;
-    height: 200px;
+    bottom: -50%;
+    left: 8%;
+    width: 220px; height: 220px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(16, 185, 129, 0.2), transparent 70%);
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.18), transparent 68%);
     pointer-events: none;
   }
 
@@ -60,231 +57,341 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 1.25rem;
-  }
-
-  .hub-hero-copy h2 {
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    margin-bottom: 0.35rem;
+    gap: 1rem;
   }
 
   .hub-hero-badge {
-    display: inline-block;
-    font-size: 0.68rem;
+    display: block;
+    font-size: 0.63rem;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.7);
-    margin-bottom: 0.35rem;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 0.25rem;
+  }
+
+  .hub-hero-copy h2 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin: 0 0 0.25rem;
+    line-height: 1.1;
+  }
+
+  .hub-hero-copy p {
+    font-size: 0.86rem;
+    opacity: 0.6;
+    margin: 0;
   }
 
   .hub-hero-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+    align-items: center;
   }
 
+  /* ── Sección ── */
+  .hub-section { margin-bottom: 1.75rem; }
+
+  .hub-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .hub-section-title {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #8fa3bc;
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  .hub-section-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, #dde4ee, transparent);
+  }
+
+  /* ── Grid ── */
   .hub-grid {
     display: grid;
     grid-template-columns: repeat(var(--hub-cols, 4), minmax(0, 1fr));
-    gap: 1.25rem;
-    width: 100%;
+    gap: 1rem;
     align-items: stretch;
   }
 
-  @media (max-width: 1199px) {
-    .hub-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
+  @media (max-width: 1199px) { .hub-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 860px)  { .hub-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 519px)  { .hub-grid { grid-template-columns: 1fr; } }
 
-  @media (max-width: 575px) {
-    .hub-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
+  /* ── Tarjeta ── */
   .hub-card {
-    position: relative;
-    width: 100%;
-    min-width: 0;
-    max-width: none;
-    border-radius: 1.15rem;
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 10px 30px rgba(15, 23, 42, 0.08);
-    overflow: hidden;
+    border-radius: 1rem;
+    background: #fff;
+    border: 1px solid #e2e9f0;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+    overflow: visible;
     display: flex;
     flex-direction: column;
-    transition: transform 0.22s ease, box-shadow 0.22s ease;
-    backdrop-filter: blur(8px);
+    min-height: 15.5rem;
+    position: relative;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .hub-card.is-expanded {
+    z-index: 30;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
   }
 
   .hub-card:hover {
-    transform: translateY(-6px);
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.95) inset,
-      0 22px 44px rgba(15, 23, 42, 0.14);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.11);
   }
 
-  .hub-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
-    transform: translateX(-130%);
-    transition: transform 0.6s ease;
-    pointer-events: none;
-    z-index: 3;
-  }
-
-  .hub-card:hover::before {
-    transform: translateX(130%);
-  }
-
-  .hub-card-accent {
-    height: 3px;
-    width: 100%;
-    flex-shrink: 0;
-  }
-
-  .hub-card-main {
-    padding: 1.35rem 1.35rem 1rem;
+  /* ── Zona clickable principal ── */
+  .hub-card-link {
+    display: block;
+    padding: 1rem 1.1rem 0.9rem;
     text-decoration: none;
     color: inherit;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    border-left: 4px solid var(--accent, #64748b);
+    transition: background 0.15s ease;
     position: relative;
-    z-index: 2;
   }
 
-  .hub-card-main:hover { color: inherit; }
+  .hub-card-link:hover {
+    background: #f8fafc;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Fila superior: icono + flecha */
+  .hub-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 0.65rem;
+  }
 
   .hub-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 16px;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.4rem;
+    font-size: 1.15rem;
     color: #fff;
-    margin-bottom: 1rem;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    flex-shrink: 0;
   }
 
-  .hub-card h3 {
-    font-size: 1.12rem;
+  .hub-card-arrow {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-bg, #f1f5f9);
+    color: var(--accent, #64748b);
+    font-size: 0.7rem;
+    transition: background 0.15s ease, transform 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .hub-card:hover .hub-card-arrow {
+    background: var(--accent, #64748b);
+    color: #fff;
+    transform: translateX(2px);
+  }
+
+  /* Título y subtítulo debajo del ícono — ancho completo */
+  .hub-card-info h3 {
+    font-size: 0.97rem;
     font-weight: 800;
-    margin: 0 0 0.4rem;
+    margin: 0 0 0.2rem;
     letter-spacing: -0.02em;
     color: #0f172a;
+    line-height: 1.25;
   }
 
-  .hub-card p {
+  .hub-card-info p {
     margin: 0;
-    font-size: 0.875rem;
-    color: #64748b;
-    line-height: 1.45;
-    flex: 1;
+    font-size: 0.76rem;
+    color: #8899aa;
+    line-height: 1.35;
   }
 
-  .hub-card-enter {
-    margin-top: 1rem;
-    padding-top: 0.85rem;
-    border-top: 1px solid #eef2f6;
-    font-size: 0.75rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
+  /* ── Atajos ── */
   .hub-atajos {
-    border-top: 1px solid #eef2f6;
-    padding: 0.65rem 0.85rem 0.75rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
+    border-top: 1px solid #f0f4f8;
     background: #f8fafc;
+    padding: 0.35rem 0.55rem 0.45rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: auto;
+    border-radius: 0 0 1rem 1rem;
+    min-height: 7.1rem;
     position: relative;
-    z-index: 2;
+  }
+
+  .hub-atajos-slot {
+    min-height: 1.65rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .hub-atajos-slot--empty {
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .hub-atajo {
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: 0.32rem 0.62rem;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.36rem 0.55rem;
+    border-radius: 0.5rem;
+    font-size: 0.775rem;
+    font-weight: 500;
+    color: #4e6070;
     text-decoration: none;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: background 0.12s ease, color 0.12s ease;
+    line-height: 1.3;
+  }
+
+  .hub-atajo i {
+    width: 15px;
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--accent, #94a3b8);
+    flex-shrink: 0;
+    transition: color 0.12s ease;
   }
 
   .hub-atajo:hover {
-    background: #f1f5f9;
-    border-color: #cbd5e1;
+    background: #edf1f7;
+    color: #0f172a;
+    text-decoration: none;
+  }
+
+  .hub-atajo:hover i { color: var(--accent, #64748b); }
+
+  /* ── Más accesos (dropdown + hover desktop) ── */
+  .hub-atajos-more-wrap {
+    position: relative;
+    margin-top: 0.1rem;
+  }
+
+  .hub-atajos-more {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 0.5rem;
+    padding: 0.38rem 0.55rem;
+    border: 1px dashed color-mix(in srgb, var(--accent, #64748b) 35%, #cbd5e1);
+    border-radius: 0.5rem;
+    background: #fff;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--accent, #64748b);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+
+  .hub-atajos-more:hover,
+  .hub-atajos-more[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--accent, #64748b) 8%, #fff);
+    border-color: var(--accent, #64748b);
     color: #0f172a;
   }
 
+  .hub-atajos-more-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent, #64748b) 14%, #f1f5f9);
+    font-size: 0.68rem;
+    font-weight: 800;
+  }
+
+  .hub-atajos-flyout {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    z-index: 40;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.14);
+    padding: 0.35rem;
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+
+  .hub-atajos-flyout .hub-atajo {
+    border-radius: 0.45rem;
+  }
+
+  .hub-atajos-more-wrap.is-open .hub-atajos-flyout,
+  .hub-atajos-more-wrap.is-hover .hub-atajos-flyout {
+    display: block;
+    animation: hubFlyIn 0.16s ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .hub-card.has-extra:hover {
+      z-index: 25;
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.13);
+    }
+    .hub-card.has-extra:hover .hub-atajos-flyout {
+      display: block;
+      animation: hubFlyIn 0.16s ease;
+    }
+  }
+
+  @keyframes hubFlyIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 767px) {
+    .hub-card { min-height: 14.5rem; }
+    .hub-atajos { min-height: 6.5rem; }
+  }
+
+  /* ── Estado vacío ── */
   .hub-empty {
-    border-radius: 1.15rem;
+    border-radius: 1rem;
     border: 1px dashed #cbd5e1;
     padding: 3rem;
     text-align: center;
     color: #64748b;
-    background: rgba(255, 255, 255, 0.7);
+    background: rgba(255,255,255,0.7);
     max-width: 480px;
     margin: 0 auto;
   }
 
-  .hub-section {
-    margin-bottom: 1.75rem;
-  }
-
-  .hub-section-title {
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #64748b;
-    margin: 0 0 0.85rem 0.15rem;
-  }
-
+  /* ── Responsive hero ── */
   @media (max-width: 767px) {
-    .hub-shell {
-      padding: 0 0 1rem;
-    }
-    .hub-hero {
-      padding: 1.1rem 1rem;
-      border-radius: 1rem;
-    }
-    .hub-hero-inner {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .hub-hero-actions {
-      width: 100%;
-    }
-    .hub-hero-actions .btn {
-      flex: 1;
-    }
-    .hub-card {
-      flex: 1 1 100%;
-      max-width: 100%;
-    }
-    .hub-atajos {
-      flex-direction: column;
-    }
-    .hub-atajo {
-      width: 100%;
-      text-align: center;
-    }
+    .hub-hero { padding: 1.2rem 1rem; }
+    .hub-hero-copy h2 { font-size: 1.4rem; }
+    .hub-hero-inner { flex-direction: column; align-items: stretch; }
+    .hub-hero-actions .btn { flex: 1; }
   }
 </style>
 {% endblock %}
@@ -316,41 +423,87 @@
     </div>
   </header>
 
+  {% macro render_hub_atajo(a) %}
+  <a href="{{ a.url }}" class="hub-atajo">
+    <i class="{% if 'fa-brands' in (a.icon or '') %}fab{% else %}fas{% endif %} {{ a.icon | replace(' fa-brands','') }}"></i>
+    {{ a.label }}
+  </a>
+  {% endmacro %}
+
   {% macro render_hub_card(mod) %}
-  <article class="hub-card" role="listitem">
-    <div class="hub-card-accent" style="background: {{ mod.accent }};"></div>
-    <a href="{{ mod.url }}" class="hub-card-main">
-      <span class="hub-icon" style="background: linear-gradient(145deg, {{ mod.accent }}, color-mix(in srgb, {{ mod.accent }} 65%, #1e293b));">
-        <i class="fas {{ mod.icon }}"></i>
-      </span>
-      <h3>{{ mod.titulo }}</h3>
-      <p>{{ mod.subtitulo }}</p>
-      <div class="hub-card-enter" style="color: {{ mod.accent }};">Entrar <i class="fas fa-arrow-right ms-1"></i></div>
+  {% set accent_hex = mod.accent %}
+  {% set slots = mod.atajos[:3] %}
+  {% set pad = 3 - (slots|length) %}
+  <article class="hub-card{% if mod.atajos_extra %} has-extra{% endif %}" role="listitem" style="--accent: {{ accent_hex }}; --accent-bg: color-mix(in srgb, {{ accent_hex }} 12%, #f8fafc);">
+    <a href="{{ mod.url }}" class="hub-card-link">
+      <div class="hub-card-top">
+        <span class="hub-icon" style="background: linear-gradient(145deg, {{ accent_hex }}, color-mix(in srgb, {{ accent_hex }} 60%, #0f172a));">
+          <i class="fas {{ mod.icon }}"></i>
+        </span>
+        <span class="hub-card-arrow">
+          <i class="fas fa-chevron-right"></i>
+        </span>
+      </div>
+      <div class="hub-card-info">
+        <h3>{{ mod.titulo }}</h3>
+        <p>{{ mod.subtitulo }}</p>
+      </div>
     </a>
-    {% if mod.atajos %}
+    {% if mod.atajos or mod.atajos_extra %}
     <div class="hub-atajos">
-      {% for a in mod.atajos %}
-      <a href="{{ a.url }}" class="hub-atajo">
-        <i class="{% if 'fa-brands' in (a.icon or '') %}fab{% else %}fas{% endif %} {{ a.icon | replace(' fa-brands','') }} me-1"></i>{{ a.label }}
-      </a>
+      {% for a in slots %}
+      <div class="hub-atajos-slot">{{ render_hub_atajo(a) }}</div>
       {% endfor %}
+      {% for _ in range(pad) %}
+      <div class="hub-atajos-slot hub-atajos-slot--empty" aria-hidden="true">&nbsp;</div>
+      {% endfor %}
+      {% if mod.atajos_extra %}
+      <div class="hub-atajos-more-wrap" data-hub-more>
+        <button type="button" class="hub-atajos-more" aria-expanded="false" aria-haspopup="true">
+          <span><i class="fas fa-layer-group me-1"></i>Más accesos</span>
+          <span class="hub-atajos-more-count">+{{ mod.atajos_extra|length }}</span>
+        </button>
+        <div class="hub-atajos-flyout" role="menu">
+          {% for a in mod.atajos_extra %}
+          {{ render_hub_atajo(a) }}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
     {% endif %}
   </article>
   {% endmacro %}
 
   {% if modulos %}
-  {% if modulos_ops %}
+  {% if modulos_operacion %}
   <section class="hub-section">
-    <h3 class="hub-section-title">Módulos de operación</h3>
-    <div class="hub-grid" style="--hub-cols: {{ grid_cols_ops }};" role="list">
-      {% for mod in modulos_ops %}{{ render_hub_card(mod) }}{% endfor %}
+    <div class="hub-section-header">
+      <h3 class="hub-section-title">Operación diaria</h3>
+      <div class="hub-section-line"></div>
+    </div>
+    <div class="hub-grid" style="--hub-cols: {{ grid_cols_operacion }};" role="list">
+      {% for mod in modulos_operacion %}{{ render_hub_card(mod) }}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% if modulos_gestion %}
+  <section class="hub-section">
+    <div class="hub-section-header">
+      <h3 class="hub-section-title">Gestión y datos</h3>
+      <div class="hub-section-line"></div>
+    </div>
+    <div class="hub-grid" style="--hub-cols: {{ grid_cols_gestion }};" role="list">
+      {% for mod in modulos_gestion %}{{ render_hub_card(mod) }}{% endfor %}
     </div>
   </section>
   {% endif %}
   {% if modulos_soporte %}
   <section class="hub-section mb-0">
-    <h3 class="hub-section-title">Recursos y soporte</h3>
+    <div class="hub-section-header">
+      <h3 class="hub-section-title">Recursos y soporte</h3>
+      <div class="hub-section-line"></div>
+    </div>
     <div class="hub-grid" style="--hub-cols: {{ grid_cols_soporte }};" role="list">
       {% for mod in modulos_soporte %}{{ render_hub_card(mod) }}{% endfor %}
     </div>
@@ -375,4 +528,6 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 {% endif %}
 {% endif %}
+
+<script src="{{ url_for('static', filename='js/erp-hub-cards.js') }}?v=1"></script>
 {% endblock %}

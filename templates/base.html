@@ -21,7 +21,8 @@
 
     <!-- 4. TU ARCHIVO CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style_index.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}?v=erp-ops-v15-ecom-pedidos-full">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}?v=erp-ops-v18-enrolador-tablet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/maylen-mentor-academy.css') }}?v=maylen-mentor-6">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-erp-shell.css') }}?v=mobile-shell-2">
     <link rel="icon" href="{{ lhexia_icon_src }}" type="image/png">
     {% if current_user.is_authenticated %}
@@ -58,7 +59,7 @@
                         <summary><i class="fas {{ grupo.icon }}"></i> {{ grupo.label }}</summary>
                         <div class="app-nav-group-body">
                             {% for it in grupo['items'] %}
-                            <a href="{{ url_for(it.endpoint) }}{{ it.get('url_hash', '') }}" class="app-nav-link {% if request.endpoint in it.endpoints_activos %}active{% endif %}"><i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }}"></i> {{ it.label }}</a>
+                            <a href="{{ url_for(it.endpoint, **(it.get('endpoint_kwargs') or {})) }}{{ it.get('url_hash', '') }}" class="app-nav-link {% if request.endpoint in it.endpoints_activos %}active{% endif %}"><i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }}"></i> {{ it.label }}</a>
                             {% endfor %}
                         </div>
                     </details>

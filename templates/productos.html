@@ -348,7 +348,7 @@
     </details>
 
     <!-- Carga Masiva de Productos -->
-    <details class="inv-details mb-4">
+    <details id="carga-masiva" class="inv-details mb-4">
         <summary>
             <span><i class="fas fa-file-import text-success me-2"></i>Carga masiva y exportación</span>
         </summary>
@@ -787,5 +787,14 @@
       });
   });
 })();
+document.addEventListener('DOMContentLoaded', function () {
+  if (window.location.hash === '#carga-masiva') {
+    var el = document.getElementById('carga-masiva');
+    if (el) {
+      el.open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+});
 </script>
 {% endblock %}
