@@ -1,0 +1,49 @@
+{# Bloque cliente cotización — requiere variable `cotizacion` #}
+<div class="cot-cliente-ficha">
+  <div class="cot-cliente-ficha__grid">
+    <div class="cot-cliente-ficha__col">
+      {% if cotizacion.cliente_nombre %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Nombre</span>
+        <span class="cot-cliente-ficha__value cot-cliente-ficha__value--nombre">{{ cotizacion.cliente_nombre }}</span>
+      </div>
+      {% endif %}
+      {% if cotizacion.cliente_rut %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">RUT</span>
+        <span class="cot-cliente-ficha__value">{{ cotizacion.cliente_rut }}</span>
+      </div>
+      {% endif %}
+      {% if cotizacion.cliente_giro %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Giro</span>
+        <span class="cot-cliente-ficha__value">{{ cotizacion.cliente_giro }}</span>
+      </div>
+      {% endif %}
+      {% if cotizacion.cliente_direccion or cotizacion.cliente_comuna or cotizacion.cliente_ciudad %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Dirección</span>
+        <span class="cot-cliente-ficha__value">
+          {%- if cotizacion.cliente_direccion -%}{{ cotizacion.cliente_direccion }}{%- endif -%}
+          {%- if cotizacion.cliente_comuna -%}{% if cotizacion.cliente_direccion %}, {% endif %}{{ cotizacion.cliente_comuna }}{%- endif -%}
+          {%- if cotizacion.cliente_ciudad -%}{% if cotizacion.cliente_direccion or cotizacion.cliente_comuna %}, {% endif %}{{ cotizacion.cliente_ciudad }}{%- endif -%}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="cot-cliente-ficha__col cot-cliente-ficha__col--contacto">
+      {% if cotizacion.cliente_telefono %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Teléfono</span>
+        <span class="cot-cliente-ficha__value">{{ cotizacion.cliente_telefono }}</span>
+      </div>
+      {% endif %}
+      {% if cotizacion.cliente_correo %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Correo</span>
+        <span class="cot-cliente-ficha__value cot-cliente-ficha__value--email">{{ cotizacion.cliente_correo }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

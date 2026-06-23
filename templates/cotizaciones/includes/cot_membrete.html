@@ -1,0 +1,30 @@
+{# Membrete cotización — datos desde empresa_config.json #}
+<div class="cot-membrete">
+  {% if show_logo|default(true) %}
+  <img class="cot-membrete__logo" src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ empresa.nombre_comercial }}">
+  {% endif %}
+  <div class="cot-membrete__marca">{{ empresa.nombre_comercial or 'Ferretería Santo Domingo' }}</div>
+  {% if empresa.razon_social %}
+  <div class="cot-membrete__razon">{{ empresa.razon_social }}</div>
+  {% endif %}
+  {% if empresa.eslogan %}
+  <div class="cot-membrete__giro">{{ empresa.eslogan }}</div>
+  {% endif %}
+  {% if empresa.direccion %}
+  <div class="cot-membrete__dir">
+    {% for linea in empresa.direccion.replace('\r\n', '\n').split('\n') if linea.strip() %}
+    <div>{{ linea.strip() }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if empresa.telefono %}
+  <div class="cot-membrete__contacto">{{ empresa.telefono }}</div>
+  {% endif %}
+  {% set rut_cot = empresa.rut_emisor or empresa.rut or '' %}
+  {% if rut_cot %}
+  <div class="cot-membrete__contacto">RUT {{ rut_cot }}</div>
+  {% endif %}
+  {% if empresa.correo %}
+  <div class="cot-membrete__contacto">Email: {{ empresa.correo }}</div>
+  {% endif %}
+</div>

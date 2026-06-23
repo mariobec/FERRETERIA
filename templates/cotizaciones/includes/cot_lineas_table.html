@@ -1,0 +1,89 @@
+{# Tabla detalle cotización — cot_lineas desde _lineas_presentacion_cotizacion #}
+
+<div class="table-responsive cot-lineas-wrap cot-lineas-wrap--premium">
+
+  <table class="table align-middle cot-lineas-table cot-lineas-table--detalle cot-lineas-table--premium mb-0">
+
+    <colgroup>
+
+      <col class="cot-col-num">
+
+      <col class="cot-col-codigo">
+
+      <col class="cot-col-articulo">
+
+      <col class="cot-col-cant">
+
+      <col class="cot-col-precio">
+
+      <col class="cot-col-desc">
+
+      <col class="cot-col-subtotal">
+
+    </colgroup>
+
+    <thead>
+
+      <tr>
+
+        <th class="cot-col-num-h">Item</th>
+
+        <th class="cot-col-codigo-h">Código</th>
+
+        <th class="cot-col-articulo-h">Artículo</th>
+
+        <th class="text-end">Cant.</th>
+
+        <th class="text-end">P. unit.<br><span class="cot-th-iva">neto</span></th>
+
+        <th class="text-end">Dto.</th>
+
+        <th class="text-end">Total<br><span class="cot-th-iva">neto</span></th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      {% for ln in cot_lineas %}
+
+      {% set d = ln.det %}
+
+      <tr>
+
+        <td class="cot-linea-num-cell"><span class="cot-linea-num-val">{{ ln.indice }}</span></td>
+
+        <td class="cot-linea-codigo-cell">
+
+          <span class="cot-linea-articulo__cod{% if ln.codigo_es_ref %} cot-linea-articulo__cod--ref{% endif %}" title="{% if ln.codigo_es_ref %}Referencia impresión (sin SKU catálogo){% else %}Código catálogo{% endif %}">{{ ln.codigo_impresion }}</span>
+
+        </td>
+
+        <td class="cot-linea-articulo-cell">
+
+          <div class="cot-linea-articulo__nom">{{ d.nombre }}</div>
+
+          {% if not d.producto_id %}<span class="cot-linea-articulo__tag">Línea libre</span>{% endif %}
+
+        </td>
+
+        <td class="text-end cot-linea-num-val">{{ "{:g}".format(d.cantidad or 0) }}</td>
+
+        <td class="text-end cot-linea-money">${{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
+
+        <td class="text-end cot-linea-money">{% if (d.descuento or 0) > 0 %}${{ "{:,.0f}".format(d.descuento).replace(",", ".") }}{% else %}<span class="cot-linea-dash">—</span>{% endif %}</td>
+
+        <td class="text-end cot-linea-money cot-linea-money--total">${{ "{:,.0f}".format(ln.subtotal).replace(",", ".") }}</td>
+
+      </tr>
+
+      {% endfor %}
+
+    </tbody>
+
+  </table>
+
+</div>
+
+

@@ -1,0 +1,31 @@
+{# Totales cotización — precios NETO + IVA 19%. Variables: cot_totales (dict) #}
+{% set t = cot_totales %}
+<div class="cot-totales-box-inner">
+  <div class="total-row">
+    <span>Suma líneas (neto){% if t.n_lineas %} · {{ t.n_lineas }} líneas{% endif %}</span>
+    <strong>${{ "{:,.0f}".format(t.suma_lineas or 0).replace(",", ".") }}</strong>
+  </div>
+  {% if (t.descuento_global or 0) > 0 %}
+  <div class="total-row text-danger">
+    <span>Descuento global</span>
+    <strong>- ${{ "{:,.0f}".format(t.descuento_global).replace(",", ".") }}</strong>
+  </div>
+  {% endif %}
+  <div class="total-row cot-totales-box-inner__sep">
+    <span>Monto neto</span>
+    <strong>${{ "{:,.0f}".format(t.neto or 0).replace(",", ".") }}</strong>
+  </div>
+  <div class="total-row">
+    <span>IVA 19%</span>
+    <strong>${{ "{:,.0f}".format(t.iva or 0).replace(",", ".") }}</strong>
+  </div>
+  <div class="total-row cot-totales-box-inner__hint small text-muted">
+    <span>Neto + IVA =</span>
+    <strong>${{ "{:,.0f}".format(t.total or 0).replace(",", ".") }}</strong>
+  </div>
+  <div class="total-row grande">
+    <span>TOTAL A PAGAR</span>
+    <span>${{ "{:,.0f}".format(t.total or 0).replace(",", ".") }}</span>
+  </div>
+  <p class="cot-totales-iva-nota mb-0">Precios unitarios <strong>sin IVA</strong>. Al neto se suma IVA 19%.</p>
+</div>

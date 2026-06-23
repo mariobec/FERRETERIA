@@ -1,201 +1,665 @@
 {% extends "base.html" %}
-{% block body_class %}erp-ops-space {% endblock %}
+
+{% block body_class %}erp-ops-space page-cotizaciones page-cotizaciones-form{% endblock %}
+
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-homolog-20260523">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-cliente-save-20260614">
+
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=cot-search-cards">
+
 {% endblock %}
+
 {% block content %}
+
 {% set es_edicion = cotizacion is not none %}
-<div class="container-fluid py-3 cot-page">
-  <div class="cot-page-header d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-    <div>
+
+<div class="container-fluid py-3 cot-form-page">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 cot-form-toolbar">
+
+    <div class="d-flex flex-wrap align-items-center gap-2">
+
       {% if es_edicion %}
-      <h3 class="mb-0"><i class="fas fa-pen-to-square me-2"></i>Editar cotización <span class="text-muted fs-5">{{ cotizacion.numero }}</span></h3>
-      <p class="mb-0 small text-muted">Modifique cliente o líneas y guarde. Misma búsqueda que el POS.</p>
-      {% else %}
-      <h3 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>Nueva cotización</h3>
-      <p class="mb-0 small text-muted">Presupuesto sin vale. Después use <strong>Convertir en venta</strong> en el detalle.</p>
-      {% endif %}
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-      {% if es_edicion %}
+
       <a href="{{ url_for('cotizacion_detalle', cot_id=cotizacion.id) }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Detalle</a>
+
+      <span class="text-muted small">Editando <strong>{{ cotizacion.numero }}</strong></span>
+
       {% else %}
+
       <a href="{{ url_for('cotizaciones_lista') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Listado</a>
+
       <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-cash-register me-1"></i>POS</a>
+
       {% endif %}
+
     </div>
+
+    <button type="submit" form="formCotizacion" class="btn cot-btn-primary" id="btnGuardarTop" {% if not es_edicion %}disabled{% endif %}>
+
+      <i class="fas fa-save me-1"></i>{% if es_edicion %}Guardar{% else %}Guardar cotización{% endif %}
+
+    </button>
+
   </div>
+
+
 
   <form method="POST" action="{% if es_edicion %}{{ url_for('cotizacion_editar', cot_id=cotizacion.id) }}{% else %}{{ url_for('cotizacion_nueva') }}{% endif %}" id="formCotizacion" autocomplete="off">
-    <div class="row g-3">
-      <div class="col-lg-5">
-        <div class="card cot-card shadow-sm">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <span><strong><i class="fas fa-user me-1 text-warning"></i>Cliente</strong></span>
-            <button type="button" id="btnLimpiarCliente" class="btn btn-sm btn-outline-secondary {% if not (es_edicion and cotizacion.cliente_id) %}d-none{% endif %}">
-              <i class="fas fa-eraser me-1"></i>Limpiar
-            </button>
-          </div>
-          <div class="card-body cot-cliente-suggest">
-            <input type="hidden" name="cliente_id" id="cliente_id" value="{{ cotizacion.cliente_id or '' if es_edicion else '' }}">
-            <label class="form-label small mb-1" for="buscadorCliente"><i class="fas fa-magnifying-glass me-1"></i>Buscar cliente</label>
-            <input type="text" id="buscadorCliente" class="form-control mb-2" placeholder="Nombre, RUT, teléfono o correo (mín. 2 caracteres)…" autocomplete="off">
-            <div id="busqClientesResultados" class="list-group shadow-sm mb-2" style="display:none; max-height:240px; overflow-y:auto;"></div>
 
-            <div id="clienteSeleccionadoInfo" class="alert alert-info py-2 px-3 d-none mb-2 small">
-              <i class="fas fa-id-card me-1"></i><strong id="clienteInfoNombre"></strong>
-              <span class="ms-2 text-muted">Cupo: <strong id="clienteInfoCupo">$0</strong></span>
-              <span id="clienteInfoEstado" class="badge bg-success ms-1">Activo</span>
-            </div>
+    <div class="card shadow-sm cot-doc-premium cot-form-doc">
 
-            <div class="mb-2">
-              <label class="form-label small mb-1">Nombre o razón social</label>
-              <input type="text" class="form-control form-control-sm" name="cliente_nombre" id="cliente_nombre" value="{{ cotizacion.cliente_nombre or '' if es_edicion else '' }}">
-            </div>
-            <div class="row g-2">
-              <div class="col-6">
-                <label class="form-label small mb-1">RUT</label>
-                <input type="text" class="form-control form-control-sm" name="cliente_rut" id="cliente_rut" value="{{ cotizacion.cliente_rut or '' if es_edicion else '' }}">
-              </div>
-              <div class="col-6">
-                <label class="form-label small mb-1">Teléfono / WhatsApp</label>
-                <input type="text" class="form-control form-control-sm" name="cliente_telefono" id="cliente_telefono" value="{{ cotizacion.cliente_telefono or '' if es_edicion else '' }}">
-              </div>
-            </div>
-            <hr class="my-2">
-            <p class="small text-muted mb-2"><i class="fas fa-file-invoice me-1"></i>Facturación</p>
-            <input type="text" class="form-control form-control-sm mb-2" name="cliente_giro" id="cliente_giro" placeholder="Giro" value="{{ cotizacion.cliente_giro or '' if es_edicion else '' }}">
-            <input type="text" class="form-control form-control-sm mb-2" name="cliente_direccion" id="cliente_direccion" placeholder="Dirección" value="{{ cotizacion.cliente_direccion or '' if es_edicion else '' }}">
-            <div class="row g-2 mb-2">
-              <div class="col-6"><input type="text" class="form-control form-control-sm" name="cliente_comuna" id="cliente_comuna" placeholder="Comuna" value="{{ cotizacion.cliente_comuna or '' if es_edicion else '' }}"></div>
-              <div class="col-6"><input type="text" class="form-control form-control-sm" name="cliente_ciudad" id="cliente_ciudad" placeholder="Ciudad" value="{{ cotizacion.cliente_ciudad or '' if es_edicion else '' }}"></div>
-            </div>
-            <input type="email" class="form-control form-control-sm" name="cliente_correo" id="cliente_correo" placeholder="Correo" value="{{ cotizacion.cliente_correo or '' if es_edicion else '' }}">
-          </div>
-        </div>
+      {% with es_borrador=(not es_edicion) %}
+      {% include 'cotizaciones/includes/cot_doc_header.html' %}
+      {% endwith %}
 
-        <div class="card cot-card shadow-sm mt-3">
-          <div class="card-header"><strong><i class="fas fa-clock me-1 text-warning"></i>Validez y notas</strong></div>
-          <div class="card-body">
-            <div class="row g-2">
-              <div class="col-6">
-                <label class="form-label small mb-1">Validez (días)</label>
-                <input type="number" min="1" max="180" value="{{ cotizacion.validez_dias if es_edicion else 15 }}" class="form-control form-control-sm" name="validez_dias">
-              </div>
-              <div class="col-6">
-                <label class="form-label small mb-1">Descuento global ($)</label>
-                <input type="number" min="0" step="1" value="{{ (cotizacion.descuento_global or 0) | int if es_edicion else 0 }}" class="form-control form-control-sm" name="descuento_global">
-              </div>
-            </div>
-            <label class="form-label small mb-1 mt-2">Notas / condiciones</label>
-            <textarea class="form-control form-control-sm" name="notas" rows="3" placeholder="Despacho, forma de pago, plazos…">{{ cotizacion.notas or '' if es_edicion else '' }}</textarea>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-7">
-        <div class="card cot-card shadow-sm">
-          <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <strong><i class="fas fa-list me-1 text-warning"></i>Productos</strong>
-            <span class="badge bg-light text-dark border" id="lineasCount">0 líneas</span>
-          </div>
-          <div class="card-body">
-            <div id="cotSearchHero" class="cot-search-hero mb-2">
-              <div class="d-flex align-items-center gap-2">
-                <i class="fas fa-search text-muted"></i>
-                <input type="text" id="buscadorProducto" class="form-control" placeholder="Nombre, código de barra, marca… (igual que POS)" autocomplete="off" aria-autocomplete="list" aria-controls="cotSearchSuggestions">
-              </div>
-              <div id="cotSearchSuggestions" class="cot-search-suggestions d-none" role="listbox"></div>
-            </div>
-            <div class="cot-search-filters btn-group btn-group-sm mb-3" role="group" aria-label="Filtro búsqueda">
-              <button type="button" class="btn btn-outline-secondary active" data-cot-filtro="catalogo">Catálogo completo</button>
-              <button type="button" class="btn btn-outline-secondary" data-cot-filtro="operativo">Con stock / operativo</button>
-              <button type="button" class="btn btn-outline-secondary" data-cot-filtro="tienda">Solo tienda</button>
-            </div>
-
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0 cot-lineas-table" id="tablaLineas">
-                <thead>
-                  <tr>
-                    <th>Producto</th>
-                    <th style="width:88px;">Cant.</th>
-                    <th style="width:100px;">Precio</th>
-                    <th style="width:80px;">Dto $</th>
-                    <th class="text-end" style="width:110px;">Subtotal</th>
-                    <th style="width:44px;"></th>
-                  </tr>
-                </thead>
-                <tbody id="tbodyLineas">
-                  {% if es_edicion and cotizacion.detalles %}
-                    {% for d in cotizacion.detalles %}
-                    <tr>
-                      <td>
-                        <input type="hidden" name="det_producto_id" value="{{ d.producto_id or '' }}">
-                        <input type="hidden" name="det_codigo" value="{{ d.codigo or '' }}">
-                        <input type="hidden" name="det_nombre" value="{{ d.nombre|e }}">
-                        <strong>{{ d.nombre }}</strong>
-                        {% if d.codigo %}<br><small class="text-muted">{{ d.codigo }}</small>{% endif %}
-                      </td>
-                      <td><input type="number" min="0.01" step="0.01" value="{{ '%g' % (d.cantidad or 0) }}" class="form-control form-control-sm input-cant" name="det_cantidad"></td>
-                      <td><input type="number" min="0" step="1" value="{{ (d.precio_unitario or 0)|round|int }}" class="form-control form-control-sm input-precio" name="det_precio"></td>
-                      <td><input type="number" min="0" step="1" value="{{ (d.descuento or 0)|round|int }}" class="form-control form-control-sm input-desc" name="det_descuento"></td>
-                      <td class="text-end fw-bold cell-subtotal">$ {{ '{:,.0f}'.format(d.subtotal or 0).replace(',', '.') }}</td>
-                      <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger btn-remove"><i class="fas fa-trash"></i></button></td>
-                    </tr>
-                    {% endfor %}
-                  {% else %}
-                  <tr id="filaVacia">
-                    <td colspan="6" class="text-center text-muted py-4">Busque un producto arriba para agregar la primera línea.</td>
-                  </tr>
-                  {% endif %}
-                </tbody>
-              </table>
-            </div>
-
-            <div class="cot-totales-sticky mt-2">
-              <div class="cot-totales-box">
-                <div class="d-flex justify-content-between small"><span>Bruto líneas</span><span id="totBruto">$ 0</span></div>
-                <div class="d-flex justify-content-between small text-muted"><span>Neto (IVA incl.)</span><span id="totNeto">$ 0</span></div>
-                <div class="d-flex justify-content-between small text-muted"><span>IVA</span><span id="totIva">$ 0</span></div>
-                <div class="d-flex justify-content-between fw-bold fs-5 text-warning border-top border-warning-subtle pt-2 mt-1"><span>TOTAL</span><span id="totTotal">$ 0</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="d-grid gap-2 mt-3">
-          <button type="submit" class="btn btn-lg cot-btn-primary" id="btnGuardar" {% if not es_edicion %}disabled{% endif %}>
-            <i class="fas fa-save me-2"></i>{% if es_edicion %}Guardar cambios{% else %}Guardar cotización{% endif %}
+      {# ── Cliente (vista documento) ── #}
+      <div class="cot-section cot-section--cliente cot-form-client-section">
+        <div class="cot-form-client-section__head">
+          <h6>Cliente</h6>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAbrirCliente" data-bs-toggle="modal" data-bs-target="#modalClienteCot" title="Buscar o ingresar cliente">
+            <i class="fas fa-pen me-1"></i>Editar cliente
           </button>
         </div>
+        <div id="cotClientPreview">
+          <div class="cot-cliente-ficha cot-cliente-ficha--empty" id="cotClientPreviewEmpty">
+            <p class="cot-cliente-ficha__hint mb-0">Sin cliente asignado — use <strong>Editar cliente</strong> para buscar en maestro o ingresar datos manualmente.</p>
+          </div>
+          <div class="cot-cliente-ficha d-none" id="cotClientPreviewFilled"></div>
+        </div>
       </div>
+
+      {# ── Barra opciones (compacta) ── #}
+      <div class="cot-section cot-form-meta-strip">
+        <div class="cot-form-meta-strip__main">
+          <button type="button" class="btn btn-sm btn-outline-secondary cot-form-meta-btn" data-bs-toggle="modal" data-bs-target="#modalOpcionesCot">
+            <i class="fas fa-sliders-h me-1"></i>Validez · Notas
+          </button>
+          <span class="badge bg-light text-dark border cot-form-lineas-badge" id="lineasCount">0 líneas</span>
+        </div>
+        <p class="cot-form-meta-hint mb-0">Después de guardar use <strong>Convertir en vale</strong> desde el detalle.</p>
+      </div>
+
+
+
+      {# ── Campos ocultos cliente (modal los edita) ── #}
+
+      <input type="hidden" name="cliente_id" id="cliente_id" value="{{ cotizacion.cliente_id or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_nombre" id="cliente_nombre" value="{{ cotizacion.cliente_nombre or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_rut" id="cliente_rut" value="{{ cotizacion.cliente_rut or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_telefono" id="cliente_telefono" value="{{ cotizacion.cliente_telefono or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_giro" id="cliente_giro" value="{{ cotizacion.cliente_giro or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_direccion" id="cliente_direccion" value="{{ cotizacion.cliente_direccion or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_comuna" id="cliente_comuna" value="{{ cotizacion.cliente_comuna or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_ciudad" id="cliente_ciudad" value="{{ cotizacion.cliente_ciudad or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="cliente_correo" id="cliente_correo" value="{{ cotizacion.cliente_correo or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="validez_dias" id="validez_dias" value="{{ cotizacion.validez_dias if es_edicion else 15 }}">
+
+      <input type="hidden" name="descuento_global" id="descuento_global" value="{{ (cotizacion.descuento_global or 0) | int if es_edicion else 0 }}">
+
+      <input type="hidden" name="notas" id="notas" value="{{ cotizacion.notas or '' if es_edicion else '' }}">
+
+
+
+      {# ── Productos (área principal) ── #}
+
+      <div class="cot-section cot-section--detalle cot-form-products">
+
+        <div class="cot-form-search-sticky">
+
+          <div id="cotSearchHero" class="cot-search-hero cot-form-search-hero">
+
+            <div class="d-flex align-items-center gap-2">
+
+              <i class="fas fa-search text-muted"></i>
+
+              <input type="text" id="buscadorProducto" class="form-control" placeholder="Buscar producto — nombre, código, marca (Enter agrega)" autocomplete="off" aria-autocomplete="list" aria-controls="cotSearchSuggestions">
+
+              <button type="button" class="btn btn-sm btn-outline-secondary d-none d-md-inline-flex" id="btnToggleManual" title="Línea sin catálogo">
+
+                <i class="fas fa-pen-fancy"></i>
+
+              </button>
+
+            </div>
+
+            <div id="cotSearchSuggestions" class="cot-search-suggestions d-none" role="listbox"></div>
+
+          </div>
+
+          <div class="cot-form-search-tools">
+
+            <div class="cot-search-filters btn-group btn-group-sm" role="group" aria-label="Filtro búsqueda">
+
+              <button type="button" class="btn btn-outline-secondary active" data-cot-filtro="catalogo">Catálogo</button>
+
+              <button type="button" class="btn btn-outline-secondary" data-cot-filtro="operativo">Operativo</button>
+
+              <button type="button" class="btn btn-outline-secondary" data-cot-filtro="tienda">Tienda</button>
+
+            </div>
+
+            <details class="cot-form-manual-details" id="cotManualLineaPanel">
+
+              <summary><i class="fas fa-pen-fancy me-1"></i>Línea sin catálogo</summary>
+
+              <div class="cot-form-manual-grid">
+
+                <div class="cot-form-manual-field cot-form-manual-field--grow">
+
+                  <label class="form-label small mb-0" for="cotManualNombre">Descripción</label>
+
+                  <input type="text" id="cotManualNombre" class="form-control form-control-sm" placeholder="Ej: Canal U 62×25…" maxlength="200" autocomplete="off">
+
+                </div>
+
+                <div class="cot-form-manual-field">
+
+                  <label class="form-label small mb-0" for="cotManualCodigo">Ref.</label>
+
+                  <input type="text" id="cotManualCodigo" class="form-control form-control-sm" placeholder="Opc." maxlength="80" autocomplete="off">
+
+                </div>
+
+                <div class="cot-form-manual-field cot-form-manual-field--qty">
+
+                  <label class="form-label small mb-0" for="cotManualCant">Cant.</label>
+
+                  <input type="number" id="cotManualCant" class="form-control form-control-sm" min="0.01" step="0.01" value="1">
+
+                </div>
+
+                <div class="cot-form-manual-field">
+
+                  <label class="form-label small mb-0" for="cotManualPrecio">Neto $</label>
+
+                  <input type="number" id="cotManualPrecio" class="form-control form-control-sm" min="0" step="1" value="0">
+
+                </div>
+
+                <div class="cot-form-manual-field cot-form-manual-field--btn">
+
+                  <button type="button" id="btnCotManualAgregar" class="btn btn-sm btn-outline-primary w-100">
+
+                    <i class="fas fa-plus"></i>
+
+                  </button>
+
+                </div>
+
+              </div>
+
+            </details>
+
+          </div>
+
+        </div>
+
+
+
+        <h6 class="cot-form-section-label">Detalle</h6>
+
+        <div class="table-responsive cot-lineas-wrap cot-form-lineas-wrap">
+
+          <table class="table align-middle cot-lineas-table cot-lineas-table--form mb-0" id="tablaLineas">
+
+            <colgroup>
+
+              <col class="cot-fcol-num">
+
+              <col class="cot-fcol-codigo">
+
+              <col class="cot-fcol-articulo">
+
+              <col class="cot-fcol-cant">
+
+              <col class="cot-fcol-precio">
+
+              <col class="cot-fcol-desc">
+
+              <col class="cot-fcol-subtotal">
+
+              <col class="cot-fcol-accion">
+
+            </colgroup>
+
+            <thead>
+
+              <tr>
+
+                <th class="cot-fcol-num-h">Item</th>
+
+                <th class="cot-fcol-codigo-h">Código</th>
+
+                <th class="cot-fcol-articulo-h">Artículo</th>
+
+                <th class="text-end">Cant.</th>
+
+                <th class="text-end">P. unit.<br><span class="cot-th-iva">neto</span></th>
+
+                <th class="text-end">Dto.</th>
+
+                <th class="text-end">Total<br><span class="cot-th-iva">neto</span></th>
+
+                <th class="cot-col-accion"></th>
+
+              </tr>
+
+            </thead>
+
+            <tbody id="tbodyLineas">
+
+              {% if es_edicion and cotizacion.detalles %}
+
+                {% for d in cotizacion.detalles %}
+
+                <tr class="cot-linea-row">
+
+                  <td class="cot-linea-num-cell"><span class="cot-linea-num-val">{{ loop.index }}</span></td>
+
+                  <td class="cot-linea-codigo-cell">
+
+                    {% if d.producto_id %}
+
+                      {% if d.codigo %}<span class="cot-linea-articulo__cod">{{ d.codigo }}</span>{% else %}<span class="cot-linea-articulo__cod cot-linea-articulo__cod--empty">—</span>{% endif %}
+
+                    {% else %}
+
+                      <input type="text" class="form-control form-control-sm cot-linea-codigo-input" name="det_codigo" value="{{ d.codigo or '' }}" placeholder="Ref." maxlength="80">
+
+                    {% endif %}
+
+                  </td>
+
+                  <td class="cot-linea-articulo-cell">
+
+                    <input type="hidden" name="det_producto_id" value="{{ d.producto_id or '' }}">
+
+                    {% if d.producto_id %}
+
+                    <input type="hidden" name="det_codigo" value="{{ d.codigo or '' }}">
+
+                    <input type="hidden" name="det_nombre" value="{{ d.nombre|e }}">
+
+                    <div class="cot-linea-articulo__nom">{{ d.nombre }}</div>
+
+                    {% else %}
+
+                    <div class="cot-linea-articulo cot-linea-articulo--manual">
+
+                      <input type="text" class="form-control form-control-sm cot-linea-articulo__nom-input" name="det_nombre" value="{{ d.nombre }}" placeholder="Descripción" required maxlength="200">
+
+                      <span class="cot-linea-articulo__tag">Línea libre</span>
+
+                    </div>
+
+                    {% endif %}
+
+                  </td>
+
+                  <td class="text-end"><input type="number" min="0.01" step="0.01" value="{{ '%g' % (d.cantidad or 0) }}" class="form-control form-control-sm input-cant cot-input-num" name="det_cantidad"></td>
+
+                  <td class="text-end"><input type="number" min="0" step="1" value="{{ (d.precio_unitario or 0)|round|int }}" class="form-control form-control-sm input-precio cot-input-num" name="det_precio"></td>
+
+                  <td class="text-end"><input type="number" min="0" step="1" value="{{ (d.descuento or 0)|round|int }}" class="form-control form-control-sm input-desc cot-input-num" name="det_descuento"></td>
+
+                  <td class="text-end cot-linea-money cot-linea-money--total cell-subtotal" id="subtotal_{{ d.id }}" data-clp="{{ (d.subtotal or 0)|round|int }}">${{ '{:,.0f}'.format(d.subtotal or 0).replace(',', '.') }}</td>
+
+                  <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger btn-remove cot-btn-icon" title="Quitar"><i class="fas fa-trash"></i></button></td>
+
+                </tr>
+
+                {% endfor %}
+
+              {% else %}
+
+              <tr id="filaVacia">
+
+                <td colspan="8" class="text-center text-muted py-5 cot-form-empty">
+
+                  <i class="fas fa-barcode fa-2x mb-2 d-block opacity-25"></i>
+
+                  Busque arriba o agregue una <strong>línea sin catálogo</strong>
+
+                </td>
+
+              </tr>
+
+              {% endif %}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+
+
+      {# ── Totales (igual detalle) ── #}
+
+      <div class="cot-section cot-form-footer">
+
+        <div class="row g-3 align-items-start">
+
+          <div class="col-lg-7">
+
+            <div class="cot-form-notas-preview" id="cotNotasPreview">
+
+              <h6>Notas / condiciones</h6>
+
+              <p class="text-muted small mb-0" id="cotNotasPreviewText">Sin notas — edite en «Validez · Notas»</p>
+
+            </div>
+
+            <div class="cot-form-validez-preview small text-muted mt-2" id="cotValidezPreview">Validez: 15 días</div>
+
+          </div>
+
+          <div class="col-lg-5">
+
+            <div class="totales-card cot-form-totales">
+
+              <div class="cot-totales-box-inner">
+
+                <div class="total-row">
+
+                  <span id="totSumaLabel">Suma neto</span>
+
+                  <strong id="totSumaColumna">$ 0</strong>
+
+                </div>
+
+                <div class="total-row text-danger d-none" id="totDescGlobalRow">
+
+                  <span>Descuento global</span>
+
+                  <strong id="totDescGlobal">$ 0</strong>
+
+                </div>
+
+                <div class="total-row cot-totales-box-inner__sep">
+
+                  <span>Monto neto</span>
+
+                  <strong id="totNeto">$ 0</strong>
+
+                </div>
+
+                <div class="total-row">
+
+                  <span>IVA 19%</span>
+
+                  <strong id="totIva">$ 0</strong>
+
+                </div>
+
+                <div class="total-row cot-totales-box-inner__hint small text-muted">
+
+                  <span>Neto + IVA =</span>
+
+                  <strong id="totNetoIva">$ 0</strong>
+
+                </div>
+
+                <div class="total-row grande">
+
+                  <span>TOTAL A PAGAR</span>
+
+                  <span id="totTotal">$ 0</span>
+
+                </div>
+
+                <p class="cot-totales-iva-nota mb-0">Precios unitarios <strong>sin IVA</strong>. Al neto se suma IVA 19%.</p>
+
+              </div>
+
+            </div>
+
+            <button type="submit" class="btn btn-lg w-100 mt-3 cot-btn-primary" id="btnGuardar" {% if not es_edicion %}disabled{% endif %}>
+
+              <i class="fas fa-save me-2"></i>{% if es_edicion %}Guardar cambios{% else %}Guardar cotización{% endif %}
+
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
+
   </form>
+
 </div>
+
+
+
+{# ── Modal cliente ── #}
+
+<div class="modal fade" id="modalClienteCot" tabindex="-1" aria-labelledby="modalClienteCotLabel" aria-hidden="true">
+
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+
+    <div class="modal-content">
+
+      <div class="modal-header">
+
+        <h5 class="modal-title" id="modalClienteCotLabel"><i class="fas fa-user me-2 text-warning"></i>Cliente de la cotización</h5>
+
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+      </div>
+
+      <div class="modal-body cot-cliente-suggest">
+
+        <div class="cot-cliente-buscar-box mb-3">
+          <label class="form-label small mb-1 fw-semibold" for="buscadorCliente"><i class="fas fa-magnifying-glass me-1 text-warning"></i>Buscar cliente en maestro</label>
+          <input type="text" id="buscadorCliente" class="form-control" placeholder="Nombre, RUT, teléfono o correo (mín. 2 caracteres)…" autocomplete="off">
+          <div id="busqClientesResultados" class="list-group shadow-sm mt-2" style="display:none; max-height:220px; overflow-y:auto;"></div>
+          <p class="form-text mb-0 mt-2">Seleccione un resultado o complete los datos manualmente abajo.</p>
+        </div>
+
+
+
+        <div id="clienteSeleccionadoInfo" class="alert alert-info py-2 px-3 d-none mb-3 small">
+
+          <i class="fas fa-id-card me-1"></i><strong id="clienteInfoNombre"></strong>
+
+          <span class="ms-2 text-muted">Cupo: <strong id="clienteInfoCupo">$0</strong></span>
+
+          <span id="clienteInfoEstado" class="badge bg-success ms-1">Activo</span>
+
+        </div>
+
+
+
+        <div class="row g-2">
+
+          <div class="col-md-8">
+
+            <label class="form-label small mb-1" for="modal_cliente_nombre">Nombre o razón social</label>
+
+            <input type="text" class="form-control form-control-sm" id="modal_cliente_nombre" value="{{ cotizacion.cliente_nombre or '' if es_edicion else '' }}">
+
+          </div>
+
+          <div class="col-md-4">
+
+            <label class="form-label small mb-1" for="modal_cliente_rut">RUT</label>
+
+            <input type="text" class="form-control form-control-sm" id="modal_cliente_rut" value="{{ cotizacion.cliente_rut or '' if es_edicion else '' }}">
+
+          </div>
+
+          <div class="col-md-6">
+
+            <label class="form-label small mb-1" for="modal_cliente_telefono">Teléfono / WhatsApp</label>
+
+            <input type="text" class="form-control form-control-sm" id="modal_cliente_telefono" value="{{ cotizacion.cliente_telefono or '' if es_edicion else '' }}">
+
+          </div>
+
+          <div class="col-md-6">
+
+            <label class="form-label small mb-1" for="modal_cliente_correo">Correo</label>
+
+            <input type="email" class="form-control form-control-sm" id="modal_cliente_correo" value="{{ cotizacion.cliente_correo or '' if es_edicion else '' }}">
+
+          </div>
+
+        </div>
+
+        <hr class="my-3">
+
+        <p class="small text-muted mb-2"><i class="fas fa-file-invoice me-1"></i>Datos facturación</p>
+
+        <input type="text" class="form-control form-control-sm mb-2" id="modal_cliente_giro" placeholder="Giro" value="{{ cotizacion.cliente_giro or '' if es_edicion else '' }}">
+
+        <input type="text" class="form-control form-control-sm mb-2" id="modal_cliente_direccion" placeholder="Dirección" value="{{ cotizacion.cliente_direccion or '' if es_edicion else '' }}">
+
+        <div class="row g-2">
+
+          <div class="col-6"><input type="text" class="form-control form-control-sm" id="modal_cliente_comuna" placeholder="Comuna" value="{{ cotizacion.cliente_comuna or '' if es_edicion else '' }}"></div>
+
+          <div class="col-6"><input type="text" class="form-control form-control-sm" id="modal_cliente_ciudad" placeholder="Ciudad" value="{{ cotizacion.cliente_ciudad or '' if es_edicion else '' }}"></div>
+
+        </div>
+
+        <p class="form-text mt-2 mb-0">Si ingresa RUT nuevo se creará cliente maestro al guardar (cupo $0).</p>
+
+      </div>
+
+      <div class="modal-footer">
+
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLimpiarCliente"><i class="fas fa-eraser me-1"></i>Limpiar</button>
+
+        <button type="button" class="btn cot-btn-primary btn-sm" id="btnClienteListo" data-bs-dismiss="modal"><i class="fas fa-check me-1"></i>Listo</button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+{# ── Modal validez / notas ── #}
+
+<div class="modal fade" id="modalOpcionesCot" tabindex="-1" aria-hidden="true">
+
+  <div class="modal-dialog modal-dialog-centered">
+
+    <div class="modal-content">
+
+      <div class="modal-header">
+
+        <h5 class="modal-title"><i class="fas fa-sliders-h me-2 text-warning"></i>Validez y condiciones</h5>
+
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+      </div>
+
+      <div class="modal-body">
+
+        <div class="row g-2 mb-3">
+
+          <div class="col-6">
+
+            <label class="form-label small mb-1" for="modal_validez_dias">Validez (días)</label>
+
+            <input type="number" min="1" max="180" id="modal_validez_dias" class="form-control form-control-sm" value="{{ cotizacion.validez_dias if es_edicion else 15 }}">
+
+          </div>
+
+          <div class="col-6">
+
+            <label class="form-label small mb-1" for="modal_descuento_global">Descuento global ($)</label>
+
+            <input type="number" min="0" step="1" id="modal_descuento_global" class="form-control form-control-sm" value="{{ (cotizacion.descuento_global or 0) | int if es_edicion else 0 }}">
+
+          </div>
+
+        </div>
+
+        <label class="form-label small mb-1" for="modal_notas">Notas / condiciones</label>
+
+        <textarea class="form-control form-control-sm" id="modal_notas" rows="4" placeholder="Despacho, forma de pago, plazos…">{{ cotizacion.notas or '' if es_edicion else '' }}</textarea>
+
+      </div>
+
+      <div class="modal-footer">
+
+        <button type="button" class="btn cot-btn-primary btn-sm" id="btnOpcionesListo" data-bs-dismiss="modal"><i class="fas fa-check me-1"></i>Aplicar</button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
 
 <div class="modal fade" id="cotCrossSellModal" tabindex="-1" aria-hidden="true">
+
   <div class="modal-dialog modal-dialog-centered">
+
     <div class="modal-content">
+
       <div class="modal-header py-2">
+
         <h5 class="modal-title small fw-bold" id="cotCrossSellTitle">Sugerencia</h5>
+
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
       </div>
+
       <div class="modal-body py-2" id="cotCrossSellBody"></div>
+
       <div class="modal-footer py-2">
+
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+
       </div>
+
     </div>
+
   </div>
+
 </div>
 
-<script id="cotFormConfig" type="application/json">{{ {
-  'buscar_productos': url_for('cotizaciones_api_buscar_productos'),
-  'buscar_clientes': url_for('cotizaciones_api_buscar_clientes'),
-  'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
-} | tojson }}</script>
-<script src="{{ url_for('static', filename='js/cotizaciones_form.js') }}?v=cot-homolog-20260523"></script>
-{% endblock %}
 
+
+<script id="cotFormConfig" type="application/json">{{ {
+
+  'buscar_productos': url_for('cotizaciones_api_buscar_productos'),
+
+  'buscar_clientes': url_for('cotizaciones_api_buscar_clientes'),
+
+  'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
+
+} | tojson }}</script>
+
+<script src="{{ url_for('static', filename='js/offline/iva-chile.js') }}?v=iva-chile-1"></script>
+
+<script src="{{ url_for('static', filename='js/cotizaciones_form.js') }}?v=cot-cliente-save-20260614"></script>
+
+{% endblock %}
 
 

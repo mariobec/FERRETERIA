@@ -169,11 +169,276 @@
   padding: 0.85rem 1rem;
 }
 
+.cot-th-iva {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.cot-totales-iva-nota {
+  font-size: 0.72rem;
+  color: #78716c;
+  line-height: 1.35;
+}
+
+.totales-card .cot-totales-box-inner__sep {
+  border-top: 1px solid #ffe4c4;
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.totales-card .cot-totales-box-inner__hint {
+  font-size: 0.78rem;
+  color: #78716c !important;
+}
+
 .cot-lineas-table thead th {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #64748b;
+  white-space: nowrap;
+}
+
+/* Tabla líneas — espaciado y columnas */
+.cot-lineas-wrap {
+  overflow-x: auto;
+}
+
+.cot-lineas-table {
+  width: 100%;
+  min-width: 760px;
+  table-layout: auto;
+}
+
+.cot-lineas-table col.cot-col-producto {
+  min-width: 320px;
+}
+
+.cot-lineas-table col.cot-col-cant {
+  width: 88px;
+}
+
+.cot-lineas-table col.cot-col-precio {
+  width: 108px;
+}
+
+.cot-lineas-table col.cot-col-desc {
+  width: 92px;
+}
+
+.cot-lineas-table col.cot-col-subtotal {
+  width: 118px;
+}
+
+.cot-lineas-table col.cot-col-accion {
+  width: 52px;
+}
+
+.cot-lineas-table thead th:first-child,
+.cot-lineas-table td.cot-linea-producto-cell {
+  min-width: 320px;
+  width: 46%;
+}
+
+.cot-lineas-table > :not(caption) > * > * {
+  padding: 0.75rem 0.6rem;
+  vertical-align: top;
+}
+
+.cot-lineas-table tbody td:not(.cot-linea-producto-cell) {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.cot-linea-producto-cell {
+  min-width: 320px;
+  max-width: none;
+}
+
+.cot-linea-producto__nombre {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: #0f172a;
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+.cot-linea-producto--manual .cot-input-nombre,
+.cot-linea-producto--manual .cot-input-codigo {
+  width: 100%;
+}
+
+.cot-linea-producto--manual .cot-input-nombre {
+  font-weight: 600;
+}
+
+.cot-linea-producto--manual .cot-input-codigo {
+  margin-top: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+}
+
+.cot-linea-producto__badge-libre {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.cot-manual-linea {
+  background: #f8fafc;
+  border-color: #cbd5e1 !important;
+}
+
+.cot-manual-linea__title {
+  color: #475569;
+}
+
+.cot-linea-producto__nombre--plain {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.cot-linea-producto__meta {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.cot-linea-producto__codigo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  letter-spacing: 0.01em;
+}
+
+.cot-linea-producto__semaforo {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.cot-lineas-table .form-control-sm {
+  min-width: 58px;
+  padding: 0.4rem 0.45rem;
+  font-size: 0.875rem;
+}
+
+.cot-lineas-table tfoot .cot-lineas-sum td {
+  background: #fffbeb !important;
+  border-top: 2px solid #fcd34d !important;
+  color: #92400e !important;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tfoot .cot-lineas-sum td {
+  background: #fffbeb !important;
+  color: #92400e !important;
+}
+
+.cot-lineas-table--detalle .cot-linea-producto__nombre {
+  font-size: 0.88rem;
+}
+
+/* Membrete cotización */
+.cot-membrete {
+  max-width: 420px;
+}
+
+.cot-membrete__logo {
+  max-height: 70px;
+  max-width: 240px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.cot-membrete__marca {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.cot-membrete__razon {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 0.2rem;
+}
+
+.cot-membrete__giro {
+  font-size: 0.82rem;
+  color: #475569;
+  margin-top: 0.15rem;
+  font-style: italic;
+}
+
+.cot-membrete__dir,
+.cot-membrete__contacto {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.45;
+  margin-top: 0.15rem;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-membrete__marca,
+body.erp-ops-space.page-cotizaciones .cot-membrete__razon {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-membrete__giro,
+body.erp-ops-space.page-cotizaciones .cot-membrete__dir,
+body.erp-ops-space.page-cotizaciones .cot-membrete__contacto {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__nombre,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__nombre--plain {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__meta,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__codigo {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__semaforo {
+  color: #15803d !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__badge-libre {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-manual-linea {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-manual-linea .form-control,
+body.erp-ops-space.page-cotizaciones .cot-linea-producto--manual .form-control {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-manual-linea__title,
+body.erp-ops-space.page-cotizaciones .cot-manual-linea .form-text {
+  color: #64748b !important;
 }
 
 .cot-btn-primary {
@@ -201,3 +466,1844 @@
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
+
+/* ── Legibilidad sobre erp-ops-space (tema oscuro global) ── */
+body.erp-ops-space.page-cotizaciones .cot-page-header {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 45%, #f8fafc 100%) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-page-header h3 {
+  color: #78350f !important;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-page-header p,
+body.erp-ops-space.page-cotizaciones .cot-page-header .text-muted {
+  color: #92400e !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card {
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card > .card-header {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid #1e293b !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card > .card-header strong,
+body.erp-ops-space.page-cotizaciones .cot-card > .card-header .badge {
+  color: inherit !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card > .card-body {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card .form-label,
+body.erp-ops-space.page-cotizaciones .cot-card label.small {
+  color: #475569 !important;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card .form-control,
+body.erp-ops-space.page-cotizaciones .cot-card .form-select,
+body.erp-ops-space.page-cotizaciones .cot-card textarea {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card .form-control::placeholder {
+  color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card .text-muted,
+body.erp-ops-space.page-cotizaciones .cot-card hr + p.text-muted {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-hero {
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-hero input {
+  color: #0f172a !important;
+  background: transparent !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-filters .btn-outline-secondary {
+  color: #475569 !important;
+  border-color: #94a3b8 !important;
+  background: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-filters .btn-outline-secondary.active {
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+  color: #92400e !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table thead th {
+  background: #475569 !important;
+  color: #f8fafc !important;
+  letter-spacing: 0.04em;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table > :not(caption) > * > * {
+  color: #0f172a !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  padding: 0.8rem 0.65rem !important;
+  vertical-align: middle !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody tr:nth-child(even) > * {
+  background-color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .text-muted {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table #filaVacia td {
+  color: #64748b !important;
+  background: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-totales-sticky {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #fff 18%) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-totales-box {
+  background: #fffbeb !important;
+  border: 1px solid #fcd34d !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-totales-box .small,
+body.erp-ops-space.page-cotizaciones .cot-totales-box .small span {
+  color: #334155 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-totales-box .text-muted,
+body.erp-ops-space.page-cotizaciones .cot-totales-box .text-muted span {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-totales-box .text-warning,
+body.erp-ops-space.page-cotizaciones .cot-totales-box .fw-bold.fs-5 span {
+  color: #c2410c !important;
+}
+
+body.erp-ops-space.page-cotizaciones .btn-outline-secondary {
+  color: #475569 !important;
+  border-color: #94a3b8 !important;
+  background: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .btn-outline-primary {
+  color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  background: #eff6ff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-kpi .card {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-kpi .fs-4.text-dark {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds > :not(caption) > * > * {
+  color: #0f172a !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds thead th {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones .input-group-text.bg-white {
+  background: #fff !important;
+  color: #64748b !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #cotCrossSellModal .modal-content,
+body.erp-ops-space.page-cotizaciones .modal-content {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-header {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-title {
+  color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-header,
+body.erp-ops-space.page-cotizaciones .cot-section,
+body.erp-ops-space.page-cotizaciones .totales-card {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-title h1 {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-section h6 {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .total-row.grande {
+  color: #c2410c !important;
+}
+
+body.erp-ops-space.page-cotizaciones .alert-info {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border-color: #93c5fd !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-cliente-suggest .list-group-item {
+  color: #0f172a !important;
+  background: #fff !important;
+}
+
+/* Resultados búsqueda cliente — anula variables Bootstrap del tema oscuro */
+body.erp-ops-space.page-cotizaciones #busqClientesResultados.list-group {
+  --bs-list-group-color: #0f172a;
+  --bs-list-group-bg: #fff;
+  --bs-list-group-border-color: #e2e8f0;
+  --bs-list-group-action-color: #0f172a;
+  --bs-list-group-action-hover-color: #0f172a;
+  --bs-list-group-action-hover-bg: #fffbeb;
+  --bs-list-group-action-active-color: #0f172a;
+  --bs-list-group-action-active-bg: #fef3c7;
+  background: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+  overflow: hidden;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item,
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action strong {
+  color: #0f172a !important;
+  font-weight: 700;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action small {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action small.text-success {
+  color: #15803d !important;
+  font-weight: 600;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action small.text-danger {
+  color: #b91c1c !important;
+  font-weight: 600;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action:hover,
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action:focus {
+  background: #fffbeb !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item.text-muted {
+  color: #64748b !important;
+  background: #f8fafc !important;
+}
+
+/* Sugerencias productos (dropdown búsqueda POS) */
+body.erp-ops-space.page-cotizaciones .cot-search-suggestions {
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-card {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-card strong {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-card .text-muted,
+body.erp-ops-space.page-cotizaciones .cot-search-card small {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-card .text-warning,
+body.erp-ops-space.page-cotizaciones .cot-search-card .fw-bold.text-warning {
+  color: #c2410c !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-card:hover,
+body.erp-ops-space.page-cotizaciones .cot-search-card.cot-search-card--active {
+  background: #fffbeb !important;
+}
+
+/* Filtros catálogo / operativo / tienda */
+body.erp-ops-space.page-cotizaciones .cot-search-filters .btn {
+  font-weight: 600;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-filters .btn-outline-secondary:not(.active) {
+  color: #334155 !important;
+  border-color: #64748b !important;
+  background: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-search-filters .btn-outline-secondary:not(.active):hover {
+  color: #0f172a !important;
+  background: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-page .text-muted.fs-5 {
+  color: #64748b !important;
+}
+
+/* ═══ Legibilidad completa v4 — anula erp-ops-space en todo el módulo ═══ */
+
+/* Tipografía global en paneles claros (strong/platinum es la causa del texto invisible) */
+body.erp-ops-space.page-cotizaciones .cot-page strong,
+body.erp-ops-space.page-cotizaciones .cot-card strong,
+body.erp-ops-space.page-cotizaciones .cot-card .fw-bold:not(.btn):not(.badge),
+body.erp-ops-space.page-cotizaciones .cot-page-header strong,
+body.erp-ops-space.page-cotizaciones .alert-info strong {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-card .small:not(.badge):not(.btn),
+body.erp-ops-space.page-cotizaciones .cot-page-header .small:not(.badge):not(.btn),
+body.erp-ops-space.page-cotizaciones .alert-info .small:not(.badge):not(.btn) {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .badge.bg-light.text-dark,
+body.erp-ops-space.page-cotizaciones #lineasCount {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Tabla líneas productos (formulario) */
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody strong,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .fw-bold:not(.btn):not(.badge),
+body.erp-ops-space.page-cotizaciones .cot-lineas-table .cell-subtotal {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody small,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .small:not(.badge):not(.btn) {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .text-success,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody small .text-success {
+  color: #15803d !important;
+  font-weight: 600 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .text-warning {
+  color: #b45309 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody input.form-control {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table.table-hover > tbody > tr:hover > * {
+  background-color: #fffbeb !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table .btn-outline-danger {
+  color: #b91c1c !important;
+  border-color: #fca5a5 !important;
+  background: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table .btn-outline-danger:hover {
+  color: #fff !important;
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
+/* Listado — tabla principal */
+body.erp-ops-space.page-cotizaciones .table-ds tbody strong,
+body.erp-ops-space.page-cotizaciones .table-ds tbody .fw-bold:not(.btn):not(.badge),
+body.erp-ops-space.page-cotizaciones .table-ds tbody td {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds tbody .small:not(.badge):not(.btn),
+body.erp-ops-space.page-cotizaciones .table-ds tbody .text-muted {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds.table-hover > tbody > tr:hover > * {
+  background-color: #fffbeb !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds tbody a.fw-bold {
+  color: #1d4ed8 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds .btn-outline-warning {
+  color: #b45309 !important;
+  border-color: #fcd34d !important;
+  background: #fffbeb !important;
+}
+
+body.erp-ops-space.page-cotizaciones .table-ds .btn-outline-warning:hover {
+  color: #78350f !important;
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+}
+
+/* Detalle — documento impreso / vista */
+body.erp-ops-space.page-cotizaciones .card.shadow-sm:not(.card-indicador) {
+  background: #fff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-header strong,
+body.erp-ops-space.page-cotizaciones .cot-section strong,
+body.erp-ops-space.page-cotizaciones .totales-card strong,
+body.erp-ops-space.page-cotizaciones .totales-card .fw-bold:not(.btn):not(.badge) {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-section .small:not(.badge):not(.btn),
+body.erp-ops-space.page-cotizaciones .cot-header .small:not(.badge):not(.btn),
+body.erp-ops-space.page-cotizaciones .cot-section .text-muted,
+body.erp-ops-space.page-cotizaciones .totales-card .total-row span {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-section .table > :not(caption) > * > * {
+  color: #0f172a !important;
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-section .table tbody tr:nth-child(even) > * {
+  background-color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-section .table thead th,
+body.erp-ops-space.page-cotizaciones .cot-section .table thead.table-light th {
+  background: #475569 !important;
+  color: #f8fafc !important;
+  letter-spacing: 0.04em;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-section .table tbody .fw-bold {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .total-row.grande span {
+  color: #c2410c !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .text-danger,
+body.erp-ops-space.page-cotizaciones .totales-card .text-danger strong {
+  color: #b91c1c !important;
+}
+
+/* Card secundaria (cambiar estado) + formularios sueltos */
+body.erp-ops-space.page-cotizaciones .card.shadow-sm .card-body,
+body.erp-ops-space.page-cotizaciones form.row.g-2 .form-control {
+  color: #0f172a !important;
+  background: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .card.shadow-sm .card-body h6,
+body.erp-ops-space.page-cotizaciones .card.shadow-sm .form-label {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .card.shadow-sm .form-select {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .form-check-label {
+  color: #334155 !important;
+}
+
+/* Botones acción detalle / toolbar */
+/* Botones acción detalle / toolbar — anular ciberneón oscuro de design-system */
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn {
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-success {
+  background: #16a34a !important;
+  border: 1px solid #15803d !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-success:hover,
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-success:focus {
+  background: #15803d !important;
+  border-color: #166534 !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-danger {
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-danger:hover,
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-danger:focus {
+  background: #b91c1c !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .cot-btn-primary {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  border: 1px solid #b45309 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(180, 83, 9, 0.25) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .cot-btn-primary:hover,
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .cot-btn-primary:focus {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  border-color: #92400e !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-info {
+  background: #0ea5e9 !important;
+  border: 1px solid #0284c7 !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-detalle-toolbar .btn-info:hover {
+  background: #0284c7 !important;
+  color: #fff !important;
+}
+
+body.erp-ops-space.page-cotizaciones .btn-outline-warning {
+  color: #b45309 !important;
+  border-color: #fcd34d !important;
+  background: #fffbeb !important;
+}
+
+body.erp-ops-space.page-cotizaciones .btn-outline-warning:hover {
+  color: #78350f !important;
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-body .form-label,
+body.erp-ops-space.page-cotizaciones .modal-body .form-control,
+body.erp-ops-space.page-cotizaciones .modal-body p,
+body.erp-ops-space.page-cotizaciones .modal-body .form-check-label {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-body .text-muted {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-footer .btn-outline-secondary {
+  color: #475569 !important;
+  background: #fff !important;
+  border-color: #94a3b8 !important;
+}
+
+/* KPI chips listado */
+body.erp-ops-space.page-cotizaciones .cot-lista-kpi .card-body .small,
+body.erp-ops-space.page-cotizaciones .cot-lista-kpi a.card .badge {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-kpi a.card.border-warning {
+  background: #fff !important;
+}
+
+/* ── Documento cotización premium (detalle / impresión pantalla) ── */
+.cot-doc-premium {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08) !important;
+}
+
+.cot-doc-premium .cot-header,
+.cot-doc-header {
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+}
+
+/* Encabezado documento — layout PDF (membrete izq · COTIZACIÓN der) */
+.cot-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: nowrap;
+  padding: 16px 22px;
+  border-bottom: 2px solid #f37021;
+}
+
+.cot-doc-header__brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 58%;
+}
+
+.cot-doc-header__title {
+  flex: 0 0 auto;
+  text-align: right;
+  min-width: 190px;
+  max-width: 42%;
+}
+
+.cot-doc-header__titulo {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #111827;
+  margin: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.cot-doc-header__num {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f37021;
+  margin-top: 2px;
+}
+
+.cot-doc-header__meta {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-header,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header {
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%) !important;
+  border-bottom: 2px solid #f37021 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-header__titulo,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header__titulo {
+  color: #111827 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-header__num,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header__num {
+  color: #f37021 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-header__meta,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header__meta {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-header .badge,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header .badge.bg-success {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-header .badge.bg-warning,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header .badge.bg-warning {
+  background: #f59e0b !important;
+  color: #1f2937 !important;
+}
+
+@media (max-width: 767px) {
+  .cot-doc-header {
+    flex-wrap: wrap;
+  }
+  .cot-doc-header__brand,
+  .cot-doc-header__title {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .cot-doc-header__title {
+    text-align: left;
+    width: 100%;
+  }
+}
+
+.cot-section--detalle {
+  padding-top: 12px !important;
+}
+
+/* ── Ficha cliente (detalle, formulario, PDF comparte clases) ── */
+.cot-section--cliente {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cot-cliente-ficha {
+  background: #fafafa;
+  border: 1px solid #e8edf2;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.cot-cliente-ficha--empty {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.cot-cliente-ficha__hint {
+  font-size: 0.82rem;
+  color: #78716c;
+}
+
+.cot-cliente-ficha__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 0.35rem 1.5rem;
+}
+
+.cot-cliente-ficha__row {
+  display: grid;
+  grid-template-columns: 5.75rem minmax(0, 1fr);
+  gap: 0.5rem 0.75rem;
+  align-items: baseline;
+  padding: 0.18rem 0;
+}
+
+.cot-cliente-ficha__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.cot-cliente-ficha__value {
+  font-size: 0.88rem;
+  color: #0f172a;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.cot-cliente-ficha__value--nombre {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.cot-cliente-ficha__value--email {
+  word-break: break-all;
+}
+
+.cot-form-client-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.cot-form-client-section__head h6 {
+  margin-bottom: 0;
+}
+
+@media (max-width: 767px) {
+  .cot-cliente-ficha__grid {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .cot-cliente-ficha__col--contacto {
+    padding-top: 0.35rem;
+    border-top: 1px dashed #e2e8f0;
+    margin-top: 0.25rem;
+  }
+}
+
+body.erp-ops-space.page-cotizaciones .cot-cliente-ficha,
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-ficha {
+  background: #fafafa !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-cliente-ficha__label,
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-ficha__label {
+  color: #64748b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-cliente-ficha__value,
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-ficha__value {
+  color: #0f172a !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-cliente-ficha__value--nombre,
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-ficha__value--nombre {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-ficha--empty {
+  background: #fffbeb !important;
+  border-color: #fde68a !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-ficha__hint {
+  color: #78716c !important;
+}
+
+.cot-lineas-wrap--premium {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.cot-lineas-table--premium {
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+  margin-bottom: 0 !important;
+}
+
+.cot-lineas-table--premium col.cot-col-num { width: 3%; }
+.cot-lineas-table--premium col.cot-col-codigo { width: 12%; }
+.cot-lineas-table--premium col.cot-col-articulo { width: 32%; }
+.cot-lineas-table--premium col.cot-col-cant { width: 8%; }
+.cot-lineas-table--premium col.cot-col-precio { width: 11%; }
+.cot-lineas-table--premium col.cot-col-desc { width: 8%; }
+.cot-lineas-table--premium col.cot-col-subtotal { width: 12%; }
+
+.cot-lineas-table--premium thead th.cot-col-num-h,
+.cot-lineas-table--premium thead th.cot-col-codigo-h,
+.cot-lineas-table--premium thead th.cot-col-articulo-h {
+  text-align: left;
+}
+
+.cot-lineas-table--detalle thead th:first-child,
+.cot-lineas-table--detalle td.cot-linea-num-cell,
+.cot-lineas-table--detalle td.cot-linea-codigo-cell,
+.cot-lineas-table--detalle td.cot-linea-articulo-cell {
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+.cot-lineas-table--detalle .cot-linea-num-cell {
+  text-align: left;
+  padding-left: 0.5rem !important;
+}
+
+.cot-lineas-table--detalle .cot-linea-codigo-cell {
+  text-align: left;
+  overflow: hidden;
+}
+
+.cot-lineas-table--detalle .cot-linea-codigo-cell .cot-linea-articulo__cod {
+  margin-bottom: 0;
+}
+
+.cot-lineas-table--detalle .cot-linea-articulo-cell {
+  text-align: left;
+  overflow: hidden;
+  max-width: 0;
+  white-space: normal !important;
+}
+
+.cot-lineas-table--detalle .cot-linea-articulo-cell .cot-linea-articulo__nom {
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cot-lineas-table--detalle tbody td.cot-linea-codigo-cell,
+.cot-lineas-table--detalle tbody td.cot-linea-articulo-cell {
+  white-space: normal !important;
+}
+
+.cot-lineas-table--premium thead th {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+  color: #f8fafc !important;
+  border: none !important;
+  padding: 0.65rem 0.55rem !important;
+  font-size: 0.68rem !important;
+  vertical-align: bottom;
+}
+
+.cot-lineas-table--premium thead th .cot-th-iva {
+  color: rgba(248, 250, 252, 0.72) !important;
+  font-size: 0.58rem !important;
+}
+
+.cot-lineas-table--premium > :not(caption) > * > * {
+  padding: 0.55rem 0.5rem !important;
+  vertical-align: top !important;
+}
+
+.cot-lineas-table--premium tbody tr:nth-child(even) > * {
+  background: #f8fafc !important;
+}
+
+.cot-lineas-table--premium tbody tr:hover > * {
+  background: #fff7ed !important;
+}
+
+.cot-linea-num {
+  text-align: center !important;
+  color: #94a3b8 !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  vertical-align: middle !important;
+}
+
+.cot-linea-articulo {
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.cot-linea-articulo__cod {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #475569 !important;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  word-break: break-all;
+  margin-bottom: 0.15rem;
+}
+
+.cot-linea-articulo__cod--ref {
+  color: #b45309 !important;
+}
+
+.cot-linea-articulo__nom {
+  display: block;
+  font-weight: 600;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: #0f172a !important;
+  word-break: break-word;
+}
+
+.cot-linea-articulo__tag {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e !important;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cot-linea-num-val,
+.cot-linea-money {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+  color: #334155 !important;
+  font-size: 0.84rem !important;
+}
+
+.cot-linea-money--total {
+  font-weight: 800 !important;
+  color: #0f172a !important;
+}
+
+.cot-linea-dash {
+  color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-articulo__nom,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-articulo__cod,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-money,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-num-val,
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-num {
+  color: inherit;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-articulo__nom {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-articulo__cod {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-articulo__cod--ref {
+  color: #b45309 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium tbody .cot-linea-money--total {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lineas-table--premium thead th {
+  color: #f8fafc !important;
+}
+
+/* ═══ Formulario cotización — layout documento premium ═══ */
+.page-cotizaciones-form .cot-form-page {
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.page-cotizaciones-form .cot-form-toolbar {
+  padding: 0 0.15rem;
+}
+
+.page-cotizaciones-form .cot-form-doc {
+  margin-bottom: 1.5rem;
+}
+
+.page-cotizaciones-form .cot-form-draft-badge {
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.page-cotizaciones-form .cot-form-meta-strip {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafafa;
+}
+
+.page-cotizaciones-form .cot-form-meta-strip__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.page-cotizaciones-form .cot-form-meta-hint {
+  font-size: 0.72rem;
+  color: #94a3b8 !important;
+}
+
+.page-cotizaciones-form .cot-form-client-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1 1 280px;
+  min-width: 0;
+  max-width: 520px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.page-cotizaciones-form .cot-form-client-chip:hover,
+.page-cotizaciones-form .cot-form-client-chip:focus-visible {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+  outline: none;
+}
+
+.page-cotizaciones-form .cot-form-client-chip--filled {
+  border-color: #86efac;
+  background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%);
+}
+
+.page-cotizaciones-form .cot-form-client-chip__icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #b45309;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.page-cotizaciones-form .cot-form-client-chip__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-cotizaciones-form .cot-form-client-chip__label {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+
+.page-cotizaciones-form .cot-form-client-chip__value {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-cotizaciones-form .cot-form-client-chip__action {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.page-cotizaciones-form .cot-form-lineas-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.page-cotizaciones-form .cot-form-products {
+  padding-top: 0 !important;
+}
+
+.page-cotizaciones-form .cot-form-search-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  padding: 12px 0 10px;
+  margin: 0 -2px 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.page-cotizaciones-form .cot-form-search-hero {
+  margin-bottom: 0.45rem;
+}
+
+.page-cotizaciones-form .cot-form-search-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.page-cotizaciones-form .cot-form-manual-details {
+  margin-left: auto;
+  font-size: 0.78rem;
+}
+
+.page-cotizaciones-form .cot-form-manual-details summary {
+  cursor: pointer;
+  color: #64748b;
+  font-weight: 600;
+  list-style: none;
+  padding: 0.25rem 0;
+}
+
+.page-cotizaciones-form .cot-form-manual-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.page-cotizaciones-form .cot-form-manual-details[open] summary {
+  color: #b45309;
+  margin-bottom: 0.35rem;
+}
+
+.page-cotizaciones-form .cot-form-manual-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: flex-end;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.page-cotizaciones-form .cot-form-manual-field {
+  flex: 0 0 auto;
+}
+
+.page-cotizaciones-form .cot-form-manual-field--grow {
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+
+.page-cotizaciones-form .cot-form-manual-field--qty {
+  width: 4.5rem;
+}
+
+.page-cotizaciones-form .cot-form-manual-field--btn {
+  width: 2.75rem;
+}
+
+.page-cotizaciones-form .cot-form-section-label {
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  margin: 0.35rem 0 0.5rem;
+}
+
+.page-cotizaciones-form .cot-form-empty {
+  font-size: 0.88rem;
+}
+
+.page-cotizaciones-form .cot-form-footer {
+  border-top: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
+}
+
+.page-cotizaciones-form .cot-form-notas-preview h6 {
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  margin-bottom: 0.35rem;
+}
+
+.page-cotizaciones-form .cot-form-totales {
+  margin-bottom: 0;
+}
+
+/* ═══ Tabla formulario cotización — layout 8 columnas (sin premium) ═══ */
+.cot-form-lineas-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Anula .cot-lineas-table legacy (th:first-child 46%, table-layout auto, padding grande) */
+.cot-lineas-table.cot-lineas-table--form {
+  width: 100%;
+  min-width: 680px;
+  table-layout: fixed !important;
+  border-collapse: collapse;
+  margin-bottom: 0;
+}
+
+.cot-lineas-table.cot-lineas-table--form thead th:first-child,
+.cot-lineas-table.cot-lineas-table--form td.cot-linea-num-cell,
+.cot-lineas-table.cot-lineas-table--form td.cot-linea-codigo-cell,
+.cot-lineas-table.cot-lineas-table--form td.cot-linea-articulo-cell {
+  min-width: 0 !important;
+  max-width: none !important;
+  width: auto !important;
+}
+
+.cot-lineas-table.cot-lineas-table--form > :not(caption) > * > * {
+  padding: 0.4rem 0.35rem;
+  vertical-align: middle;
+}
+
+.cot-lineas-table--form col.cot-fcol-num { width: 3%; }
+.cot-lineas-table--form col.cot-fcol-codigo { width: 12%; }
+.cot-lineas-table--form col.cot-fcol-articulo { width: 40%; }
+.cot-lineas-table--form col.cot-fcol-cant { width: 8%; }
+.cot-lineas-table--form col.cot-fcol-precio { width: 11%; }
+.cot-lineas-table--form col.cot-fcol-desc { width: 8%; }
+.cot-lineas-table--form col.cot-fcol-subtotal { width: 12%; }
+.cot-lineas-table--form col.cot-fcol-accion { width: 6%; }
+
+.cot-lineas-table--form thead th {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  border: none;
+  padding: 0.45rem 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: bottom;
+  white-space: normal;
+  line-height: 1.15;
+  overflow: hidden;
+}
+
+.cot-lineas-table--form thead th.cot-fcol-num-h,
+.cot-lineas-table--form thead th.cot-fcol-codigo-h,
+.cot-lineas-table--form thead th.cot-fcol-articulo-h {
+  text-align: left;
+}
+
+.cot-lineas-table--form thead th .cot-th-iva {
+  display: block;
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: rgba(248, 250, 252, 0.72);
+  line-height: 1.15;
+}
+
+.cot-lineas-table.cot-lineas-table--form tbody td.cot-linea-articulo-cell,
+.cot-lineas-table.cot-lineas-table--form tbody td.cot-linea-codigo-cell {
+  white-space: normal !important;
+}
+
+.cot-lineas-table--form tbody td {
+  padding: 0.4rem 0.35rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.cot-lineas-table--form tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.cot-lineas-table--form tbody tr:hover td {
+  background: #fff7ed;
+}
+
+.cot-lineas-table--form .cot-linea-num-cell {
+  text-align: left;
+  padding-left: 0.45rem;
+  padding-right: 0.15rem;
+}
+
+.cot-lineas-table--form .cot-linea-num-val {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.cot-lineas-table--form .cot-linea-codigo-cell {
+  text-align: left;
+  padding-left: 0.2rem;
+  padding-right: 0.25rem;
+}
+
+.cot-lineas-table--form .cot-linea-codigo-cell .cot-linea-articulo__cod {
+  display: block;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1.2;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.cot-lineas-table--form .cot-linea-codigo-input {
+  width: 100%;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.25rem;
+}
+
+.cot-lineas-table--form .cot-linea-articulo-cell {
+  text-align: left;
+  padding-left: 0.25rem;
+  padding-right: 0.35rem;
+  overflow: hidden;
+  max-width: 0;
+}
+
+.cot-lineas-table--form .cot-linea-articulo-cell .cot-linea-articulo__nom {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #0f172a;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.cot-lineas-table--form .cot-linea-articulo--manual .cot-linea-articulo__nom-input {
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.35rem;
+}
+
+.cot-lineas-table--form .cot-linea-articulo__tag {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.cot-lineas-table--form .cot-input-num {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: 0.22rem 0.3rem;
+  font-size: 0.78rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cot-lineas-table--form td.text-end {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cot-lineas-table--form .cell-subtotal {
+  font-size: 0.78rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  padding-right: 0.25rem;
+}
+
+.cot-lineas-table--form .cot-btn-icon {
+  padding: 0.15rem 0.35rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+body.erp-ops-space.page-cotizaciones.page-cotizaciones-form .cot-lineas-table.cot-lineas-table--form > :not(caption) > * > * {
+  padding: 0.4rem 0.35rem !important;
+  vertical-align: middle !important;
+}
+
+body.erp-ops-space.page-cotizaciones.page-cotizaciones-form .cot-lineas-table.cot-lineas-table--form thead th:first-child {
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form thead th {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+  color: #f8fafc !important;
+  white-space: normal !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form tbody td {
+  color: #0f172a !important;
+  background-color: #fff !important;
+  border-color: #e2e8f0 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+  vertical-align: middle !important;
+  overflow: hidden;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form tbody tr:nth-child(even) td {
+  background-color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form tbody tr:hover td {
+  background-color: #fff7ed !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form .cot-linea-articulo-cell .cot-linea-articulo__nom {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form .cot-linea-codigo-cell .cot-linea-articulo__cod {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form .form-control {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-lineas-table--form .cell-subtotal {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+
+/* legacy form col rules — deprecado, mantener vacío abajo si queda referencia */
+.cot-lineas-table--form col.cot-col-accion {
+  width: 2.5rem;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-form-client-chip__value {
+  color: #0f172a !important;
+}
+
+.cot-cliente-buscar-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 0.85rem 0.95rem;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-buscar-box {
+  background: #fffbeb !important;
+  border-color: #fde68a !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-cliente-buscar-box .form-control,
+body.erp-ops-space.page-cotizaciones-form #modalClienteCot .modal-body .form-control {
+  background: #fff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form #busqClientesResultados.list-group,
+body.erp-ops-space.page-cotizaciones #busqClientesResultados.list-group {
+  --bs-list-group-color: #0f172a;
+  --bs-list-group-bg: #fff;
+  --bs-list-group-border-color: #e2e8f0;
+  --bs-list-group-action-color: #0f172a;
+  --bs-list-group-action-hover-color: #0f172a;
+  --bs-list-group-action-hover-bg: #fffbeb;
+  --bs-list-group-action-active-color: #0f172a;
+  --bs-list-group-action-active-bg: #fef3c7;
+  background: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+  overflow: hidden;
+}
+
+body.erp-ops-space.page-cotizaciones-form #busqClientesResultados .list-group-item,
+body.erp-ops-space.page-cotizaciones-form #busqClientesResultados .list-group-item-action {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form #modalClienteCot .modal-body,
+body.erp-ops-space.page-cotizaciones-form #modalOpcionesCot .modal-body {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+@media (max-width: 767px) {
+  .page-cotizaciones-form .cot-form-meta-strip__main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-cotizaciones-form .cot-form-client-chip {
+    max-width: none;
+  }
+
+  .page-cotizaciones-form .cot-form-manual-details {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* ═══ Legibilidad v5 — anula ciberneón design-system en cotizaciones ═══ */
+
+/* Totales alineados (formulario + detalle + PDF pantalla) */
+.totales-card .cot-totales-box-inner .total-row,
+.cot-form-totales .cot-totales-box-inner .total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.totales-card .cot-totales-box-inner .total-row > span:first-child,
+.totales-card .cot-totales-box-inner .total-row > strong:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.totales-card .cot-totales-box-inner .total-row > strong,
+.totales-card .cot-totales-box-inner .total-row > span:last-child {
+  flex: 0 0 auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.totales-card .cot-totales-box-inner .total-row.grande {
+  align-items: center;
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #92400e;
+  border-top: 2px dashed #ffb87a;
+  margin-top: 8px;
+  padding-top: 10px;
+}
+
+.totales-card .cot-totales-box-inner .total-row.grande > span {
+  font-weight: 800;
+}
+
+/* Botón primario sólido (Guardar / Listo) */
+body.erp-ops-space.page-cotizaciones .cot-btn-primary,
+body.erp-ops-space.page-cotizaciones-form .cot-btn-primary,
+body.erp-ops-space.page-cotizaciones .modal-footer .cot-btn-primary,
+body.erp-ops-space.page-cotizaciones-form .modal-footer .cot-btn-primary {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  border: 1px solid #b45309 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 2px 10px rgba(180, 83, 9, 0.28) !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-btn-primary:hover:not(:disabled),
+body.erp-ops-space.page-cotizaciones-form .cot-btn-primary:hover:not(:disabled),
+body.erp-ops-space.page-cotizaciones .modal-footer .cot-btn-primary:hover,
+body.erp-ops-space.page-cotizaciones-form .modal-footer .cot-btn-primary:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  border-color: #92400e !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(180, 83, 9, 0.35) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-btn-primary:focus,
+body.erp-ops-space.page-cotizaciones-form .cot-btn-primary:focus,
+body.erp-ops-space.page-cotizaciones .modal-footer .cot-btn-primary:focus,
+body.erp-ops-space.page-cotizaciones-form .modal-footer .cot-btn-primary:focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-btn-primary:disabled,
+body.erp-ops-space.page-cotizaciones-form .cot-btn-primary:disabled {
+  background: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-btn-primary i,
+body.erp-ops-space.page-cotizaciones-form .cot-btn-primary i,
+body.erp-ops-space.page-cotizaciones .modal-footer .cot-btn-primary i,
+body.erp-ops-space.page-cotizaciones-form .modal-footer .cot-btn-primary i {
+  color: inherit !important;
+}
+
+/* Modales — fondo claro y campos legibles */
+body.erp-ops-space.page-cotizaciones .modal-content,
+body.erp-ops-space.page-cotizaciones-form .modal-content {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-header,
+body.erp-ops-space.page-cotizaciones-form .modal-header {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-title,
+body.erp-ops-space.page-cotizaciones-form .modal-title {
+  color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-body,
+body.erp-ops-space.page-cotizaciones-form .modal-body {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-footer,
+body.erp-ops-space.page-cotizaciones-form .modal-footer {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-content .form-label,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-label,
+body.erp-ops-space.page-cotizaciones .modal-content .form-text,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-text {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-content .form-control,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-control,
+body.erp-ops-space.page-cotizaciones .modal-content textarea,
+body.erp-ops-space.page-cotizaciones-form .modal-content textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-content .form-control::placeholder,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-control::placeholder {
+  color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-content .form-control:focus,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-control:focus,
+body.erp-ops-space.page-cotizaciones .modal-content textarea:focus,
+body.erp-ops-space.page-cotizaciones-form .modal-content textarea:focus {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22) !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-footer .btn-outline-secondary,
+body.erp-ops-space.page-cotizaciones-form .modal-footer .btn-outline-secondary {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border-color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .modal-footer .btn-outline-secondary:hover,
+body.erp-ops-space.page-cotizaciones-form .modal-footer .btn-outline-secondary:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #64748b !important;
+}
+
+/* Badge Activo / Bloqueado — modal cliente */
+body.erp-ops-space.page-cotizaciones #clienteInfoEstado.bg-success,
+body.erp-ops-space.page-cotizaciones-form #clienteInfoEstado.bg-success,
+body.erp-ops-space.page-cotizaciones #clienteSeleccionadoInfo .badge.bg-success,
+body.erp-ops-space.page-cotizaciones-form #clienteSeleccionadoInfo .badge.bg-success {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border: 1px solid #15803d !important;
+  box-shadow: none !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #clienteInfoEstado.bg-danger,
+body.erp-ops-space.page-cotizaciones-form #clienteInfoEstado.bg-danger,
+body.erp-ops-space.page-cotizaciones #clienteSeleccionadoInfo .badge.bg-danger,
+body.erp-ops-space.page-cotizaciones-form #clienteSeleccionadoInfo .badge.bg-danger {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #b91c1c !important;
+  box-shadow: none !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #clienteSeleccionadoInfo,
+body.erp-ops-space.page-cotizaciones-form #clienteSeleccionadoInfo {
+  background: #eff6ff !important;
+  color: #1e3a8a !important;
+  border-color: #93c5fd !important;
+}
+
+body.erp-ops-space.page-cotizaciones #clienteSeleccionadoInfo strong,
+body.erp-ops-space.page-cotizaciones-form #clienteSeleccionadoInfo strong {
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones #clienteSeleccionadoInfo .text-muted,
+body.erp-ops-space.page-cotizaciones-form #clienteSeleccionadoInfo .text-muted {
+  color: #475569 !important;
+}
+
+/* Totales — colores legibles */
+body.erp-ops-space.page-cotizaciones .totales-card .total-row span,
+body.erp-ops-space.page-cotizaciones-form .totales-card .total-row span,
+body.erp-ops-space.page-cotizaciones .totales-card .total-row strong,
+body.erp-ops-space.page-cotizaciones-form .totales-card .total-row strong {
+  color: #334155 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .total-row.grande span,
+body.erp-ops-space.page-cotizaciones-form .totales-card .total-row.grande span {
+  color: #92400e !important;
+  font-weight: 800 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .total-row.text-danger strong,
+body.erp-ops-space.page-cotizaciones-form .totales-card .total-row.text-danger strong {
+  color: #b91c1c !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .cot-totales-iva-nota,
+body.erp-ops-space.page-cotizaciones-form .totales-card .cot-totales-iva-nota {
+  color: #78716c !important;
+}
+
+body.erp-ops-space.page-cotizaciones .totales-card .cot-totales-iva-nota strong,
+body.erp-ops-space.page-cotizaciones-form .totales-card .cot-totales-iva-nota strong {
+  color: #57534e !important;
+}
+
+/* Búsqueda cliente — estado crédito legible */
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action small.text-success,
+body.erp-ops-space.page-cotizaciones-form #busqClientesResultados .list-group-item-action small.text-success {
+  color: #15803d !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #busqClientesResultados .list-group-item-action small.text-danger,
+body.erp-ops-space.page-cotizaciones-form #busqClientesResultados .list-group-item-action small.text-danger {
+  color: #b91c1c !important;
+  font-weight: 700 !important;
+}
+

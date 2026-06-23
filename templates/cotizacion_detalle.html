@@ -1,13 +1,8 @@
 {% extends "base.html" %}
-{% block body_class %}erp-ops-space {% endblock %}
+{% block body_class %}erp-ops-space page-cotizaciones{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-homolog-20260523">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-lineas-item-20260614">
 <style>
-  .cot-header { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; padding:18px 22px; border-bottom:1px solid #e2e8f0; }
-  .cot-brand img { max-height: 70px; max-width: 240px; object-fit:contain; }
-  .cot-title { text-align:right; }
-  .cot-title h1 { font-size: 1.6rem; margin: 0; color:#0f172a; letter-spacing: 0.04em; }
-  .cot-title small { color:#64748b; }
   .cot-section { padding: 18px 22px; }
   .cot-section h6 { color:#475569; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.78rem; margin-bottom: 8px; }
   .totales-card { background:#fff8ef; border:1px solid #ffe4c4; border-radius: 14px; padding: 16px; }
@@ -27,7 +22,7 @@
 <div class="container-fluid py-3">
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 no-print">
     <a href="{{ url_for('cotizaciones_lista') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Volver al listado</a>
-    <div class="d-flex flex-wrap gap-2">
+    <div class="d-flex flex-wrap gap-2 cot-detalle-toolbar">
       {% if cotizacion.estado in ('Vigente', 'Vencida') %}
       <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#modalContactoRapido" title="Corregir telefono o correo sin recargar la cotizacion">
         <i class="fas fa-phone-volume me-1"></i>Cambiar contacto
@@ -90,90 +85,19 @@
   </div>
   {% endif %}
 
-  <div class="card shadow-sm">
-    <div class="cot-header">
-      <div class="cot-brand">
-        <img src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ empresa.nombre_comercial }}">
-        <div class="mt-2">
-          <strong>{{ empresa.nombre_comercial }}</strong><br>
-          <small class="text-muted">
-            {% if empresa.razon_social %}{{ empresa.razon_social }}<br>{% endif %}
-            {% if empresa.direccion %}{{ empresa.direccion }} · {% endif %}
-            {% if empresa.telefono %}Tel: {{ empresa.telefono }}{% endif %}
-          </small>
-        </div>
-      </div>
-      <div class="cot-title">
-        <h1>COTIZACIÓN</h1>
-        <div><strong>{{ cotizacion.numero }}</strong></div>
-        <small>Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') if cotizacion.fecha else '' }}</small><br>
-        {% if cotizacion.fecha_vencimiento %}
-        <small>Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)</small><br>
-        {% endif %}
-        {% set estado_badge = {
-          'Vigente': 'bg-success',
-          'Vencida': 'bg-warning text-dark',
-          'Aceptada': 'bg-primary',
-          'Rechazada': 'bg-danger',
-          'Convertida': 'bg-info text-dark',
-        } %}
-        <span class="badge {{ estado_badge.get(cotizacion.estado, 'bg-secondary') }} mt-1">{{ cotizacion.estado }}</span>
-      </div>
-    </div>
+  <div class="card shadow-sm cot-doc-premium">
+    {% include 'cotizaciones/includes/cot_doc_header.html' %}
 
     {% if cotizacion.cliente_nombre or cotizacion.cliente_rut or cotizacion.cliente_telefono or cotizacion.cliente_giro or cotizacion.cliente_direccion or cotizacion.cliente_correo %}
-    <div class="cot-section">
+    <div class="cot-section cot-section--cliente">
       <h6>Cliente</h6>
-      <div class="row g-2">
-        <div class="col-md-7">
-          <div><strong>{{ cotizacion.cliente_nombre or '—' }}</strong>
-            {% if cotizacion.cliente_rut %}<span class="text-muted"> · RUT {{ cotizacion.cliente_rut }}</span>{% endif %}
-          </div>
-          {% if cotizacion.cliente_giro %}<div class="text-muted small">Giro: {{ cotizacion.cliente_giro }}</div>{% endif %}
-          {% if cotizacion.cliente_direccion or cotizacion.cliente_comuna or cotizacion.cliente_ciudad %}
-          <div class="text-muted small">
-            {% if cotizacion.cliente_direccion %}{{ cotizacion.cliente_direccion }}{% endif %}
-            {% if cotizacion.cliente_comuna %}{% if cotizacion.cliente_direccion %}, {% endif %}{{ cotizacion.cliente_comuna }}{% endif %}
-            {% if cotizacion.cliente_ciudad %}{% if cotizacion.cliente_direccion or cotizacion.cliente_comuna %}, {% endif %}{{ cotizacion.cliente_ciudad }}{% endif %}
-          </div>
-          {% endif %}
-        </div>
-        <div class="col-md-5 text-md-end small">
-          {% if cotizacion.cliente_telefono %}<div><i class="fas fa-phone me-1 text-muted"></i>{{ cotizacion.cliente_telefono }}</div>{% endif %}
-          {% if cotizacion.cliente_correo %}<div><i class="fas fa-envelope me-1 text-muted"></i>{{ cotizacion.cliente_correo }}</div>{% endif %}
-        </div>
-      </div>
+      {% include 'cotizaciones/includes/cot_cliente_block.html' %}
     </div>
     {% endif %}
 
-    <div class="cot-section">
+    <div class="cot-section cot-section--detalle">
       <h6>Detalle</h6>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Código</th>
-              <th>Producto</th>
-              <th class="text-end">Cant.</th>
-              <th class="text-end">Precio unit.</th>
-              <th class="text-end">Desc.</th>
-              <th class="text-end">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for d in cotizacion.detalles %}
-            <tr>
-              <td><small>{{ d.codigo or '—' }}</small></td>
-              <td>{{ d.nombre }}</td>
-              <td class="text-end">{{ "{:g}".format(d.cantidad or 0) }}</td>
-              <td class="text-end">${{ "{:,.0f}".format(d.precio_unitario or 0).replace(",", ".") }}</td>
-              <td class="text-end">{% if (d.descuento or 0) > 0 %}${{ "{:,.0f}".format(d.descuento).replace(",", ".") }}{% else %}—{% endif %}</td>
-              <td class="text-end fw-bold">${{ "{:,.0f}".format(d.subtotal or 0).replace(",", ".") }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      {% include 'cotizaciones/includes/cot_lineas_table.html' %}
     </div>
 
     <div class="cot-section">
@@ -186,12 +110,7 @@
         </div>
         <div class="col-md-5">
           <div class="totales-card">
-            <div class="total-row"><span>Neto</span><strong>${{ "{:,.0f}".format(cotizacion.neto or 0).replace(",", ".") }}</strong></div>
-            <div class="total-row"><span>IVA 19%</span><strong>${{ "{:,.0f}".format(cotizacion.iva or 0).replace(",", ".") }}</strong></div>
-            {% if (cotizacion.descuento_global or 0) > 0 %}
-            <div class="total-row text-danger"><span>Descuento global</span><strong>- ${{ "{:,.0f}".format(cotizacion.descuento_global).replace(",", ".") }}</strong></div>
-            {% endif %}
-            <div class="total-row grande"><span>TOTAL</span><span>${{ "{:,.0f}".format(cotizacion.monto_total or 0).replace(",", ".") }}</span></div>
+            {% include 'cotizaciones/includes/cot_totales_box.html' %}
           </div>
         </div>
       </div>
