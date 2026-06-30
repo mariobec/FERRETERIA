@@ -1,0 +1,53 @@
+================================================================================
+  LhexIA ERP — CARPETA UNICA INSTALACION (copiar entera al PC servidor)
+================================================================================
+
+Esta carpeta contiene TODO lo necesario. Copiela al USB o al PC nuevo
+(ej. D:\LhexIA\INSTALACION o C:\LhexIA\INSTALACION) y use solo estos archivos.
+
+ESTRUCTURA
+----------
+  erp\              Runtime ERP (solo modulos operativos; sin tests/docs)
+  paquete\          Instaladores PostgreSQL, Python, dump BD, scripts ops
+  LhexIA_Centro_Control.exe   Panel grafico (sin terminal)
+  00_Instalar_servidor_completo.bat   PC NUEVO — ejecutar primero
+  02_Iniciar_ERP.bat                  Operacion diaria
+  EMPAQUETAR_desde_DEV.bat            Solo en PC desarrollo (arma erp\)
+
+QUE VA EN erp\ (cliente)
+------------------------
+  LhexIA_ERP.exe + carpeta _internal\  (recomendado — sin codigo fuente)
+  data\, storage\, logs\, scripts\ de operacion
+
+QUE NO VA AL CLIENTE
+--------------------
+  tests\, docs\, sql\, respaldos\, scripts\ de desarrollo, .git, .venv
+  planes *.md, datos_rcv, frontend, release, MANUALES, CONTRATOS
+  Carpetas viejas LhexIA_Instalador_SD / 02_APLICACION (obsoletas)
+
+ANTES DE COPIAR AL USB
+----------------------
+  VALIDAR_PAQUETE_USB.bat  — comprueba erp\, paquete\, dump, Postgres, Python
+
+PC NUEVO (servidor tienda)
+--------------------------
+  1. En DEV: COMPILAR_ERP_EXE.bat  (recomendado — exe + validacion)
+     VALIDAR_PAQUETE_USB.bat
+  2. Copiar carpeta INSTALACION COMPLETA al USB (incluye erp\ + paquete\)
+  3. Colocar en paquete\00_POSTGRESQL\ el .exe de PostgreSQL
+  4. Colocar en paquete\00_PYTHON\ el .exe de Python 3.12
+  5. En PC nuevo: 00_Instalar_servidor_completo.bat (como admin)
+  6. Luego: 01_Centro_de_Control.exe o 02_Iniciar_ERP.bat
+
+  Si el paso 3 dice "falta 02_APLICACION": esta usando un USB VIEJO.
+  Use INSTALACION\00_Instalar_servidor_completo.bat con erp\LhexIA_ERP.exe.
+
+OPERACION DIARIA (ya instalado)
+-------------------------------
+  01_Centro_de_Control.exe  o  02_Iniciar_ERP.bat
+  04_URL_tablets.bat
+  06_Resetear_clave_admin.bat
+
+NO use python app.py suelto ni .bat fuera de esta carpeta.
+
+================================================================================

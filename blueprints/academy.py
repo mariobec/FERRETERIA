@@ -31,3 +31,9 @@ def register_academy_routes(app):
         _wrap_mentor_api(m.api_mentor_save_step),
         methods=['POST'],
     )
+    app.add_url_rule(
+        '/api/mentor/pregunta',
+        'api_mentor_pregunta',
+        _wrap_mentor_api(m.api_mentor_pregunta),
+        methods=['POST'],
+    )

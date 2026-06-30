@@ -24,6 +24,7 @@ def _wa_base():
 
 def _carrito_template_ctx(slug: str, nombre_tienda: str):
     from services import webpay_service as wp
+    from services import khipu_service as kh
 
     dig = ''.join(c for c in (os.getenv('WHATSAPP_VENTAS', '') or '') if c.isdigit())
     pedido_web = vt.pedido_web_habilitado()
@@ -38,6 +39,7 @@ def _carrito_template_ctx(slug: str, nombre_tienda: str):
             'checkout_api_url': url_for('tienda_api_carrito_checkout', slug=slug),
             'pedido_web_habilitado': pedido_web,
             'webpay_habilitado': wp.webpay_habilitado() and pedido_web,
+            'khipu_habilitado': kh.khipu_habilitado() and pedido_web,
         },
     }
 
@@ -422,6 +424,43 @@ def tienda_api_carrito_checkout(slug: str):
             }
         )
 
+    if metodo in ('khipu', 'transferencia', 'transfer'):
+        from services import khipu_service as kh
+        if not kh.khipu_habilitado():
+            return jsonify({'ok': False, 'error': 'khipu_disabled', 'mensaje': 'Transferencia bancaria no disponible.'}), 503
+        vid = int(res.get('venta_id') or 0)
+        monto = int(res.get('monto_total') or 0)
+        if vid <= 0 or monto <= 0:
+            return jsonify({'ok': False, 'error': 'monto_invalido'}), 400
+        ped_codigo = res.get('ped_web_codigo') or vt.codigo_pedido_web(vid)
+        retorno = _url_publica('tienda_khipu_retorno', slug=slug)
+        cancelar = _url_publica('tienda_vitrina', slug=slug)
+        notify = _url_publica('tienda_khipu_notify', slug=slug)
+        nombre_contacto = (data.get('cliente_nombre') or '').strip()
+        pago = kh.crear_pago(
+            subject=f'Pedido {ped_codigo} — {nombre}',
+            amount=monto,
+            return_url=retorno,
+            cancel_url=cancelar,
+            notify_url=notify,
+            custom=f'VID:{vid}',
+            payer_name=nombre_contacto,
+        )
+        if not pago.get('ok'):
+            return jsonify(pago), 502
+        return jsonify(
+            {
+                'ok': True,
+                'modo': 'khipu',
+                'venta_id': vid,
+                'ped_web_codigo': ped_codigo,
+                'monto_total': monto,
+                'monto_total_fmt': res.get('monto_total_fmt'),
+                'khipu_url': pago.get('payment_url'),
+                'khipu_payment_id': pago.get('payment_id'),
+            }
+        )
+
     return jsonify({'ok': False, 'error': 'metodo_invalido'}), 400
 
 
@@ -492,6 +531,126 @@ def tienda_webpay_retorno(slug: str):
     )
 
 
+def tienda_khipu_retorno(slug: str):
+    """Retorno Khipu → el usuario vuelve tras pagar (o cancelar)."""
+    if not vt.tienda_habilitada() or slug != vt.TIENDA_SLUG_SD:
+        abort(404)
+
+    from services import khipu_service as kh
+    from services import ecommerce_pedidos_service as ecom
+
+    _cfg, nombre = _empresa_ctx()
+    ctx = {
+        'slug': slug,
+        'nombre_tienda': nombre,
+        'vitrina_url': url_for('tienda_vitrina', slug=slug),
+    }
+
+    # Khipu envía notification_token como query param en el retorno
+    notification_token = (
+        request.args.get('notification_token')
+        or request.form.get('notification_token')
+        or ''
+    ).strip()
+    payment_id = (
+        request.args.get('payment_id')
+        or request.form.get('payment_id')
+        or ''
+    ).strip()
+
+    # Intentar verificar por payment_id o notification_token (ambos sirven en v3)
+    pid = payment_id or notification_token
+    if not pid:
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje='Token de pago no recibido. Verifica en caja con tu código.',
+            **ctx,
+        )
+
+    verify = kh.verificar_pago(pid)
+    if not verify.get('ok'):
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje=verify.get('mensaje') or 'No se pudo verificar el pago. Presenta tu código en caja.',
+            **ctx,
+        )
+
+    if not verify.get('approved'):
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje='La transferencia no fue completada o está pendiente. Si ya pagaste, presenta tu código en caja.',
+            **ctx,
+        )
+
+    # Extraer venta_id del campo custom "VID:{id}"
+    custom = (verify.get('custom') or '').strip()
+    venta_id = 0
+    if custom.upper().startswith('VID:') and custom[4:].isdigit():
+        venta_id = int(custom[4:])
+
+    if venta_id <= 0:
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje='Transferencia recibida, pero no se vinculó al pedido. Muestra este comprobante en caja.',
+            **ctx,
+        )
+
+    cobro = ecom.cobrar_pedido_web_tarjeta(venta_id, metodo_pago='Khipu')
+    ped_codigo = vt.codigo_pedido_web(venta_id)
+    if not cobro.get('ok') and not cobro.get('ya_cobrado'):
+        return render_template(
+            'tienda/pago_resultado.html',
+            ok=False,
+            mensaje=cobro.get('mensaje') or 'Transferencia recibida; confirma en caja con tu código.',
+            ped_web_codigo=ped_codigo,
+            **ctx,
+        )
+
+    return render_template(
+        'tienda/pago_resultado.html',
+        ok=True,
+        mensaje='¡Transferencia confirmada! Estamos preparando tu pedido.',
+        ped_web_codigo=ped_codigo,
+        monto_total_fmt=vt._fmt_clp(verify.get('amount')),
+        **ctx,
+    )
+
+
+def tienda_khipu_notify(slug: str):
+    """Webhook Khipu — notificación server-to-server al confirmar pago."""
+    if not vt.tienda_habilitada() or slug != vt.TIENDA_SLUG_SD:
+        abort(404)
+
+    from services import khipu_service as kh
+    from services import ecommerce_pedidos_service as ecom
+
+    notification_token = (
+        request.form.get('notification_token')
+        or request.json.get('notification_token') if request.is_json else ''
+        or ''
+    ).strip()
+    if not notification_token:
+        return jsonify({'ok': False, 'error': 'token_vacio'}), 400
+
+    verify = kh.verificar_pago(notification_token)
+    if not verify.get('ok') or not verify.get('approved'):
+        return jsonify({'ok': False, 'status': verify.get('status', 'unknown')}), 200
+
+    custom = (verify.get('custom') or '').strip()
+    venta_id = 0
+    if custom.upper().startswith('VID:') and custom[4:].isdigit():
+        venta_id = int(custom[4:])
+    if venta_id <= 0:
+        return jsonify({'ok': False, 'error': 'venta_id_no_encontrado'}), 200
+
+    cobro = ecom.cobrar_pedido_web_tarjeta(venta_id, metodo_pago='Khipu')
+    return jsonify({'ok': cobro.get('ok') or cobro.get('ya_cobrado', False)}), 200
+
+
 def register_tienda_publica_routes(app) -> None:
     app.add_url_rule('/tienda', view_func=tienda_index, methods=['GET'])
     app.add_url_rule(
@@ -541,4 +700,16 @@ def register_tienda_publica_routes(app) -> None:
         view_func=tienda_webpay_retorno,
         methods=['GET', 'POST'],
         endpoint='tienda_webpay_retorno',
+    )
+    app.add_url_rule(
+        '/tienda/<slug>/pago/khipu/retorno',
+        view_func=tienda_khipu_retorno,
+        methods=['GET', 'POST'],
+        endpoint='tienda_khipu_retorno',
+    )
+    app.add_url_rule(
+        '/tienda/<slug>/pago/khipu/notify',
+        view_func=tienda_khipu_notify,
+        methods=['POST'],
+        endpoint='tienda_khipu_notify',
     )

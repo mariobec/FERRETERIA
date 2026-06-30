@@ -1,4 +1,4 @@
-"""Lhexia Guardián v3 — dashboard multiperfil + KPIs + feed + acciones."""
+edición y el b"""Lhexia Guardián v3 — dashboard multiperfil + KPIs + feed + acciones."""
 from __future__ import annotations
 
 import os
@@ -177,8 +177,13 @@ def detectar_perfil_guardian(usuario=None) -> PerfilGuardian:
 
 
 def _estado_a_status(estado: str | None) -> str:
-    m = {'verde': 'green', 'rojo': 'red', 'amarillo': 'amber'}
-    return m.get((estado or '').lower(), 'green')
+    m = {
+        'verde': 'green', 
+        'rojo': 'red', 
+        'amarillo': 'amber',
+        'critico': 'red'
+    }
+    return m.get((estado or '').lower(), 'gray')
 
 
 def _severidad_a_estado(sev: str | None) -> str:
@@ -406,10 +411,15 @@ def _tarjeta_inventario(*, perfil: PerfilGuardian) -> dict[str, Any]:
             'skus_bajo_minimo': 0,
         }
 
+    # Métricas de salud: Stock + Calidad de Datos
+    total_activos = Producto.query.filter(Producto.activo.is_(True)).count()
     bajo = Producto.query.filter(Producto.stock < 5, Producto.activo.is_(True)).count()
+    sin_cat = Producto.query.filter(Producto.activo.is_(True), (Producto.categoria == None) | (Producto.categoria == '')).count()
+    sin_ub = Producto.query.filter(Producto.activo.is_(True), (Producto.ubicacion_pasillo == None) | (Producto.ubicacion_pasillo == '')).count()
+
     if bajo >= 15:
         estado, titulo = 'rojo', 'Inventario: crítico'
-    elif bajo >= 5:
+    elif bajo >= 5 or sin_cat > 0:
         estado, titulo = 'amarillo', 'Inventario: atención'
     else:
         estado, titulo = 'verde', 'Inventario: OK'
@@ -421,11 +431,13 @@ def _tarjeta_inventario(*, perfil: PerfilGuardian) -> dict[str, Any]:
     return {
         'estado': estado,
         'titulo': titulo,
-        'mensaje': f'{bajo} SKU bajo mínimo (<5 u). Ámbito: {sucursal}.',
+        'mensaje': f'{bajo} bajo stock, {sin_cat} sin categoría. Ámbito: {sucursal}.',
         'timestamp': 'Ahora',
         'accion_requerida': estado != 'verde',
         'tipo_accion': 'llamada_supervisor' if estado == 'rojo' else None,
         'skus_bajo_minimo': int(bajo),
+        'skus_sin_categoria': int(sin_cat),
+        'skus_sin_ubicacion': int(sin_ub),
     }
 
 

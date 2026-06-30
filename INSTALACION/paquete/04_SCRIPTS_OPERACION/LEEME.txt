@@ -1,0 +1,2 @@
+Scripts minimos para operacion en tienda (se copian a erp\scripts\ al empaquetar).
+No incluye herramientas de desarrollo, migraciones ni tests.

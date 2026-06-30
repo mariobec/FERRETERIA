@@ -121,7 +121,10 @@ def formatear_contenido_academy_html(texto: str | None) -> Markup:
         if stripped.startswith('> '):
             flush_lista()
             cuerpo = html.escape(stripped[2:].strip())
-            bloques.append(f'<div class="lhexia-academy-callout">{cuerpo}</div>')
+            cls = 'lhexia-academy-callout'
+            if re.search(r'invariante\s+financiera', cuerpo, re.I):
+                cls += ' lhexia-academy-callout--invariante'
+            bloques.append(f'<div class="{cls}">{cuerpo}</div>')
             continue
 
         if re.match(r'^Importante\s*:', stripped, re.I):

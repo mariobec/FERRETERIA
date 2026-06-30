@@ -43,7 +43,9 @@ def collect_dashboard_premium(
     No inventa ventas ni tendencias: solo catálogo y stock actual.
     """
     import app as m
-    from sqlalchemy import case, func
+    from sqlalchemy import func, text
+
+    from services.stock_consulta_service import contadores_stock_tienda_activos, stock_tienda_por_ids
 
     db = m.db
     Producto = m.Producto
@@ -51,20 +53,11 @@ def collect_dashboard_premium(
     lim_cat = max(3, min(int(max_categorias or 8), 12))
     lim_prod = max(5, min(int(productos_por_categoria or 12), 30))
 
-    total_activos = (
-        Producto.query.filter(Producto.activo.is_(True)).count()
-    )
-    sin_stock = (
-        Producto.query.filter(Producto.activo.is_(True), Producto.stock <= 0).count()
-    )
-    con_stock = max(0, total_activos - sin_stock)
-    critico = (
-        Producto.query.filter(
-            Producto.activo.is_(True),
-            Producto.stock > 0,
-            Producto.stock <= umbral,
-        ).count()
-    )
+    cont = contadores_stock_tienda_activos(umbral_critico=umbral)
+    total_activos = int(cont['total_activos'])
+    sin_stock = int(cont['sin_stock'])
+    con_stock = int(cont['con_stock'])
+    critico = int(cont['critico'])
     pend_barras = (
         Producto.query.filter(
             Producto.activo.is_(True),
@@ -79,6 +72,23 @@ def collect_dashboard_premium(
             Producto.codigo_chilemat != '',
         ).count()
     )
+
+    activos_ids = [int(r[0]) for r in db.session.query(Producto.id).filter(Producto.activo.is_(True)).all()]
+    stocks_activos = stock_tienda_por_ids(activos_ids) if activos_ids else {}
+    activos_rows = (
+        Producto.query.filter(Producto.id.in_(activos_ids)).all() if activos_ids else []
+    )
+    capital_activo_clp = 0.0
+    mercaderia_clp = 0.0
+    stock_valorizado_tienda = 0
+    stock_valorizado_costo = 0.0
+    for p in activos_rows:
+        st = int(stocks_activos.get(int(p.id), 0) or 0)
+        costo = float(p.precio_compra or 0)
+        venta = float(m.precio_efectivo_pos_producto(p) or p.precio_venta or 0)
+        stock_valorizado_tienda += st
+        capital_activo_clp += st * venta
+        mercaderia_clp += st * costo
 
     salud_global = int(round(100.0 * con_stock / total_activos)) if total_activos else 0
     salud_catalogo = (
@@ -95,10 +105,9 @@ def collect_dashboard_premium(
         db.session.query(
             cat_label.label('nombre'),
             func.count(Producto.id).label('cnt'),
-            func.sum(case((Producto.stock > 0, 1), else_=0)).label('con_stock'),
         )
         .filter(Producto.activo.is_(True))
-        .group_by(cat_label)
+        .group_by(text('1'))
         .order_by(func.count(Producto.id).desc())
         .limit(lim_cat)
         .all()
@@ -109,22 +118,9 @@ def collect_dashboard_premium(
     for idx, row in enumerate(filas_cat):
         nombre = (row.nombre or 'Sin categoría').strip()
         cnt = int(row.cnt or 0)
-        con_st = int(row.con_stock or 0)
-        score = int(round(100.0 * con_st / cnt)) if cnt else 0
         slug = _slug_categoria(nombre)
         color = _PALETTE[idx % len(_PALETTE)]
         span = 'span-3' if idx < 2 and cnt >= 200 else 'span-2'
-        categories.append(
-            {
-                'id': slug,
-                'name': nombre,
-                'items': cnt,
-                'score': score,
-                'color': color,
-                'span': span,
-                'con_stock': con_st,
-            }
-        )
         q_prod = Producto.query.filter(Producto.activo.is_(True))
         if nombre == 'Sin categoría':
             q_prod = q_prod.filter(
@@ -136,13 +132,21 @@ def collect_dashboard_premium(
         else:
             q_prod = q_prod.filter(Producto.categoria == nombre)
         rows_p = (
-            q_prod.order_by(Producto.stock.asc(), Producto.nombre.asc())
-            .limit(lim_prod)
+            q_prod.order_by(Producto.nombre.asc())
+            .limit(max(lim_prod * 3, 36))
             .all()
         )
+        cat_ids = [int(r[0]) for r in q_prod.with_entities(Producto.id).all()]
+        st_cat = stock_tienda_por_ids(cat_ids) if cat_ids else {}
+        con_st = sum(1 for cid in cat_ids if int(st_cat.get(cid, 0) or 0) > 0)
         products[slug] = []
-        for p in rows_p:
-            st = int(p.stock or 0)
+        for p in sorted(
+            rows_p,
+            key=lambda x: (int(st_cat.get(x.id, 0) or 0), (x.nombre or '')),
+        ):
+            if len(products[slug]) >= lim_prod:
+                continue
+            st = int(st_cat.get(p.id, 0) or 0)
             estado = _estado_stock(st, umbral)
             code = (
                 (p.codigo_chilemat or '').strip()
@@ -160,6 +164,18 @@ def collect_dashboard_premium(
                     'producto_id': p.id,
                 }
             )
+        score = int(round(100.0 * con_st / cnt)) if cnt else 0
+        categories.append(
+            {
+                'id': slug,
+                'name': nombre,
+                'items': cnt,
+                'score': score,
+                'color': color,
+                'span': span,
+                'con_stock': con_st,
+            }
+        )
 
     n_desajuste = 0
     n_reposicion = 0
@@ -192,6 +208,9 @@ def collect_dashboard_premium(
         'salud_catalogo': salud_catalogo,
         'n_desajuste': n_desajuste,
         'n_reposicion': n_reposicion,
+        'capital_activo_clp': capital_activo_clp,
+        'mercaderia_clp': mercaderia_clp,
+        'stock_valorizado_tienda': stock_valorizado_tienda,
         'categories': categories,
         'products': products,
         'foco': foco,

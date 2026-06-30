@@ -1,20 +1,24 @@
 {% extends 'base.html' %}
+{% block body_class %}page-inventario-dashboard-premium{% endblock %}
 
 {% block extra_css %}
 <style>
+  body.page-inventario-dashboard-premium .app-main {
+    padding: 0 !important;
+    overflow-x: hidden;
+  }
   .premium-stock-shell {
     min-height: calc(100vh - 90px);
-    margin: -1rem;
-    padding: 28px;
+    margin: 0;
+    padding: 24px 28px 32px;
     background:
       radial-gradient(circle at 12% 18%, rgba(37, 99, 235, .35), transparent 28%),
       radial-gradient(circle at 88% 12%, rgba(220, 38, 38, .24), transparent 26%),
       radial-gradient(circle at 55% 88%, rgba(16, 185, 129, .18), transparent 30%),
       #020617;
     color: #e5e7eb;
-    overflow: hidden;
   }
-  .premium-stock-shell * { letter-spacing: -.01em; }
+  .premium-stock-shell * { letter-spacing: normal; }
   .glass-card {
     background: rgba(15, 23, 42, .62);
     border: 1px solid rgba(148, 163, 184, .2);
@@ -25,9 +29,10 @@
   .premium-topbar {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 16px;
     margin-bottom: 22px;
+    flex-wrap: wrap;
   }
   .premium-kicker {
     display: inline-flex;
@@ -105,32 +110,45 @@
   .metric-foot { color: #64748b; font-size: .78rem; margin-top: 3px; }
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 1.1fr .9fr;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
     gap: 18px;
+    align-items: start;
   }
   .bento-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
+    width: 100%;
   }
   .category-card {
     position: relative;
-    min-height: 190px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 168px;
     padding: 18px;
     cursor: pointer;
-    transition: transform .4s ease, border-color .4s ease, box-shadow .4s ease;
+    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
     overflow: hidden;
-    border: 0;
+    border: 1px solid rgba(148, 163, 184, .18);
     text-align: left;
     width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    color: inherit;
+    font: inherit;
   }
   .category-card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-3px);
     border-color: rgba(96, 165, 250, .55);
     box-shadow: 0 24px 80px rgba(37, 99, 235, .16), inset 0 1px 0 rgba(255,255,255,.06);
   }
-  .span-3 { grid-column: span 3; }
-  .span-2 { grid-column: span 2; }
+  .bento-grid .category-card.span-3 {
+    grid-column: span 2;
+  }
+  .bento-grid .category-card.span-2 {
+    grid-column: span 1;
+  }
   .category-glow {
     position: absolute;
     inset: auto -20% -45% auto;
@@ -141,8 +159,9 @@
     opacity: .32;
   }
   .health-ring {
-    width: 76px;
-    height: 76px;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
     border-radius: 999px;
     display: grid;
     place-items: center;
@@ -150,29 +169,66 @@
     box-shadow: 0 0 28px rgba(59, 130, 246, .18);
   }
   .health-ring span {
-    width: 56px;
-    height: 56px;
+    width: 48px;
+    height: 48px;
     border-radius: 999px;
     display: grid;
     place-items: center;
     background: #020617;
     font-weight: 900;
     color: #f8fafc;
-    font-size: .85rem;
+    font-size: .78rem;
   }
-  .category-head { display: flex; justify-content: space-between; gap: 12px; position: relative; z-index: 1; }
-  .category-name { font-size: 1.15rem; font-weight: 900; color: #f8fafc; }
-  .category-meta { color: #94a3b8; font-size: .86rem; }
+  .premium-stock-shell h4,
+  .premium-stock-shell h5 {
+    text-transform: none !important;
+    letter-spacing: normal !important;
+  }
+  .premium-stock-shell .text-secondary {
+    color: #94a3b8 !important;
+  }
+  .premium-stock-shell .text-white {
+    color: #f8fafc !important;
+  }
+  .category-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .category-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #f8fafc;
+    line-height: 1.25;
+    word-break: break-word;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .category-meta {
+    color: #94a3b8;
+    font-size: .86rem;
+    margin-top: 4px;
+    line-height: 1.35;
+  }
   .category-footer {
-    position: absolute;
-    left: 18px;
-    right: 18px;
-    bottom: 16px;
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(148, 163, 184, .14);
     display: flex;
     justify-content: space-between;
     align-items: center;
     color: #cbd5e1;
     font-size: .86rem;
+    z-index: 1;
   }
   .product-list { padding: 16px; }
   .product-row {
@@ -237,15 +293,30 @@
   .fade-in { animation: fadeInUp .4s ease-out both; }
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   @media (max-width: 1180px) {
-    .premium-topbar, .dashboard-grid { grid-template-columns: 1fr; display: block; }
-    .command-bar { margin-top: 18px; }
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+    .command-bar { margin-top: 18px; min-width: 100%; }
     .metric-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .bento-grid { grid-template-columns: repeat(2, 1fr); }
-    .span-3, .span-2 { grid-column: span 1; }
+  }
+  @media (min-width: 1400px) {
+    .bento-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .bento-grid .category-card.span-3 {
+      grid-column: span 2;
+    }
+    .bento-grid .category-card.span-2 {
+      grid-column: span 1;
+    }
   }
   @media (max-width: 720px) {
-    .premium-stock-shell { padding: 18px; margin: -1rem; }
+    .premium-stock-shell { padding: 16px; }
     .metric-row, .bento-grid { grid-template-columns: 1fr; }
+    .bento-grid .category-card.span-3,
+    .bento-grid .category-card.span-2 {
+      grid-column: span 1;
+    }
     .product-row { grid-template-columns: 1fr; }
   }
 </style>
@@ -256,9 +327,9 @@
   <div class="premium-topbar">
     <div>
       <div class="premium-kicker"><i class="fas fa-chart-pie"></i> Inventario · Santo Domingo</div>
-      <h1 class="premium-title">Stock Command Center</h1>
+      <h1 class="premium-title">Centro de stock</h1>
       <p class="premium-subtitle">
-        Vista ejecutiva conectada a tu catálogo real: familias, stock actual, alertas y enlaces al enrolamiento y la salud del inventario.
+        Vista ejecutiva conectada a tu catálogo real: familias, stock actual, alertas e integridad maestro/depósitos.
       </p>
       <div class="live-ribbon">
         <i class="fas fa-database"></i>
@@ -273,7 +344,7 @@
       </div>
       <div class="premium-actions">
         <a href="{{ urls.productos }}" class="btn btn-sm btn-outline-light">
-          <i class="fas fa-boxes me-1"></i> Catálogo
+          <i class="fas fa-boxes me-1"></i> Productos y stock
         </a>
         <a href="{{ urls.enrolamiento }}" class="btn btn-sm btn-primary">
           <i class="fas fa-barcode me-1"></i> Enrolamiento
@@ -281,8 +352,8 @@
         <a href="{{ urls.stock_critico }}" class="btn btn-sm btn-outline-warning">
           <i class="fas fa-triangle-exclamation me-1"></i> Stock crítico
         </a>
-        <a href="{{ urls.salud }}" class="btn btn-sm btn-outline-info">
-          <i class="fas fa-heartbeat me-1"></i> Salud inventario
+        <a href="{{ urls.integridad }}" class="btn btn-sm btn-outline-info">
+          <i class="fas fa-balance-scale me-1"></i> Integridad
         </a>
       </div>
     </div>
@@ -292,7 +363,7 @@
     <div class="glass-card metric-card">
       <div class="metric-label">Cobertura con stock</div>
       <div class="metric-value">{{ dash.salud_global }}%</div>
-      <div class="metric-foot">{{ dash.con_stock }} con stock · {{ dash.sin_stock }} en cero (toma física pendiente)</div>
+      <div class="metric-foot">{{ dash.con_stock }} con stock en tienda · {{ dash.sin_stock }} en cero en tienda</div>
     </div>
     <div class="glass-card metric-card">
       <div class="metric-label">SKU activos</div>
@@ -308,6 +379,16 @@
       <div class="metric-label">Catálogo pistola</div>
       <div class="metric-value text-info">{{ dash.salud_catalogo }}%</div>
       <div class="metric-foot">{{ dash.pend_barras }} con barras PEND (falta enrolar EAN)</div>
+    </div>
+    <div class="glass-card metric-card">
+      <div class="metric-label">Capital activo</div>
+      <div class="metric-value text-success">${{ "{:,.0f}".format(dash.capital_activo_clp or 0).replace(",", ".") }}</div>
+      <div class="metric-foot">Valor de venta del stock activo en tienda</div>
+    </div>
+    <div class="glass-card metric-card">
+      <div class="metric-label">Cuenta mercadería</div>
+      <div class="metric-value text-warning">${{ "{:,.0f}".format(dash.mercaderia_clp or 0).replace(",", ".") }}</div>
+      <div class="metric-foot">Inventario valorizado al costo de compra</div>
     </div>
   </div>
 
@@ -346,15 +427,26 @@
       </div>
       {% endfor %}
       <div class="demo-note-card mt-4">
-        <div class="small text-secondary fw-bold mb-2">Salud inventario</div>
+        <div class="small text-secondary fw-bold mb-2">Integridad</div>
         <div class="small">
           <strong class="text-warning">{{ dash.n_desajuste }}</strong> desajustes maestro vs almacenes ·
           <strong class="text-info">{{ dash.n_reposicion }}</strong> candidatos reposición bodega→tienda
         </div>
-        <a href="{{ urls.salud }}" class="btn btn-sm btn-outline-light mt-2 w-100">Abrir salud inventario</a>
+        <div class="small text-secondary mt-1">Capital activo: ${{ "{:,.0f}".format(dash.capital_activo_clp or 0).replace(",", ".") }} · Mercadería: ${{ "{:,.0f}".format(dash.mercaderia_clp or 0).replace(",", ".") }}</div>
+        <a href="{{ urls.integridad }}" class="btn btn-sm btn-outline-light mt-2 w-100">Ver integridad</a>
       </div>
     </aside>
   </div>
+
+  <section id="integridad" class="mt-4 pt-2">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div>
+        <h4 class="fw-bold mb-0 text-white">Integridad</h4>
+        <div class="text-secondary small">Maestro vs depósitos y candidatos bodega→tienda.</div>
+      </div>
+    </div>
+    {% include 'inventario/includes/integridad_stock_panel.html' %}
+  </section>
 </div>
 
 <aside class="slide-over" id="productPanel">
@@ -394,7 +486,7 @@
     productList.classList.add('d-none');
     backBtn.classList.add('d-none');
     title.textContent = 'Categorías';
-    subtitle.textContent = 'Porcentaje = SKU de la familia con stock mayor a cero.';
+    subtitle.textContent = 'Porcentaje = SKU de la familia con stock en tienda mayor a cero.';
     if (!rows.length) {
       categoryGrid.innerHTML = '<div class="text-secondary py-4">Sin categorías en el maestro.</div>';
       return;
@@ -497,6 +589,15 @@
   });
 
   renderCategories(categories);
+
+  if (window.location.hash === '#integridad') {
+    var integridadEl = document.getElementById('integridad');
+    if (integridadEl) {
+      setTimeout(function () {
+        integridadEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 120);
+    }
+  }
 })();
 </script>
 {% endblock %}

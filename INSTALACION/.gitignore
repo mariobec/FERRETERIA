@@ -1,0 +1,7 @@
+# Contenido generado por EMPAQUETAR_desde_DEV.bat — no commitear erp completo
+erp/
+paquete/.instalacion_pg_pass
+paquete/01_BASE_DATOS/*.dump
+paquete/00_POSTGRESQL/*.exe
+paquete/00_PYTHON/*.exe
+LhexIA_Centro_Control.exe

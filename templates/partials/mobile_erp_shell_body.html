@@ -13,7 +13,7 @@
     <details class="border-0" {% if ns.open %}open{% endif %}>
       <summary><i class="fas {{ grupo.icon }} me-1"></i> {{ grupo.label }}</summary>
       {% for it in grupo['items'] %}
-      <a href="{{ url_for(it.endpoint) }}{{ it.get('url_hash', '') }}" class="app-nav-link ps-4 {% if request.endpoint in it.endpoints_activos %}active{% endif %}">
+      <a href="{{ url_for(it.endpoint, **(it.get('endpoint_kwargs') or {})) }}{{ it.get('url_hash', '') }}" class="app-nav-link ps-4 {% if request.endpoint in it.endpoints_activos %}active{% endif %}">
         <i class="{% if 'fa-brands' in (it.icon or '') %}fab{% else %}fas{% endif %} {{ it.icon | replace(' fa-brands','') }} me-2"></i>{{ it.label }}
       </a>
       {% endfor %}

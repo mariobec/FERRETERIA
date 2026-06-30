@@ -45,6 +45,9 @@ storage/dtes/emitidos/**/*.xml
 
 # Artefactos locales / reportes generados
 .coverage
+dist/
+INSTALACION/erp/
+build/pyinstaller_erp/work/
 docs/test_report_*.txt
 docs/test_report_*.html
 docs/test_report_ci.html

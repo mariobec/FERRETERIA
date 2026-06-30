@@ -1,20 +1,103 @@
 {% extends "base.html" %}
-{% block body_class %}erp-ops-space {% endblock %}
+{% block body_class %}page-caja-cambios enrol-theme-claro{% endblock %}
 {% block extra_css %}
 <style>
-  .cambio-panel { border: 1px solid var(--ds-border); border-radius: 10px; }
-  .cambio-title { font-weight: 700; font-size: .95rem; letter-spacing: .2px; }
-  .cambio-grid td, .cambio-grid th { font-size: .88rem; vertical-align: middle; }
-  .cambio-total-pill { border-radius: 999px; font-weight: 700; }
-  .venta-origen-card { border: 2px dashed #c8d1da; background: #f8fafc; }
-  .venta-origen-card.has-ref { border-color: #198754; background: #f3fbf6; }
-  .venta-busqueda-results { max-height: 240px; overflow-y: auto; }
-  .venta-busqueda-results .list-group-item { cursor: pointer; }
-  .venta-busqueda-results .list-group-item:hover { background: #eef6ff; }
-  .stock-return-summary {
-    border: 1px solid #b7e4c7;
+  /* Tema claro — alineado a enrolador de productos */
+  body.page-caja-cambios.enrol-theme-claro {
+    background: #eef2f7 !important;
+    color: #1e293b;
+  }
+  body.page-caja-cambios.enrol-theme-claro .app-main {
+    background: transparent !important;
+  }
+  .cambio-shell { max-width: 1280px; margin: 0 auto; }
+  .cambio-head-card {
+    border: 1px solid #dbe3ee;
+    border-left: 4px solid #1e5631;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    margin-bottom: 1rem;
+  }
+  .cambio-head-card .cambio-page-title {
+    color: #0f172a;
+    font-size: 1.35rem;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.25rem;
+  }
+  .cambio-head-card .cambio-page-title i { color: #f37021; }
+  .cambio-title-note { color: #64748b; margin-bottom: 0; font-size: 0.95rem; }
+  .cambio-top-actions .btn { border-radius: 10px; font-weight: 600; }
+  .cambio-section-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+  }
+  .cambio-section-card .card-header {
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc !important;
+    padding: 12px 16px;
+  }
+  .cambio-section-card .card-body { padding: 16px; }
+  .cambio-panel {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+  }
+  .cambio-panel--dev { border-top: 3px solid #1e5631; }
+  .cambio-panel--ent { border-top: 3px solid #f37021; }
+  .cambio-panel .card-header {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 16px;
+  }
+  .cambio-title { font-weight: 700; font-size: .92rem; letter-spacing: .02em; color: #0f172a; }
+  .cambio-title.text-success { color: #1e5631 !important; }
+  .cambio-title.text-danger { color: #c2410c !important; }
+  .cambio-grid td, .cambio-grid th {
+    font-size: .88rem;
+    vertical-align: middle;
+    border-color: #e2e8f0;
+  }
+  .cambio-grid thead th {
+    background: #f8fafc;
+    color: #64748b;
+    font-weight: 700;
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .cambio-total-pill {
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: .82rem;
+  }
+  .venta-origen-card {
+    border: 1px solid #dbe3ee;
+    border-left: 4px solid #3b82f6;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  }
+  .venta-origen-card.has-ref {
+    border-left-color: #1e5631;
     background: #f0fdf4;
-    border-radius: 10px;
+  }
+  .venta-busqueda-results { max-height: 240px; overflow-y: auto; }
+  .venta-busqueda-results .list-group-item {
+    cursor: pointer;
+    border-color: #e2e8f0;
+  }
+  .venta-busqueda-results .list-group-item:hover { background: #eff6ff; }
+  .stock-return-summary {
+    border: 1px solid #bbf7d0;
+    background: #ecfdf5;
+    border-radius: 12px;
     color: #166534;
   }
   .stock-return-pill {
@@ -28,15 +111,23 @@
     padding: 3px 10px;
     white-space: nowrap;
   }
-  .cambio-qty { text-align: center; font-weight: 700; }
-  .resultado-cambio-box {
+  .cambio-qty { text-align: center; font-weight: 700; border-radius: 8px; }
+  .cambio-scan-hint {
+    background: linear-gradient(135deg, #e8f4fc 0%, #ecfdf5 100%);
+    border: 2px solid #b8d4e8;
     border-radius: 12px;
+    padding: 10px 14px;
+    font-size: .84rem;
+    color: #475569;
+  }
+  .resultado-cambio-box {
+    border-radius: 14px;
     border: 1px solid #dbeafe;
     background: #eff6ff;
   }
   .resultado-cambio-box.a-favor {
-    border-color: #b7e4c7;
-    background: #f0fdf4;
+    border-color: #bbf7d0;
+    background: #ecfdf5;
     color: #166534;
   }
   .resultado-cambio-box.por-pagar {
@@ -45,13 +136,13 @@
     color: #9a3412;
   }
   .resultado-cambio-box.neutro {
-    border-color: #e5e7eb;
+    border-color: #e2e8f0;
     background: #f8fafc;
     color: #334155;
   }
   .comp-avanzada {
     border: 1px dashed #cbd5e1;
-    border-radius: 10px;
+    border-radius: 12px;
     padding: 10px 12px;
     background: #f8fafc;
   }
@@ -60,27 +151,89 @@
     font-weight: 700;
     color: #475569;
   }
+  .cambio-sidebar-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  }
+  .cambio-sidebar-card .card-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .cambio-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .cambio-quick-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 12px 14px;
+  }
+  .cambio-quick-item:nth-child(1) { border-left: 3px solid #3b82f6; }
+  .cambio-quick-item:nth-child(2) { border-left: 3px solid #1e5631; }
+  .cambio-quick-item:nth-child(3) { border-left: 3px solid #f37021; }
+  .cambio-quick-title {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+    margin-bottom: 4px;
+    font-weight: 700;
+  }
+  .cambio-quick-text { font-size: .88rem; color: #334155; margin: 0; line-height: 1.4; }
+  .page-caja-cambios .form-control,
+  .page-caja-cambios .form-select {
+    border-radius: 10px;
+    border-color: #cbd5e1;
+  }
+  .page-caja-cambios .btn { border-radius: 10px; font-weight: 600; }
+  .page-caja-cambios .btn-success { background: #1e5631; border-color: #1e5631; }
+  .page-caja-cambios .btn-danger { background: #ea580c; border-color: #ea580c; }
+  .page-caja-cambios .btn-primary { background: #1e5631; border-color: #1e5631; }
+  @media (max-width: 900px) { .cambio-quick-grid { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
 {% block content %}
-<div class="container-fluid px-0">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <h4 class="fw-bold mb-1"><i class="fas fa-rotate me-2 text-primary"></i>Cambios premium</h4>
-      <p class="text-muted mb-0">Devolución + nueva entrega + compensación automática con saldo a favor.</p>
+<div class="container-fluid py-3 cambio-shell px-2 px-md-3">
+  <div class="cambio-head-card">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h1 class="h4 fw-bold cambio-page-title"><i class="fas fa-rotate me-2"></i>Cambios en mostrador</h1>
+        <p class="cambio-title-note">Devolvé productos, entregá reemplazos y el sistema calcula saldo a favor o diferencia a cobrar.</p>
+      </div>
+      <div class="d-flex gap-2 flex-wrap align-items-center cambio-top-actions">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('caja_cambios_historial') }}"><i class="fas fa-clock-rotate-left me-1"></i>Historial</a>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('caja_pendientes') }}"><i class="fas fa-arrow-left me-1"></i>Volver a caja</a>
+        {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'btn-outline-info btn-sm' %}{% include 'partials/help_screen_link.html' %}
+        {% if cambio_reciente %}
+        <a class="btn btn-dark btn-sm" href="{{ url_for('ticket_cambio', id=cambio_reciente.id, auto_print='1') }}" target="_blank"><i class="fas fa-print me-1"></i>Ticket #{{ cambio_reciente.id }}</a>
+        {% endif %}
+      </div>
     </div>
-    <div class="d-flex gap-2 flex-wrap align-items-center">
-      <a class="btn btn-outline-primary" href="{{ url_for('caja_cambios_historial') }}"><i class="fas fa-clock-rotate-left me-1"></i>Historial</a>
-      <a class="btn btn-outline-secondary" href="{{ url_for('caja_pendientes') }}"><i class="fas fa-arrow-left me-1"></i>Volver caja</a>
-      {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Academy' %}{% include 'partials/help_screen_link.html' %}
-      {% if cambio_reciente %}
-      <a class="btn btn-dark" href="{{ url_for('ticket_cambio', id=cambio_reciente.id, auto_print='1') }}" target="_blank"><i class="fas fa-print me-1"></i>Ticket #{{ cambio_reciente.id }}</a>
-      {% endif %}
+    <div class="cambio-quick-grid">
+      <div class="cambio-quick-item">
+        <div class="cambio-quick-title">Paso 1 · Referencia</div>
+        <p class="cambio-quick-text">Opcional: buscá el vale original para precargar lo devuelto.</p>
+      </div>
+      <div class="cambio-quick-item">
+        <div class="cambio-quick-title">Paso 2 · Devuelto / Entregado</div>
+        <p class="cambio-quick-text">Pistoleá códigos: verde reingresa stock, naranja descuenta tienda.</p>
+      </div>
+      <div class="cambio-quick-item">
+        <div class="cambio-quick-title">Paso 3 · Cierre</div>
+        <p class="cambio-quick-text">Revisá compensación y registrá el cambio definitivo.</p>
+      </div>
     </div>
   </div>
 
   {% if cambio_reciente %}
-  <div class="alert alert-success d-flex justify-content-between align-items-center">
+  <div class="alert alert-success d-flex justify-content-between align-items-center border-0 shadow-sm" style="border-radius:12px;">
     <div>
       <strong>Cambio #{{ cambio_reciente.id }} registrado.</strong>
       Cliente: {{ cambio_reciente.cliente.nombre if cambio_reciente.cliente else "Mostrador" }}.
@@ -89,28 +242,28 @@
   </div>
   {% endif %}
 
-  <div class="card venta-origen-card mb-3" id="ventaOrigenCard">
+  <div class="card venta-origen-card mb-3 border-0" id="ventaOrigenCard">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <div>
-          <strong><i class="fas fa-receipt text-primary me-1"></i>Venta original (opcional)</strong>
-          <div class="small text-muted">Pistolea la boleta, ingresa el folio (ej. <code>VL000123</code>) o el RUT del cliente para precargar las líneas a devolver.</div>
+          <strong class="text-dark"><i class="fas fa-receipt text-primary me-1"></i>Vale original (opcional)</strong>
+          <div class="small text-muted">Folio (<code>VL000123</code>), número de vale o RUT del cliente para precargar devoluciones.</div>
         </div>
         <span class="badge text-bg-secondary" id="ventaOrigenBadge">Sin referencia</span>
       </div>
       <div class="input-group">
-        <span class="input-group-text"><i class="fas fa-search"></i></span>
-        <input type="search" class="form-control" id="busquedaVentaInput" placeholder="Folio (ej. 1234 o VL001234) o RUT del cliente" autocomplete="off" enterkeyhint="search">
+        <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+        <input type="search" class="form-control" id="busquedaVentaInput" placeholder="Folio o RUT del cliente" autocomplete="off" enterkeyhint="search">
         <button type="button" class="btn btn-outline-primary" id="btnBuscarVenta">Buscar</button>
         <button type="button" class="btn btn-outline-secondary d-none" id="btnLimpiarVentaOrigen" title="Quitar referencia">
-          <i class="fas fa-eraser me-1"></i>Sin referencia
+          <i class="fas fa-eraser me-1"></i>Quitar
         </button>
       </div>
       <div id="ventaOrigenError" class="text-danger small mt-2 d-none"></div>
-      <div id="ventaOrigenInfo" class="alert alert-success py-2 px-3 mt-2 mb-0 d-none"></div>
-      <div id="ventaListaResultados" class="card mt-2 d-none">
+      <div id="ventaOrigenInfo" class="alert alert-success py-2 px-3 mt-2 mb-0 d-none border-0" style="border-radius:10px;"></div>
+      <div id="ventaListaResultados" class="card mt-2 d-none border-0 shadow-sm">
         <div class="card-body p-2">
-          <div class="small fw-semibold mb-2" id="ventaListaTitulo">Últimas ventas del cliente</div>
+          <div class="small fw-semibold mb-2 text-muted" id="ventaListaTitulo">Últimas ventas del cliente</div>
           <div class="list-group venta-busqueda-results" id="ventaListaItems"></div>
         </div>
       </div>
@@ -124,9 +277,9 @@
 
     <div class="row g-3">
       <div class="col-xl-8">
-        <div class="card card-ds mb-3">
+        <div class="card cambio-section-card mb-3 border-0">
           <div class="card-body">
-            <label class="form-label fw-semibold">Cliente (recomendado para saldo a favor)</label>
+            <label class="form-label fw-semibold text-dark">Cliente</label>
             <select class="form-select" name="cliente_id" id="cliente_id">
               <option value="">Sin cliente identificado</option>
               {% for c in clientes %}
@@ -135,21 +288,22 @@
               </option>
               {% endfor %}
             </select>
-            <div class="small text-muted mt-1">Saldo disponible actual: <strong id="saldoDisponibleTxt">$ {{ "{:,.0f}".format(saldo_actual).replace(",", ".") }}</strong></div>
+            <div class="small text-muted mt-2">Saldo a favor disponible: <strong class="text-success" id="saldoDisponibleTxt">$ {{ "{:,.0f}".format(saldo_actual).replace(",", ".") }}</strong></div>
           </div>
         </div>
 
         <div class="row g-3">
           <div class="col-lg-6">
-            <div class="card cambio-panel h-100">
-              <div class="card-header bg-success-subtle d-flex justify-content-between align-items-center">
-                <span class="cambio-title text-success"><i class="fas fa-arrow-down me-1"></i>Devueltos (entran stock)</span>
+            <div class="card cambio-panel cambio-panel--dev h-100 border-0">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="cambio-title text-success"><i class="fas fa-arrow-down me-1"></i>Devuelto (entra a stock)</span>
                 <span class="badge text-bg-success cambio-total-pill" id="totalDevueltos">$ 0</span>
               </div>
               <div class="card-body">
+                <div class="cambio-scan-hint mb-2"><i class="fas fa-crosshairs me-1 text-success"></i>Pistoleá o escribí el código y Enter — reingresa a inventario tienda.</div>
                 <div class="input-group input-group-sm mb-2">
-                  <input class="form-control" id="dev_codigo" placeholder="Código barra/interno">
-                  <input class="form-control" id="dev_cantidad" type="number" min="1" value="1" style="max-width:80px">
+                  <input class="form-control" id="dev_codigo" placeholder="Código barra o interno">
+                  <input class="form-control" id="dev_cantidad" type="number" min="1" value="1" style="max-width:80px" title="Cantidad">
                   <input class="form-control" id="dev_precio" type="number" min="0" step="any" placeholder="Precio" style="max-width:120px">
                   <button class="btn btn-success" type="button" id="btnAddDev">Agregar</button>
                 </div>
@@ -157,34 +311,33 @@
                   <div class="fw-bold"><i class="fas fa-warehouse me-1"></i>Reingreso a inventario</div>
                   <div id="stockReingresoTxt">Sin productos para reingresar a stock.</div>
                 </div>
-                <div class="small text-muted mb-2">Pistolea código y Enter. Ajusta la cantidad si el cliente devuelve solo una parte.</div>
                 <div class="table-responsive">
                   <table class="table table-sm cambio-grid mb-0" id="tablaDevueltos">
-                    <thead><tr><th>Producto</th><th>Cant. vuelve</th><th>Movimiento stock</th><th>Sub</th><th></th></tr></thead>
-                    <tbody><tr><td colspan="5" class="text-center text-muted">Sin líneas</td></tr></tbody>
+                    <thead><tr><th>Producto</th><th>Cant.</th><th>Stock</th><th>Subtotal</th><th></th></tr></thead>
+                    <tbody><tr><td colspan="5" class="text-center text-muted py-3">Sin líneas — escaneá arriba</td></tr></tbody>
                   </table>
                 </div>
               </div>
             </div>
           </div>
           <div class="col-lg-6">
-            <div class="card cambio-panel h-100">
-              <div class="card-header bg-danger-subtle d-flex justify-content-between align-items-center">
-                <span class="cambio-title text-danger"><i class="fas fa-arrow-up me-1"></i>Entregados (sale stock)</span>
+            <div class="card cambio-panel cambio-panel--ent h-100 border-0">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="cambio-title text-danger"><i class="fas fa-arrow-up me-1"></i>Entregado (sale de tienda)</span>
                 <span class="badge text-bg-danger cambio-total-pill" id="totalEntregados">$ 0</span>
               </div>
               <div class="card-body">
+                <div class="cambio-scan-hint mb-2"><i class="fas fa-crosshairs me-1 text-warning"></i>Pistoleá el reemplazo — validamos stock de tienda al agregar.</div>
                 <div class="input-group input-group-sm mb-2">
-                  <input class="form-control" id="ent_codigo" placeholder="Código barra/interno">
-                  <input class="form-control" id="ent_cantidad" type="number" min="1" value="1" style="max-width:80px">
+                  <input class="form-control" id="ent_codigo" placeholder="Código barra o interno">
+                  <input class="form-control" id="ent_cantidad" type="number" min="1" value="1" style="max-width:80px" title="Cantidad">
                   <input class="form-control" id="ent_precio" type="number" min="0" step="any" placeholder="Precio" style="max-width:120px">
                   <button class="btn btn-danger" type="button" id="btnAddEnt">Agregar</button>
                 </div>
-                <div class="small text-muted mb-2">Valida stock de tienda al agregar para evitar sorpresas al cerrar.</div>
                 <div class="table-responsive">
                   <table class="table table-sm cambio-grid mb-0" id="tablaEntregados">
-                    <thead><tr><th>Producto</th><th>Cant</th><th>Precio</th><th>Sub</th><th></th></tr></thead>
-                    <tbody><tr><td colspan="5" class="text-center text-muted">Sin líneas</td></tr></tbody>
+                    <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th></th></tr></thead>
+                    <tbody><tr><td colspan="5" class="text-center text-muted py-3">Sin líneas — escaneá arriba</td></tr></tbody>
                   </table>
                 </div>
               </div>
@@ -194,13 +347,13 @@
       </div>
 
       <div class="col-xl-4">
-        <div class="card card-ds mb-3">
-          <div class="card-header fw-bold">Compensación</div>
+        <div class="card cambio-sidebar-card mb-3 border-0">
+          <div class="card-header">Compensación</div>
           <div class="card-body">
             <details class="comp-avanzada mb-3">
-              <summary>Opciones avanzadas de compensación</summary>
+              <summary>Opciones avanzadas</summary>
               <div class="small text-muted mt-1 mb-2">
-                Abrir solo si el cliente usa saldo previo, paga una diferencia o se devuelve dinero en efectivo.
+                Solo si usa saldo previo, paga diferencia o devuelve efectivo.
               </div>
               <div class="row g-2">
                 <div class="col-12">
@@ -217,45 +370,45 @@
                 </div>
               </div>
             </details>
-            <hr>
-            <div class="d-flex justify-content-between"><span>Devuelto</span><strong id="sumDev">$ 0</strong></div>
-            <div class="d-flex justify-content-between"><span>Entregado</span><strong id="sumEnt">$ 0</strong></div>
-            <div class="d-flex justify-content-between"><span>Saldo usado</span><strong id="sumSaldo">$ 0</strong></div>
-            <hr class="my-2">
+            <hr class="text-muted opacity-25">
+            <div class="d-flex justify-content-between small"><span class="text-muted">Devuelto</span><strong id="sumDev">$ 0</strong></div>
+            <div class="d-flex justify-content-between small"><span class="text-muted">Entregado</span><strong id="sumEnt">$ 0</strong></div>
+            <div class="d-flex justify-content-between small"><span class="text-muted">Saldo usado</span><strong id="sumSaldo">$ 0</strong></div>
+            <hr class="my-2 opacity-25">
             <div class="resultado-cambio-box neutro p-3" id="resultadoCambioBox">
               <div class="small fw-semibold" id="accionCambioTxt">Resultado del cambio</div>
               <div class="h5 fw-bold mb-1" id="netoCambio">$ 0</div>
-              <div id="resumenNeto" class="small">Seleccione productos para calcular.</div>
+              <div id="resumenNeto" class="small">Escaneá productos para calcular.</div>
             </div>
-            <div id="warnCambio" class="alert alert-warning py-2 px-2 mt-2 mb-0 d-none small"></div>
+            <div id="warnCambio" class="alert alert-warning py-2 px-2 mt-2 mb-0 d-none small border-0"></div>
           </div>
         </div>
 
-        <div class="card card-ds mb-3">
+        <div class="card cambio-sidebar-card mb-3 border-0">
           <div class="card-body">
             <label class="form-label fw-semibold">Observación</label>
-            <textarea class="form-control" name="observacion" maxlength="500" rows="3" placeholder="Ej: Cambio por falla de fabricación"></textarea>
+            <textarea class="form-control" name="observacion" maxlength="500" rows="3" placeholder="Ej: cambio por falla de fabricación"></textarea>
             <button class="btn btn-primary fw-bold w-100 mt-3" type="submit" id="btnGuardarCambio">
-              <i class="fas fa-save me-1"></i><span id="btnGuardarCambioTxt">Registrar cambio definitivo</span>
+              <i class="fas fa-save me-1"></i><span id="btnGuardarCambioTxt">Registrar cambio</span>
             </button>
           </div>
         </div>
 
-        <div class="card card-ds">
-          <div class="card-header fw-bold">Últimos cambios</div>
+        <div class="card cambio-sidebar-card border-0">
+          <div class="card-header">Últimos cambios</div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-sm mb-0">
-                <thead><tr><th class="ps-3">#</th><th>Cliente</th><th>Acción</th></tr></thead>
+              <table class="table table-sm mb-0 cambio-grid">
+                <thead><tr><th class="ps-3">#</th><th>Cliente</th><th></th></tr></thead>
                 <tbody>
                   {% for x in recientes %}
                   <tr>
                     <td class="ps-3">#{{ x.id }}</td>
                     <td class="small">{{ x.cliente.nombre if x.cliente else "Mostrador" }}</td>
-                    <td><a class="btn btn-sm btn-outline-dark" href="{{ url_for('ticket_cambio', id=x.id) }}" target="_blank">Ticket</a></td>
+                    <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ticket_cambio', id=x.id) }}" target="_blank">Ticket</a></td>
                   </tr>
                   {% else %}
-                  <tr><td colspan="3" class="text-center text-muted py-3">Sin cambios.</td></tr>
+                  <tr><td colspan="3" class="text-center text-muted py-3">Sin cambios recientes.</td></tr>
                   {% endfor %}
                 </tbody>
               </table>

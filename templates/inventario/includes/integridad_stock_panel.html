@@ -1,0 +1,133 @@
+{# Integridad maestro vs depósitos (ex «Salud inventario») — incluir en Centro de stock #integridad #}
+{% set pl = integridad or {} %}
+{% set q = pl.get('q', '') %}
+{% set min_bodega = pl.get('min_bodega', 1) %}
+{% set rows_des = pl.get('rows_des', []) %}
+{% set rows_rep = pl.get('rows_rep', []) %}
+{% set n_desajuste = pl.get('n_desajuste', 0) %}
+{% set n_reposicion = pl.get('n_reposicion', 0) %}
+{% set puede_reposicion_lista = pl.get('puede_reposicion_lista', false) %}
+{% set detalle_tienda_bodega = pl.get('detalle_tienda_bodega', false) %}
+{% set nom_tienda = pl.get('nom_tienda', 'Tienda') %}
+{% set nom_bodega = pl.get('nom_bodega', 'Bodega') %}
+
+<div class="glass-card p-3 p-md-4 mb-3">
+  <form method="GET" action="{{ url_for('inventario_dashboard_premium') }}" class="row g-2 align-items-end">
+    <div class="col-md-5">
+      <label class="form-label small text-secondary mb-1">Buscar</label>
+      <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Nombre, barras o interno">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small text-secondary mb-1">Mín. bodega</label>
+      <input type="number" name="min_bodega" value="{{ min_bodega }}" min="1" class="form-control form-control-sm bg-dark text-light border-secondary">
+    </div>
+    <div class="col-md-2">
+      <button type="submit" class="btn btn-sm btn-primary w-100">Aplicar</button>
+    </div>
+  </form>
+  <p class="small text-secondary mb-0 mt-2">
+    Compara stock maestro vs suma en depósitos activos. Corregí en <a href="{{ url_for('inventario_enrolamiento') }}" class="link-info">Enrolamiento</a>.
+  </p>
+</div>
+
+<div class="glass-card mb-3 overflow-hidden">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom border-secondary">
+    <span class="fw-bold text-white"><i class="fas fa-balance-scale me-1"></i> Maestro vs depósitos</span>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge bg-warning text-dark">{{ n_desajuste }}</span>
+      <a href="{{ url_for('inventario_salud', q=q or None, min_bodega=min_bodega, export='desajuste') }}" class="btn btn-sm btn-outline-light">CSV</a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-dark table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Producto</th>
+          {% if detalle_tienda_bodega %}
+          <th class="text-end">{{ nom_tienda }}</th>
+          <th class="text-end">{{ nom_bodega }}</th>
+          {% endif %}
+          <th class="text-end">Maestro</th>
+          <th class="text-end">Suma dep.</th>
+          <th class="text-end">Delta</th>
+          <th class="text-end"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows_des %}
+        {% set sm = (r.stock_maestro or 0)|int %}
+        {% set sa = (r.suma_almacenes or 0)|int %}
+        <tr>
+          <td><code>{{ r.codigo_barra or r.codigo_interno or '—' }}</code></td>
+          <td>{{ r.nombre }}</td>
+          {% if detalle_tienda_bodega %}
+          <td class="text-end">{{ (r.qty_tienda or 0)|int }}</td>
+          <td class="text-end">{{ (r.qty_bodega or 0)|int }}</td>
+          {% endif %}
+          <td class="text-end">{{ sm }}</td>
+          <td class="text-end">{{ sa }}</td>
+          <td class="text-end {% if sm - sa != 0 %}text-danger fw-bold{% endif %}">{{ sm - sa }}</td>
+          <td class="text-end">
+            {% if r.codigo_barra %}
+            <a href="{{ url_for('inventario_enrolamiento') }}?codigo={{ r.codigo_barra|urlencode }}" class="btn btn-sm btn-outline-primary">Enrolar</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="{{ 8 if detalle_tienda_bodega else 6 }}" class="text-center text-secondary py-4">Sin desajustes con este filtro.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="glass-card overflow-hidden">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom border-secondary">
+    <span class="fw-bold text-white"><i class="fas fa-dolly me-1"></i> Tienda en cero · hay en bodega</span>
+    {% if puede_reposicion_lista %}
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge bg-info">{{ n_reposicion }}</span>
+      <a href="{{ url_for('inventario_salud', q=q or None, min_bodega=min_bodega, export='reposicion') }}" class="btn btn-sm btn-outline-light">CSV</a>
+    </div>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+    {% if not puede_reposicion_lista %}
+    <p class="small text-secondary p-3 mb-0">Configure almacenes Tienda y Bodega para ver candidatos a traslado.</p>
+    {% else %}
+    <table class="table table-sm table-dark table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Producto</th>
+          <th class="text-end">{{ nom_tienda }}</th>
+          <th class="text-end">{{ nom_bodega }}</th>
+          <th class="text-end"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows_rep %}
+        <tr>
+          <td><code>{{ r.codigo_barra or r.codigo_interno or '—' }}</code></td>
+          <td>{{ r.nombre }}</td>
+          <td class="text-end text-muted">{{ (r.qty_tienda or 0)|int }}</td>
+          <td class="text-end text-info fw-bold">{{ (r.qty_bodega or 0)|int }}</td>
+          <td class="text-end">
+            {% if r.codigo_barra %}
+            <a href="{{ url_for('inventario_enrolamiento') }}?codigo={{ r.codigo_barra|urlencode }}" class="btn btn-sm btn-outline-primary">Traslado</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center text-secondary py-4">Ningún SKU cumple el criterio con el filtro actual.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>

@@ -33,7 +33,14 @@
   <p class="small mb-3"><strong>Cliente:</strong> {{ cliente.nombre }}</p>
   {% endif %}
 
-  {% if venta.estado == 'Pagado' and entrega_lineas %}
+  {% if venta.estado == 'Pagado' and transferencia_pendiente %}
+  <div class="alert alert-warning text-dark small mb-3">
+    <strong><i class="fas fa-university me-1"></i> Transferencia pendiente de confirmación.</strong>
+    Caja debe confirmar el abono en
+    <a href="{{ url_for('caja_transferencias', destacado=venta.id) }}" class="alert-link">Transferencias por confirmar</a>
+    antes de registrar entrega.
+  </div>
+  {% elif venta.estado == 'Pagado' and entrega_lineas %}
   <div class="mb-3 d-flex flex-wrap gap-2">
     <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalEntregaTicket">
       Registrar entrega

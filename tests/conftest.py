@@ -266,6 +266,10 @@ def app_ctx():
         db.session.rollback()
         if hasattr(m, '_asegurar_columnas_caja_cuadratura'):
             m._asegurar_columnas_caja_cuadratura()
+        if hasattr(m, '_asegurar_columnas_transferencia_caja'):
+            m._asegurar_columnas_transferencia_caja()
+        if hasattr(m, '_asegurar_tabla_transferencia_correo'):
+            m._asegurar_tabla_transferencia_correo()
         if hasattr(m, '_asegurar_tabla_agente_ejecuciones'):
             m._asegurar_tabla_agente_ejecuciones()
         if hasattr(m, '_asegurar_tablas_chilemat_relaciones'):
@@ -333,6 +337,7 @@ def app_client(app_ctx):
     """Flask test client autenticado como admin para pruebas HTTP."""
     m.app.config['TESTING'] = True
     m.app.config['WTF_CSRF_ENABLED'] = False
+    m.app.config['LOGIN_DISABLED'] = False
 
     admin = (
         m.Usuario.query.join(m.Rol)
@@ -351,11 +356,18 @@ def app_client(app_ctx):
         admin = m.Usuario.query.first()
     _normalizar_admin_qa_para_http()
 
+    if admin:
+        admin.set_password('test123')
+        db.session.commit()
+
     client = m.app.test_client()
     if admin:
-        with client.session_transaction() as sess:
-            sess['_user_id'] = str(admin.id)
-            sess['login_at'] = datetime.now().isoformat()
+        r = client.post(
+            '/login',
+            data={'correo': admin.correo, 'password': 'test123'},
+            follow_redirects=True,
+        )
+        assert r.status_code in (200, 302)
     return client
 
 

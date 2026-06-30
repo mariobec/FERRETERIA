@@ -1,0 +1,4 @@
+Coloque aqui el instalador oficial PostgreSQL Windows x64:
+  postgresql-18.x-windows-x64.exe
+
+Descarga: https://www.postgresql.org/download/windows/

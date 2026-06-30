@@ -137,7 +137,11 @@ def resolver_filtro_busqueda_pos(request_args) -> str:
     """
     if request_args is None:
         return "catalogo"
-    raw = (request_args.get("filtro_pos") or "").strip().lower()
+    raw = (request_args.get("filtro_pos") or request_args.get("filtro") or "").strip().lower()
+    if str(request_args.get("origen") or "").strip().lower() == "enrolamiento":
+        if raw in ("operativo", "tienda", "catalogo"):
+            return raw
+        return "catalogo"
     if raw in ("operativo", "tienda", "catalogo"):
         return raw
     raw_sv = request_args.get("solo_vendibles")

@@ -708,6 +708,7 @@
   const checkoutSuccessHint = document.getElementById("tiendaCheckoutSuccessHint");
   const payTienda = document.getElementById("tiendaPayTienda");
   const payWebpay = document.getElementById("tiendaPayWebpay");
+  const payKhipu = document.getElementById("tiendaPayKhipu");
   let cartCfg = null;
   let cartToastTimer = null;
   let checkoutRetiro = "Tienda";
@@ -1059,6 +1060,29 @@
     setCheckoutOpen(true);
   };
 
+  function setPayOptLoading(btn, loading) {
+    if (!btn) return;
+    btn.classList.toggle("is-loading", loading);
+    btn.disabled = loading;
+  }
+
+  function setAllPayOptsLoading(loading) {
+    [payWebpay, payKhipu, payTienda].forEach(function (b) { setPayOptLoading(b, loading); });
+  }
+
+  function showCheckoutError(msg) {
+    var errEl = document.getElementById("tiendaCheckoutError");
+    if (!errEl) {
+      errEl = document.createElement("div");
+      errEl.id = "tiendaCheckoutError";
+      errEl.className = "tienda-checkout-error-msg";
+      if (checkoutStep2) checkoutStep2.appendChild(errEl);
+    }
+    errEl.textContent = msg || "No se pudo completar el pago. Intenta de nuevo.";
+    errEl.style.display = "block";
+    setTimeout(function () { if (errEl) errEl.style.display = "none"; }, 5000);
+  }
+
   async function ejecutarCheckout(metodo) {
     const lines = loadCart();
     if (!lines.length) {
@@ -1070,6 +1094,9 @@
       showCartToast("Checkout no disponible");
       return;
     }
+    const btnActivo = metodo === "webpay" ? payWebpay : payTienda;
+    setAllPayOptsLoading(true);
+
     const payload = Object.assign(
       {
         lineas: lines,
@@ -1078,23 +1105,37 @@
       },
       clienteCheckoutDatos()
     );
-    showCartToast(metodo === "webpay" ? "Redirigiendo a Webpay…" : "Registrando pedido…");
     try {
       const res = await fetch(cartCfg.checkout_api_url || cartCfg.vale_api_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!data || !data.ok) {
-        showCartToast((data && data.mensaje) || "No se pudo completar el pago");
+      let data = null;
+      try { data = await res.json(); } catch (_je) { data = null; }
+
+      if (!res.ok || !data || !data.ok) {
+        const errMsg = (data && data.mensaje) || ("Error " + res.status + ". Intenta de nuevo.");
+        showCheckoutError(errMsg);
+        showCartToast(errMsg.slice(0, 80));
+        setAllPayOptsLoading(false);
         return;
       }
+
       if (data.modo === "webpay" && data.webpay_url) {
         saveCart([]);
+        showCartToast("Redirigiendo a Webpay…");
         window.location.href = data.webpay_url;
         return;
       }
+
+      if (data.modo === "khipu" && data.khipu_url) {
+        saveCart([]);
+        showCartToast("Redirigiendo a Khipu…");
+        window.location.href = data.khipu_url;
+        return;
+      }
+
       checkoutShowStep(3);
       if (checkoutSuccessTitle) checkoutSuccessTitle.textContent = "¡Pedido registrado!";
       if (checkoutSuccessMsg) {
@@ -1106,10 +1147,9 @@
         checkoutSuccessCode.classList.remove("d-none");
       }
       if (checkoutSuccessHint) {
-        checkoutSuccessHint.textContent =
-          "Folio caja " +
-          (data.vale_folio || "") +
-          ". Te avisaremos cuando esté listo para retiro.";
+        checkoutSuccessHint.textContent = data.vale_folio
+          ? "Folio caja " + data.vale_folio + ". Te avisaremos cuando esté listo para retiro."
+          : "Te avisaremos cuando tu pedido esté listo para retiro.";
       }
       saveCart([]);
       if (body && data.ui) {
@@ -1120,7 +1160,9 @@
         renderUiBlocks(data.ui, msgEl);
       }
     } catch (_chkErr) {
+      showCheckoutError("Sin conexión. Revisa tu red e intenta de nuevo.");
       showCartToast("Error de conexión. Intenta de nuevo.");
+      setAllPayOptsLoading(false);
     }
   }
 
@@ -1223,6 +1265,11 @@
     if (payWebpay) {
       payWebpay.addEventListener("click", function () {
         ejecutarCheckout("webpay");
+      });
+    }
+    if (payKhipu) {
+      payKhipu.addEventListener("click", function () {
+        ejecutarCheckout("khipu");
       });
     }
     document.querySelectorAll(".tienda-checkout-retiro-btn").forEach(function (btn) {

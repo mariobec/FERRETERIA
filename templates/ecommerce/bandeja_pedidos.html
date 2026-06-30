@@ -1,14 +1,6 @@
 {% extends 'base.html' %}
 {% block body_class %}erp-ops-space page-ecommerce-bandeja{% endblock %}
-{% block extra_css %}
-<style>
-  .ecom-sla-pill { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:600; }
-  .ecom-sla-pill.sla-ok { background:rgba(22,163,74,.18);color:#4ade80; }
-  .ecom-sla-pill.sla-attention { background:rgba(234,179,8,.2);color:#fbbf24; }
-  .ecom-sla-pill.sla-delayed { background:rgba(249,115,22,.2);color:#fb923c; }
-  .ecom-sla-pill.sla-critical { background:rgba(220,38,38,.22);color:#f87171; }
-</style>
-{% endblock %}
+{% block extra_css %}{% endblock %}
 {% block content %}
 <div class="container-fluid px-0 ecom-bandeja-hud" id="ecomBandejaRoot"
      data-refresh-url="{{ url_for('api_ecommerce_pedidos', vista=vista, estado=filtro_estado, extra=filtro_extra or '') }}">
@@ -151,19 +143,19 @@
             <td class="text-end font-monospace fw-semibold">${{ '{:,.0f}'.format(v.monto_total or 0).replace(',', '.') }}</td>
             <td class="small">{{ v.bodega_preparacion_usuario or '—' }}</td>
             <td class="text-end text-nowrap pe-3">
-              <a href="{{ url_for('ecommerce_pedido_detalle', vid=v.id) }}" class="btn btn-outline-light btn-sm">Ver</a>
+              <a href="{{ url_for('ecommerce_pedido_detalle', vid=v.id) }}" class="ecom-btn-ver btn-sm">Ver</a>
               {% if vista != 'historial' and est == 'PENDIENTE' %}
               <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=v.id) }}" class="d-inline">
                 <input type="hidden" name="accion" value="tomar">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
-                <button type="submit" class="btn btn-primary btn-sm">Preparar</button>
+                <button type="submit" class="ecom-btn-preparar btn-sm">Preparar</button>
               </form>
               {% elif vista != 'historial' and est == 'EN_PREPARACION' %}
               <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=v.id) }}" class="d-inline">
                 <input type="hidden" name="accion" value="listo">
                 <input type="hidden" name="notificar_whatsapp" value="1">
                 <input type="hidden" name="next" value="{{ request.full_path }}">
-                <button type="submit" class="btn btn-success btn-sm">Listo</button>
+                <button type="submit" class="ecom-btn-listo btn-sm">Listo</button>
               </form>
               {% endif %}
             </td>

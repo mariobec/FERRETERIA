@@ -1,0 +1,4 @@
+Coloque aqui el dump de la base de datos:
+  lhexia_sd_YYYYMMDD.dump
+
+Se genera con EMPAQUETAR_desde_DEV.bat en la PC de desarrollo.

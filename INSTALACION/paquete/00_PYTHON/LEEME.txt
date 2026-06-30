@@ -1,0 +1,4 @@
+Coloque aqui Python 3.12 instalador Windows x64:
+  python-3.12.*-amd64.exe
+
+Descarga: https://www.python.org/downloads/windows/

@@ -104,8 +104,10 @@
               <span class="form-check-label">
                 <strong>Abrir cuadro de impresión al emitir vale (automático)</strong>
                 <span class="d-block small text-muted mt-1">
-                  Si está activo, al emitir vale el navegador abre la ventana de impresión en segundo plano. Desactive si prefiere solo mostrar mensaje en pantalla y reimprimir desde Caja («Ticket vale»).
+                  Si está activo, al emitir vale el navegador abre la ventana de impresión en segundo plano (suele usar la impresora <strong>predeterminada de Windows</strong>, p. ej. XP-80 80 mm). Desactive si prefiere solo mensaje en pantalla y reimprimir desde Caja («Ticket vale»).
                   Para <strong>XPrinter XP-80T</strong> por USB use <code>POS_IMPRESION_MODO=escpos</code> en <code>.env.local</code> (ver <code>docs/operacion/IMPRESORA_XPRINTER_XP80T.md</code>).
+                  <span class="d-block mt-1"><strong>Etiquetas de góndola Zebra</strong> no usan esta opción: configúrelas en
+                    <a href="{{ url_for('admin_etiquetas_zebra') }}">Configuración ERP → Etiquetas Zebra (GX420d)</a>.</span>
                 </span>
               </span>
             </label>

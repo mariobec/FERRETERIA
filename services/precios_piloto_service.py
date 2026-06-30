@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 MOTIVO_PREFIJO = 'Piloto SD'
-MODOS_STOCK_VALIDOS = frozenset({'inicial', 'reemplazar', 'sumar', 'solo_precio', 'no_tocar'})
+MODOS_STOCK_VALIDOS = frozenset({'inicial', 'reemplazar', 'sumar', 'restar', 'solo_precio', 'no_tocar'})
 EXCLUIR_BARRA_PILOTO = ('TEST-%', 'DEMO_%', 'DEMO-%')
 
 
@@ -152,12 +152,17 @@ def serializar_producto_precios_piloto(producto) -> dict[str, Any]:
     costo_alerta = ''
     if costo > 0 and ref_venta > 0 and costo > ref_venta * 1.25:
         costo_incoherente = True
+
+    # Calculate stock valorizado
+    total_stock_disponible = int(st.get('tienda') or 0) + int(st.get('bodega') or 0)
+    stock_valorizado = total_stock_disponible * sd if sd > 0 else 0
+    if costo_incoherente:
         costo_alerta = (
             f'El costo en catálogo (${costo:,.0f}) supera la lista/mayoreo '
             f'(${ref_venta:,.0f}). Revise precio_compra en maestro o última compra.'
         ).replace(',', '.')
     margen_cat = None
-    if costo > 0 and ref_venta > 0:
+    if costo > 0 and ref_venta > 0 and ref_venta >= costo:
         margen_cat = round((ref_venta - costo) / ref_venta * 100, 1)
     return {
         'id': producto.id,
@@ -175,7 +180,10 @@ def serializar_producto_precios_piloto(producto) -> dict[str, Any]:
         'sin_precio': ef <= 0,
         'stock_tienda': int(st.get('tienda') or 0),
         'stock_bodega': int(st.get('bodega') or 0),
+        'stock_valorizado': stock_valorizado,
         'categoria': (producto.categoria or '').strip() or '—',
+        'ubicacion_pasillo': (getattr(producto, 'ubicacion_pasillo', '') or '').strip() or '—',
+        'unidad_venta': (getattr(producto, 'unidad_venta', '') or getattr(producto, 'unidad', '') or '').strip() or '—',
         'ultima_carga_piloto': ultima,
         'tiene_carga_previa': ultima is not None,
         'modo_stock_sugerido': 'sumar' if ultima else 'inicial',
@@ -277,9 +285,10 @@ def _aplicar_stock_piloto(
                     usuario=user,
                     id_almacen=aid_b,
                 )
-    elif modo == 'sumar':
-        delta_t = int(stock_tienda or 0)
-        delta_b = int(stock_bodega or 0)
+    elif modo in ('sumar', 'restar'):
+        factor = -1 if modo == 'restar' else 1
+        delta_t = int(stock_tienda or 0) * factor
+        delta_b = int(stock_bodega or 0) * factor
         if delta_t != 0 and aid_t:
             _, err = ajustar_stock_almacen(pid, aid_t, delta_t)
             if err:
@@ -316,15 +325,19 @@ def _aplicar_stock_piloto(
 def guardar_carga_piloto_mostrador(
     *,
     producto_id: int,
-    precio_nuevo: float | None,
-    motivo: str,
+    precio_nuevo: float | None = None,
+    motivo: str | None = None,
     usuario: str | None,
     modo_stock: str = 'no_tocar',
     stock_tienda: int | None = None,
     stock_bodega: int | None = None,
     sector_ubicacion: str | None = None,
+    categoria: str | None = None,
+    ubicacion_pasillo: str | None = None,
+    unidad_venta: str | None = None,
     numero_factura: str | None = None,
     numero_guia: str | None = None,
+    nombre: str | None = None,
 ) -> dict[str, Any]:
     from app import (
         Producto,
@@ -343,10 +356,8 @@ def guardar_carga_piloto_mostrador(
 
     _asegurar_bitacora_piloto_mostrador()
 
-    motivo_txt = (motivo or '').strip()
-    if not motivo_txt:
-        return {'ok': False, 'error': 'motivo_requerido'}
-    if not motivo_txt.lower().startswith(MOTIVO_PREFIJO.lower()):
+    motivo_txt = (motivo or 'Ajuste rápido desde vista productos').strip()
+    if motivo_txt and not motivo_txt.lower().startswith(MOTIVO_PREFIJO.lower()):
         motivo_txt = f'{MOTIVO_PREFIJO}: {motivo_txt}'
 
     modo = (modo_stock or 'no_tocar').strip().lower()
@@ -372,8 +383,16 @@ def guardar_carga_piloto_mostrador(
             cambio_precio = abs(precio_anterior - nuevo_ef) >= 0.01
         except ValueError:
             return {'ok': False, 'error': 'precio_invalido'}
-    elif modo != 'solo_precio' and float(precio_anterior or 0) <= 0:
-        return {'ok': False, 'error': 'precio_invalido'}
+
+    # Actualización de metadatos del producto (Gestión SD-1)
+    if categoria:
+        p.categoria = categoria.strip()[:50]
+    if nombre:
+        p.nombre = nombre.strip()[:150]
+    if ubicacion_pasillo is not None:
+        p.ubicacion_pasillo = ubicacion_pasillo.strip()[:12]
+    if unidad_venta:
+        p.unidad_venta = unidad_venta.strip()[:20]
 
     modo_stock_efectivo = modo
     st_t = stock_tienda
@@ -383,7 +402,7 @@ def guardar_carga_piloto_mostrador(
         st_t = int(stock_tienda or 0)
         st_b = int(stock_bodega or 0)
 
-    if modo_stock_efectivo in ('inicial', 'reemplazar', 'sumar'):
+    if modo_stock_efectivo in ('inicial', 'reemplazar', 'sumar', 'restar'):
         if st_t is None and st_b is None:
             return {
                 'ok': False,
@@ -481,6 +500,47 @@ def guardar_precio_piloto(
         motivo=motivo,
         usuario=usuario,
         modo_stock='solo_precio',
+    )
+
+
+def actualizar_producto_enrolado(
+    *,
+    producto_id: int,
+    categoria: str | None = None,
+    ubicacion_pasillo: str | None = None,
+    stock_tienda: int | None = None,
+    stock_bodega: int | None = None,
+    precio_venta_sd: float | None = None,
+    nombre: str | None = None,
+    usuario: str | None = None,
+    motivo: str = 'Ajuste enrolado',
+) -> dict[str, Any]:
+    """
+    Actualiza campos de un producto desde la vista de ajuste de productos enrolados.
+    Utiliza guardar_carga_piloto_mostrador para aplicar los cambios.
+    """
+    # Determine the effective modo_stock. If any stock is provided, we'll use 'reemplazar'.
+    # Otherwise, 'solo_precio' or 'no_tocar' if only metadata/price is updated.
+    modo_stock_efectivo = 'no_tocar'
+    if stock_tienda is not None or stock_bodega is not None:
+        modo_stock_efectivo = 'reemplazar'
+    elif precio_venta_sd is not None:
+        modo_stock_efectivo = 'solo_precio'
+
+    return guardar_carga_piloto_mostrador(
+        producto_id=producto_id,
+        precio_nuevo=precio_venta_sd,
+        motivo=motivo,
+        usuario=usuario,
+        modo_stock=modo_stock_efectivo,
+        stock_tienda=stock_tienda,
+        stock_bodega=stock_bodega,
+        categoria=categoria,
+        ubicacion_pasillo=ubicacion_pasillo,
+        unidad_venta=None,  # unidad_venta no es un campo solicitado para edición aquí
+        numero_factura=None,
+        numero_guia=None,
+        nombre=nombre,
     )
 
 
@@ -741,3 +801,4 @@ def bitacora_reciente_piloto(limite: int = 20) -> list:
         .limit(limite)
         .all()
     )
+    1|  WZ<<<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

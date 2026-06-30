@@ -356,6 +356,76 @@ def stock_ui_producto(producto):
     }
 
 
+def stock_ui_por_producto_ids(ids):
+    """Versión batch de stock_ui_producto: {producto_id: resumen UI}.
+
+    Evita N+1 consultas al listar catálogo/inventario.
+    """
+    import app as m
+
+    ids = [int(x) for x in ids if x is not None]
+    if not ids:
+        return {}
+    Producto = m.Producto
+    prods = Producto.query.filter(Producto.id.in_(ids)).all()
+    maestro = {int(p.id): int(p.stock or 0) for p in prods}
+
+    if not tablas_inventario_almacen_existen():
+        out = {}
+        for pid in ids:
+            tot = maestro.get(pid, 0)
+            out[pid] = {
+                'tienda': tot,
+                'bodega': 0,
+                'total_almacenes': tot,
+                'total_maestro': tot,
+                'desajustado': False,
+            }
+        return out
+
+    StockPorAlmacen = m.StockPorAlmacen
+    tid = id_almacen_tienda()
+    bid = id_almacen_bodega()
+
+    tienda_map = {}
+    bodega_map = {}
+    total_map = {}
+    try:
+        rows = (
+            m.db.session.query(
+                StockPorAlmacen.id_producto,
+                StockPorAlmacen.id_almacen,
+                StockPorAlmacen.cantidad,
+            )
+            .filter(StockPorAlmacen.id_producto.in_(ids))
+            .all()
+        )
+    except Exception:
+        m.db.session.rollback()
+        rows = []
+    for pid, aid, cant in rows:
+        pid = int(pid)
+        c = int(cant or 0)
+        total_map[pid] = total_map.get(pid, 0) + c
+        if tid and aid == tid:
+            tienda_map[pid] = c
+        elif bid and aid == bid:
+            bodega_map[pid] = c
+
+    out = {}
+    for pid in ids:
+        tot_maestro = maestro.get(pid, 0)
+        total_alm = total_map.get(pid, 0)
+        out[pid] = {
+            'tienda': tienda_map.get(pid, 0),
+            'bodega': bodega_map.get(pid, 0),
+            'total_almacenes': total_alm,
+            'total_maestro': tot_maestro,
+            'desajustado': total_alm != tot_maestro,
+        }
+    return out
+
+
 def ajustar_stock_almacen(producto_id, id_almacen, delta, allow_negative=False):
     """
     delta > 0 suma stock en el almacén; delta < 0 resta.

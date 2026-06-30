@@ -9,6 +9,8 @@
     </div>
     <div class="d-flex flex-wrap gap-2">
       <a href="{{ url_for('kardex') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-clipboard-list me-1"></i> Kardex</a>
+      <a href="{{ url_for('recepciones_visor') }}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-invoice me-1"></i> Visor facturas</a>
+      <a href="{{ url_for('recepciones_cargador_dte') }}" class="btn btn-outline-info btn-sm"><i class="fas fa-envelope-open-text me-1"></i> Cargador DTE</a>
       <a href="{{ url_for('reporte_costos_recepcion') }}" class="btn btn-outline-warning btn-sm"><i class="fas fa-chart-line me-1"></i> Bitácora Costos</a>
       <a href="/recepciones/tablet" class="btn btn-outline-dark btn-sm"><i class="fas fa-tablet-alt me-1"></i> Modo Tablet</a>
       <a href="{{ url_for('nueva_recepcion') }}" class="btn btn-ds-primary btn-sm fw-bold"><i class="fas fa-plus me-1"></i> Nueva recepción</a>
@@ -19,19 +21,27 @@
     <div class="card-body py-3">
       <form method="get" action="{{ url_for('lista_recepciones') }}" id="form-filtros-recepciones">
         <div class="row g-2 align-items-end mb-2 pb-2 border-bottom border-light">
-          <div class="col-12 col-lg-8">
+          <div class="col-12 col-lg-4">
             <label class="form-label fw-bold mb-1" for="filtro-folio-rcv">
               <i class="fas fa-file-invoice me-1"></i> Nº factura / folio SII
             </label>
-            <input type="search" id="filtro-folio-rcv" name="folio" class="form-control"
-                   value="{{ filtros.folio or '' }}" placeholder="Ej. 4949757 — escriba el folio y pulse Buscar"
-                   autocomplete="off" inputmode="numeric"{% if not filtros.folio %} autofocus{% endif %}>
+            <input type="search" id="filtro-folio-rcv" name="folio" class="form-control form-control-sm"
+                   value="{{ filtros.folio or '' }}" placeholder="Ej. 4949757"
+                   autocomplete="off" inputmode="numeric"{% if not filtros.folio and not filtros.producto %} autofocus{% endif %}>
           </div>
-          <div class="col-12 col-lg-4 d-flex gap-2 align-items-end">
-            <button type="submit" class="btn btn-primary flex-grow-1">
-              <i class="fas fa-search me-1"></i> Buscar folio
+          <div class="col-12 col-lg-5">
+            <label class="form-label fw-bold mb-1" for="filtro-producto-rcv">
+              <i class="fas fa-box me-1"></i> Producto
+            </label>
+            <input type="search" id="filtro-producto-rcv" name="producto" class="form-control form-control-sm"
+                   value="{{ filtros.producto or '' }}" placeholder="Nombre, código barra o interno del SKU"
+                   autocomplete="off"{% if filtros.producto and not filtros.folio %} autofocus{% endif %}>
+          </div>
+          <div class="col-12 col-lg-3 d-flex gap-2 align-items-end">
+            <button type="submit" class="btn btn-primary btn-sm flex-grow-1">
+              <i class="fas fa-search me-1"></i> Buscar
             </button>
-            <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary">Limpiar</a>
+            <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
           </div>
         </div>
         <div class="row g-2 align-items-end">
@@ -68,9 +78,12 @@
         </div>
         </div>
       </form>
-      {% if filtros.folio %}
+      {% if filtros.folio or filtros.producto %}
       <p class="small text-muted mb-0 mt-2">
-        <i class="fas fa-filter me-1"></i> Folio contiene: <strong>{{ filtros.folio }}</strong>
+        <i class="fas fa-filter me-1"></i>
+        {% if filtros.folio %}Folio: <strong>{{ filtros.folio }}</strong>{% endif %}
+        {% if filtros.folio and filtros.producto %} · {% endif %}
+        {% if filtros.producto %}Producto: <strong>{{ filtros.producto }}</strong>{% endif %}
         — {{ pagination.total if pagination else 0 }} coincidencia(s)
       </p>
       {% endif %}
@@ -95,11 +108,16 @@
            href="{{ url_for('lista_recepciones', anio=2025, estado=estado_pendiente_items) }}">
           Pendiente · 2025
         </a>
+        <a class="btn btn-sm btn-outline-danger"
+           href="{{ url_for('lista_recepciones', sin_oc=1, anio=2026) }}">
+          <i class="fas fa-unlink me-1"></i> Sin OC · 2026
+          {% if resumen.sin_oc_activas %}<span class="badge bg-danger ms-1">{{ resumen.sin_oc_activas }}</span>{% endif %}
+        </a>
       </div>
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('archivar_recepciones_rcv', estado=filtros.estado or none, anio=filtros.anio or none, folio=filtros.folio or none, orden=filtros.orden) }}"
+  <form method="post" action="{{ url_for('archivar_recepciones_rcv', estado=filtros.estado or none, anio=filtros.anio or none, folio=filtros.folio or none, producto=filtros.producto or none, orden=filtros.orden) }}"
         id="form-archivar-recepciones" onsubmit="return confirmarArchivado(event);">
     <div class="card card-ds">
       <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -120,6 +138,17 @@
                   onclick="return confirm('¿Archivar TODAS las recepciones Pendiente de ítems del año 2025? Saldrán de la cola de bodega.');">
             <i class="fas fa-box-archive me-1"></i> Archivar RCV 2025 (lote)
           </button>
+          <button type="submit" formaction="{{ url_for('limpiar_recepciones_documentales_route') }}"
+                  name="accion" value="seleccion" class="btn btn-sm btn-outline-danger btn-limpiar-rcv"
+                  title="Elimina RCV sin ítems (marcadas)">
+            <i class="fas fa-trash-alt me-1"></i> Limpiar seleccionadas
+          </button>
+          <button type="submit" formaction="{{ url_for('limpiar_recepciones_documentales_route') }}"
+                  name="accion" value="anio_2026_rcv" class="btn btn-sm btn-danger btn-limpiar-rcv"
+                  data-candidatas="{{ resumen.limpiables_rcv_2026 or 0 }}">
+            <i class="fas fa-broom me-1"></i> Limpiar RCV 2026 sin ítems
+            {% if resumen.limpiables_rcv_2026 %}<span class="badge bg-light text-danger ms-1">{{ resumen.limpiables_rcv_2026 }}</span>{% endif %}
+          </button>
         </div>
       </div>
       <div class="card-body p-0">
@@ -132,6 +161,8 @@
                 <th>Fecha doc.</th>
                 <th>Proveedor</th>
                 <th>Documento</th>
+                <th>OC / Guía</th>
+                <th class="text-center">Líneas</th>
                 <th class="text-end">Monto total</th>
                 <th>Estado</th>
                 <th></th>
@@ -155,6 +186,24 @@
                 <td class="small">
                   <span class="badge bg-secondary">{{ r.documento_tipo }}</span> {{ r.documento_numero }}
                   {% if r.origen_importacion == 'rcv_sii' %}<span class="badge bg-light text-dark border ms-1">RCV</span>{% endif %}
+                </td>
+                <td class="small">
+                  {% if r.orden_compra %}
+                  <span class="badge bg-primary" title="OC vinculada">OC {{ r.orden_compra.numero }}</span>
+                  {% else %}
+                  <span class="badge bg-danger-subtle text-danger border" title="Falta vincular OC">Sin OC</span>
+                  {% endif %}
+                  {% if r.guia_despacho_numero %}
+                  <div class="text-muted mt-1"><i class="fas fa-truck fa-xs me-1"></i>{{ r.guia_despacho_numero }}</div>
+                  {% endif %}
+                </td>
+                <td class="text-center small">
+                  {% set nlin = r.detalles|length %}
+                  {% if nlin > 0 %}
+                  <span class="badge bg-success">{{ nlin }}</span>
+                  {% else %}
+                  <span class="text-muted">0</span>
+                  {% endif %}
                 </td>
                 <td class="text-end small fw-semibold text-nowrap">
                   {% if r.monto_total is not none %}
@@ -180,9 +229,9 @@
               </tr>
               {% else %}
               <tr>
-                <td colspan="8" class="text-center text-muted py-4">
+                <td colspan="10" class="text-center text-muted py-4">
                   No hay recepciones con estos filtros.
-                  {% if filtros.folio %}Pruebe otro folio o <a href="{{ url_for('lista_recepciones') }}">limpiar búsqueda</a>.{% else %}
+                  {% if filtros.folio or filtros.producto %}Pruebe otro criterio o <a href="{{ url_for('lista_recepciones') }}">limpiar búsqueda</a>.{% else %}
                   <a href="{{ url_for('lista_recepciones', estado=estado_pendiente_items, anio=2026, orden='monto') }}">Ver Pareto 2026</a>{% endif %}
                 </td>
               </tr>
@@ -197,11 +246,11 @@
         <nav>
           <ul class="pagination pagination-sm mb-0">
             <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('lista_recepciones', page=pagination.prev_num, estado=filtros.estado or none, anio=filtros.anio or none, folio=filtros.folio or none, orden=filtros.orden) }}">Anterior</a>
+              <a class="page-link" href="{{ url_for('lista_recepciones', page=pagination.prev_num, estado=filtros.estado or none, anio=filtros.anio or none, folio=filtros.folio or none, producto=filtros.producto or none, orden=filtros.orden, sin_oc=1 if filtros.sin_oc else none) }}">Anterior</a>
             </li>
             <li class="page-item disabled"><span class="page-link">{{ pagination.page }} / {{ pagination.pages }}</span></li>
             <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-              <a class="page-link" href="{{ url_for('lista_recepciones', page=pagination.next_num, estado=filtros.estado or none, anio=filtros.anio or none, folio=filtros.folio or none, orden=filtros.orden) }}">Siguiente</a>
+              <a class="page-link" href="{{ url_for('lista_recepciones', page=pagination.next_num, estado=filtros.estado or none, anio=filtros.anio or none, folio=filtros.folio or none, producto=filtros.producto or none, orden=filtros.orden, sin_oc=1 if filtros.sin_oc else none) }}">Siguiente</a>
             </li>
           </ul>
         </nav>
@@ -221,10 +270,30 @@
 })();
 function confirmarArchivado(ev) {
   var btn = ev.submitter;
+  if (btn && btn.classList.contains('btn-limpiar-rcv')) {
+    return confirmarLimpiezaRcv(ev);
+  }
   if (!btn || btn.value !== 'seleccion') return true;
   var n = document.querySelectorAll('.chk-recepcion:checked').length;
   if (n === 0) { alert('Marque al menos una recepción Pendiente de ítems.'); return false; }
   return confirm('¿Archivar ' + n + ' recepción(es) seleccionada(s)?');
+}
+function confirmarLimpiezaRcv(ev) {
+  var btn = ev.submitter;
+  if (btn && btn.value === 'anio_2026_rcv') {
+    var n = parseInt(btn.getAttribute('data-candidatas') || '0', 10);
+    return confirm(
+      '¿Eliminar ' + (n || 'las') + ' recepción(es) RCV de 2026 sin ítems?\n\n' +
+      'Solo cabeceras del export SII (sin productos). Podrá reimportarlas desde Correo DTE.\n' +
+      'No se borran facturas con líneas ni stock recibido.'
+    );
+  }
+  var n = document.querySelectorAll('.chk-recepcion:checked').length;
+  if (n === 0) { alert('Marque al menos una recepción.'); return false; }
+  return confirm(
+    '¿Eliminar ' + n + ' recepción(es) RCV vacía(s) seleccionada(s)?\n' +
+    'Solo se borran las que no tienen ítems ni stock.'
+  );
 }
 </script>
 {% endblock %}

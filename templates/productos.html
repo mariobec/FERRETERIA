@@ -1,203 +1,272 @@
 {% extends 'base.html' %}
 
+{% block body_class %}page-inventario-catalogo{% endblock %}
+
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-catalogo-v2.css') }}?v=inv-v2-7">
 <style>
-  .inv-hero {
-    border-radius: 18px;
-    background: linear-gradient(135deg, #111827, #14532d);
-    color: #fff;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
-    padding: 22px;
+  .inv-filtro-hint { font-size: .68rem; color: #64748b; margin-top: 2px; }
+  .inv-valor-cat-table tfoot td { font-weight: 800; border-top: 2px solid #cbd5e1; }
+  .inv-valor-cat-table .pct-bar {
+    height: 6px; border-radius: 999px; background: #e2e8f0; overflow: hidden; margin-top: 4px;
   }
-  .inv-hero .badge { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.2); }
-  .inv-panel { border: 0; border-radius: 16px; box-shadow: 0 10px 30px rgba(15, 23, 42, .08); }
-  .inv-panel .card-header { border-bottom: 1px solid #eef2f7; border-radius: 16px 16px 0 0; }
-  .inv-action-tile {
-    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
-    border: 1px solid #e5e7eb; border-radius: 14px; text-decoration: none;
-    color: #111827; background: #fff; transition: .15s ease;
+  .inv-valor-cat-table .pct-bar span {
+    display: block; height: 100%; background: linear-gradient(90deg, #14532d, #22c55e);
   }
-  .inv-action-tile:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, .08); }
-  .inv-action-icon {
-    width: 34px; height: 34px; border-radius: 10px; display: inline-flex;
-    align-items: center; justify-content: center; background: #eef2ff; color: #1d4ed8;
-  }
-  .inv-details {
-    border: 1px solid #e5e7eb; border-radius: 16px; background: #fff;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, .06); overflow: hidden;
-  }
-  .inv-details summary {
-    cursor: pointer; list-style: none; padding: 16px 18px; font-weight: 800;
-    display: flex; align-items: center; justify-content: space-between;
-  }
+  .inv-valor-cat-row.is-open { background: #ecfdf5 !important; }
+  .inv-valor-cat-detail td { background: #f8fafc; border-top: none; padding: 0 !important; }
+  .inv-valor-cat-detail-inner { max-height: 420px; overflow: auto; }
+  .inv-details summary { cursor: pointer; list-style: none; padding: 0.85rem 1.1rem; font-weight: 700; font-size: 0.875rem; }
   .inv-details summary::-webkit-details-marker { display: none; }
-  .inv-details summary:after { content: "Abrir"; font-size: .8rem; color: #64748b; font-weight: 700; }
-  .inv-details[open] summary:after { content: "Cerrar"; }
-  .inv-details-body { border-top: 1px solid #eef2f7; padding: 18px; }
-  .stock-badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 54px; padding: 4px 10px; border-radius: 999px; font-weight: 800;
-  }
-  .stock-ok { background: #dcfce7; color: #166534; }
-  .stock-zero { background: #fee2e2; color: #991b1b; }
-  .stock-low { background: #fef3c7; color: #92400e; }
-  .stock-breakdown {
-    display: grid; grid-template-columns: repeat(3, minmax(54px, 1fr)); gap: 6px;
-    margin-top: 6px; font-size: .72rem; color: #64748b;
-  }
-  .stock-breakdown span {
-    border: 1px solid #e5e7eb; border-radius: 10px; padding: 4px 6px; background: #fff;
-  }
-  .stock-breakdown strong { display: block; color: #0f172a; font-size: .82rem; }
-  .stock-warning { color: #b45309; font-size: .72rem; margin-top: 4px; font-weight: 700; }
-  .inv-table td, .inv-table th { vertical-align: middle; }
-  .product-name { font-weight: 800; color: #111827; }
-  .product-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #64748b; font-size: .82rem; }
+  .inv-details-body { padding: 1rem 1.1rem; border-top: 1px solid #eef2f7; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0">
-    <div class="inv-hero d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-            <span class="badge px-3 py-2 mb-2"><i class="fas fa-warehouse me-1"></i> Inventario operativo</span>
-            <h3 class="fw-bold mb-1">Gestión de Inventario</h3>
-            <p class="mb-0 opacity-75">Control de catálogo, stock disponible, precios y ubicación para venta.</p>
-        </div>
-        <div class="text-end">
-            <div class="small opacity-75">Listado visible</div>
-            <div class="h4 fw-bold mb-0">{{ productos|length }} productos</div>
-            <a href="{{ url_for('inventario_dashboard_premium') }}" class="btn btn-sm btn-outline-light mt-2">
-              <i class="fas fa-chart-pie me-1"></i> Panel inventario premium
-            </a>
-            {% if usuario_tiene_permiso('pos_emitir_vale') %}
-            <button type="button" class="btn btn-sm btn-light text-dark mt-2 ms-1" data-bs-toggle="modal" data-bs-target="#modalFotoSkuInv">
-              <i class="fas fa-camera me-1"></i> Identificar por foto (demo)
-            </button>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Filtros y búsqueda -->
-    <div class="card inv-panel mb-4">
-      <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <h5 class="m-0 fw-bold"><i class="fas fa-magnifying-glass text-primary me-2"></i>Buscar y filtrar</h5>
-          <div class="small text-muted">Encuentra productos por código, nombre, categoría o maestro.</div>
-        </div>
-        <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-secondary">Limpiar filtros</a>
+    <div class="inv-v2-topbar">
+      <div class="inv-v2-topbar__nav">
+        <a href="{{ url_for('erp_hub') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-th-large me-1"></i>Módulos</a>
+        <a href="{{ url_for('inventario_dashboard_premium') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-chart-pie me-1"></i>Centro de stock</a>
+        {% if usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario') %}
+        <a href="{{ url_for('inventario_enrolamiento') }}{% if codigo_barra %}?codigo={{ codigo_barra|urlencode }}{% endif %}" class="btn btn-outline-success btn-sm fw-semibold"><i class="fas fa-barcode me-1"></i>Volver al enrolador</a>
+        {% endif %}
+        {% if puede_editar_stock_admin %}
+        <a href="{{ url_for('admin_catalogo') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-sitemap me-1"></i>Catálogo maestro</a>
+        {% endif %}
+        <a href="{{ url_for('mostrar_productos', solo_enrolados='1', stock_solo_tienda='1', enrolado_desde='2026-06-11', orden='enrolado_desc') }}" class="btn btn-outline-warning btn-sm{% if es_vista_post_spray %} inv-v2-nav-active{% endif %}"><i class="fas fa-warehouse me-1"></i>Post-spray{% if es_vista_post_spray %} · activo{% endif %}</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm ms-auto"><i class="fas fa-power-off me-1"></i>Salir</a>
       </div>
-      <div class="card-body">
-        <form method="GET" action="/productos" class="d-flex flex-wrap w-100 mb-2 align-items-end gap-2" id="form_filtro_productos" data-catalogo="{{ 1 if catalogo_maestro_disponible else 0 }}">
-          <div class="flex-grow-1" style="min-width: 14rem; max-width: 38rem">
-            <label class="form-label small text-muted mb-0">Producto (autocompletar como en POS) <span class="kpi-help" data-bs-toggle="tooltip" title="Busca por nombre o código de barra, igual que en POS.">?</span></label>
-            <select id="filtro_buscar_producto_inv" data-placeholder="Escriba nombre o código de barra…" style="width:100%">
-              <option></option>
-            </select>
-            <input type="hidden" name="codigo_barra" id="inv_hidden_codigo_barra" value="{{ codigo_barra or '' }}">
-          </div>
-          <div style="min-width: 10rem; max-width: 15rem">
-            <label class="form-label small text-muted mb-0">Contiene (opcional) <span class="kpi-help" data-bs-toggle="tooltip" title="Filtro adicional por texto libre. Úsalo para acotar resultados amplios.">?</span></label>
-            <input type="search" name="q" id="filtro_q_contiene" class="form-control form-control-sm" placeholder="Mín. 2 letras" value="{{ query or '' }}" autocomplete="off">
-          </div>
-          <select name="categoria" id="filtro_categoria" class="form-select" style="min-width: 11rem; max-width: 18rem">
-            <option value="">Todas las categorías</option>
-            {% for c in categorias or [] %}
-            <option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>
-            {% endfor %}
-          </select>
-          {% if mostrar_filtro_sub_id %}
-          <select name="sub_id" id="filtro_sub_id" class="form-select" style="min-width: 12rem; max-width: 22rem">
-            <option value="">Todas las hojas del maestro</option>
-            {% for o in catalogo_sub_opciones or [] %}
-            <option value="{{ o.id }}" {% if sub_id == o.id %}selected{% endif %}>{{ o.etiqueta }}</option>
-            {% endfor %}
-          </select>
-          <select name="subcategoria" id="filtro_sub_legacy" class="form-select" style="display:none; min-width: 12rem; max-width: 22rem" disabled aria-hidden="true">
-            <option value="">—</option>
-          </select>
-          {% else %}
-          <select name="subcategoria" id="filtro_sub_legacy" class="form-select" style="min-width: 12rem; max-width: 22rem">
-            <option value="">Todas las subcategorías</option>
-            {% for s in subcategorias or [] %}
-            <option value="{{ s }}" {% if subcategoria == s %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-          {% endif %}
-          <button type="submit" class="btn btn-primary fw-bold"><i class="fas fa-search me-1"></i>Buscar</button>
-        </form>
-        <div class="row g-2 mt-2">
-          <div class="col-md-4">
-            <a href="/productos/filtro/sin_stock" class="inv-action-tile">
-              <span class="inv-action-icon" style="background:#fee2e2;color:#991b1b;"><i class="fas fa-circle-exclamation"></i></span>
-              <span><strong>Sin stock</strong><br><small class="text-muted">Productos agotados</small></span>
-            </a>
-          </div>
-          <div class="col-md-4">
-            <a href="/productos/filtro/activos" class="inv-action-tile">
-              <span class="inv-action-icon" style="background:#dcfce7;color:#166534;"><i class="fas fa-check"></i></span>
-              <span><strong>Activos</strong><br><small class="text-muted">Catálogo habilitado</small></span>
-            </a>
-          </div>
-          <div class="col-md-4">
-            <a href="/productos/filtro/venta" class="inv-action-tile">
-              <span class="inv-action-icon" style="background:#e0f2fe;color:#075985;"><i class="fas fa-cart-shopping"></i></span>
-              <span><strong>Disponibles venta</strong><br><small class="text-muted">Con stock y precio</small></span>
-            </a>
-          </div>
-        </div>
+      <div class="inv-v2-topbar__meta">
+        {% if filtros_activos_resumen %}
+        <span class="inv-v2-topbar__filter-badge"><i class="fas fa-filter me-1"></i>{{ filtros_activos_resumen|length }} filtro(s)</span>
+        {% endif %}
+        {{ productos_pagination.total if productos_pagination else productos|length }} coinciden · {{ productos|length }} en esta página
       </div>
     </div>
 
-    {% if puede_editar_stock_admin %}
-    <details class="inv-details mb-4">
-      <summary>
-        <span><i class="fas fa-triangle-exclamation text-warning me-2"></i>Ajuste inicial de stock masivo</span>
-      </summary>
-      <div class="inv-details-body">
-        <form method="POST" action="{{ url_for('actualizar_stock_masivo_productos') }}" class="row g-2 align-items-end" onsubmit="return confirm('Se actualizará stock en múltiples productos. ¿Desea continuar?');">
-          <div class="col-md-3">
-            <label class="form-label fw-bold mb-1">Stock objetivo <span class="kpi-help" data-bs-toggle="tooltip" title="Cantidad que se aplicará como nuevo stock según el alcance seleccionado.">?</span></label>
-            <input type="number" name="stock_objetivo" min="0" step="1" class="form-control" placeholder="0 o 100" required>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-bold mb-1">Aplicar a</label>
-            <select name="alcance" class="form-select">
-              <option value="todos">Todos los productos</option>
-              <option value="filtrados">Solo productos filtrados actualmente</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold mb-1">Escriba CONFIRMAR</label>
-            <input type="text" name="confirmacion" class="form-control text-uppercase" placeholder="CONFIRMAR" required>
-          </div>
-          <input type="hidden" name="q" value="{{ query or '' }}">
-          <input type="hidden" name="codigo_barra" value="{{ codigo_barra or '' }}">
-          <input type="hidden" name="categoria" value="{{ categoria or '' }}">
-          <input type="hidden" name="subcategoria" value="{{ subcategoria or '' }}">
-          <input type="hidden" name="sub_id" value="{{ sub_id or '' }}">
-          <div class="col-md-2 text-md-end">
-            <button type="submit" class="btn btn-warning fw-bold">
-              <i class="fas fa-layer-group me-2"></i>Aplicar ajuste masivo
-            </button>
-          </div>
-          <div class="col-12">
-            <p class="small text-muted mb-0">
-              Use esta opción para conteo físico y carga inicial. Ejemplos: poner todo en <code>0</code> o todo en <code>100</code>.
-            </p>
-          </div>
-        </form>
+    {% if filtros_activos_resumen %}
+    <div class="inv-v2-active-filters{% if es_vista_post_spray %} inv-v2-active-filters--post-spray{% endif %}">
+      <div class="inv-v2-active-filters__head">
+        <div>
+          <strong><i class="fas fa-filter me-1"></i>Filtros activos</strong>
+          <span class="text-muted ms-1">· {{ productos_pagination.total if productos_pagination else productos|length }} productos en el listado</span>
+        </div>
+        <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-rotate-left me-1"></i>Ver todo el catálogo</a>
       </div>
-    </details>
+      <div class="inv-v2-active-filters__chips">
+        {% for f in filtros_activos_resumen %}
+        <a href="{{ f.url }}" class="inv-v2-af-chip inv-v2-af-chip--{{ f.tone or 'default' }}" title="{{ f.hint or 'Quitar este filtro' }}">
+          {{ f.label }} <i class="fas fa-times inv-v2-af-chip__x" aria-hidden="true"></i>
+        </a>
+        {% endfor %}
+      </div>
+      {% if stock_solo_tienda %}
+      <div class="inv-v2-active-filters__note">
+        <i class="fas fa-circle-info me-1"></i>
+        <strong>Stock solo tienda:</strong> al guardar con unidades en bodega, el producto sale de esta lista (comportamiento esperado).
+      </div>
+      {% endif %}
+    </div>
     {% endif %}
 
-    <!-- Formulario de Registro en Tarjeta -->
-    <details class="inv-details mb-4">
-        <summary>
-            <span><i class="fas fa-plus-circle text-primary me-2"></i>Registrar nuevo producto</span>
-        </summary>
-        <div class="inv-details-body">
-            <form action="/guardar_producto" method="POST" class="row g-3">
+    <header class="inv-v2-header">
+        <div>
+            <h1><i class="fas fa-boxes-stacked me-2 opacity-75"></i>Inventario · Catálogo operativo</h1>
+            <p>Enrolados, stock tienda/bodega, clasificación, precios y ubicación. Editá las filas y usá <strong>Guardar página</strong> o el Guardar de cada fila.</p>
+        </div>
+        <div class="inv-v2-kpis">
+            <div class="inv-v2-kpi">
+              <div class="inv-v2-kpi__label">Capital activo</div>
+              <div class="inv-v2-kpi__value">${{ "{:,.0f}".format(stock_valorizado.capital_activo_clp if stock_valorizado else 0).replace(",", ".") }}</div>
+            </div>
+            <div class="inv-v2-kpi">
+              <div class="inv-v2-kpi__label">Mercadería</div>
+              <div class="inv-v2-kpi__value">${{ "{:,.0f}".format(stock_valorizado.mercaderia_clp if stock_valorizado else 0).replace(",", ".") }}</div>
+            </div>
+            <div class="inv-v2-kpi">
+              <div class="inv-v2-kpi__label">Unid. tienda</div>
+              <div class="inv-v2-kpi__value">{{ "{:,.0f}".format(stock_valorizado.total_stock if stock_valorizado else 0).replace(",", ".") }}</div>
+            </div>
+            <div class="inv-v2-kpi">
+              <div class="inv-v2-kpi__label">Brecha</div>
+              <div class="inv-v2-kpi__value">${{ "{:,.0f}".format(stock_valorizado.brecha_clp if stock_valorizado else 0).replace(",", ".") }}</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Filtros premium -->
+    <div class="inv-v2-panel inv-v2-panel--filters">
+      <div class="inv-v2-panel__head">
+        <div>
+          <h2><i class="fas fa-sliders me-2 text-primary"></i>Filtros</h2>
+          <div class="small text-muted">Acotan el listado · no modifican productos.</div>
+        </div>
+        <div class="inv-v2-chips">
+          <a href="/productos/filtro/sin_stock" class="inv-v2-chip inv-v2-chip--danger"><i class="fas fa-circle-exclamation"></i> Sin stock</a>
+          <a href="/productos/filtro/activos" class="inv-v2-chip inv-v2-chip--ok"><i class="fas fa-check"></i> Activos</a>
+          <a href="{{ url_for('mostrar_productos', solo_enrolados='1', orden='enrolado_desc') }}" class="inv-v2-chip inv-v2-chip--ok{% if solo_enrolados and not es_vista_post_spray %} is-active{% endif %}"><i class="fas fa-barcode"></i> Solo enrolados{% if solo_enrolados and not es_vista_post_spray %} ✓{% endif %}</a>
+          <a href="{{ url_for('mostrar_productos', solo_enrolados='1', stock_solo_tienda='1', enrolado_desde='2026-06-11', orden='enrolado_desc') }}" class="inv-v2-chip inv-v2-chip--warn{% if es_vista_post_spray %} is-active{% endif %}"><i class="fas fa-warehouse"></i> Post-spray{% if es_vista_post_spray %} ✓{% endif %}</a>
+          <a href="{{ url_for('mostrar_productos') }}" class="inv-v2-chip inv-v2-chip--muted"><i class="fas fa-rotate-left"></i> Limpiar</a>
+        </div>
+      </div>
+      <div class="inv-v2-panel__body inv-v2-filter-body">
+        <form method="GET" action="/productos" id="form_filtro_productos" data-catalogo="{{ 1 if catalogo_maestro_disponible else 0 }}" class="inv-v2-filter-form">
+
+          <div class="inv-v2-filter-section">
+            <div class="inv-v2-filter-section__title">Búsqueda</div>
+            <div class="inv-v2-filter-grid inv-v2-filter-grid--search">
+              <div class="inv-v2-field inv-v2-field--wide">
+                <label class="inv-v2-label" for="filtro_buscar_producto_inv">Producto o código</label>
+                <select id="filtro_buscar_producto_inv" data-placeholder="Nombre o código de barra…" class="inv-v2-select2">
+                  <option></option>
+                </select>
+                <input type="hidden" name="codigo_barra" id="inv_hidden_codigo_barra" value="{{ codigo_barra or '' }}">
+              </div>
+              <div class="inv-v2-field">
+                <label class="inv-v2-label" for="filtro_q_contiene">Contiene</label>
+                <input type="search" name="q" id="filtro_q_contiene" class="form-control form-control-sm inv-v2-input" placeholder="Texto libre" value="{{ query or '' }}" autocomplete="off">
+              </div>
+              <div class="inv-v2-field inv-v2-field--actions">
+                <button type="submit" class="btn btn-dark inv-v2-btn-search w-100"><i class="fas fa-search me-1"></i>Buscar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="inv-v2-filter-section">
+            <div class="inv-v2-filter-section__title">Clasificación y estado</div>
+            <div class="inv-v2-filter-grid">
+              <div class="inv-v2-field">
+                <label class="inv-v2-label" for="filtro_categoria">Categoría</label>
+                <select name="categoria" id="filtro_categoria" class="form-select form-select-sm inv-v2-input">
+                  <option value="">Todas</option>
+                  {% for c in categorias or [] %}
+                  <option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="inv-v2-field">
+                <label class="inv-v2-label">Subcategoría</label>
+                {% if mostrar_filtro_sub_id %}
+                <select name="sub_id" id="filtro_sub_id" class="form-select form-select-sm inv-v2-input">
+                  <option value="">Todas las hojas</option>
+                  {% for o in catalogo_sub_opciones or [] %}
+                  <option value="{{ o.id }}" {% if sub_id == o.id %}selected{% endif %}>{{ o.etiqueta }}</option>
+                  {% endfor %}
+                </select>
+                <select name="subcategoria" id="filtro_sub_legacy" class="form-select form-select-sm inv-v2-input d-none" disabled aria-hidden="true">
+                  <option value="">—</option>
+                </select>
+                {% else %}
+                <select name="subcategoria" id="filtro_sub_legacy" class="form-select form-select-sm inv-v2-input">
+                  <option value="">Todas</option>
+                  {% for s in subcategorias or [] %}
+                  <option value="{{ s }}" {% if subcategoria == s %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+                {% endif %}
+              </div>
+              <div class="inv-v2-field">
+                <label class="inv-v2-label" for="filtro_activo">Estado</label>
+                <select name="activo" id="filtro_activo" class="form-select form-select-sm inv-v2-input">
+                  <option value="">Todos</option>
+                  <option value="1" {% if activo_filtro == '1' %}selected{% endif %}>Activos</option>
+                  <option value="0" {% if activo_filtro == '0' %}selected{% endif %}>Inactivos</option>
+                </select>
+              </div>
+              <div class="inv-v2-field">
+                <label class="inv-v2-label" for="filtro_orden">Orden</label>
+                <select name="orden" id="filtro_orden" class="form-select form-select-sm inv-v2-input">
+                  <option value="reciente" {% if orden == 'reciente' %}selected{% endif %}>Más recientes</option>
+                  <option value="precio_desc" {% if orden == 'precio_desc' %}selected{% endif %}>Mayor precio</option>
+                  <option value="precio_asc" {% if orden == 'precio_asc' %}selected{% endif %}>Menor precio</option>
+                  <option value="stock_desc" {% if orden == 'stock_desc' %}selected{% endif %}>Más stock</option>
+                  <option value="stock_asc" {% if orden == 'stock_asc' %}selected{% endif %}>Menos stock</option>
+                  <option value="enrolado_desc" {% if orden == 'enrolado_desc' %}selected{% endif %}>Enrol. reciente</option>
+                  <option value="enrolado_asc" {% if orden == 'enrolado_asc' %}selected{% endif %}>Enrol. antiguo</option>
+                </select>
+              </div>
+            </div>
+            <div class="inv-v2-filter-toggles inv-v2-filter-toggles--main">
+              <label class="inv-v2-toggle"><input type="checkbox" name="solo_enrolados" value="1" {% if solo_enrolados %}checked{% endif %}><span>Solo enrolados</span></label>
+              <label class="inv-v2-toggle"><input type="checkbox" name="stock_solo_tienda" value="1" {% if stock_solo_tienda %}checked{% endif %}><span>Stock solo tienda</span></label>
+              <label class="inv-v2-toggle"><input type="checkbox" name="con_alias" value="1" {% if con_alias %}checked{% endif %}><span>Con alias POS</span></label>
+            </div>
+          </div>
+
+          <details class="inv-v2-filter-advanced"{% if filtros_avanzados_abiertos %} open{% endif %}>
+            <summary><i class="fas fa-chevron-right inv-v2-filter-advanced__icon"></i> Filtros avanzados <span class="text-muted fw-normal">· fechas y rangos numéricos</span></summary>
+            <div class="inv-v2-filter-advanced__body">
+              <div class="inv-v2-filter-grid">
+                <div class="inv-v2-field">
+                  <label class="inv-v2-label">Enrolado desde</label>
+                  <input type="date" name="enrolado_desde" class="form-control form-control-sm inv-v2-input" value="{{ enrolado_desde or '' }}">
+                </div>
+                <div class="inv-v2-field">
+                  <label class="inv-v2-label">Enrolado hasta</label>
+                  <input type="date" name="enrolado_hasta" class="form-control form-control-sm inv-v2-input" value="{{ enrolado_hasta or '' }}">
+                </div>
+                <div class="inv-v2-field">
+                  <label class="inv-v2-label">Stock mín.</label>
+                  <input type="number" name="stock_min" class="form-control form-control-sm inv-v2-input" min="0" step="1" value="{{ stock_min if stock_min is not none else '' }}">
+                </div>
+                <div class="inv-v2-field">
+                  <label class="inv-v2-label">Stock máx.</label>
+                  <input type="number" name="stock_max" class="form-control form-control-sm inv-v2-input" min="0" step="1" value="{{ stock_max if stock_max is not none else '' }}">
+                </div>
+                <div class="inv-v2-field">
+                  <label class="inv-v2-label">Precio mín.</label>
+                  <input type="number" name="precio_min" class="form-control form-control-sm inv-v2-input" min="0" step="0.01" value="{{ precio_min if precio_min is not none else '' }}">
+                </div>
+                <div class="inv-v2-field">
+                  <label class="inv-v2-label">Precio máx.</label>
+                  <input type="number" name="precio_max" class="form-control form-control-sm inv-v2-input" min="0" step="0.01" value="{{ precio_max if precio_max is not none else '' }}">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-outline-dark btn-sm mt-2"><i class="fas fa-filter me-1"></i>Aplicar rangos</button>
+            </div>
+          </details>
+        </form>
+      </div>
+    </div>
+
+    <details class="inv-v2-tools">
+      <summary><i class="fas fa-toolbox me-2"></i>Herramientas <span class="text-muted fw-normal">· registro, importación{% if puede_editar_stock_admin %}, ajuste masivo{% endif %}</span></summary>
+      <div class="inv-v2-tools__body">
+        {% if puede_editar_stock_admin %}
+        <div class="inv-v2-tools-block">
+          <div class="inv-v2-tools-block__title"><i class="fas fa-layer-group text-warning me-1"></i> Ajuste masivo de stock</div>
+          <form method="POST" action="{{ url_for('actualizar_stock_masivo_productos') }}" class="row g-2 align-items-end" onsubmit="return confirm('Se actualizará stock en múltiples productos. ¿Desea continuar?');">
+            <div class="col-md-3">
+              <label class="inv-v2-label">Stock objetivo</label>
+              <input type="number" name="stock_objetivo" min="0" step="1" class="form-control form-control-sm" placeholder="0 o 100" required>
+            </div>
+            <div class="col-md-4">
+              <label class="inv-v2-label">Aplicar a</label>
+              <select name="alcance" class="form-select form-select-sm">
+                <option value="todos">Todos los productos</option>
+                <option value="filtrados">Solo filtrados actuales</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="inv-v2-label">Escriba CONFIRMAR</label>
+              <input type="text" name="confirmacion" class="form-control form-control-sm text-uppercase" placeholder="CONFIRMAR" required>
+            </div>
+            <input type="hidden" name="q" value="{{ query or '' }}">
+            <input type="hidden" name="codigo_barra" value="{{ codigo_barra or '' }}">
+            <input type="hidden" name="categoria" value="{{ categoria or '' }}">
+            <input type="hidden" name="subcategoria" value="{{ subcategoria or '' }}">
+            <input type="hidden" name="sub_id" value="{{ sub_id or '' }}">
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-warning btn-sm w-100">Aplicar</button>
+            </div>
+          </form>
+        </div>
+        {% endif %}
+
+        <div class="inv-v2-tools-block">
+          <div class="inv-v2-tools-block__title"><i class="fas fa-plus-circle text-primary me-1"></i> Registrar producto</div>
+            <form action="/guardar_producto" method="POST" class="row g-2">
                 <div class="col-md-6">
                     <label class="form-label fw-bold">Nombre del Artículo</label>
                     <input type="text" name="nombre" class="form-control" placeholder="Ej. Cemento Melón 25kg" required>
@@ -338,177 +407,322 @@
                     </select>
                     <p class="small text-muted mb-0 mt-1">Usada para agrupar compras y proyectar siguiente fase de proyecto / crédito.</p>
                 </div>
-                <div class="col-md-12 d-flex align-items-end justify-content-end">
-                    <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold shadow">
-                        <i class="fas fa-save me-2"></i>GUARDAR PRODUCTO
-                    </button>
+                <div class="col-md-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary btn-sm px-4"><i class="fas fa-save me-1"></i>Guardar producto</button>
                 </div>
             </form>
         </div>
-    </details>
 
-    <!-- Carga Masiva de Productos -->
-    <details id="carga-masiva" class="inv-details mb-4">
-        <summary>
-            <span><i class="fas fa-file-import text-success me-2"></i>Carga masiva y exportación</span>
-        </summary>
-        <div class="inv-details-body">
-            <form action="/cargar_productos" method="POST" enctype="multipart/form-data" class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label fw-bold">Subir archivo (CSV o Excel)</label>
-                    <input type="file" name="archivo" accept=".csv,.xlsx,.xlsm" class="form-control" required>
+        <div class="inv-v2-tools-block">
+          <div class="inv-v2-tools-block__title"><i class="fas fa-file-import text-success me-1"></i> Carga masiva</div>
+            <form action="/cargar_productos" method="POST" enctype="multipart/form-data" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="inv-v2-label">Archivo CSV o Excel</label>
+                    <input type="file" name="archivo" accept=".csv,.xlsx,.xlsm" class="form-control form-control-sm" required>
                 </div>
-                <div class="col-md-6 d-flex align-items-end flex-wrap gap-2">
-                    <button type="submit" class="btn btn-outline-primary fw-bold">
-                        <i class="fas fa-upload me-2"></i> Cargar Datos
-                    </button>
-                    <a href="{{ url_for('exportar_productos_excel', q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}" class="btn btn-outline-success fw-bold">
-                        <i class="fas fa-file-excel me-2"></i> Descargar productos (Excel)
-                    </a>
-                    <a href="{{ url_for('descargar_plantilla_productos') }}" class="btn btn-outline-info fw-bold">
-                        <i class="fas fa-download me-2"></i> Plantilla vacía
-                    </a>
-                </div>
-                <div class="col-12">
-                    <p class="small text-muted mb-0">
-                        <strong>Excel:</strong> descarga el listado actual (respeta filtros de búsqueda arriba), edita y vuelve a subir el .xlsx.
-                        Incluye <code>codigo_interno</code> y <code>codigo_chilemat</code> para cruzar con tu propia planilla de referencia de mercado.
-                        Si una fila trae solo <code>codigo_interno</code> (sin código de barra), se busca el producto existente por ese código para <strong>actualizar</strong> precios/categorías; productos nuevos siguen requiriendo <code>codigo_barra</code>.
-                        <strong>Stock</strong> en tienda: columna <code>stock</code>.
-                        <strong>Precio venta sugerido:</strong> deje <code>precio_venta</code> vacío y defina <code>precio_compra</code>; opcional <code>margen_venta</code> y <code>terminacion</code> (0, 90 o 990).
-                    </p>
+                <div class="col-md-7 d-flex flex-wrap gap-2 align-items-end">
+                    <button type="submit" class="btn btn-outline-primary btn-sm"><i class="fas fa-upload me-1"></i>Subir</button>
+                    <a href="{{ url_for('exportar_productos_excel', q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id, activo=activo_filtro, solo_enrolados='1' if solo_enrolados else '', con_alias='1' if con_alias else '', stock_min=stock_min, stock_max=stock_max, precio_min=precio_min, precio_max=precio_max, orden=orden) }}" class="btn btn-outline-success btn-sm"><i class="fas fa-file-excel me-1"></i>Exportar</a>
+                    <a href="{{ url_for('descargar_plantilla_productos') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-download me-1"></i>Plantilla</a>
                 </div>
             </form>
         </div>
-    </details>
-
-    <!-- Tabla de productos -->
-    <div class="card inv-panel">
-      <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <h5 class="card-title m-0 fw-bold"><i class="fas fa-list-check text-primary me-2"></i>Listado de productos</h5>
-          <div class="small text-muted">Stock, ubicación, precio y disponibilidad para venta.</div>
-        </div>
-        <a href="{{ url_for('exportar_productos_excel', q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}" class="btn btn-sm btn-outline-success fw-bold">
-          <i class="fas fa-file-excel me-1"></i> Exportar vista
-        </a>
       </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-        <table class="table table-hover align-middle table-ds inv-table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Código</th>
-              <th>Producto</th>
-              <th>Clasificación</th>
-              <th>Ubicación</th>
-              <th>UM Compra/Venta</th>
-              <th>Stock</th>
-              <th>Precio Venta</th>
-              <th>Fase obra</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for p in productos %}
-            <tr>
-              <td><div class="product-code">{{ p.codigo_barra or p.codigo_interno or '—' }}</div></td>
-              <td>
-                <div class="product-name">{{ p.nombre }}</div>
-                <div class="small text-muted">ID #{{ p.id }}</div>
-              </td>
-              <td>
-                <div>{{ p.categoria or 'Sin categoría' }}</div>
-                <small class="text-muted">{{ p.subcategoria or '—' }}</small>
-              </td>
-              <td><span class="badge text-bg-light border">{{ p.ubicacion_codigo or 'Sin ubicación' }}</span></td>
-              <td>
-                {{ p.unidad_compra or '—' }} / {{ p.unidad_venta_final }}
-                {% if p.factor_conversion and p.factor_conversion != 1 %}<small class="text-muted">(x{{ p.factor_conversion }})</small>{% endif %}
-              </td>
-              <td>
-                {% set stock_ui = p.stock_ui if p.stock_ui is defined else none %}
-                {% set st = stock_ui.tienda if stock_ui else (p.stock or 0) %}
-                <span class="stock-badge {% if st <= 0 %}stock-zero{% elif st <= 5 %}stock-low{% else %}stock-ok{% endif %}">{{ st }}</span>
-                <div class="stock-breakdown">
-                  <span><small>Tienda</small><strong>{{ stock_ui.tienda if stock_ui else st }}</strong></span>
-                  <span><small>Bodega</small><strong>{{ stock_ui.bodega if stock_ui else 0 }}</strong></span>
-                  <span><small>Total</small><strong>{{ stock_ui.total_almacenes if stock_ui else (p.stock or 0) }}</strong></span>
-                </div>
-                {% if stock_ui and stock_ui.desajustado %}
-                <div class="stock-warning"><i class="fas fa-triangle-exclamation me-1"></i>Maestro: {{ stock_ui.total_maestro }}</div>
-                {% endif %}
-              </td>
-              <td class="fw-bold">${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}</td>
-              <td>
-                <form method="post" action="{{ url_for('producto_actualizar_fase_obra', id=p.id) }}" class="d-flex flex-column gap-1" style="min-width: 9rem;">
-                  <select name="fase_obra" class="form-select form-select-sm" aria-label="Fase obra {{ p.nombre }}">
-                    <option value="">—</option>
-                    {% for fk in c360_fases_obra %}
-                    <option value="{{ fk }}" {% if (p.fase_obra or '') == fk %}selected{% endif %} title="{{ c360_fase_labels.get(fk, fk) }}">{{ fk }}</option>
-                    {% endfor %}
-                  </select>
-                  <button type="submit" class="btn btn-sm btn-outline-secondary py-0">OK</button>
-                </form>
-              </td>
-              <td>
-                {% if p.activo %}
-                  <span class="badge text-bg-success">Activo</span>
-                {% else %}
-                  <span class="badge text-bg-secondary">Inactivo</span>
-                {% endif %}
-                {% if st > 0 and (p.precio_venta or 0) > 0 and p.activo %}
-                  <div class="small text-success mt-1"><i class="fas fa-check-circle me-1"></i>Disponible venta</div>
-                {% else %}
-                  <div class="small text-muted mt-1">No disponible venta</div>
-                {% endif %}
-              </td>
-              <td>
-                <form method="POST" action="{{ url_for('toggle_producto', id=p.id) }}" class="d-inline">
-                  <button type="submit" class="btn btn-sm {{ 'btn-outline-success' if p.activo else 'btn-outline-secondary' }}">
-                    {{ 'Activo' if p.activo else 'Inactivo' }}
-                  </button>
-                </form>
-                {% if puede_editar_stock_admin %}
-                <form method="POST" action="{{ url_for('editar_stock_producto', id=p.id) }}" class="d-inline-flex align-items-center gap-1 mt-2">
-                  <input
-                    type="number"
-                    name="stock"
-                    min="0"
-                    step="1"
-                    value="{{ p.stock }}"
-                    class="form-control form-control-sm"
-                    style="width: 88px"
-                    aria-label="Nuevo stock para {{ p.nombre }}"
-                  >
-                  <button type="submit" class="btn btn-sm btn-outline-primary">Editar</button>
-                </form>
-                {% endif %}
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="10" class="text-center text-muted py-5">No hay productos para los filtros seleccionados.</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    </details>
+
+    <!-- Listado productos v2 -->
+    <div class="inv-v2-panel">
+      <div class="inv-v2-panel__head">
+        <div>
+          <h2><i class="fas fa-table-list text-primary me-2"></i>Catálogo en edición</h2>
+          <div class="small text-muted">{{ productos|length }} filas en esta página · guardado masivo o por fila</div>
         </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          {% if puede_editar_stock_admin and productos %}
+          <button type="button" class="btn btn-sm btn-primary inv-v2-bulk-save" data-mode="modified" disabled>
+            <i class="fas fa-save me-1"></i>Guardar página (<span class="inv-v2-bulk-count">0</span> modificadas)
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-primary inv-v2-bulk-save" data-mode="all" title="Guardar todas las filas visibles aunque no hayas tocado campos">
+            Guardar las {{ productos|length }} visibles
+          </button>
+          {% endif %}
+          <a href="{{ url_for('exportar_productos_excel') }}{% if url_filtros_qs %}?{{ url_filtros_qs }}&amp;solo_enrolados=1{% else %}?solo_enrolados=1{% endif %}" class="btn btn-sm btn-outline-success">
+            <i class="fas fa-file-excel me-1"></i>Excel
+          </a>
+          <a href="{{ url_for('imprimir_etiquetas_enrolamiento') }}{% if url_filtros_qs %}?{{ url_filtros_qs }}&amp;solo_enrolados=1{% else %}?solo_enrolados=1{% endif %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+            <i class="fas fa-tags me-1"></i>Etiquetas
+          </a>
+          {% if usuario_tiene_permiso('pos_emitir_vale') %}
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalFotoSkuInv">
+            <i class="fas fa-camera me-1"></i>Foto IA
+          </button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if stock_valorizado and stock_valorizado.sin_costo_productos and stock_valorizado.sin_costo_productos > 0 %}
+      <div class="alert alert-warning border-0 rounded-0 mb-0 py-2 px-3 small">
+        <i class="fas fa-exclamation-triangle me-1"></i>
+        <strong>{{ stock_valorizado.sin_costo_productos }}</strong> SKU(s) con stock pero sin costo de compra
+        ({{ "{:,.0f}".format(stock_valorizado.sin_costo_stock).replace(",", ".") }} uds) — mercadería subestimada.
+      </div>
+      {% endif %}
+
+      <details class="border-bottom">
+        <summary class="px-3 py-2 small fw-bold text-muted d-flex flex-wrap justify-content-between align-items-center gap-2" style="cursor:pointer; list-style:none;">
+          <span><i class="fas fa-chart-pie text-success me-2"></i>Desglose por categoría (doble clic para detalle)</span>
+          <a href="{{ url_for('inventario_stock_valorizado') }}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation();">Informe completo</a>
+        </summary>
+        <div class="px-3 pb-3">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0 inv-valor-cat-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Categoría</th>
+                  <th class="text-end">SKUs</th>
+                  <th class="text-end">Unid. tienda</th>
+                  <th class="text-end">Mercadería</th>
+                  <th class="text-end">Capital</th>
+                  <th class="text-end">Brecha</th>
+                  <th>%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in stock_valorizado_categorias or [] %}
+                <tr class="inv-valor-cat-row" data-categoria="{{ row.categoria }}" title="Doble clic: detalle" style="cursor:pointer;">
+                  <td class="fw-semibold">{{ row.categoria }}</td>
+                  <td class="text-end">{{ row.productos }}</td>
+                  <td class="text-end">{{ "{:,.0f}".format(row.stock).replace(",", ".") }}</td>
+                  <td class="text-end">${{ "{:,.0f}".format(row.mercaderia_clp).replace(",", ".") }}</td>
+                  <td class="text-end">${{ "{:,.0f}".format(row.capital_activo_clp).replace(",", ".") }}</td>
+                  <td class="text-end">${{ "{:,.0f}".format(row.brecha_clp).replace(",", ".") }}</td>
+                  <td>
+                    <div class="small text-muted">{{ row.pct_mercaderia }}%</div>
+                    <div class="pct-bar"><span style="width: {{ [row.pct_mercaderia, 100]|min }}%;"></span></div>
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-3">Sin datos para el filtro actual.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+
+      {% if puede_editar_stock_admin and productos %}
+      <form id="inv-bulk-page-form" method="POST" action="{{ url_for('guardar_pagina_catalogo_productos') }}" class="d-none">
+        <input type="hidden" name="return_url" value="{{ request.full_path }}">
+        {% for p in productos %}
+        <input type="hidden" name="pagina_ids[]" value="{{ p.id }}">
+        {% endfor %}
+        <div id="inv-bulk-fields"></div>
+      </form>
+      {% endif %}
+
+      <div class="inv-v2-list-wrap">
+        <div class="inv-v2-list-head">
+          <span>Código</span>
+          <span>Producto</span>
+          <span>Enrol.</span>
+          <span>Clasificación</span>
+          <span>Ubic.</span>
+          <span>Stock T/B</span>
+          <span>Costo</span>
+          <span>Precio</span>
+          <span>Valor</span>
+          <span class="text-end">Acciones</span>
+        </div>
+
+        {% if catalogo_pinturas_maestro_ok %}
+        <datalist id="invMarcasMaestro">
+          {% for m in marcas_catalogo or [] %}<option value="{{ m }}">{% endfor %}
+        </datalist>
+        <datalist id="invTonosMaestro">
+          {% for t in tonos_catalogo or [] %}<option value="{{ t }}">{% endfor %}
+        </datalist>
+        {% endif %}
+
+        {% for p in productos %}
+        {% set row_form = 'inv-row-' ~ p.id %}
+        {% set stock_ui = p.stock_ui if p.stock_ui is defined else none %}
+        {% set st = stock_ui.tienda if stock_ui else (p.stock or 0) %}
+        {% set st_b = stock_ui.bodega if stock_ui else 0 %}
+        <article class="inv-v2-row{% if p.tiene_enrolamiento and st > 0 and st_b == 0 %} inv-v2-row--warn{% endif %}" data-product-id="{{ p.id }}">
+          {% if puede_editar_stock_admin %}
+          <form id="{{ row_form }}" method="post" action="{{ url_for('producto_editar_catalogo', id=p.id) }}" class="d-none">
+            <input type="hidden" name="campo" value="fila_catalogo">
+          </form>
+          {% endif %}
+
+          <div class="inv-v2-cell inv-v2-cell--code">
+            <span class="inv-v2-cell-label">Código</span>
+            <div class="inv-v2-code" title="{{ p.codigo_barra or p.codigo_interno or '' }}">{{ p.codigo_barra or p.codigo_interno or '—' }}</div>
+          </div>
+
+          <div class="inv-v2-cell inv-v2-name">
+            <span class="inv-v2-cell-label">Producto</span>
+            {% if puede_editar_stock_admin %}
+            <input type="text" name="nombre" form="{{ row_form }}" class="form-control form-control-sm" maxlength="100"
+                   value="{{ p.nombre }}" aria-label="Nombre {{ p.id }}" title="{{ p.nombre }}">
+            {% else %}
+            <div class="inv-v2-name-text" title="{{ p.nombre }}">{{ p.nombre }}</div>
+            {% endif %}
+            <div class="inv-v2-name-meta">#{{ p.id }}{% if p.activo %} · <span class="text-success">Activo</span>{% else %} · Inactivo{% endif %}</div>
+          </div>
+
+          <div class="inv-v2-cell">
+            <span class="inv-v2-cell-label">Enrol.</span>
+            {% if p.tiene_enrolamiento %}
+            <span class="badge text-bg-success inv-v2-enrol-badge">Sí</span>
+            {% if p.enrolado_en %}
+            <div class="inv-v2-enrol-date">{{ p.enrolado_en.strftime('%d-%m-%Y') }}<br>{{ p.enrolado_en.strftime('%H:%M') }}</div>
+            {% endif %}
+            {% else %}
+            <span class="badge text-bg-secondary inv-v2-enrol-badge">No</span>
+            {% endif %}
+          </div>
+
+          <div class="inv-v2-cell inv-v2-field-sm">
+            <span class="inv-v2-cell-label">Clasificación</span>
+            {% if puede_editar_stock_admin %}
+            <select name="categoria" form="{{ row_form }}" class="form-select form-select-sm mb-1" aria-label="Categoría">
+              <option value="">Sin categoría</option>
+              {% for c in categorias or [] %}
+              <option value="{{ c }}" {% if (p.categoria or '') == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+              {% if p.categoria and p.categoria not in (categorias or []) %}
+              <option value="{{ p.categoria }}" selected>{{ p.categoria }}</option>
+              {% endif %}
+            </select>
+            <input type="text" name="subcategoria" form="{{ row_form }}" class="form-control form-control-sm" maxlength="50"
+                   value="{{ p.subcategoria or '' }}" placeholder="Subcategoría">
+            <input type="text" name="marca" form="{{ row_form }}" class="form-control form-control-sm mt-1" maxlength="80"
+                   value="{{ p.marca or '' }}" placeholder="Marca" list="invMarcasMaestro" autocomplete="off"
+                   title="Maestro marcas pintura — al guardar se registra automáticamente">
+            <input type="text" name="tono_color" form="{{ row_form }}" class="form-control form-control-sm mt-1" maxlength="80"
+                   value="{{ p.tono_color or '' }}" placeholder="Tono / color" list="invTonosMaestro" autocomplete="off"
+                   title="Maestro tonos — al guardar se registra automáticamente">
+            {% if loop.first and catalogo_pinturas_maestro_ok %}
+            <a href="{{ url_for('admin_catalogo_pinturas') }}" class="small text-decoration-none d-block mt-1" target="_blank" rel="noopener">Administrar marcas y tonos</a>
+            {% endif %}
+            {% else %}
+            <div class="small">{{ p.categoria or '—' }}</div>
+            <div class="small text-muted">{{ p.subcategoria or '—' }}</div>
+            {% endif %}
+          </div>
+
+          <div class="inv-v2-cell inv-v2-field-sm">
+            <span class="inv-v2-cell-label">Ubicación</span>
+            {% if puede_editar_stock_admin %}
+            <div class="inv-v2-ubic">
+              <input type="text" name="ubicacion_pasillo" form="{{ row_form }}" class="form-control form-control-sm" maxlength="12"
+                     value="{{ p.ubicacion_pasillo or '' }}" placeholder="P" title="Pasillo">
+              <input type="text" name="ubicacion_estante" form="{{ row_form }}" class="form-control form-control-sm" maxlength="12"
+                     value="{{ p.ubicacion_estante or '' }}" placeholder="E" title="Estante">
+              <input type="text" name="ubicacion_nivel" form="{{ row_form }}" class="form-control form-control-sm" maxlength="12"
+                     value="{{ p.ubicacion_nivel or '' }}" placeholder="N" title="Nivel">
+            </div>
+            {% else %}
+            <span class="badge text-bg-light border">{{ p.ubicacion_codigo or '—' }}</span>
+            {% endif %}
+          </div>
+
+          <div class="inv-v2-cell inv-v2-stock inv-v2-field-sm">
+            <span class="inv-v2-cell-label">Stock tienda / bodega</span>
+            {% if puede_editar_stock_admin %}
+            <div class="inv-v2-stock-edit">
+              <div class="inv-v2-stock-pair">
+                <span class="inv-v2-stock-lbl" title="Almacén tienda (POS)">Tienda</span>
+                <input type="number" name="stock" form="{{ row_form }}" min="0" step="1" value="{{ st }}"
+                       class="form-control form-control-sm inv-v2-stock-in {% if st <= 0 %}stock-zero{% elif st <= 5 %}stock-low{% else %}stock-ok{% endif %}"
+                       aria-label="Stock tienda">
+              </div>
+              <div class="inv-v2-stock-pair">
+                <span class="inv-v2-stock-lbl" title="Almacén bodega">Bodega</span>
+                <input type="number" name="stock_bodega" form="{{ row_form }}" min="0" step="1" value="{{ st_b }}"
+                       class="form-control form-control-sm inv-v2-stock-in {% if st_b <= 0 %}stock-zero{% elif st_b <= 5 %}stock-low{% else %}stock-ok{% endif %}"
+                       aria-label="Stock bodega">
+              </div>
+              <div class="inv-v2-stock-move">
+                <button type="button" class="btn btn-sm btn-outline-warning inv-v2-stock-move-btn" data-dir="to-bodega" title="Mover unidades de tienda a bodega (luego Guardar)">→ Bodega</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary inv-v2-stock-move-btn" data-dir="to-tienda" title="Mover unidades de bodega a tienda (luego Guardar)">→ Tienda</button>
+              </div>
+            </div>
+            {% else %}
+            <strong>{{ st }}</strong> / {{ st_b }}
+            {% endif %}
+            {% if p.tiene_enrolamiento and st > 0 and st_b == 0 %}
+            <div class="inv-v2-warn"><i class="fas fa-warehouse me-1"></i>Solo tienda — use → Bodega y Guardar</div>
+            {% elif stock_ui and stock_ui.desajustado %}
+            <div class="inv-v2-warn">Maestro {{ stock_ui.total_maestro }}</div>
+            {% endif %}
+          </div>
+
+          <div class="inv-v2-cell inv-v2-money inv-v2-field-sm">
+            <span class="inv-v2-cell-label">Costo</span>
+            {% if puede_editar_stock_admin %}
+            <input type="text" name="precio_compra" form="{{ row_form }}" inputmode="numeric"
+                   value="{{ '{:,.0f}'.format(p.precio_compra or 0).replace(',', '.') }}"
+                   class="form-control form-control-sm">
+            {% else %}
+            ${{ "{:,.0f}".format(p.precio_compra or 0).replace(",", ".") }}
+            {% endif %}
+          </div>
+
+          <div class="inv-v2-cell inv-v2-money inv-v2-field-sm">
+            <span class="inv-v2-cell-label">Precio</span>
+            {% if puede_editar_stock_admin %}
+            <input type="text" name="precio_venta" form="{{ row_form }}" inputmode="numeric"
+                   value="{{ '{:,.0f}'.format(p.precio_venta or 0).replace(',', '.') }}"
+                   class="form-control form-control-sm">
+            {% else %}
+            ${{ "{:,.0f}".format(p.precio_venta or 0).replace(",", ".") }}
+            {% endif %}
+          </div>
+
+          <div class="inv-v2-cell">
+            <span class="inv-v2-cell-label">Valor</span>
+            <div class="inv-v2-valor">${{ "{:,.0f}".format(p.valor_stock_venta if p.valor_stock_venta is defined else 0).replace(",", ".") }}</div>
+          </div>
+
+          <div class="inv-v2-cell inv-v2-actions">
+            <span class="inv-v2-cell-label">Acciones</span>
+            {% if puede_editar_stock_admin %}
+            <button type="submit" form="{{ row_form }}" class="btn btn-primary inv-v2-save">
+              <i class="fas fa-save me-1"></i>Guardar
+            </button>
+            {% endif %}
+            <div class="inv-v2-actions-row">
+              <form method="POST" action="{{ url_for('toggle_producto', id=p.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-outline-secondary" title="Activo/Inactivo">{{ 'On' if p.activo else 'Off' }}</button>
+              </form>
+              {% if usuario_tiene_permiso('revision_precios') %}
+              <a href="{{ url_for('revision_precios', q=p.codigo_barra or p.codigo_interno or p.nombre) }}" class="btn btn-outline-secondary" title="Márgenes"><i class="fas fa-tags"></i></a>
+              {% endif %}
+              {% if p.tiene_enrolamiento %}
+              <a href="{{ url_for('imprimir_etiquetas_enrolamiento', ids=p.id, auto_print='0') }}" class="btn btn-outline-primary" target="_blank" rel="noopener" title="Etiqueta"><i class="fas fa-tag"></i></a>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+        {% else %}
+        <div class="text-center text-muted py-5">No hay productos para los filtros seleccionados.</div>
+        {% endfor %}
       </div>
     </div>
 
     {% if productos_pagination is defined and productos_pagination.pages > 1 %}
-    <nav class="mt-3">
+    <nav class="mt-3 inv-v2-pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not productos_pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.prev_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}">Anterior</a>
+          <a class="page-link" href="{{ url_for('mostrar_productos') }}?{% if url_filtros_qs %}{{ url_filtros_qs }}&amp;{% endif %}page={{ productos_pagination.prev_num }}">Anterior</a>
         </li>
         <li class="page-item disabled">
           <span class="page-link">Página {{ productos_pagination.page }} de {{ productos_pagination.pages }}</span>
         </li>
         <li class="page-item {% if not productos_pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('mostrar_productos', page=productos_pagination.next_num, q=query, codigo_barra=codigo_barra, categoria=categoria, subcategoria=subcategoria, sub_id=sub_id) }}">Siguiente</a>
+          <a class="page-link" href="{{ url_for('mostrar_productos') }}?{% if url_filtros_qs %}{{ url_filtros_qs }}&amp;{% endif %}page={{ productos_pagination.next_num }}">Siguiente</a>
         </li>
       </ul>
     </nav>
@@ -542,6 +756,10 @@
   const LEGACY_SUBS = {{ (subcategorias_todas_legacy or subcategorias)|tojson }};
   const formFiltro = document.getElementById('form_filtro_productos');
   if (!formFiltro) return;
+
+  document.querySelectorAll('.inv-v2-filter-toggles--main input[type="checkbox"]').forEach(function (cb) {
+    cb.addEventListener('change', submitFiltroProductos);
+  });
 
   function submitFiltroProductos() {
     try {
@@ -684,7 +902,9 @@
       $sel.on('select2:select', function (e) {
         var d = e.params.data;
         var hid = document.getElementById('inv_hidden_codigo_barra');
-        if (hid) hid.value = d.id || '';
+        var cod = String(d.codigo || '').trim();
+        if (cod && /^id\s+\d+$/i.test(cod)) cod = '';
+        if (hid) hid.value = cod;
         if (qCont) qCont.value = '';
         submitFiltroProductos();
       });
@@ -785,6 +1005,368 @@
       .catch(function () {
         out.textContent = 'Error de red';
       });
+  });
+})();
+(function invValorCatDrilldown() {
+  var tabla = document.querySelector('.inv-valor-cat-table tbody');
+  if (!tabla) return;
+  var apiBase = {{ url_for('api_valorizado_categoria_detalle') | tojson }};
+  var apiAjusteTpl = {{ url_for('api_producto_ajuste_inventario_rapido', id=999999) | tojson }};
+  var puedeEditar = {{ 'true' if puede_editar_stock_admin else 'false' }};
+  var filtrosQs = window.location.search || '';
+
+  function apiAjusteUrl(id) {
+    return apiAjusteTpl.replace('999999', String(id));
+  }
+  function fmtN(n) {
+    return Math.round(Number(n || 0)).toLocaleString('es-CL');
+  }
+  function fmtClp(n) {
+    return '$' + fmtN(n);
+  }
+  function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function clpInputVal(n) {
+    return fmtN(n);
+  }
+  function parseClp(s) {
+    var raw = String(s || '').replace(/\./g, '').replace(/,/g, '').replace(/[^\d-]/g, '');
+    if (raw === '' || raw === '-') return null;
+    return parseInt(raw, 10);
+  }
+  function cerrarDetalles(exceptRow) {
+    tabla.querySelectorAll('.inv-valor-cat-detail').forEach(function (tr) { tr.remove(); });
+    tabla.querySelectorAll('.inv-valor-cat-row.is-open').forEach(function (tr) {
+      if (tr !== exceptRow) tr.classList.remove('is-open');
+    });
+  }
+  function actualizarResumenCategoria(catRow, detailInner) {
+    if (!catRow || !detailInner) return;
+    var rows = detailInner.querySelectorAll('.inv-valor-cat-item-row');
+    var stock = 0, merc = 0, cap = 0, sinCosto = 0;
+    rows.forEach(function (tr) {
+      stock += parseInt(tr.getAttribute('data-stock-tienda') || '0', 10) || 0;
+      merc += parseFloat(tr.getAttribute('data-mercaderia') || '0') || 0;
+      cap += parseFloat(tr.getAttribute('data-capital') || '0') || 0;
+      if (tr.getAttribute('data-sin-costo') === '1') sinCosto += 1;
+    });
+    var cells = catRow.querySelectorAll('td');
+    if (cells.length >= 6) {
+      cells[2].textContent = fmtN(stock);
+      cells[3].textContent = fmtClp(merc);
+      cells[4].textContent = fmtClp(cap);
+      cells[5].textContent = fmtClp(cap - merc);
+    }
+    var hdr = detailInner.querySelector('.inv-valor-cat-detail-meta');
+    if (hdr) {
+      var skuTxt = rows.length + ' SKUs · ' + fmtN(stock) + ' uds tienda';
+      if (sinCosto > 0) skuTxt += ' · <span class="text-warning">' + sinCosto + ' sin costo</span>';
+      hdr.innerHTML = skuTxt;
+    }
+  }
+  function aplicarItemEnFila(tr, it) {
+    tr.setAttribute('data-stock-tienda', String(it.stock_tienda));
+    tr.setAttribute('data-mercaderia', String(it.mercaderia_clp));
+    tr.setAttribute('data-capital', String(it.capital_activo_clp));
+    tr.setAttribute('data-sin-costo', it.sin_costo ? '1' : '0');
+    if (it.sin_costo) tr.classList.add('table-warning');
+    else tr.classList.remove('table-warning');
+    var mercCell = tr.querySelector('.inv-vcat-merc');
+    var capCell = tr.querySelector('.inv-vcat-cap');
+    if (mercCell) mercCell.textContent = fmtClp(it.mercaderia_clp);
+    if (capCell) capCell.textContent = fmtClp(it.capital_activo_clp);
+    var stIn = tr.querySelector('.inv-vcat-st-t');
+    var sbIn = tr.querySelector('.inv-vcat-st-b');
+    var pcIn = tr.querySelector('.inv-vcat-pc');
+    var pvIn = tr.querySelector('.inv-vcat-pv');
+    if (stIn) stIn.value = it.stock_tienda;
+    if (sbIn) sbIn.value = it.stock_bodega;
+    if (pcIn) pcIn.value = clpInputVal(it.precio_compra);
+    if (pvIn) pvIn.value = clpInputVal(it.precio_venta || it.precio_venta_sd);
+  }
+  function renderDetalle(row, data) {
+    cerrarDetalles(row);
+    var res = data.resumen || {};
+    var items = data.items || [];
+    var tr = document.createElement('tr');
+    tr.className = 'inv-valor-cat-detail';
+    var html = '<td colspan="7"><div class="p-3 inv-valor-cat-detail-inner">';
+    html += '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">';
+    html += '<div class="fw-bold text-success"><i class="fas fa-list me-1"></i>' + esc(data.categoria) + '</div>';
+    html += '<div class="small text-muted inv-valor-cat-detail-meta">';
+    html += res.productos + ' SKUs · ' + fmtN(res.stock_tienda) + ' uds tienda';
+    if (res.sin_precio_compra_con_stock) {
+      html += ' · <span class="text-warning">' + res.sin_precio_compra_con_stock + ' sin costo</span>';
+    }
+    html += '</div></div>';
+    html += '<table class="table table-sm table-bordered mb-0 bg-white inv-valor-cat-detail-table"><thead class="table-light">';
+    html += '<tr><th>Producto</th><th>Código</th><th class="text-end">Tienda</th><th class="text-end">Bodega</th>';
+    html += '<th class="text-end">Compra</th><th class="text-end">Venta</th><th class="text-end">Mercadería</th><th class="text-end">Cap. activo</th>';
+    if (puedeEditar) html += '<th></th>';
+    html += '</tr></thead><tbody>';
+    var colSpan = puedeEditar ? 9 : 8;
+    if (!items.length) {
+      html += '<tr><td colspan="' + colSpan + '" class="text-muted text-center">Sin productos con stock en tienda.</td></tr>';
+    } else {
+      items.forEach(function (it) {
+        var warn = it.sin_costo ? ' table-warning' : '';
+        html += '<tr class="inv-valor-cat-item-row' + warn + '" data-producto-id="' + it.id + '"';
+        html += ' data-stock-tienda="' + it.stock_tienda + '" data-mercaderia="' + it.mercaderia_clp + '"';
+        html += ' data-capital="' + it.capital_activo_clp + '" data-sin-costo="' + (it.sin_costo ? '1' : '0') + '">';
+        html += '<td class="small">' + esc(it.nombre) + ' <span class="text-muted">#' + it.id + '</span></td>';
+        html += '<td class="small"><code>' + esc(it.codigo) + '</code></td>';
+        if (puedeEditar) {
+          html += '<td class="text-end"><input type="number" min="0" step="1" class="form-control form-control-sm inv-vcat-num inv-vcat-st-t" value="' + it.stock_tienda + '"></td>';
+          html += '<td class="text-end"><input type="number" min="0" step="1" class="form-control form-control-sm inv-vcat-num inv-vcat-st-b" value="' + it.stock_bodega + '"></td>';
+          html += '<td class="text-end"><input type="text" inputmode="numeric" class="form-control form-control-sm inv-vcat-clp inv-vcat-pc" value="' + clpInputVal(it.precio_compra) + '"></td>';
+          html += '<td class="text-end"><input type="text" inputmode="numeric" class="form-control form-control-sm inv-vcat-clp inv-vcat-pv" value="' + clpInputVal(it.precio_venta || it.precio_venta_sd) + '"></td>';
+        } else {
+          html += '<td class="text-end">' + fmtN(it.stock_tienda) + '</td>';
+          html += '<td class="text-end">' + fmtN(it.stock_bodega) + '</td>';
+          html += '<td class="text-end">' + fmtClp(it.precio_compra) + '</td>';
+          html += '<td class="text-end">' + fmtClp(it.precio_venta || it.precio_venta_sd) + '</td>';
+        }
+        html += '<td class="text-end inv-vcat-merc">' + fmtClp(it.mercaderia_clp) + '</td>';
+        html += '<td class="text-end inv-vcat-cap">' + fmtClp(it.capital_activo_clp) + '</td>';
+        if (puedeEditar) {
+          html += '<td class="text-end"><button type="button" class="btn btn-sm btn-primary py-0 inv-vcat-save" title="Guardar cambios">Guardar</button></td>';
+        }
+        html += '</tr>';
+      });
+    }
+    html += '</tbody></table>';
+    if (data.items_truncados) {
+      html += '<div class="small text-muted mt-2">Mostrando ' + items.length + ' de ' + data.items_total + ' productos. Usá filtro «Pinturas» en el listado inferior para ver todos.</div>';
+    }
+    html += '</div></td>';
+    tr.innerHTML = html;
+    row.classList.add('is-open');
+    row.insertAdjacentElement('afterend', tr);
+  }
+
+  tabla.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.inv-vcat-save');
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    var itemRow = btn.closest('.inv-valor-cat-item-row');
+    if (!itemRow) return;
+    var pid = itemRow.getAttribute('data-producto-id');
+    var payload = {
+      stock_tienda: parseInt(itemRow.querySelector('.inv-vcat-st-t').value, 10),
+      stock_bodega: parseInt(itemRow.querySelector('.inv-vcat-st-b').value, 10),
+      precio_compra: parseClp(itemRow.querySelector('.inv-vcat-pc').value),
+      precio_venta: parseClp(itemRow.querySelector('.inv-vcat-pv').value)
+    };
+    if (isNaN(payload.stock_tienda) || payload.stock_tienda < 0) {
+      alert('Stock tienda inválido.');
+      return;
+    }
+    if (isNaN(payload.stock_bodega) || payload.stock_bodega < 0) {
+      alert('Stock bodega inválido.');
+      return;
+    }
+    if (payload.precio_compra === null || payload.precio_compra < 0) {
+      alert('Precio de compra inválido.');
+      return;
+    }
+    if (payload.precio_venta === null || payload.precio_venta <= 0) {
+      alert('Precio de venta inválido.');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '…';
+    fetch(apiAjusteUrl(pid), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = 'Guardar';
+        if (!res.ok || !res.j.ok) {
+          alert((res.j && res.j.mensaje) || 'No se pudo guardar.');
+          return;
+        }
+        aplicarItemEnFila(itemRow, res.j.item);
+        var detailInner = itemRow.closest('.inv-valor-cat-detail-inner');
+        var catRow = detailInner && detailInner.closest('tr').previousElementSibling;
+        if (catRow && catRow.classList.contains('inv-valor-cat-row')) {
+          actualizarResumenCategoria(catRow, detailInner);
+        }
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-success');
+        btn.textContent = 'OK';
+        setTimeout(function () {
+          btn.classList.add('btn-primary');
+          btn.classList.remove('btn-success');
+          btn.textContent = 'Guardar';
+        }, 1200);
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Guardar';
+        alert('Error de red al guardar.');
+      });
+  });
+
+  tabla.addEventListener('dblclick', function (ev) {
+    var row = ev.target.closest('.inv-valor-cat-row');
+    if (!row) return;
+    var cat = row.getAttribute('data-categoria') || '';
+    if (!cat) return;
+    var next = row.nextElementSibling;
+    if (next && next.classList.contains('inv-valor-cat-detail')) {
+      cerrarDetalles(null);
+      return;
+    }
+    var url = apiBase + '?categoria=' + encodeURIComponent(cat) + filtrosQs.replace(/^\?/, '&');
+    row.classList.add('is-open');
+    var trLoad = document.createElement('tr');
+    trLoad.className = 'inv-valor-cat-detail';
+    trLoad.innerHTML = '<td colspan="7" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-1"></i>Cargando detalle…</td>';
+    row.insertAdjacentElement('afterend', trLoad);
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        trLoad.remove();
+        if (!j.ok) {
+          alert(j.mensaje || 'No se pudo cargar el detalle.');
+          row.classList.remove('is-open');
+          return;
+        }
+        renderDetalle(row, j);
+      })
+      .catch(function () {
+        trLoad.remove();
+        row.classList.remove('is-open');
+        alert('Error de red al cargar detalle.');
+      });
+  });
+})();
+(function invV2StockMove() {
+  function stockClass(n) {
+    n = parseInt(n, 10) || 0;
+    if (n <= 0) return 'stock-zero';
+    if (n <= 5) return 'stock-low';
+    return 'stock-ok';
+  }
+  function syncStockInputClasses(input) {
+    if (!input) return;
+    input.classList.remove('stock-zero', 'stock-low', 'stock-ok');
+    input.classList.add(stockClass(input.value));
+  }
+  document.querySelectorAll('.inv-v2-stock-move-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var cell = btn.closest('.inv-v2-stock');
+      if (!cell) return;
+      var tiendaIn = cell.querySelector('input[name="stock"]');
+      var bodegaIn = cell.querySelector('input[name="stock_bodega"]');
+      if (!tiendaIn || !bodegaIn) return;
+      var st = parseInt(tiendaIn.value, 10) || 0;
+      var sb = parseInt(bodegaIn.value, 10) || 0;
+      var dir = btn.getAttribute('data-dir');
+      if (dir === 'to-bodega') {
+        if (st <= 0) return;
+        bodegaIn.value = sb + st;
+        tiendaIn.value = 0;
+      } else if (dir === 'to-tienda') {
+        if (sb <= 0) return;
+        tiendaIn.value = st + sb;
+        bodegaIn.value = 0;
+      }
+      syncStockInputClasses(tiendaIn);
+      syncStockInputClasses(bodegaIn);
+      var row = cell.closest('.inv-v2-row');
+      if (row) {
+        row.classList.toggle('inv-v2-row--warn', (parseInt(tiendaIn.value, 10) || 0) > 0 && (parseInt(bodegaIn.value, 10) || 0) === 0);
+        if (window.invV2MarkDirty) window.invV2MarkDirty(row);
+      }
+      tiendaIn.focus();
+    });
+  });
+})();
+(function invV2BulkSavePage() {
+  var bulkForm = document.getElementById('inv-bulk-page-form');
+  var bulkFields = document.getElementById('inv-bulk-fields');
+  if (!bulkForm || !bulkFields) return;
+
+  var FIELD_NAMES = [
+    'nombre', 'categoria', 'subcategoria', 'ubicacion_pasillo', 'ubicacion_estante', 'ubicacion_nivel',
+    'marca', 'tono_color', 'stock', 'stock_bodega', 'precio_compra', 'precio_venta'
+  ];
+  var countEl = document.querySelector('.inv-v2-bulk-count');
+  var btnModified = document.querySelector('.inv-v2-bulk-save[data-mode="modified"]');
+
+  function rowInputs(row) {
+    var pid = row.getAttribute('data-product-id');
+    if (!pid) return [];
+    var formId = 'inv-row-' + pid;
+    return FIELD_NAMES.map(function (name) {
+      return document.querySelector('[form="' + formId + '"][name="' + name + '"]');
+    }).filter(Boolean);
+  }
+
+  function markDirty(row) {
+    if (!row) return;
+    row.classList.add('inv-v2-row--dirty');
+    updateBulkUi();
+  }
+  window.invV2MarkDirty = markDirty;
+
+  function updateBulkUi() {
+    var n = document.querySelectorAll('.inv-v2-row--dirty').length;
+    if (countEl) countEl.textContent = String(n);
+    if (btnModified) btnModified.disabled = n <= 0;
+  }
+
+  document.querySelectorAll('.inv-v2-row[data-product-id]').forEach(function (row) {
+    rowInputs(row).forEach(function (inp) {
+      inp.addEventListener('input', function () { markDirty(row); });
+      inp.addEventListener('change', function () { markDirty(row); });
+    });
+  });
+  updateBulkUi();
+
+  function appendField(pid, name, value) {
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'filas[' + pid + '][' + name + ']';
+    inp.value = value == null ? '' : String(value);
+    bulkFields.appendChild(inp);
+  }
+
+  function collectRow(row) {
+    var pid = row.getAttribute('data-product-id');
+    if (!pid) return;
+    rowInputs(row).forEach(function (el) {
+      appendField(pid, el.getAttribute('name'), el.value);
+    });
+  }
+
+  document.querySelectorAll('.inv-v2-bulk-save').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var mode = btn.getAttribute('data-mode') || 'modified';
+      bulkFields.innerHTML = '';
+      var rows = [];
+      if (mode === 'all') {
+        rows = Array.prototype.slice.call(document.querySelectorAll('.inv-v2-row[data-product-id]'));
+      } else {
+        rows = Array.prototype.slice.call(document.querySelectorAll('.inv-v2-row--dirty[data-product-id]'));
+      }
+      if (!rows.length) {
+        alert(mode === 'all' ? 'No hay filas en esta página.' : 'No hay filas modificadas. Editá al menos un campo.');
+        return;
+      }
+      if (mode === 'all' && !window.confirm('¿Guardar las ' + rows.length + ' filas visibles de esta página?')) {
+        return;
+      }
+      rows.forEach(collectRow);
+      bulkForm.submit();
+    });
   });
 })();
 document.addEventListener('DOMContentLoaded', function () {

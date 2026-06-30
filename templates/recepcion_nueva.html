@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container-fluid px-0" style="max-width: 720px;">
+<div class="container-fluid px-0" style="max-width: 860px;">
   <div class="page-header">
     <h3 class="page-title"><i class="fas fa-file-invoice me-2"></i>Nueva recepción</h3>
     <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Volver al listado</a>
@@ -9,54 +9,765 @@
 
   <div class="card card-ds">
     <div class="card-body">
-      <form method="post" action="{{ url_for('nueva_recepcion') }}" class="row g-3" enctype="multipart/form-data">
+      <form method="post" action="{{ url_for('nueva_recepcion') }}" class="row g-3" enctype="multipart/form-data" id="formNuevaRecepcion">
+
+        {# ── Proveedor ── #}
         <div class="col-12">
           <label class="form-label fw-bold">Proveedor</label>
-          <select name="proveedor_id" class="form-select" required>
+          <select name="proveedor_id" id="selProveedor" class="form-select" required>
             <option value="">Seleccione…</option>
             {% for p in proveedores %}
             <option value="{{ p.id }}">{{ p.nombre }}</option>
             {% endfor %}
           </select>
+          <div class="form-text text-muted">
+            Si no sabes el proveedor, puedes buscar OC solo por monto y año usando
+            <a href="#" id="linkBuscarSinProv" class="small">buscar sin proveedor</a>.
+          </div>
         </div>
-        <div class="col-md-6">
+
+        {# ── Documento ── #}
+        <div class="col-md-4">
           <label class="form-label fw-bold">Tipo de documento</label>
           <select name="documento_tipo" class="form-select">
             <option value="Factura">Factura</option>
             <option value="Guia de Despacho">Guía de despacho</option>
           </select>
-          <div class="small text-muted mt-2">
-            <strong>Recepción física:</strong> suele usarse la <strong>guía de despacho</strong> (documenta lo que envía/entrega el proveedor o transporte).
-            <strong>Costo y contabilidad:</strong> la <strong>factura</strong> es la referencia habitual para precios netos, IVA y crédito fiscal.
-            Si recibe mercadería con la guía y la factura llega después, puede abrir la recepción con la guía y adjuntar la factura cuando la tenga, o registrar otra recepción según su política interna.
-          </div>
         </div>
-        <div class="col-md-6">
-          <label class="form-label fw-bold">Número de documento</label>
-          <input type="text" name="documento_numero" class="form-control" placeholder="Folio SII / número interno" required>
+        <div class="col-md-4">
+          <label class="form-label fw-bold">N° Factura</label>
+          <input type="text" name="documento_numero" id="inputFactura" class="form-control" placeholder="Folio SII" required autocomplete="off">
+          <div id="facturaAlerta" class="d-none mt-1"></div>
         </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold">N° Guía de despacho <span class="text-muted fw-normal">(opc.)</span></label>
+          <input type="text" name="guia_despacho_numero" id="inputGuia" class="form-control" placeholder="Ej: 45231">
+        </div>
+
+        {# ── Buscador OC ── #}
         {% if oc_tablas_ok %}
         <div class="col-12">
-          <label class="form-label fw-bold">Orden de compra (opcional)</label>
-          <select name="orden_compra_id" class="form-select">
-            <option value="">— Sin orden de compra —</option>
-            {% for o in ordenes_oc %}
-            <option value="{{ o.id }}">OC {{ o.numero }} — {{ o.proveedor.nombre if o.proveedor else '—' }} ({{ o.fecha_emision }})</option>
-            {% endfor %}
-          </select>
-          <div class="small text-muted mt-1">Debe coincidir con el proveedor elegido. Gestione OC en <a href="{{ url_for('lista_ordenes_compra') }}">Órdenes de compra</a>.</div>
+          <div class="border rounded p-3 bg-light">
+            <div class="fw-bold mb-2"><i class="fas fa-search me-1 text-primary"></i>Buscar orden de compra correspondiente</div>
+            <div class="row g-2 align-items-end mb-3">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1">Monto neto factura ($)</label>
+                <input type="text" name="monto_neto" id="inputMontoFactura" class="form-control form-control-sm"
+                       placeholder="58.160" autocomplete="off"
+                       title="Punto = miles: 58.160 son 58160 pesos">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Año</label>
+                <select id="selAnioOC" class="form-select form-select-sm">
+                  <option value="">Todos</option>
+                  {% for y in range(2026, 2022, -1) %}
+                  <option value="{{ y }}" {% if y == 2026 %}selected{% endif %}>{{ y }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1">Buscar por N° OC</label>
+                <input type="text" id="inputBuscarOC" class="form-control form-control-sm" placeholder="Número parcial…">
+              </div>
+              <div class="col-md-2">
+                <button type="button" id="btnBuscarOC" class="btn btn-primary btn-sm w-100" style="margin-top:1.5rem">
+                  <i class="fas fa-search me-1"></i>Buscar
+                </button>
+              </div>
+            </div>
+
+            {# Resultado de búsqueda #}
+            <div id="ocBuscadorResultado" class="d-none">
+              <div class="small text-muted mb-2" id="ocBuscadorMsg"></div>
+              <div class="table-responsive" style="max-height:320px;overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0" id="tablaOCResultados">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="width:40px"></th>
+                      <th>N° OC</th>
+                      <th>Fecha</th>
+                      <th>Estado</th>
+                      <th>Total OC</th>
+                      <th>Líneas</th>
+                      <th>Diferencia</th>
+                      <th style="width:50px"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbodyOC"></tbody>
+                </table>
+              </div>
+            </div>
+
+            {# OC seleccionada #}
+            <input type="hidden" name="orden_compra_id" id="hiddenOCId" value="">
+            <div id="ocSeleccionadaBadge" class="d-none mt-2">
+              <div class="alert alert-success py-2 mb-0 d-flex align-items-center gap-2">
+                <i class="fas fa-check-circle text-success"></i>
+                <span id="ocSeleccionadaTexto"></span>
+                <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="btnQuitarOC">
+                  <i class="fas fa-times me-1"></i>Quitar
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
         {% endif %}
+
+        {# ── Adjunto ── #}
         <div class="col-12">
           <label class="form-label fw-bold">Adjuntar documento (Factura/Guía)</label>
           <input type="file" name="documento_archivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp">
-          <div class="small text-muted mt-1">Opcional, pero recomendado para trazabilidad y control de compras.</div>
+          <div class="small text-muted mt-1">Opcional pero recomendado para trazabilidad.</div>
         </div>
+
         <div class="col-12 d-flex justify-content-end gap-2">
           <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary">Cancelar</a>
-          <button type="submit" class="btn btn-ds-primary fw-bold">Crear y cargar líneas</button>
+          <button type="submit" class="btn btn-ds-primary fw-bold">
+            <i class="fas fa-plus me-1"></i>Crear y cargar líneas
+          </button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const selProv    = document.getElementById('selProveedor');
+  const inputMonto = document.getElementById('inputMontoFactura');
+  const selAnio    = document.getElementById('selAnioOC');
+  const inputBuscar = document.getElementById('inputBuscarOC');
+  const btnBuscar  = document.getElementById('btnBuscarOC');
+  const resultado  = document.getElementById('ocBuscadorResultado');
+  const msg        = document.getElementById('ocBuscadorMsg');
+  const tbodyOC    = document.getElementById('tbodyOC');
+  const hiddenOC   = document.getElementById('hiddenOCId');
+  const badge      = document.getElementById('ocSeleccionadaBadge');
+  const badgeTexto = document.getElementById('ocSeleccionadaTexto');
+  const btnQuitar  = document.getElementById('btnQuitarOC');
+  const linkSinProv = document.getElementById('linkBuscarSinProv');
+  const inputFactura = document.getElementById('inputFactura');
+  const facturaAlerta = document.getElementById('facturaAlerta');
+
+  // ── Verificar si la factura ya fue recepcionada ──
+  let facturaTimer = null;
+  function verificarFacturaDuplicada(numero) {
+    if (!numero || numero.length < 3) {
+      facturaAlerta.className = 'd-none';
+      return;
+    }
+    const provId = selProv ? selProv.value : '';
+    const params = new URLSearchParams({ numero });
+    if (provId) params.set('proveedor_id', provId);
+
+    fetch(`/api/recepciones/buscar_por_factura?${params}`)
+      .then(r => r.json())
+      .then(d => {
+        const recs = d.recepciones || [];
+        if (!recs.length) {
+          facturaAlerta.className = 'd-none';
+          return;
+        }
+        facturaAlerta.className = 'mt-1 small';
+        const filas = recs.map(r => {
+          const sinOC = !r.oc_numero;
+          const estadoBadge = r.estado === 'Finalizada'
+            ? `<span class="badge bg-success">${r.estado}</span>`
+            : `<span class="badge bg-warning text-dark">${r.estado}</span>`;
+          const ocInfo = r.oc_numero
+            ? `<span class="text-muted">· OC ${r.oc_numero}</span>`
+            : `<span class="text-danger fw-semibold">· Sin OC vinculada</span>`;
+          const accion = sinOC
+            ? `<button type="button" class="btn btn-sm btn-primary ms-2 btnVincularOCRecep"
+                data-rec-id="${r.id}" data-rec-num="${r.id}"
+                data-prov-id="${selProv ? selProv.value : ''}"
+                title="Buscar y vincular OC a esta recepción">
+                <i class="fas fa-link me-1"></i>Vincular OC
+               </button>`
+            : `<a href="${r.url}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2">
+                <i class="fas fa-external-link-alt me-1"></i>Ver recepción
+               </a>`;
+          return `<div class="d-flex align-items-center flex-wrap gap-1 py-1 border-bottom">
+            <strong>Rec. #${r.id}</strong>
+            ${estadoBadge} · ${r.proveedor} · ${r.fecha} · ${r.n_lineas} línea(s)
+            ${ocInfo}
+            ${accion}
+          </div>`;
+        }).join('');
+
+        facturaAlerta.innerHTML =
+          `<div class="alert alert-warning py-2 mb-0">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <strong>Esta factura ya tiene recepción registrada:</strong>
+            <div class="mt-2">${filas}</div>
+          </div>`;
+
+        // Botón vincular OC
+        facturaAlerta.querySelectorAll('.btnVincularOCRecep').forEach(btn => {
+          btn.addEventListener('click', function () {
+            abrirModalVincularOC(
+              parseInt(this.dataset.recId),
+              parseInt(this.dataset.provId) || (selProv ? parseInt(selProv.value) : 0)
+            );
+          });
+        });
+      })
+      .catch(() => { facturaAlerta.className = 'd-none'; });
+  }
+
+  if (inputFactura) {
+    inputFactura.addEventListener('input', function () {
+      clearTimeout(facturaTimer);
+      facturaTimer = setTimeout(() => verificarFacturaDuplicada(this.value.trim()), 700);
+    });
+    inputFactura.addEventListener('blur', function () {
+      verificarFacturaDuplicada(this.value.trim());
+    });
+  }
+
+  if (!btnBuscar) return;
+
+  // "Buscar sin proveedor" limpia el selector y lanza búsqueda
+  if (linkSinProv) {
+    linkSinProv.addEventListener('click', function (e) {
+      e.preventDefault();
+      selProv.value = '';
+      if (inputMonto && inputMonto.value) buscar();
+      else { msg.textContent = 'Ingresa el monto de la factura para buscar sin proveedor.'; resultado.classList.remove('d-none'); tbodyOC.innerHTML = ''; }
+    });
+  }
+
+  function fmt(n) {
+    return '$' + Math.round(n).toLocaleString('es-CL');
+  }
+
+  function seleccionarOC(id, numero, total, nLineas, proveedor) {
+    hiddenOC.value = id;
+    const provTexto = proveedor ? ` · ${proveedor}` : '';
+    badgeTexto.textContent = `OC ${numero}${provTexto} — ${fmt(total)} — ${nLineas} línea(s)`;
+    badge.classList.remove('d-none');
+    // Si buscamos sin proveedor, autocompletar el selector si existe la opción
+    if (proveedor && selProv && !selProv.value) {
+      // no forzamos el proveedor porque puede no estar en la lista exacta
+    }
+    // resaltar fila seleccionada
+    tbodyOC.querySelectorAll('tr').forEach(tr => tr.classList.remove('table-success'));
+    const tr = tbodyOC.querySelector(`tr[data-oc-id="${id}"]`);
+    if (tr) tr.classList.add('table-success');
+  }
+
+  btnQuitar.addEventListener('click', function () {
+    hiddenOC.value = '';
+    badge.classList.add('d-none');
+    tbodyOC.querySelectorAll('tr').forEach(tr => tr.classList.remove('table-success'));
+  });
+
+  function buscar() {
+    const provId = selProv ? selProv.value : '';
+    const monto  = inputMonto ? (inputMonto.value || 0) : 0;
+    const anio   = selAnio ? selAnio.value : '';
+    const q      = inputBuscar ? inputBuscar.value.trim() : '';
+
+    if (!provId && !monto && !q) {
+      msg.textContent = 'Ingresa el monto, el año o selecciona un proveedor para buscar.';
+      resultado.classList.remove('d-none');
+      tbodyOC.innerHTML = '';
+      return;
+    }
+
+    btnBuscar.disabled = true;
+    btnBuscar.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Buscando…';
+
+    const params = new URLSearchParams();
+    if (provId) params.set('proveedor_id', provId);
+    if (monto)  params.set('monto', monto);
+    if (anio)   params.set('anio', anio);
+    if (q)      params.set('q', q);
+    params.set('limit', 80);
+
+    fetch(`/api/compras/ocs/buscar?${params}`)
+      .then(r => r.json())
+      .then(data => {
+        const ocs = data.ocs || [];
+        resultado.classList.remove('d-none');
+        const sinProv = !provId;
+        msg.textContent = ocs.length
+          ? `${ocs.length} orden(es) encontrada(s)${Number(monto) > 0 ? ', ordenadas por cercanía al monto' : ''}.`
+          : 'No se encontraron órdenes de compra con esos filtros.';
+
+        // Mostrar columna proveedor si buscamos sin proveedor
+        const thProv = sinProv ? '<th>Proveedor</th>' : '';
+        document.querySelector('#tablaOCResultados thead tr').innerHTML =
+          `<th style="width:40px"></th><th>N° OC</th>${thProv}<th>Fecha</th><th>Estado</th><th>Total OC</th><th>Líneas</th><th>Diferencia</th>`;
+
+        tbodyOC.innerHTML = ocs.map(oc => {
+          const diffCls = oc.diff_pct <= 5 ? 'text-success fw-bold'
+                        : oc.diff_pct <= 15 ? 'text-warning'
+                        : 'text-muted';
+          const conciliada = oc.ya_conciliada
+            ? '<span class="badge bg-secondary ms-1" title="Ya tiene recepción vinculada">Conciliada</span>' : '';
+          const lineasInfo = oc.n_generico > 0
+            ? `${oc.n_lineas} <small class="text-muted">(${oc.n_generico} sin SKU)</small>`
+            : oc.n_lineas;
+          const diff = (Number(monto) > 0)
+            ? `<span class="${diffCls}">±${oc.diff_pct}%</span>`
+            : '—';
+          const tdProv = sinProv ? `<td class="small text-truncate" style="max-width:180px" title="${oc.proveedor}">${oc.proveedor}</td>` : '';
+          return `<tr data-oc-id="${oc.id}">
+            <td><button type="button" class="btn btn-xs btn-outline-primary py-0 px-1 btnSelOC"
+                  data-id="${oc.id}" data-numero="${oc.numero}" data-proveedor="${oc.proveedor}"
+                  data-total="${oc.total}" data-nlineas="${oc.n_lineas}" title="Seleccionar esta OC">
+              <i class="fas fa-check"></i></button></td>
+            <td><strong>OC ${oc.numero}</strong>${conciliada}</td>
+            ${tdProv}
+            <td class="small">${oc.fecha}</td>
+            <td><span class="badge bg-light text-dark border">${oc.estado}</span></td>
+            <td class="small">${oc.total_fmt}</td>
+            <td class="small">${lineasInfo}</td>
+            <td class="small">${diff}</td>
+            <td><button type="button" class="btn btn-xs btn-outline-secondary py-0 px-1 btnVerOC"
+                  data-id="${oc.id}" data-numero="${oc.numero}" title="Ver productos de esta OC">
+              <i class="fas fa-eye"></i></button></td>
+          </tr>`;
+        }).join('');
+
+        // eventos clic fila y botón
+        tbodyOC.querySelectorAll('tr').forEach(tr => {
+          tr.addEventListener('click', function (e) {
+            if (e.target.closest('.btnSelOC')) return;
+            const btn = tr.querySelector('.btnSelOC');
+            if (btn) seleccionarOC(btn.dataset.id, btn.dataset.numero, btn.dataset.total, btn.dataset.nlineas, btn.dataset.proveedor);
+          });
+        });
+        tbodyOC.querySelectorAll('.btnSelOC').forEach(btn => {
+          btn.addEventListener('click', function () {
+            seleccionarOC(btn.dataset.id, btn.dataset.numero, btn.dataset.total, btn.dataset.nlineas, btn.dataset.proveedor);
+          });
+        });
+        // Botón Ver detalle OC
+        tbodyOC.querySelectorAll('.btnVerOC').forEach(btn => {
+          btn.addEventListener('click', function () {
+            verDetalleOC(btn.dataset.id, btn.dataset.numero);
+          });
+        });
+      })
+      .catch(err => {
+        msg.textContent = 'Error al buscar: ' + err;
+        resultado.classList.remove('d-none');
+      })
+      .finally(() => {
+        btnBuscar.disabled = false;
+        btnBuscar.innerHTML = '<i class="fas fa-search me-1"></i>Buscar';
+      });
+  }
+
+  btnBuscar.addEventListener('click', buscar);
+
+  // Auto-búsqueda al cambiar proveedor o año
+  selProv.addEventListener('change', function () {
+    if (selProv.value || (inputMonto && inputMonto.value)) buscar();
+  });
+  if (selAnio) {
+    selAnio.addEventListener('change', function () {
+      if (inputMonto && inputMonto.value) buscar();
+    });
+  }
+
+  // Auto-búsqueda con debounce al cambiar monto (reordena por cercanía)
+  var debounceTimer = null;
+  if (inputMonto) {
+    inputMonto.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        if (selProv.value || (inputBuscar && inputBuscar.value.trim())) buscar();
+      }, 600);
+    });
+  }
+
+  // Enter en campos dispara búsqueda inmediata
+  [inputMonto, inputBuscar].forEach(el => {
+    if (el) el.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); buscar(); } });
+  });
+  // ── Modal vincular OC a recepción existente (sin OC) ──
+  let modalVincularBs = null;
+  let _recepVincularId = null;
+  let _provVincularId  = null;
+
+  function abrirModalVincularOC(recepId, provId) {
+    _recepVincularId = recepId;
+    _provVincularId  = provId;
+
+    const modalEl = document.getElementById('modalVincularOC');
+    if (!modalEl) return;
+    if (!modalVincularBs) modalVincularBs = new bootstrap.Modal(modalEl);
+
+    document.getElementById('mvTitulo').textContent = `Recepción #${recepId}`;
+    document.getElementById('mvResultados').innerHTML = '';
+    document.getElementById('mvMsg').textContent = '';
+    // Pre-llenar monto en el tab de monto
+    const montoFormVal = inputMonto ? inputMonto.value : '';
+    const mvInputMontoEl = document.getElementById('mvInputMonto');
+    const mvInputOCEl    = document.getElementById('mvInputOC');
+    if (mvInputMontoEl) mvInputMontoEl.value = montoFormVal;
+    if (mvInputOCEl)    mvInputOCEl.value = '';
+
+    // Pre-seleccionar proveedor en tab monto si viene de la alerta
+    if (provId) {
+      const mvSelProv = document.getElementById('mvSelProv');
+      if (mvSelProv) mvSelProv.value = provId;
+    }
+
+    document.getElementById('mvOCSeleccionada').classList.add('d-none');
+    const destInputs = document.getElementById('mvDestinoGroup');
+    if (destInputs) destInputs.querySelectorAll('input')[0].checked = true;
+
+    // Siempre abrimos en tab ODP (más preciso)
+    document.querySelectorAll('[data-mv-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-mv-tab="odp"]')?.classList.add('active');
+    document.getElementById('mvTabOdp')?.classList.remove('d-none');
+    document.getElementById('mvTabMonto')?.classList.add('d-none');
+
+    modalVincularBs.show();
+  }
+
+  function buscarEnModal(modo) {
+    let params = new URLSearchParams();
+    if (modo === 'monto') {
+      const provId = document.getElementById('mvSelProv')?.value;
+      const monto  = document.getElementById('mvInputMonto')?.value || 0;
+      const anio   = document.getElementById('mvSelAnio')?.value;
+      if (!provId) {
+        document.getElementById('mvMsg').textContent = 'Selecciona un proveedor para buscar por monto.';
+        return;
+      }
+      if (!monto) {
+        document.getElementById('mvMsg').textContent = 'Ingresa el monto neto de la factura.';
+        return;
+      }
+      params.set('proveedor_id', provId);
+      params.set('monto', monto);
+      if (anio) params.set('anio', anio);
+    } else {
+      // modo ODP (default)
+      const q = document.getElementById('mvInputOC')?.value.trim();
+      if (!q) {
+        document.getElementById('mvMsg').textContent = 'Ingresa el N° ODP o número de OC.';
+        return;
+      }
+      params.set('q', q);
+      if (_provVincularId) params.set('proveedor_id', _provVincularId);
+    }
+    params.set('limit', 60);
+
+    document.getElementById('mvMsg').textContent = 'Buscando…';
+    document.getElementById('mvResultados').innerHTML = '';
+    const _modoActual = modo;
+
+    fetch(`/api/compras/ocs/buscar?${params}`)
+      .then(r => r.json())
+      .then(d => {
+        const ocs = d.ocs || [];
+        const msgExtra = _modoActual === 'monto' ? ', ordenadas por cercanía al monto' : '';
+        document.getElementById('mvMsg').textContent = ocs.length
+          ? `${ocs.length} OC(s) encontrada(s)${msgExtra}.`
+          : _modoActual === 'odp'
+            ? 'No se encontró OC con ese número. Verifica el N° ODP o prueba con el tab de monto.'
+            : 'No se encontraron OCs con ese proveedor y monto.';
+        document.getElementById('mvResultados').innerHTML = ocs.map(oc => {
+          const diffCls = oc.diff_pct <= 5 ? 'text-success fw-bold' : oc.diff_pct <= 20 ? 'text-warning' : 'text-muted';
+          const diff = _modoActual === 'monto' ? `<span class="${diffCls}">±${oc.diff_pct}%</span>` : '';
+          return `<div class="d-flex align-items-center gap-2 py-1 border-bottom mvOCFila" style="cursor:pointer"
+                    data-id="${oc.id}" data-numero="${oc.numero}" data-total="${oc.total}" data-nlineas="${oc.n_lineas}">
+            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 mvBtnSel">
+              <i class="fas fa-check"></i>
+            </button>
+            <span><strong>OC ${oc.numero}</strong> · ${oc.proveedor}</span>
+            <span class="text-muted small">${oc.fecha}</span>
+            <span class="ms-auto small">${oc.total_fmt} · ${oc.n_lineas} línea(s) ${diff}</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 mvBtnVer"
+                    data-id="${oc.id}" data-numero="${oc.numero}" title="Ver líneas">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>`;
+        }).join('');
+
+        document.getElementById('mvResultados').querySelectorAll('.mvOCFila').forEach(fila => {
+          const selBtn = fila.querySelector('.mvBtnSel');
+          const verBtn = fila.querySelector('.mvBtnVer');
+          const sel = () => {
+            document.getElementById('mvOCSelId').value    = fila.dataset.id;
+            document.getElementById('mvOCSelTexto').textContent =
+              `OC ${fila.dataset.numero} — $${Math.round(fila.dataset.total).toLocaleString('es-CL')} — ${fila.dataset.nlineas} línea(s)`;
+            document.getElementById('mvOCSeleccionada').classList.remove('d-none');
+            document.getElementById('mvResultados').querySelectorAll('.mvOCFila').forEach(f => f.classList.remove('table-success', 'bg-success-subtle'));
+            fila.classList.add('bg-success-subtle');
+          };
+          if (selBtn) selBtn.addEventListener('click', sel);
+          fila.addEventListener('click', e => { if (!e.target.closest('.mvBtnVer')) sel(); });
+          if (verBtn) verBtn.addEventListener('click', () => verDetalleOC(verBtn.dataset.id, verBtn.dataset.numero));
+        });
+      })
+      .catch(e => { document.getElementById('mvMsg').textContent = 'Error: ' + e.message; });
+  }
+
+  // Delegación de eventos para botones del modal (se crean después del script)
+  document.addEventListener('click', function (e) {
+    // Buscar OC en modal vincular — tab ODP
+    if (e.target.closest('#mvBtnBuscar')) {
+      buscarEnModal('odp');
+    }
+    // Buscar OC en modal vincular — tab Monto
+    if (e.target.closest('#mvBtnBuscarMonto')) {
+      buscarEnModal('monto');
+    }
+    // Cambio de tab
+    if (e.target.closest('[data-mv-tab]')) {
+      const tab = e.target.closest('[data-mv-tab]').dataset.mvTab;
+      document.querySelectorAll('[data-mv-tab]').forEach(b => b.classList.remove('active'));
+      e.target.closest('[data-mv-tab]').classList.add('active');
+      document.getElementById('mvTabOdp').classList.toggle('d-none', tab !== 'odp');
+      document.getElementById('mvTabMonto').classList.toggle('d-none', tab !== 'monto');
+      document.getElementById('mvResultados').innerHTML = '';
+      document.getElementById('mvMsg').textContent = '';
+    }
+    // Aplicar: solo vincular OC (stock parcial en detalle de recepción)
+    if (e.target.closest('#mvBtnAplicar')) {
+      const ocId   = document.getElementById('mvOCSelId').value;
+      if (!ocId || !_recepVincularId) { alert('Selecciona una OC primero.'); return; }
+
+      const btn = document.getElementById('mvBtnAplicar');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Vinculando…';
+
+      fetch(`/api/recepciones/${_recepVincularId}/vincular_oc`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ orden_compra_id: parseInt(ocId, 10) }),
+        })
+        .then(r => r.json())
+        .then(v => {
+          if (!v.ok) throw new Error(v.mensaje || 'No se pudo vincular la OC');
+          if (modalVincularBs) modalVincularBs.hide();
+          facturaAlerta.innerHTML = `<div class="alert alert-success py-2">
+            <i class="fas fa-check-circle me-1"></i>
+            OC vinculada a Recepción #${_recepVincularId}.
+            En el detalle <strong>marque solo los productos de esta factura</strong> y pulse «Cargar stock».
+            Redirigiendo…</div>`;
+          setTimeout(() => { window.location.href = `/recepciones/${_recepVincularId}`; }, 1200);
+        })
+        .catch(err => {
+          alert('Error: ' + err.message);
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-link me-1"></i>Vincular OC';
+        });
+    }
+  });
+
+  // Enter en inputs del modal
+  document.addEventListener('keypress', function (e) {
+    if (e.key !== 'Enter') return;
+    if (e.target.id === 'mvInputOC') {
+      e.preventDefault();
+      buscarEnModal('odp');
+    }
+    if (e.target.id === 'mvInputMonto') {
+      e.preventDefault();
+      buscarEnModal('monto');
+    }
+  });
+
+  // ── Ver detalle OC en modal ──
+  let modalOCBs = null;
+  function verDetalleOC(id, numero) {
+    const modalEl = document.getElementById('modalDetalleOC');
+    if (!modalEl) return;
+    if (!modalOCBs) modalOCBs = new bootstrap.Modal(modalEl);
+
+    document.getElementById('modalOCTitulo').textContent = `OC ${numero}`;
+    document.getElementById('modalOCBody').innerHTML =
+      '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>';
+    document.getElementById('modalOCSelBtn').dataset.id = id;
+    document.getElementById('modalOCSelBtn').dataset.numero = numero;
+    modalOCBs.show();
+
+    fetch(`/api/compras/ocs/${id}/detalle`)
+      .then(r => r.json())
+      .then(d => {
+        if (!d.ok) { document.getElementById('modalOCBody').innerHTML = '<p class="text-danger">Error al cargar detalle.</p>'; return; }
+        const oc = d.oc;
+        const lineas = d.lineas || [];
+        let html = `<div class="mb-3 d-flex flex-wrap gap-3 small">
+          <span><i class="fas fa-truck me-1 text-muted"></i>${oc.proveedor}</span>
+          <span><i class="fas fa-calendar me-1 text-muted"></i>${oc.fecha}</span>
+          <span class="badge bg-light text-dark border">${oc.estado}</span>
+          <strong class="ms-auto">Total: ${oc.total_fmt}</strong>
+        </div>`;
+        html += `<div class="table-responsive"><table class="table table-sm table-bordered mb-0">
+          <thead class="table-light"><tr>
+            <th>Producto</th><th>Código</th>
+            <th class="text-end">Cant.</th>
+            <th class="text-end">Costo u.</th>
+            <th class="text-end">Total</th>
+          </tr></thead><tbody>`;
+        lineas.forEach(ln => {
+          const cls = ln.es_generico ? 'text-muted fst-italic' : '';
+          const tag = ln.es_generico ? ' <span class="badge bg-secondary" style="font-size:.65rem">sin SKU</span>' : '';
+          html += `<tr class="${cls}">
+            <td>${ln.nombre}${tag}</td>
+            <td class="small">${ln.codigo}</td>
+            <td class="text-end">${ln.cantidad.toLocaleString('es-CL')}</td>
+            <td class="text-end">$${Math.round(ln.precio_unitario).toLocaleString('es-CL')}</td>
+            <td class="text-end fw-semibold">$${ln.total_linea.toLocaleString('es-CL')}</td>
+          </tr>`;
+        });
+        html += `</tbody><tfoot class="table-light">
+          <tr><td colspan="4" class="text-end fw-bold">Total OC</td>
+          <td class="text-end fw-bold">${oc.total_fmt}</td></tr>
+        </tfoot></table></div>`;
+        document.getElementById('modalOCBody').innerHTML = html;
+      })
+      .catch(() => {
+        document.getElementById('modalOCBody').innerHTML = '<p class="text-danger">Error de conexión.</p>';
+      });
+  }
+
+  // Botón "Seleccionar esta OC" dentro del modal
+  const modalSelBtn = document.getElementById('modalOCSelBtn');
+  if (modalSelBtn) {
+    modalSelBtn.addEventListener('click', function () {
+      const id = this.dataset.id;
+      const numero = this.dataset.numero;
+      // buscar en tabla para obtener total y líneas
+      const tr = tbodyOC.querySelector(`tr[data-oc-id="${id}"]`);
+      const btnSel = tr ? tr.querySelector('.btnSelOC') : null;
+      if (btnSel) seleccionarOC(btnSel.dataset.id, btnSel.dataset.numero, btnSel.dataset.total, btnSel.dataset.nlineas, btnSel.dataset.proveedor);
+      if (modalOCBs) modalOCBs.hide();
+    });
+  }
+
+})();
+</script>
+
+{# Modal vincular OC a recepción existente #}
+<div class="modal fade" id="modalVincularOC" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-link me-2 text-primary"></i>
+          Vincular OC a <span id="mvTitulo">Recepción</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        {# Tabs de búsqueda #}
+        <ul class="nav nav-tabs mb-3" id="mvTabs">
+          <li class="nav-item">
+            <button class="nav-link active" data-mv-tab="odp">
+              <i class="fas fa-hashtag me-1"></i>Por N° ODP / OC
+              <span class="badge bg-success ms-1" style="font-size:.65rem">Más preciso</span>
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-mv-tab="monto">
+              <i class="fas fa-dollar-sign me-1"></i>Por proveedor + monto
+            </button>
+          </li>
+        </ul>
+
+        {# Tab ODP #}
+        <div id="mvTabOdp">
+          <div class="alert alert-info py-2 small mb-3">
+            <i class="fas fa-lightbulb me-1"></i>
+            <strong>CHILEMAT:</strong> usa el <strong>N° ODP CHE-COMPRA</strong> impreso en la guía de despacho.
+            Es el número exacto de la OC en el sistema.
+          </div>
+          <div class="input-group mb-2">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" id="mvInputOC" class="form-control" placeholder="Ej: 47325234">
+            <button type="button" id="mvBtnBuscar" class="btn btn-primary">Buscar</button>
+          </div>
+        </div>
+
+        {# Tab Monto #}
+        <div id="mvTabMonto" class="d-none">
+          <div class="alert alert-warning py-2 small mb-3">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            Selecciona el <strong>proveedor</strong> para evitar resultados de otras empresas con monto similar.
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-md-5">
+              <label class="form-label small fw-semibold mb-1">Proveedor <span class="text-danger">*</span></label>
+              <select id="mvSelProv" class="form-select form-select-sm">
+                <option value="">— Seleccione —</option>
+                {% for p in proveedores %}
+                <option value="{{ p.id }}">{{ p.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold mb-1">Monto neto ($)</label>
+              <input type="number" id="mvInputMonto" class="form-control form-control-sm" placeholder="Ej: 561480">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold mb-1">Año</label>
+              <select id="mvSelAnio" class="form-select form-select-sm">
+                {% for y in range(2026, 2022, -1) %}
+                <option value="{{ y }}" {% if y == 2026 %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="button" id="mvBtnBuscarMonto" class="btn btn-primary btn-sm mb-2">
+            <i class="fas fa-search me-1"></i>Buscar por proveedor + monto
+          </button>
+        </div>
+
+        <div class="small text-muted mb-2" id="mvMsg"></div>
+        <div id="mvResultados" style="max-height:280px;overflow-y:auto;"></div>
+
+        <div id="mvOCSeleccionada" class="d-none mt-3">
+          <div class="alert alert-success py-2 mb-2 d-flex align-items-center gap-2">
+            <i class="fas fa-check-circle text-success"></i>
+            <span id="mvOCSelTexto"></span>
+          </div>
+          <input type="hidden" id="mvOCSelId" value="">
+          <p class="small text-muted mb-0">
+            El stock se carga en el <strong>detalle de la recepción</strong>: marque solo los ítems que trae la factura (la OC puede tener más líneas).
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="mvBtnAplicar" class="btn btn-primary fw-bold">
+          <i class="fas fa-link me-1"></i>Vincular OC
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Modal detalle OC #}
+<div class="modal fade" id="modalDetalleOC" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-file-contract me-2"></i><span id="modalOCTitulo">OC</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalOCBody">
+        <div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="modalOCSelBtn" data-id="" data-numero="">
+          <i class="fas fa-check me-1"></i>Seleccionar esta OC
+        </button>
+      </div>
     </div>
   </div>
 </div>

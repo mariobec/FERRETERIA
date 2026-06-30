@@ -33,6 +33,66 @@ def register_caja_routes(app):
     m = app_module()
     app.add_url_rule('/caja/vales_pendientes', 'caja_pendientes', _wrap_caja_vale(m.caja_pendientes), methods=['GET'])
     app.add_url_rule(
+        '/caja/transferencias',
+        'caja_transferencias',
+        _wrap_caja_vale(m.caja_transferencias),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/<int:vid>/confirmar',
+        'api_caja_transferencia_confirmar',
+        _wrap_caja_vale(m.api_caja_transferencia_confirmar),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/<int:vid>/rechazar',
+        'api_caja_transferencia_rechazar',
+        _wrap_caja_vale(m.api_caja_transferencia_rechazar),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/sincronizar-correo',
+        'api_caja_transferencia_sincronizar_correo',
+        _wrap_caja_vale(m.api_caja_transferencia_sincronizar_correo),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/correo/<int:cid>/confirmar',
+        'api_caja_transferencia_confirmar_correo',
+        _wrap_caja_vale(m.api_caja_transferencia_confirmar_correo),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/correo/<int:cid>/descartar',
+        'api_caja_transferencia_descartar_correo',
+        _wrap_caja_vale(m.api_caja_transferencia_descartar_correo),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/alerta',
+        'api_caja_transferencias_alerta',
+        _wrap_caja_vale(m.api_caja_transferencias_alerta),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/correo/<int:cid>',
+        'api_caja_transferencia_correo_detalle',
+        _wrap_caja_vale(m.api_caja_transferencia_correo_detalle),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/historial',
+        'api_caja_transferencias_historial',
+        _wrap_saldos_favor(m.api_caja_transferencias_historial),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/caja/transferencias/reactivar-descartados',
+        'api_caja_transferencias_reactivar_descartados',
+        _wrap_saldos_favor(m.api_caja_transferencias_reactivar_descartados),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/api/caja/vale-por-folio',
         'api_caja_vale_por_folio',
         _wrap_caja_vale(m.api_caja_vale_por_folio),

@@ -64,13 +64,31 @@
     <p class="tienda-checkout__lead">Elige cómo quieres pagar.</p>
     <div class="tienda-checkout-pay-options">
       {% if carrito_config.webpay_habilitado %}
-      <button type="button" class="tienda-checkout-pay-opt" id="tiendaPayWebpay" data-metodo="webpay">
+      <button type="button" class="tienda-checkout-pay-opt tienda-checkout-pay-opt--webpay" id="tiendaPayWebpay" data-metodo="webpay">
         <span class="tienda-checkout-pay-opt__icon"><i class="fas fa-credit-card"></i></span>
         <span class="tienda-checkout-pay-opt__body">
           <strong>Pagar con tarjeta</strong>
-          <small>Webpay — débito o crédito</small>
+          <small>Débito o crédito · seguro Transbank</small>
         </span>
-        <i class="fas fa-chevron-right"></i>
+        <span class="tienda-checkout-pay-opt__cards" aria-hidden="true">
+          <span class="tienda-checkout-pay-opt__card-icon tienda-checkout-pay-opt__card-icon--visa">VISA</span>
+          <span class="tienda-checkout-pay-opt__card-icon tienda-checkout-pay-opt__card-icon--mc">MC</span>
+        </span>
+        <span class="tienda-checkout-pay-opt__badge-wp">Webpay</span>
+        <span class="tienda-checkout-pay-opt__spinner" aria-hidden="true"></span>
+        <i class="fas fa-chevron-right tienda-checkout-pay-opt__chevron ms-1"></i>
+      </button>
+      {% endif %}
+      {% if carrito_config.khipu_habilitado %}
+      <button type="button" class="tienda-checkout-pay-opt tienda-checkout-pay-opt--khipu" id="tiendaPayKhipu" data-metodo="khipu">
+        <span class="tienda-checkout-pay-opt__icon tienda-checkout-pay-opt__icon--khipu"><i class="fas fa-university"></i></span>
+        <span class="tienda-checkout-pay-opt__body">
+          <strong>Transferencia bancaria</strong>
+          <small>Khipu — desde tu app de banco, sin tarjeta</small>
+        </span>
+        <span class="tienda-checkout-pay-opt__badge-kh">Khipu</span>
+        <span class="tienda-checkout-pay-opt__spinner" aria-hidden="true"></span>
+        <i class="fas fa-chevron-right tienda-checkout-pay-opt__chevron ms-1"></i>
       </button>
       {% endif %}
       <button type="button" class="tienda-checkout-pay-opt" id="tiendaPayTienda" data-metodo="tienda">
@@ -79,10 +97,11 @@
           <strong>Reservar y pagar en tienda</strong>
           <small>Código PED-WEB · cobras en caja al retirar</small>
         </span>
-        <i class="fas fa-chevron-right"></i>
+        <span class="tienda-checkout-pay-opt__spinner" aria-hidden="true"></span>
+        <i class="fas fa-chevron-right tienda-checkout-pay-opt__chevron ms-1"></i>
       </button>
     </div>
-    <p class="small text-muted mt-3 mb-0">Con tarjeta el pago queda registrado al instante. En tienda presenta tu código en caja.</p>
+    <p class="small text-muted mt-3 mb-0"><i class="fas fa-lock me-1 text-success"></i>Tus datos van cifrados. Tarjeta y Khipu cobran al instante; en tienda presenta tu código PED-WEB en caja.</p>
   </div>
 
   <div class="tienda-checkout__step d-none" id="tiendaCheckoutStep3">

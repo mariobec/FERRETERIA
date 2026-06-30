@@ -14,7 +14,7 @@
             <td>{{ v.usuario }}</td>
             <td>${{ v.total }}</td>
             <td>
-                <form action="{{ url_for('cobrar_vale', id=v.id) }}" method="POST" class="d-inline">
+                <form action="{{ url_for('procesar_cobro_caja', id=v.id) }}" method="POST" class="d-inline">
                     <select name="metodo_pago" required>
                         <option value="Efectivo">Efectivo</option>
                         <option value="Transbank">Transbank</option>

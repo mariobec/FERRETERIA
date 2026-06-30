@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block body_class %}sidebar-focus-mode page-etiquetas-zebra{% endblock %}
+{% block extra_css %}
+<style>
+  .zebra-preview-wrap {
+    background: #f1f5f9;
+    border: 1px dashed #94a3b8;
+    border-radius: 12px;
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+  .zebra-preview-wrap img {
+    max-width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  }
+  .zebra-field-grid label { font-size: .78rem; font-weight: 600; color: #475569; }
+  .zebra-zpl-box {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    max-height: 180px;
+    overflow: auto;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .zebra-doble-hint {
+    font-size: .78rem;
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h3 class="page-title"><i class="fas fa-barcode text-primary me-2"></i>Etiquetas Zebra · GX420d</h3>
+      <p class="page-subtitle mb-0">
+        Calibre tamaño, márgenes y fuentes. Soporta etiqueta simple o <strong>doble columna 85×30 mm</strong> (2×40 mm + 4 mm centro).
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      {% if modo_config %}
+      <a href="{{ url_for('admin_empresa') }}" class="btn btn-outline-secondary btn-sm">Datos de empresa</a>
+      {% else %}
+      {% if url_volver %}
+      <a href="{{ url_volver }}" class="btn btn-outline-secondary btn-sm">Volver a etiquetas HTML</a>
+      {% endif %}
+      <a href="{{ url_for('mostrar_productos') }}" class="btn btn-outline-primary btn-sm">Catálogo</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Calibración</div>
+        <div class="card-body zebra-field-grid">
+          <form id="formZebraConfig">
+            <div class="mb-2">
+              <label class="form-label">Impresora Zebra · etiquetas (ZPL)</label>
+              {% if colas_zebra %}
+              <label class="form-label small text-muted mb-0">Elegir cola en Windows</label>
+              <select class="form-select form-select-sm mb-1" id="zebraImpresoraPick" aria-label="Colas Zebra detectadas">
+                {% for cola in colas_zebra %}
+                <option value="{{ cola.nombre }}" {% if impresora_seleccionada == cola.nombre %}selected{% endif %}{% if not cola.usable %} disabled{% endif %}>
+                  {{ cola.nombre }}{% if cola.puerto %} · {{ cola.puerto }}{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              {% endif %}
+              <label class="form-label small text-muted mb-0">Nombre de cola (se envía al imprimir)</label>
+              <input type="text" class="form-control form-control-sm" name="impresora_nombre" id="zebraImpresora"
+                     data-zebra-panel="v8" list="zebraImpresoraOpciones" autocomplete="off" required
+                     value="{{ impresora_seleccionada or '' }}"
+                     placeholder="Ej. Zebra GX420d - ZPL">
+              <datalist id="zebraImpresoraOpciones">
+                {% for p in impresoras_zebra or [] %}
+                <option value="{{ p }}"></option>
+                {% endfor %}
+              </datalist>
+              <p class="small text-muted mt-1 mb-0" id="zebraImpresoraHint">
+                {% if impresora_seleccionada and impresora_desc and impresora_desc.puerto %}
+                <code>{{ impresora_seleccionada }}</code> · {{ impresora_desc.puerto }}
+                {% elif impresora_seleccionada %}
+                <code>{{ impresora_seleccionada }}</code>
+                {% endif %}
+              </p>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Formato de etiqueta</label>
+              <select class="form-select form-select-sm" name="perfil" id="zebraPerfil">
+                <option value="gx420d" {% if config.perfil == 'gx420d' %}selected{% endif %}>Simple · 50×30 mm (1 etiqueta)</option>
+                <option value="gx420d_doble" {% if config.perfil == 'gx420d_doble' %}selected{% endif %}>Doble columna · 85×30 mm (2×40 mm)</option>
+              </select>
+              <input type="hidden" name="layout" id="zebraLayout" value="{{ config.layout or 'simple' }}">
+            </div>
+            <div id="zebraDobleHint" class="zebra-doble-hint mb-2 {% if config.layout != 'doble_columna' %}d-none{% endif %}">
+              Papel 85 mm: columna 1 en X≈2 mm, hueco 4 mm, columna 2 en X≈44 mm. El lote imprime <strong>2 productos por franja</strong>.
+            </div>
+            <div class="row g-2">
+              <div class="col-6 zebra-field-ancho-papel">
+                <label id="lblAnchoPapel">Ancho papel (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="ancho_papel_mm" step="0.5" min="40" max="120" value="{{ config.ancho_papel_mm or config.ancho_mm }}">
+              </div>
+              <div class="col-6">
+                <label>Alto franja (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="alto_mm" step="0.5" min="15" max="100" value="{{ config.alto_mm }}">
+              </div>
+              <div class="col-6 zebra-field-simple-only {% if config.layout == 'doble_columna' %}d-none{% endif %}">
+                <label>Ancho etiqueta simple (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="ancho_mm" step="0.5" min="20" max="100" value="{{ config.ancho_mm }}">
+              </div>
+              <div class="col-6 zebra-field-doble-only {% if config.layout != 'doble_columna' %}d-none{% endif %}">
+                <label>Ancho cada columna (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="columna_ancho_mm" step="0.5" min="20" max="60" value="{{ config.columna_ancho_mm or 40 }}">
+              </div>
+              <div class="col-6 zebra-field-doble-only {% if config.layout != 'doble_columna' %}d-none{% endif %}">
+                <label>Hueco central (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="columna_gap_mm" step="0.5" min="0" max="20" value="{{ config.columna_gap_mm or 4 }}">
+              </div>
+              <div class="col-6">
+                <label>Margen X (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="margen_x_mm" step="0.5" min="0" max="20" value="{{ config.margen_x_mm }}">
+              </div>
+              <div class="col-6">
+                <label>Margen Y (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="margen_y_mm" step="0.5" min="0" max="20" value="{{ config.margen_y_mm }}">
+              </div>
+              <div class="col-6">
+                <label>Fuente nombre</label>
+                <input type="number" class="form-control form-control-sm" name="nombre_font" min="14" max="40" value="{{ config.nombre_font }}">
+              </div>
+              <div class="col-6">
+                <label>Fuente precio</label>
+                <input type="number" class="form-control form-control-sm" name="precio_font" min="14" max="48" value="{{ config.precio_font }}">
+              </div>
+              <div class="col-6">
+                <label>Altura código barras (mm)</label>
+                <input type="number" class="form-control form-control-sm" name="barcode_altura_mm" step="0.5" min="6" max="20" value="{{ config.barcode_altura_mm }}">
+              </div>
+              <div class="col-6">
+                <label>Módulo barras (BY)</label>
+                <input type="number" class="form-control form-control-sm" name="barcode_modulo" min="1" max="4" value="{{ config.barcode_modulo }}">
+              </div>
+              <div class="col-12">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="mostrar_codigo_texto" id="chkCodigoTexto" {% if config.mostrar_codigo_texto %}checked{% endif %}>
+                  <label class="form-check-label" for="chkCodigoTexto">Mostrar código humano bajo barras</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="mostrar_precio_lista" id="chkLista" {% if config.mostrar_precio_lista %}checked{% endif %}>
+                  <label class="form-check-label" for="chkLista">Precio lista (enrolamiento)</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="mostrar_precio_mayoreo" id="chkMayoreo" {% if config.mostrar_precio_mayoreo %}checked{% endif %}>
+                  <label class="form-check-label" for="chkMayoreo">Precio mayoreo (enrolamiento)</label>
+                </div>
+              </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button type="button" class="btn btn-primary btn-sm" id="btnZebraPreview">Vista previa</button>
+              <button type="button" class="btn btn-outline-primary btn-sm" id="btnZebraGuardar">Guardar calibración</button>
+              <button type="button" class="btn btn-success btn-sm" id="btnZebraImprimir">Imprimir prueba</button>
+            </div>
+          </form>
+          <p class="small text-muted mt-2 mb-0">
+            ZPL solo a cola Zebra. Guarde la impresora arriba o use <code>ZEBRA_IMPRESORA_NOMBRE</code> en .env.local
+            · DPI {{ config.dpi }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card card-ds mb-3">
+        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+          <span>Vista previa</span>
+          <span class="small text-muted" id="zebraPreviewMeta">{{ config.ancho_papel_mm or config.ancho_mm }}×{{ config.alto_mm }} mm</span>
+        </div>
+        <div class="card-body">
+          <div class="zebra-preview-wrap" id="zebraPreviewBox">
+            <span class="text-muted small">Pulse «Vista previa» para renderizar ZPL</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-ds">
+        <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span>Lote · {{ total_etiquetas or 1 }} etiqueta(s){% if config.layout == 'doble_columna' %} · {{ total_franjas or 1 }} franja(s){% endif %}</span>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnZebraDescargar">Descargar .zpl</button>
+            <button type="button" class="btn btn-warning btn-sm" id="btnZebraImprimirLote">Imprimir lote Zebra</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="small mb-2">{{ origen or 'Etiqueta de prueba / calibración' }}</p>
+          <div class="zebra-zpl-box" id="zebraZplOut">{{ zpl_inicial or '' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  window.ZEBRA_ETIQUETAS_CTX = {
+    variante: {{ variante|tojson }},
+    filas: {{ filas|tojson }},
+    impresoraDefault: {{ (impresora_seleccionada or '')|tojson }},
+    impresorasZebra: {{ (impresoras_zebra or [])|tojson }},
+    impresorasUrl: {{ url_for('api_etiquetas_zebra_impresoras')|tojson }},
+    configUrl: {{ url_for('api_etiquetas_zebra_config')|tojson }},
+    previewUrl: {{ url_for('api_etiquetas_zebra_preview')|tojson }},
+    printUrl: {{ url_for('api_etiquetas_zebra_imprimir')|tojson }},
+    downloadUrl: {{ url_for('api_etiquetas_zebra_descargar')|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/etiquetas-zebra.js') }}?v=11"></script>
+{% endblock %}

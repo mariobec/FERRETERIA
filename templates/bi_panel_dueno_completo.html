@@ -411,8 +411,8 @@
               {% endfor %}
             </ul>
             <a href="{{ url_for('stock_critico') }}" class="btn btn-outline-primary btn-sm">Ver stock crítico (real)</a>
-            {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_salud %}
-            <a href="{{ url_for('inventario_salud') }}" class="btn btn-outline-secondary btn-sm mt-1">Salud de inventario</a>
+            {% if usuario_tiene_permiso('ver_inventario') or usuario_tiene_permiso('admin_inventario') or usuario_tiene_permiso('enrolamiento_inventario') %}
+            <a href="{{ url_for('inventario_dashboard_premium') }}#integridad" class="btn btn-outline-secondary btn-sm mt-1">Integridad de stock</a>
             {% endif %}
           </div>
         </div>
@@ -702,8 +702,8 @@
             <ul class="small mb-0 ps-3">
               <li><a href="{{ url_for('stock_critico') }}">Stock crítico</a></li>
               <li><a href="{{ url_for('kardex') }}">Kardex</a></li>
-              {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_salud %}
-              <li><a href="{{ url_for('inventario_salud') }}">Salud del inventario</a></li>
+              {% if usuario_tiene_permiso('ver_inventario') or usuario_tiene_permiso('admin_inventario') or usuario_tiene_permiso('enrolamiento_inventario') %}
+              <li><a href="{{ url_for('inventario_dashboard_premium') }}#integridad">Integridad de stock</a></li>
               {% endif %}
               {% if (usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario')) and nav_inventario_enrolamiento %}
               <li><a href="{{ url_for('inventario_enrolamiento') }}">Enrolamiento</a></li>

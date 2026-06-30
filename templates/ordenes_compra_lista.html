@@ -16,7 +16,7 @@
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
     <div>
       <h3 class="page-title"><i class="fas fa-file-contract text-primary me-2"></i>Órdenes de compra</h3>
-      <p class="page-subtitle mb-0">Base para conciliar después con recepciones y facturas de proveedor.</p>
+      <p class="page-subtitle mb-0">Busque por OC, proveedor o <strong>producto</strong> (nombre, código barra o interno).</p>
     </div>
     <div class="d-flex gap-2">
       <a href="{{ url_for('orden_compra_nueva') }}" class="btn btn-ds-primary btn-sm">Nueva OC</a>
@@ -26,33 +26,46 @@
 
   <div class="card card-ds">
     <div class="card-header bg-white border-bottom">
-      <form method="get" action="{{ url_for('lista_ordenes_compra') }}" class="row g-2 align-items-end">
-        <div class="col-md-3">
+      <form method="get" action="{{ url_for('lista_ordenes_compra') }}" class="row g-2 align-items-end" id="formFiltroOC">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold mb-1"><i class="fas fa-search me-1 text-muted"></i>Buscar</label>
+          <input type="text" name="q" class="form-control form-control-sm"
+                 placeholder="Nº OC, proveedor, producto o código…"
+                 value="{{ q or '' }}" autocomplete="off">
+        </div>
+        <div class="col-md-2">
           <label class="form-label fw-semibold mb-1">
-            Sin seguimiento en
+            Sin seguimiento
             <span class="kpi-help" data-bs-toggle="tooltip" title="Muestra OCs cuyo último seguimiento es anterior al rango, o que aún no tienen seguimiento.">?</span>
           </label>
           <select name="sin_seg_dias" class="form-select form-select-sm">
-            <option value="0" {% if (sin_seg_dias or 0) == 0 %}selected{% endif %}>Mostrar todas</option>
+            <option value="0" {% if (sin_seg_dias or 0) == 0 %}selected{% endif %}>Todas</option>
             <option value="2" {% if (sin_seg_dias or 0) == 2 %}selected{% endif %}>2 días</option>
             <option value="3" {% if (sin_seg_dias or 0) == 3 %}selected{% endif %}>3 días</option>
             <option value="5" {% if (sin_seg_dias or 0) == 5 %}selected{% endif %}>5 días</option>
             <option value="7" {% if (sin_seg_dias or 0) == 7 %}selected{% endif %}>7 días</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label fw-semibold mb-1">
             Alcance
             <span class="kpi-help" data-bs-toggle="tooltip" title="Puedes limitar el filtro solo a OCs en curso (Borrador, Enviada, Parcial).">?</span>
           </label>
           <select name="solo_pendientes" class="form-select form-select-sm">
-            <option value="1" {% if solo_pendientes %}selected{% endif %}>Solo OCs pendientes</option>
-            <option value="0" {% if not solo_pendientes %}selected{% endif %}>Todos los estados</option>
+            <option value="1" {% if solo_pendientes %}selected{% endif %}>Pendientes</option>
+            <option value="0" {% if not solo_pendientes %}selected{% endif %}>Todos</option>
           </select>
         </div>
-        <div class="col-md-6 d-flex gap-2">
-          <button type="submit" class="btn btn-sm btn-outline-primary">Aplicar filtro</button>
+        <div class="col-md-4 d-flex gap-2 align-items-end">
+          <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-search me-1"></i>Buscar</button>
           <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+          {% if usuario_tiene_permiso('gestionar_usuarios') %}
+          <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="btnEliminarTest"
+                  data-url="{{ url_for('ordenes_compra_eliminar_test') }}"
+                  title="Elimina OCs con prefijo TEST-, CAS-OC-, QA- o proveedor TEST">
+            <i class="fas fa-trash me-1"></i>Borrar TEST
+          </button>
+          {% endif %}
         </div>
       </form>
     </div>
@@ -87,6 +100,7 @@
               <form method="post" action="{{ url_for('orden_compra_seguimiento_rapido', oid=o.id) }}" class="d-inline-flex align-items-center gap-1 me-1">
                 <input type="hidden" name="sin_seg_dias" value="{{ sin_seg_dias or 0 }}">
                 <input type="hidden" name="solo_pendientes" value="{{ 1 if solo_pendientes else 0 }}">
+                <input type="hidden" name="q" value="{{ q or '' }}">
                 <select name="seguimiento_estado" class="form-select form-select-sm" style="max-width:180px;">
                   <option value="Pendiente respuesta proveedor">Pendiente respuesta</option>
                   <option value="Proveedor confirma recepcion">Confirma recepción</option>
@@ -106,4 +120,39 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var btn = document.getElementById('btnEliminarTest');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    if (!confirm('¿Eliminar TODAS las OCs con prefijo TEST-, CAS-OC-, QA- o proveedor TEST?\nEsta acción no se puede deshacer.')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Eliminando…';
+    fetch(btn.dataset.url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.ok) {
+          alert(j.mensaje);
+          window.location.reload();
+        } else {
+          alert('Error: ' + (j.mensaje || 'No se pudo eliminar.'));
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-trash me-1"></i>Borrar TEST';
+        }
+      })
+      .catch(function (e) {
+        alert('Error de red: ' + (e && e.message ? e.message : e));
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash me-1"></i>Borrar TEST';
+      });
+  });
+})();
+</script>
 {% endblock %}

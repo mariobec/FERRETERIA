@@ -48,9 +48,76 @@ def test_ia_factura_analizar_sin_documento(app_client, proveedor_test):
         db.session.commit()
         r = app_client.post(f'/recepciones/{rec.id}/ia-factura/analizar')
         assert r.status_code == 400
-        assert 'documento' in (r.get_json().get('message') or '').lower()
+        msg = (r.get_json().get('message') or '').lower()
+        assert 'cámara' in msg or 'documento' in msg or 'adjunte' in msg
     finally:
         os.environ.pop('OPENAI_API_KEY', None)
+
+
+@pytest.mark.smoke
+def test_ia_factura_analizar_camara_json_mock(app_client, proveedor_test, monkeypatch):
+    os.environ['OPENAI_API_KEY'] = 'sk-test-mock-cam'
+    rec = None
+    try:
+        rec = RecepcionCompra(
+            proveedor_id=proveedor_test.id,
+            documento_tipo='Factura',
+            documento_numero='TEST-IA-CAM',
+            usuario_bodega='QA',
+            estado='Pendiente',
+        )
+        from app import db
+
+        db.session.add(rec)
+        db.session.commit()
+
+        import base64
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new('RGB', (120, 80), color=(240, 240, 240)).save(buf, format='JPEG')
+        b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+
+        def _fake_extraer(data_urls, api_key):
+            assert api_key == 'sk-test-mock-cam'
+            assert len(data_urls) == 1
+            return [
+                {
+                    'codigo_proveedor': 'INT-999',
+                    'descripcion': 'Producto camara test',
+                    'cantidad': 5,
+                    'precio_unitario': 1000,
+                }
+            ]
+
+        import app as app_mod
+
+        monkeypatch.setattr(app_mod, '_openai_extraer_items_factura', _fake_extraer)
+
+        r = app_client.post(
+            f'/recepciones/{rec.id}/ia-factura/analizar',
+            json={'imagenes': [f'data:image/jpeg;base64,{b64}'], 'guardar_documento': True},
+        )
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data.get('ok') is True
+        assert data.get('origen') == 'camara'
+        assert data.get('total', 0) >= 1
+        nom = None
+        for fn in os.listdir(_carpeta_docs_recepcion()):
+            if fn.startswith(f'recepcion_{rec.id}_cam'):
+                nom = fn
+                break
+        assert nom is not None
+    finally:
+        os.environ.pop('OPENAI_API_KEY', None)
+        if rec is not None:
+            for fn in os.listdir(_carpeta_docs_recepcion()):
+                if fn.startswith(f'recepcion_{rec.id}_'):
+                    try:
+                        os.remove(os.path.join(_carpeta_docs_recepcion(), fn))
+                    except OSError:
+                        pass
 
 
 @pytest.mark.smoke

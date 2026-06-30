@@ -71,6 +71,7 @@ body:not(.index-body):not(.erp-landing):not(.pos-pantalla-vendedora) {
 .app-sidebar-header,
 .app-sidebar-header--compact,
 .app-sidebar-nav,
+.app-sidebar-bottom,
 .app-sidebar-footer {
     background-color: #000000 !important;
 }
@@ -147,7 +148,7 @@ body:not(.index-body):not(.erp-landing):not(.pos-pantalla-vendedora) {
 }
 
 .app-sidebar-nav {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     max-height: calc(100dvh - 7.5rem);
     background: #000000;
@@ -160,12 +161,45 @@ body:not(.index-body):not(.erp-landing):not(.pos-pantalla-vendedora) {
     scrollbar-width: thin;
     scrollbar-color: rgba(203, 213, 225, 0.55) rgba(0, 0, 0, 0.85);
     padding-top: 1rem;
-    padding-bottom: 10px;
+    padding-bottom: 1rem;
 }
 
 .app-sidebar .app-sidebar-nav.flex-grow-1 {
-    flex: 1 1 auto !important;
+    flex: 1 1 0 !important;
     min-height: 0 !important;
+    max-height: calc(100dvh - 7.5rem) !important;
+}
+
+.app-sidebar-bottom {
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    z-index: 4;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    background: #000000;
+    padding: 0.35rem 0 0.65rem;
+}
+
+.app-topbar-logout-btn {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.app-sidebar-nav-divider {
+    margin: 0.65rem 16px 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.app-nav-link--logout {
+    color: #fca5a5 !important;
+    font-weight: 700;
+    margin-top: 0.15rem;
+}
+
+.app-nav-link--logout:hover,
+.app-nav-link--logout:focus {
+    background: rgba(220, 38, 38, 0.22) !important;
+    color: #fff !important;
+    border-left-color: #ef4444 !important;
 }
 
 .app-sidebar-nav::-webkit-scrollbar {
@@ -1389,9 +1423,53 @@ body .card.card-ds > .card-header {
     padding: 4px 2px 8px;
 }
 
-/* Hub central /academy */
-.lhexia-academy-hub-page .app-main {
-    background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 48%, #0f172a 100%);
+/* Hub Academy — tema claro: legibilidad total (anula HUD oscuro) */
+.lhexia-academy-hub-page--claro .lhexia-academy-rich,
+.lhexia-academy-hub-page--claro .lhexia-academy-rich p,
+.lhexia-academy-hub-page--claro .lhexia-academy-p,
+.lhexia-academy-hub-page--claro .lhexia-academy-list,
+.lhexia-academy-hub-page--claro .lhexia-academy-list li,
+.lhexia-academy-hub-page--claro .lhexia-academy-hub-card__content,
+.lhexia-academy-hub-page--claro .lhexia-academy-hub-card__content p {
+    color: #1e293b !important;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-subtitle {
+    color: #1e5631 !important;
+    letter-spacing: 0.06em;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-callout,
+.lhexia-academy-hub-page--claro .lhexia-academy-callout--invariante {
+    background: #fffbeb !important;
+    border-left: 4px solid #f37021 !important;
+    color: #78350f !important;
+    backdrop-filter: none;
+    box-shadow: none;
+    font-weight: 600;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-kbd-row {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    color: #334155 !important;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-kbd-row kbd {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-list li strong,
+.lhexia-academy-hub-page--claro .lhexia-academy-p strong {
+    color: #0f172a;
+}
+.lhexia-academy-hub-page--claro .badge.bg-success-subtle {
+    color: #166534 !important;
+}
+.lhexia-academy-hub-page--claro .badge.bg-warning-subtle {
+    color: #92400e !important;
+}
+
+/* Hub central /academy — tema claro (ver academy_hub.html) */
+.lhexia-academy-hub-page--claro .app-main {
+    background: #eef2f7 !important;
 }
 .lhexia-academy-hub-page .app-main .container-fluid {
     max-width: 1280px;
@@ -2579,37 +2657,197 @@ body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-card .card-header h6 {
     letter-spacing: 0.1em;
 }
 
-body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table > :not(caption) > * > *,
+/* Bandeja e-commerce — tabla clara legible (operación diaria) */
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table > :not(caption) > * > * {
+    color: #0f172a !important;
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody td,
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody th {
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody .text-muted {
+    color: #64748b !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table thead th {
+    background: #334155 !important;
+    color: #f8fafc !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table-hover > tbody > tr:hover > * {
+    background-color: #ecfdf5 !important;
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-card .card-header .text-muted {
+    color: #94a3b8 !important;
+}
+
+/* SLA — fondos sólidos, alto contraste */
+body.erp-ops-space.page-ecommerce-bandeja .ecom-sla-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-sla-pill.sla-ok {
+    background: #15803d;
+    color: #fff;
+    border-color: #166534;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-sla-pill.sla-attention {
+    background: #ca8a04;
+    color: #fff;
+    border-color: #a16207;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-sla-pill.sla-delayed {
+    background: #ea580c;
+    color: #fff;
+    border-color: #c2410c;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-sla-pill.sla-critical {
+    background: #dc2626;
+    color: #fff;
+    border-color: #b91c1c;
+}
+
+/* Badges estado — sólidos (anula neón global) */
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .badge.text-bg-warning {
+    background: #eab308 !important;
+    color: #1c1917 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .badge.text-bg-primary {
+    background: #2563eb !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .badge.text-bg-success {
+    background: #16a34a !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .badge.text-bg-danger {
+    background: #dc2626 !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .badge.text-bg-secondary {
+    background: #64748b !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Botones acción fila — sólidos, sin estilo neón */
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-ver,
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-preparar,
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-listo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.12s ease;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-ver {
+    color: #334155 !important;
+    background: #fff !important;
+    border-color: #94a3b8 !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-ver:hover {
+    color: #0f172a !important;
+    background: #f1f5f9 !important;
+    border-color: #64748b !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-preparar {
+    color: #fff !important;
+    background: #2563eb !important;
+    border-color: #1d4ed8 !important;
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.35) !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-preparar:hover {
+    background: #1d4ed8 !important;
+    filter: brightness(1.05);
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-listo {
+    color: #fff !important;
+    background: #16a34a !important;
+    border-color: #15803d !important;
+    box-shadow: 0 1px 4px rgba(22, 163, 74, 0.35) !important;
+}
+
+body.erp-ops-space.page-ecommerce-bandeja .ecom-btn-listo:hover {
+    background: #15803d !important;
+    filter: brightness(1.05);
+}
+
 body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table > :not(caption) > * > * {
     color: #e2e8f0 !important;
     background-color: rgba(15, 23, 42, 0.55) !important;
     border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody td,
 body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table tbody td,
-body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table tbody th,
 body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table tbody th {
     color: #e2e8f0 !important;
 }
 
-body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table thead th,
 body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table thead th {
     background: rgba(0, 0, 0, 0.5) !important;
     color: #f1f5f9 !important;
 }
 
-body.erp-ops-space.page-ecommerce-bandeja .ecom-bandeja-hud .table-hover > tbody > tr:hover > *,
 body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table-hover > tbody > tr:hover > * {
-    background-color: rgba(74, 222, 128, 0.08) !important;
+    background-color: rgba(59, 130, 246, 0.12) !important;
     color: #f8fafc !important;
 }
 
-body.erp-ops-space.page-bodega-plataforma .ecom-bandeja-hud .table-hover > tbody > tr:hover > * {
-    background-color: rgba(59, 130, 246, 0.12) !important;
+body.erp-ops-space.page-ecommerce-bandeja .ecom-pedido-code {
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    color: #15803d !important;
+    font-size: 0.95rem;
 }
 
-body.erp-ops-space.page-ecommerce-bandeja .ecom-pedido-code,
 body.erp-ops-space.page-bodega-plataforma .ecom-pedido-code {
     font-family: ui-monospace, monospace;
     font-weight: 700;
@@ -2736,7 +2974,282 @@ body.erp-ops-space.page-bodega-plataforma .card-ds .table tbody td .text-muted {
     color: #475569 !important;
 }
 
+/* ── Salud inventario — premium legible (homologado bandeja e-commerce) ── */
+body.erp-ops-space.page-inventario-salud .salud-hdr-premium {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem 1.5rem;
+    padding: 1.15rem 1.35rem;
+    border-radius: 16px;
+    border: 1px solid rgba(74, 222, 128, 0.22);
+    background: linear-gradient(
+        135deg,
+        rgba(10, 28, 22, 0.96) 0%,
+        rgba(22, 101, 52, 0.82) 52%,
+        rgba(12, 30, 24, 0.96) 100%
+    );
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.35);
+    color: #f8fafc;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-hdr-premium__eyebrow {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #86efac;
+    margin-bottom: 0.35rem;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-hdr-premium__title {
+    margin: 0 0 0.45rem;
+    font-size: 1.45rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-hdr-premium__title .fa-heartbeat {
+    color: #4ade80;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-hdr-premium__meta {
+    max-width: 52rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: #cbd5e1 !important;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-hdr-premium__meta strong {
+    color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-btn-ghost {
+    color: #e2e8f0 !important;
+    border: 1px solid rgba(148, 163, 184, 0.45) !important;
+    background: rgba(15, 23, 42, 0.35) !important;
+    font-weight: 600;
+    border-radius: 10px;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-btn-ghost:hover {
+    color: #fff !important;
+    border-color: rgba(148, 163, 184, 0.7) !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-btn-primary,
+body.erp-ops-space.page-inventario-salud .salud-btn-apply {
+    background: linear-gradient(135deg, #f37021 0%, #d95f19 100%) !important;
+    border: 1px solid #c2410c !important;
+    color: #fff !important;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(243, 112, 33, 0.35);
+}
+
+body.erp-ops-space.page-inventario-salud .salud-btn-primary:hover,
+body.erp-ops-space.page-inventario-salud .salud-btn-apply:hover {
+    background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 18px rgba(243, 112, 33, 0.45);
+}
+
+body.erp-ops-space.page-inventario-salud .salud-filter-card > .card-body,
+body.erp-ops-space.page-inventario-salud .salud-panel-card > .card-body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-filter-label {
+    color: #334155 !important;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-input {
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    border-radius: 10px;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-input::placeholder {
+    color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-input:focus {
+    border-color: #f37021 !important;
+    box-shadow: 0 0 0 3px rgba(243, 112, 33, 0.18) !important;
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-filter-hint {
+    color: #64748b !important;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-filter-hint strong {
+    color: #334155 !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-panel-card > .card-header {
+    background: #334155 !important;
+    color: #f8fafc !important;
+    border-bottom: 1px solid #1e293b !important;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-panel-card > .card-header .fa-balance-scale,
+body.erp-ops-space.page-inventario-salud .salud-panel-card > .card-header .fa-dolly {
+    color: #fdba74;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-card-sub {
+    color: #cbd5e1 !important;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-card-sub strong {
+    color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-panel-card {
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+    background: #fff !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-filter-card {
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06) !important;
+    background: #fff !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table > :not(caption) > * > * {
+    color: #0f172a !important;
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    letter-spacing: normal;
+    text-transform: none;
+    font-size: 0.86rem !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table tbody td,
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table tbody th {
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table tbody tr:nth-child(even) > * {
+    background-color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table tbody .text-muted {
+    color: #64748b !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table thead th,
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table thead.table-light th {
+    background: #334155 !important;
+    color: #f8fafc !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.68rem !important;
+    border-color: #1e293b !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .table-hover > tbody > tr:hover > * {
+    background-color: #ecfdf5 !important;
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud code {
+    color: #c2410c;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    padding: 0.1rem 0.35rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .text-success {
+    color: #15803d !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .text-danger {
+    color: #b91c1c !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .text-info {
+    color: #0369a1 !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .btn-outline-primary {
+    color: #1d4ed8 !important;
+    border-color: #93c5fd !important;
+    background: #eff6ff !important;
+    font-weight: 600;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .btn-outline-primary:hover {
+    color: #fff !important;
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-table-hud .btn-outline-secondary {
+    color: #475569 !important;
+    border-color: #cbd5e1 !important;
+    background: #f8fafc !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-panel-card .badge.bg-warning {
+    background: #eab308 !important;
+    color: #1c1917 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-panel-card .badge.bg-info {
+    background: #0ea5e9 !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-panel-card .btn-outline-secondary {
+    color: #334155 !important;
+    border-color: #cbd5e1 !important;
+    background: #fff !important;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-empty-hint {
+    color: #475569 !important;
+    background: #f8fafc;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+body.erp-ops-space.page-inventario-salud .salud-empty-hint strong {
+    color: #0f172a !important;
+}
+
 @media (max-width: 991.98px) {
+    body.erp-ops-space.page-inventario-salud .salud-hdr-premium {
+        flex-direction: column;
+    }
     body.erp-ops-space.page-ecommerce-bandeja .ecom-hdr-premium,
 body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium {
         grid-template-columns: 1fr;
@@ -2747,4 +3260,300 @@ body.erp-ops-space.page-bodega-plataforma .ecom-hdr-premium__stat {
         text-align: left;
         width: 100%;
     }
+}
+
+/* ── Enrolamiento inventario + instalador Enrolador Bodega (tablet) ── */
+body.erp-ops-space.page-enrolamiento-inventario .enrol-head-card h1,
+body.erp-ops-space.page-enrolamiento-inventario .enrol-head-card h1.h4,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-head-card h1 {
+    color: #f8fafc !important;
+    text-transform: none !important;
+    letter-spacing: 0.02em !important;
+    font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-title-note,
+body.erp-ops-space.page-enrolamiento-inventario .enrol-head-card .text-white-50,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-title-note,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-head-card .text-white-50 {
+    color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-head-card label.small,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-head-card label.small {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-head-card p,
+body.erp-ops-space.page-enrolamiento-inventario .enrol-quick-item p,
+body.erp-ops-space.page-enrolamiento-inventario .enrol-scan-strip .small,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-head-card p,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-quick-item p,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-scan-strip .small {
+    color: #cbd5e1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-quick-title,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-quick-title {
+    color: #93c5fd !important;
+    letter-spacing: 0.03em !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-quick-text,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-quick-text {
+    color: #e2e8f0 !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-quick-text strong,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-quick-text strong {
+    color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario #enrol-almacen,
+body.erp-ops-space.enrol-tablet-kiosk #enrol-almacen {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #475569 !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-avanzado-flag,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-avanzado-flag {
+    color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-scan-strip,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-scan-strip {
+    color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-enrolamiento-inventario .enrol-scan-strip .text-white-50,
+body.erp-ops-space.enrol-tablet-kiosk .enrol-scan-strip .text-white-50 {
+    color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .app-topbar {
+    background: rgba(15, 23, 42, 0.96) !important;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    padding: 8px 12px !important;
+    margin-bottom: 0.5rem;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .app-topbar-title {
+    font-size: 0.82rem;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .app-topbar-product {
+    color: #f8fafc !important;
+    letter-spacing: 0.06em;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .enrol-head-card > .d-flex.justify-content-between {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .enrol-head-card .text-end {
+    text-align: left !important;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .enrol-top-actions {
+    justify-content: flex-start !important;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .enrol-tablet-install {
+    color: #fde68a !important;
+}
+
+body.erp-ops-space.enrol-tablet-kiosk .enrol-tablet-install .small {
+    color: #fde68a !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card h1,
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card h2 {
+    color: #f8fafc !important;
+    text-transform: none !important;
+    letter-spacing: 0.02em !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card p,
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card .small,
+body.erp-ops-space.page-bodega-enrolador-setup .be-step p,
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card li {
+    color: #cbd5e1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card .text-white-50 {
+    color: rgba(255, 255, 255, 0.68) !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-step-num {
+    color: #fbbf24 !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-url {
+    color: #7dd3fc !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card .alert-info {
+    background: rgba(14, 165, 233, 0.14) !important;
+    border-color: rgba(56, 189, 248, 0.42) !important;
+    color: #e0f2fe !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card .alert-info strong,
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card .alert-info code {
+    color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card .alert-info .text-muted {
+    color: #bae6fd !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .form-label {
+    color: #94a3b8 !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .form-control {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #475569 !important;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card code {
+    color: #fde68a;
+    background: rgba(15, 23, 42, 0.55);
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+}
+
+body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card strong {
+    color: #f8fafc !important;
+}
+
+@media (max-width: 767.98px) {
+    body.erp-ops-space.page-bodega-enrolador-setup .be-setup-card {
+        padding: 14px;
+    }
+    body.erp-ops-space.enrol-tablet-kiosk .container-fluid.py-3 {
+        padding-top: 0.5rem !important;
+    }
+}
+
+/* ── Sidebar colapsado (modo foco tablas inventario / catálogo) ── */
+body.sidebar-focus-mode.sidebar-focus-pinned .app-sidebar.col-md-2 {
+    flex: 0 0 16.666667% !important;
+    width: 16.666667% !important;
+    max-width: 16.666667% !important;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned) .app-sidebar.col-md-2 {
+    flex: 0 0 56px !important;
+    width: 56px !important;
+    max-width: 56px !important;
+    transition: flex-basis 0.2s ease, width 0.2s ease, max-width 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned) .app-sidebar:hover {
+    flex: 0 0 16.666667% !important;
+    width: 16.666667% !important;
+    max-width: 16.666667% !important;
+    box-shadow: 8px 0 28px rgba(0, 0, 0, 0.55);
+    z-index: 30;
+}
+
+body.sidebar-focus-mode .app-main.col-md-10 {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-link {
+    justify-content: center;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+    gap: 0;
+    font-size: 0;
+    line-height: 0;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-link i {
+    font-size: 0.95rem;
+    line-height: 1;
+    margin: 0 !important;
+    width: 1.25rem;
+    text-align: center;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-group > summary {
+    font-size: 0;
+    line-height: 0;
+    justify-content: center;
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+    gap: 0;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-group > summary::after {
+    display: none;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-group > summary i {
+    font-size: 0.95rem;
+    line-height: 1;
+    margin: 0 !important;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-group-body {
+    display: none;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned) .app-sidebar:hover .app-nav-link,
+body.sidebar-focus-mode.sidebar-focus-pinned .app-sidebar .app-nav-link {
+    font-size: 0.875rem;
+    line-height: 1.35;
+    justify-content: flex-start;
+    gap: 0.65rem;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned) .app-sidebar:hover .app-nav-group > summary,
+body.sidebar-focus-mode.sidebar-focus-pinned .app-sidebar .app-nav-group > summary {
+    font-size: 0.8rem;
+    justify-content: flex-start;
+    gap: 0.65rem;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned) .app-sidebar:hover .app-nav-group-body .app-nav-link {
+    font-size: 0.8125rem;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar-footer .logout-premium span,
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar-footer .app-nav-link span {
+    display: none;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-link--logout {
+    font-size: 0;
+    line-height: 0;
+}
+
+body.sidebar-focus-mode:not(.sidebar-focus-pinned):not(:has(.app-sidebar:hover)) .app-sidebar .app-nav-link--logout i {
+    font-size: 0.95rem;
+    line-height: 1;
+    color: #fca5a5;
+}
+
+body.sidebar-focus-mode .sidebar-focus-toggle.active,
+body.sidebar-focus-mode.sidebar-focus-pinned .sidebar-focus-toggle {
+    border-color: var(--ds-primary, #f37021);
+    color: var(--ds-primary-strong, #d95f19);
+}
+
+body.sidebar-focus-mode.sidebar-focus-pinned .sidebar-focus-toggle {
+    background: rgba(243, 112, 33, 0.12);
 }

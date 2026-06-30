@@ -1,4 +1,4 @@
-"""Seed idempotente — Manual V2 LhexIA Academy (Secciones A, B, C)."""
+"""Seed idempotente — Manual V2 LhexIA Academy (rutas Vendedor / Cajero / Bodeguero)."""
 from __future__ import annotations
 
 from typing import Any
@@ -7,124 +7,126 @@ MANUAL_V2_ARTICLES: list[dict[str, Any]] = [
     {
         'dedupe_key': 'academy:manual_v2:seccion_a_pos_semaforos',
         'category': 'pos',
-        'title': 'POS y Semáforos de stock',
+        'title': 'POS: búsqueda, semáforos y emisión de vale',
         'summary': (
-            'Operación de mostrador: búsqueda, semáforos de disponibilidad, emisión de vale '
-            'y derivación a caja sin cobrar en POS.'
+            'Vender en mostrador con filtros Operativo / Tienda / Catálogo, leer semáforos de stock '
+            'y emitir vale pendiente para cobro en caja.'
         ),
         'permissions_required': 'vendedor',
         'video_url': None,
-        'content_markdown': """## Sección A — POS y Semáforos
+        'content_markdown': """## POS en mostrador
 
-> Invariante Financiera: El POS jamás recauda dinero real; el flujo operativo se cierra única y exclusivamente en la estación de Caja.
+> Invariante Financiera: El POS **no cobra** dinero real. El cobro se cierra **solo en Caja**.
 
 ### Objetivo
-Emitir vales correctos en mostrador respetando alertas de stock y política de la tienda.
+Atender al cliente rápido, con stock real y vale correcto para la fila de cobro.
 
-### 📌 PROTOCOLO — Semáforos de stock
-- **Verde:** stock suficiente en bodega activa.
-- **Amarillo:** stock bajo o reservado parcialmente — confirmar con cliente antes de prometer.
-- **Rojo:** sin stock disponible — no prometer entrega inmediata; ofrecer a pedido si aplica.
+### Semáforos de stock (Operativo)
+- **Verde:** hay stock en tienda — podés prometer entrega inmediata.
+- **Amarillo:** stock bajo o parcial — confirmá cantidad con el cliente.
+- **Rojo / sin stock:** no prometas entrega inmediata; ofrecé pedido o alternativa.
 
-### Flujo operativo
-1. Enfocar búsqueda (`F2`) e ingresar código de barra o nombre parcial.
-2. Revisar semáforo y cantidad sugerida en la línea.
-3. Identificar cliente o usar cliente final configurado.
-4. Verificar totales y pulsar **Emitir vale** — el cobro lo realiza caja.
-5. Entregar ticket/vale al cliente para la fila de cobro.
+### Filtros de búsqueda (igual que catálogo)
+1. **Operativo** — lo vendible hoy (stock tienda + precio POS).
+2. **Tienda** — solo productos con stock en mostrador.
+3. **Catálogo** — todo el maestro con precio (incluso sin stock).
 
-Importante: Cobrar en POS es incorrecto — el vale debe quedar **pendiente de cobro** en la estación de Caja.
+### Flujo recomendado
+1. Presioná **F2** o tocá la barra de búsqueda / escaneá código.
+2. Revisá semáforo, precio POS (SD) y cantidad.
+3. Identificá cliente o usá cliente final.
+4. Pulsá **Emitir vale** (F8) — el vale queda **Pendiente** para caja.
+5. Entregá ticket al cliente para la fila de cobro.
 
-### Errores frecuentes
-- Cobrar en POS (incorrecto): el vale debe quedar **pendiente de cobro**.
-- Ignorar semáforo rojo: genera reclamos y devoluciones.
-- No validar unidad de medida en productos fraccionables.
+### Errores que evitar
+- Cobrar en POS — incorrecto; usa siempre caja.
+- Ignorar semáforo rojo — genera reclamos.
+- Vender sin revisar unidad de medida en productos fraccionables.
 
-### Atajos críticos
+### Atajos
 | Tecla | Acción |
 |-------|--------|
-| F2 | Foco búsqueda de producto / Invocación de Escáner universal |
-| F8 | Emitir vale de venta pendiente (Bloqueo de caja diferido) |
-| Esc | Cerrar modal o cancelar línea actual |
+| F2 | Foco búsqueda / escáner |
+| F8 | Emitir vale pendiente |
+| Esc | Cerrar modal o cancelar línea |
 """,
     },
     {
         'dedupe_key': 'academy:manual_v2:seccion_b_arqueo_ciego_plat11',
         'category': 'caja',
-        'title': 'Arqueo Ciego PLAT-1.1',
+        'title': 'Cierre de caja y arqueo ciego',
         'summary': (
-            'Cierre de caja con arqueo ciego: declarar montos sin ver el sistema, cuadrar '
-            'y documentar descuadres según PLAT-1.1.'
+            'Cerrar turno contando efectivo sin ver el saldo del sistema primero; '
+            'documentar descuadres según política PLAT-1.1.'
         ),
         'permissions_required': 'cajera',
         'video_url': None,
-        'content_markdown': """## Sección B — Arqueo Ciego PLAT-1.1
+        'content_markdown': """## Cierre de caja — arqueo ciego
 
 ### Objetivo
-Cerrar turno con conteo físico independiente del saldo en pantalla (arqueo ciego).
+Cerrar el turno con conteo físico independiente del saldo en pantalla.
 
 ### Antes de cerrar
 1. Resolver **vales pendientes** de cobro o documentar excepción autorizada.
-2. Imprimir o exportar resumen de movimientos del turno si la supervisión lo exige.
-3. Separar efectivo, vouchers tarjeta y otros medios de pago.
+2. Separar efectivo, vouchers tarjeta y otros medios.
+3. Imprimir resumen del turno si supervisión lo exige.
 
-### Procedimiento PLAT-1.1
-1. Ir a **Cerrar caja** desde el menú de caja.
-2. Ingresar montos **declarados** (ef-screen oculto hasta confirmar).
-3. El sistema compara declarado vs. teórico y muestra diferencia.
-4. Si hay descuadre: registrar observación obligatoria y escalar a supervisor.
-5. Confirmar cierre solo cuando la política de la tienda lo permita.
+### Procedimiento
+1. Menú **Caja → Cerrar caja**.
+2. Ingresá montos **declarados** (el teórico se revela al confirmar).
+3. El sistema muestra diferencia declarado vs. teórico.
+4. Si hay descuadre: observación obligatoria y escalar a supervisor.
+5. Confirmá cierre cuando la política lo permita.
 
 ### Buenas prácticas
-- Contar gaveta dos veces antes de declarar.
-- No mezclar vuelto del turno anterior.
-- Guardar comprobantes de depósito bancario aparte del efectivo en caja.
+- Contá la gaveta dos veces antes de declarar.
+- No mezclés vuelto del turno anterior.
+- Guardá comprobantes de depósito aparte del efectivo en caja.
 
-### Atajos críticos
+### Atajos
 | Tecla | Acción |
 |-------|--------|
-| Ctrl+Enter | Confirmar declaración de arqueo |
-| Esc | Cerrar modal o cancelar línea actual |
+| Ctrl+Enter | Confirmar arqueo |
+| Esc | Cerrar modal |
 """,
     },
     {
         'dedupe_key': 'academy:manual_v2:seccion_c_telemetria_v3',
         'category': 'bodega',
-        'title': 'Estanterías de Telemetría V3',
+        'title': 'Enrolamiento de productos (Caso A / B / C)',
         'summary': (
-            'Enrolamiento y lectura de estanterías con telemetría Guardian V3: ubicación, '
-            'sensores y alertas de inventario en tiempo real.'
+            'Escanear códigos, vincular al maestro, dar de alta manual y sumar stock '
+            'con las mismas reglas que el POS (alias, precio SD, kardex).'
         ),
         'permissions_required': 'bodega',
         'video_url': None,
-        'content_markdown': """## Sección C — Estanterías de Telemetría V3
+        'content_markdown': """## Enrolamiento de inventario
 
 ### Objetivo
-Mantener ubicaciones físicas alineadas con el mapa de estanterías y telemetría V3 del ERP.
+Registrar stock real alineado al maestro para que POS y tienda web muestren datos correctos.
 
-### Conceptos
-- **Estantería:** unidad lógica de almacenamiento (pasillo · módulo · nivel).
-- **Telemetría V3:** eventos de movimiento, lectura RFID/código y alertas al Centro VERTEX.
-- **Enrolamiento:** asociar producto ↔ ubicación ↔ sensor cuando corresponda.
+### Casos al escanear
+- **Caso A — Reconocido:** el código ya existe (maestro o alias). Revisá ficha y pulsá **Sumar** para confirmar cantidad.
+- **Caso B — Código nuevo:** buscá producto en maestro y **Vincular** (crea alias, no pisa código maestro).
+- **Caso C — Alta manual:** producto no está en maestro; completá nombre, precio venta y categoría.
 
-### Flujo de enrolamiento
-1. Abrir **Inventario → Enrolamiento** o recepción con destino bodega.
-2. Escanear producto y confirmar unidad de medida.
-3. Asignar estantería destino según mapa de bodega.
-4. Validar lectura de telemetría (semáforo verde en panel Guardian).
-5. Confirmar — el stock queda visible para POS con semáforo actualizado.
+### Reglas importantes
+1. Elegí **almacén de la sesión** (Tienda = lo que vende POS).
+2. Pill **Vendible en POS** usa precio POS (SD) + stock tienda.
+3. Vincular usa **alias** — re-escaneá y debe resolver Caso A.
+4. Stock sumado registra **kardex** automáticamente.
 
-### Alertas comunes
-- Producto sin ubicación: bloquea picking eficiente.
-- Lectura duplicada en estantería: revisar etiquetado físico.
-- Desfase telemetría vs. stock ERP: ejecutar conteo focal en la estantería.
+### Flujo típico
+1. **Nueva sesión** → elegir Tienda o Bodega.
+2. Pistoleá código → revisar pill POS.
+3. **Sumar** cantidad en el almacén correcto.
+4. Si hay duda, abrí **Salud del inventario** para desajustes.
 
-### Atajos críticos
+### Atajos
 | Tecla | Acción |
 |-------|--------|
-| F2 | Foco escaneo / código |
-| F5 | Refrescar panel telemetría |
-| Enter | Confirmar línea de enrolamiento |
+| Enter | Enviar código escaneado |
+| Esc | Cerrar panel / overlay |
 """,
     },
     {
@@ -132,30 +134,30 @@ Mantener ubicaciones físicas alineadas con el mapa de estanterías y telemetrí
         'category': 'caja',
         'title': 'Apertura de caja (inicio de turno)',
         'summary': (
-            'Declarar saldo inicial real en gaveta para habilitar cobros y trazabilidad del turno.'
+            'Declarar el efectivo real en gaveta para habilitar cobros y trazabilidad del turno.'
         ),
         'permissions_required': 'cajera',
         'video_url': None,
-        'content_markdown': """## Sección D — Apertura de caja
+        'content_markdown': """## Apertura de caja
 
 ### Objetivo
 Iniciar turno con el efectivo contado en gaveta y dejar registro en el sistema.
 
 ### Procedimiento
-1. Ir a **Abrir caja** desde el menú o el aviso de caja pendiente.
-2. Contar billetes y monedas del fondo de caja (sencillo).
-3. Ingresar el **saldo inicial** en CLP (puede usar punto como separador de miles).
-4. Confirmar **Iniciar jornada** — el usuario queda asociado al turno.
-5. Verificar que **Vales pendientes** y POS queden habilitados.
+1. Ir a **Abrir caja** (menú o aviso de caja pendiente).
+2. Contar billetes y monedas del fondo (sencillo).
+3. Ingresar **saldo inicial** en CLP.
+4. Confirmar **Iniciar jornada** — quedás asociado al turno.
+5. Verificá que POS y **Vales pendientes** queden habilitados.
 
 ### Errores frecuentes
-- Declarar un monto sin contar físicamente la gaveta.
+- Declarar sin contar físicamente la gaveta.
 - Olvidar cerrar la caja del día anterior (bloquea POS).
-- Mezclar vuelto o depósitos del día previo con el fondo inicial.
+- Mezclar vuelto del día previo con el fondo inicial.
 
 ### Buenas prácticas
-- Anotar en papel si hay diferencia respecto al cierre anterior autorizado.
-- No abrir dos turnos en paralelo en la misma estación.
+- Anotá en papel si hay diferencia respecto al cierre anterior autorizado.
+- No abras dos turnos en paralelo en la misma estación.
 """,
     },
     {
@@ -163,30 +165,138 @@ Iniciar turno con el efectivo contado en gaveta y dejar registro en el sistema.
         'category': 'caja',
         'title': 'Movimientos extraordinarios de caja',
         'summary': (
-            'Registrar ingresos y egresos fuera del cobro de vales, con concepto y responsable en retiros.'
+            'Registrar ingresos y egresos fuera del cobro de vales, con concepto claro '
+            'y responsable en retiros.'
         ),
         'permissions_required': 'cajera',
         'video_url': None,
-        'content_markdown': """## Sección E — Movimientos de caja
+        'content_markdown': """## Movimientos de caja
 
 ### Objetivo
-Documentar entradas y salidas de efectivo que no son cobro de un vale.
+Documentar entradas y salidas de efectivo que **no** son cobro de un vale.
 
 ### Cuándo usar
-- Ingreso: reposición de cambio, devolución de gasto, etc.
-- Egreso: retiro autorizado, pago menor en efectivo desde caja, etc.
+- **Ingreso:** reposición de cambio, devolución de gasto, etc.
+- **Egreso:** retiro autorizado, pago menor en efectivo desde caja, etc.
 
 ### Procedimiento
-1. Abrir **Movimientos de caja** desde el menú de caja.
-2. Seleccionar **Ingreso** o **Egreso**.
-3. Escribir **concepto** claro y verificable.
-4. En **Egreso**, completar **responsable del retiro** (obligatorio).
-5. Ingresar monto en CLP y guardar.
-6. Revisar que aparezca en el historial del turno.
+1. **Caja → Movimientos de caja**.
+2. Elegí **Ingreso** o **Egreso**.
+3. Escribí **concepto** claro y verificable.
+4. En **Egreso**, completá **responsable del retiro** (obligatorio).
+5. Ingresá monto en CLP y guardá.
+6. Revisá que aparezca en el historial del turno.
 
 ### Errores frecuentes
-- Egreso sin responsable → el sistema no debe permitir guardar.
-- Usar movimiento de caja para “anular” un vale (usar anulación de vale o NC).
+- Egreso sin responsable — el sistema no debe permitir guardar.
+- Usar movimiento de caja para “anular” un vale (usar anulación de vale o nota de crédito).
+""",
+    },
+    {
+        'dedupe_key': 'academy:manual_v2:seccion_f_cobro_vales',
+        'category': 'caja',
+        'title': 'Cobro de vales y medios de pago',
+        'summary': (
+            'Procesar vales emitidos en POS, pedidos web Maylén y elegir efectivo, '
+            'tarjeta o crédito según política de la tienda.'
+        ),
+        'permissions_required': 'cajera',
+        'video_url': None,
+        'content_markdown': """## Cobro en caja
+
+### Objetivo
+Recaudar vales pendientes y cerrar la venta con trazabilidad de medio de pago.
+
+### Tipos de vale en bandeja
+- **POS:** vale VL###### emitido en mostrador.
+- **Web:** pedido PED-WEB###### (Maylén / tienda online).
+- Escaneá código de barras del vale o buscá por folio.
+
+### Procedimiento
+1. Abrí **Vales pendientes** o escaneá el código en caja.
+2. Verificá ítems, totales e IVA incluido.
+3. Elegí medio de pago: efectivo, tarjeta, transferencia o crédito (si aplica).
+4. Confirmá cobro — el vale pasa a **Pagado**.
+5. Entregá comprobante; pedidos web siguen flujo de preparación en bodega.
+
+### Buenas prácticas
+- No cobres sin caja abierta en tu turno.
+- Revisá identidad del cliente en ventas a crédito.
+- Ante duda de monto, volvé a POS o bandeja e-commerce antes de confirmar.
+
+### Atajos
+| Tecla | Acción |
+|-------|--------|
+| F5 | Refrescar cola de vales |
+| Esc | Cerrar modal |
+""",
+    },
+    {
+        'dedupe_key': 'academy:manual_v2:seccion_g_tablet_bodega',
+        'category': 'bodega',
+        'title': 'Tablet y pistola en bodega',
+        'summary': (
+            'Acceso LAN, instalación en pantalla de inicio y uso de pistola BCST '
+            'con el enrolador optimizado para tablet.'
+        ),
+        'permissions_required': 'bodega',
+        'video_url': None,
+        'content_markdown': """## Enrolador en tablet
+
+### Objetivo
+Contar y enrolar productos en pasillo con tablet + pistola inalámbrica, sin depender del PC de escritorio.
+
+### Acceso en la red local
+1. Tablet y PC servidor en la **misma WiFi**.
+2. Abrí `http://IP_SERVIDOR:5000/login` e iniciá sesión.
+3. Entrá a **Enrolador bodega** o escaneá el QR en `/bodega/enrolador`.
+4. **Agregar a pantalla de inicio** para acceso directo (sin APK).
+
+### Pistola BCST (modo teclado)
+1. Emparejá Bluetooth en el tablet.
+2. Tocá el recuadro de escaneo (campo visible en tablet).
+3. Pistoleá — el Enter del lector envía el código.
+4. Confirmá con **Sumar** cuando corresponda.
+
+### Checklist rápido
+- Ctrl+F5 tras actualizar el ERP.
+- Sesión en almacén correcto (Tienda vs Bodega).
+- Si el código es nuevo → Caso B vincular o Caso C alta manual.
+""",
+    },
+    {
+        'dedupe_key': 'academy:manual_v2:seccion_h_salud_inventario',
+        'category': 'bodega',
+        'title': 'Salud del inventario y desajustes',
+        'summary': (
+            'Detectar diferencias entre stock maestro y suma en almacenes; '
+            'priorizar traslados Bodega → Tienda.'
+        ),
+        'permissions_required': 'bodega',
+        'video_url': None,
+        'content_markdown': """## Salud del inventario
+
+### Objetivo
+Encontrar SKU con stock incoherente antes de que afecten ventas o conteos.
+
+### Qué revisa la pantalla
+- **Maestro vs depósitos:** suma de almacenes activos vs campo `stock` del producto.
+- **Tienda en cero, bodega con stock:** candidatos a traslado al mostrador.
+
+### Cuándo usarla
+- Después de una jornada de enrolamiento.
+- Antes de promociones o inventario físico.
+- Cuando POS muestra sin stock pero “hay en bodega”.
+
+### Acciones recomendadas
+1. Filtrá por nombre o código.
+2. Exportá CSV si necesitás trabajar en Excel.
+3. Corregí con traslado, ajuste autorizado o nuevo conteo en enrolador.
+4. Validá que el semáforo POS quede verde en productos clave.
+
+### Buenas prácticas
+- No ajustes masivos sin autorización de supervisión.
+- Documentá la causa (recepción, rotura, error de conteo).
 """,
     },
 ]

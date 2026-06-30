@@ -279,19 +279,57 @@ def listar_impresoras_windows() -> list[str]:
 
 
 def _impresora_abrible(nombre: str) -> bool:
-    """True si la cola acepta un trabajo RAW (evita XP-80C eliminada que solo falla al imprimir)."""
-    if sys.platform != 'win32' or not (nombre or '').strip():
-        return False
+    """True si la cola existe y no es puerto FILE (sin enviar trabajo de prueba al spooler)."""
+    info = describir_cola_impresora(nombre)
+    return bool(info.get('abrible'))
+
+
+def describir_cola_impresora(nombre: str) -> dict[str, Any]:
+    """Puerto, driver y advertencias de una cola Windows (Zebra / RAW)."""
+    nombre = (nombre or '').strip()
+    out: dict[str, Any] = {
+        'nombre': nombre,
+        'puerto': '',
+        'driver': '',
+        'abrible': False,
+        'advertencias': [],
+    }
+    if sys.platform != 'win32' or not nombre:
+        return out
     hprinter = None
     try:
         import win32print
 
-        hprinter = win32print.OpenPrinter((nombre or '').strip())
-        job = win32print.StartDocPrinter(hprinter, 1, ('LhexIA Ping', None, 'RAW'))
-        win32print.EndDocPrinter(hprinter)
-        return True
-    except Exception:
-        return False
+        hprinter = win32print.OpenPrinter(nombre)
+        info = win32print.GetPrinter(hprinter, 2)
+        port = (info.get('pPortName') or '').strip()
+        driver = (info.get('pDriverName') or '').strip()
+        out['puerto'] = port
+        out['driver'] = driver
+        out['abrible'] = True
+        port_u = port.upper()
+        if port_u.startswith('FILE:'):
+            out['abrible'] = False
+            out['advertencias'].append(
+                'La cola usa puerto FILE (guarda documentos en disco). En Propiedades de impresora '
+                'cambie el puerto a USB de la Zebra.'
+            )
+        elif not port_u or port_u in ('NUL:', 'NULL:'):
+            out['abrible'] = False
+            out['advertencias'].append('La cola no tiene puerto físico asignado.')
+        drv_l = driver.lower()
+        nom_l = nombre.lower()
+        if 'generic printer' in drv_l or 'generic printer' in nom_l:
+            out['advertencias'].append(
+                'Driver «Generic Printer» es virtual (SDK Zebra): guarda archivos, no imprime en hardware. '
+                'Use «ZDesigner GX420d» o «Zebra GX420d - ZPL» con puerto USB.'
+            )
+        if 'for developers' in nom_l:
+            out['advertencias'].append(
+                '«ZDesigner for Developers» no imprime en la GX420d física; elija la cola USB/ZPL.'
+            )
+    except Exception as ex:
+        out['advertencias'].append(str(ex)[:160])
     finally:
         if hprinter:
             try:
@@ -300,6 +338,7 @@ def _impresora_abrible(nombre: str) -> bool:
                 win32print.ClosePrinter(hprinter)
             except Exception:
                 pass
+    return out
 
 
 def _es_impresora_virtual(nombre: str) -> bool:
@@ -315,6 +354,76 @@ def _es_impresora_virtual(nombre: str) -> bool:
             'send to',
         )
     )
+
+
+def _es_cola_zebra(nombre: str) -> bool:
+    """True si la cola Windows parece impresora de etiquetas Zebra (no XP-80 / POS)."""
+    n = (nombre or '').strip().lower()
+    if not n or _es_impresora_virtual(n):
+        return False
+    virtuales_zebra = (
+        'generic printer',
+        'for developers',
+        'redirected',
+        'print to file',
+    )
+    if any(v in n for v in virtuales_zebra):
+        return False
+    bloqueadas = ('xp-80', 'xprinter', 'x-printer', 'epson', 'canon', 'hp ', 'brother')
+    if any(b in n for b in bloqueadas):
+        return False
+    hints = (
+        'zebra',
+        'zdesigner',
+        'gx420',
+        'gk420',
+        'gt800',
+        'zd420',
+        'zd620',
+        'lp2824',
+        'tlp2844',
+        'zpl',
+        '105sl',
+    )
+    return any(h in n for h in hints)
+
+
+def listar_impresoras_zebra() -> list[str]:
+    return [p for p in listar_impresoras_windows() if _es_cola_zebra(p)]
+
+
+def listar_colas_zebra_detalle() -> list[dict[str, Any]]:
+    """Colas Zebra con puerto/driver; las usables (USB, etc.) primero."""
+    out: list[dict[str, Any]] = []
+    for nombre in listar_impresoras_zebra():
+        d = describir_cola_impresora(nombre)
+        d['usable'] = bool(d.get('abrible'))
+        out.append(d)
+    out.sort(
+        key=lambda x: (
+            0 if x.get('usable') else 1,
+            0 if str(x.get('puerto') or '').upper().startswith('USB') else 1,
+            (x.get('nombre') or '').lower(),
+        )
+    )
+    return out
+
+
+def elegir_cola_zebra_preferida(preferida: str | None = None) -> str:
+    """Cola Zebra para imprimir: prioriza USB/hardware sobre FILE/LPT mal configurados."""
+    colas = listar_colas_zebra_detalle()
+    pref = (preferida or '').strip()
+    if pref:
+        for d in colas:
+            if d.get('nombre') == pref and d.get('usable'):
+                return pref
+    for d in colas:
+        if d.get('usable') and str(d.get('puerto') or '').upper().startswith('USB'):
+            return str(d.get('nombre') or '')
+    for d in colas:
+        if d.get('usable'):
+            return str(d.get('nombre') or '')
+    return pref or (str(colas[0].get('nombre') or '') if colas else '')
 
 
 def _candidatos_impresora_termica(
@@ -365,9 +474,58 @@ def _candidatos_impresora_termica(
     return out
 
 
+def _candidatos_impresora_zebra(
+    configurada: str | None = None,
+    *,
+    lista: list[str] | None = None,
+) -> list[str]:
+    """Cola Zebra/ZPL: no usa XP-80 ni impresora POS por defecto."""
+    lista = lista if lista is not None else listar_impresoras_windows()
+    cfg = (
+        (configurada or '').strip()
+        or (os.getenv('ZEBRA_IMPRESORA_NOMBRE') or '').strip()
+        or (os.getenv('ETIQUETAS_ZEBRA_IMPRESORA') or '').strip()
+    )
+    out: list[str] = []
+
+    def _add(n: str | None) -> None:
+        n = (n or '').strip()
+        if not n or n in out:
+            return
+        out.append(n)
+
+    if cfg:
+        if not _es_cola_zebra(cfg):
+            pass  # ignorar cola POS (XP-80, etc.) aunque esté en la lista Windows
+        elif cfg in lista:
+            _add(cfg)
+        else:
+            cfg_l = cfg.lower()
+            for p in lista:
+                if _es_cola_zebra(p) and (cfg_l in p.lower() or p.lower() in cfg_l):
+                    _add(p)
+            if _es_cola_zebra(cfg):
+                _add(cfg)
+
+    zebra_cols = [p for p in lista if _es_cola_zebra(p) and not _es_impresora_virtual(p)]
+    usables = [p for p in zebra_cols if _impresora_abrible(p)]
+    for p in usables + [p for p in zebra_cols if p not in usables]:
+        _add(p)
+
+    return out
+
+
 def resolver_nombre_impresora(configurada: str | None = None) -> str | None:
     """Primera impresora de la lista que Windows puede abrir (cola válida)."""
     for candidato in _candidatos_impresora_termica(configurada):
+        if _impresora_abrible(candidato):
+            return candidato
+    return None
+
+
+def resolver_nombre_impresora_zebra(configurada: str | None = None) -> str | None:
+    """Primera cola Zebra abrible; no hace fallback a XP-80 / default Windows."""
+    for candidato in _candidatos_impresora_zebra(configurada):
         if _impresora_abrible(candidato):
             return candidato
     return None
@@ -413,6 +571,92 @@ def enviar_raw_escpos(data: bytes, printer_name: str | None = None) -> dict[str,
         finally:
             win32print.EndDocPrinter(hprinter)
         return {'ok': True, 'impresora': nombre, 'bytes': len(data)}
+    except Exception as ex:
+        return {'ok': False, 'error': 'impresion', 'mensaje': str(ex)[:300], 'impresora': nombre}
+    finally:
+        if hprinter:
+            try:
+                win32print.ClosePrinter(hprinter)
+            except Exception:
+                pass
+
+
+def enviar_raw_zpl(data: bytes, printer_name: str | None = None) -> dict[str, Any]:
+    """Envía ZPL RAW solo a cola Zebra (no XP-80 / POS)."""
+    if sys.platform != 'win32':
+        return {'ok': False, 'error': 'plataforma', 'mensaje': 'Solo Windows (PC tienda).'}
+    if not data:
+        return {'ok': False, 'error': 'vacio', 'mensaje': 'Sin datos para imprimir.'}
+    explicit = (printer_name or '').strip()
+    if explicit and not _es_cola_zebra(explicit):
+        return {
+            'ok': False,
+            'error': 'impresora_no_zebra',
+            'mensaje': (
+                f'«{explicit}» no es una cola Zebra. En el panel elija '
+                '«Zebra GX420d - ZPL» o «ZDesigner GX420d» (no XP-80 de tickets).'
+            ),
+        }
+    candidatos = _candidatos_impresora_zebra(printer_name)
+    nombre = resolver_nombre_impresora_zebra(printer_name)
+    if not nombre:
+        lista = listar_impresoras_windows()
+        return {
+            'ok': False,
+            'error': 'sin_impresora_zebra',
+            'mensaje': (
+                'No hay impresora Zebra usable. Elija la cola en el panel Zebra o configure '
+                'ZEBRA_IMPRESORA_NOMBRE en .env.local (nombre exacto de Windows). '
+                f'Detectadas: {", ".join(lista[:8]) or "ninguna"}'
+            ),
+            'candidatos': candidatos[:8],
+        }
+    try:
+        import win32print
+    except ImportError:
+        return {
+            'ok': False,
+            'error': 'pywin32',
+            'mensaje': 'Instale pywin32: pip install pywin32',
+        }
+
+    desc = describir_cola_impresora(nombre)
+    if not desc.get('abrible'):
+        msg = (
+            desc['advertencias'][0]
+            if desc.get('advertencias')
+            else f'La cola «{nombre}» no acepta impresión RAW en hardware.'
+        )
+        return {
+            'ok': False,
+            'error': 'cola_no_hardware',
+            'mensaje': msg,
+            'impresora': nombre,
+            'puerto': desc.get('puerto') or '',
+            'driver': desc.get('driver') or '',
+        }
+
+    hprinter = None
+    try:
+        hprinter = win32print.OpenPrinter(nombre)
+        job = win32print.StartDocPrinter(hprinter, 1, ('LhexIA ZPL', None, 'RAW'))
+        try:
+            win32print.StartPagePrinter(hprinter)
+            win32print.WritePrinter(hprinter, data)
+            win32print.EndPagePrinter(hprinter)
+        finally:
+            win32print.EndDocPrinter(hprinter)
+        advertencias = list(desc.get('advertencias') or [])
+        res: dict[str, Any] = {
+            'ok': True,
+            'impresora': nombre,
+            'bytes': len(data),
+            'tipo': 'zebra_zpl',
+            'puerto': desc.get('puerto') or '',
+        }
+        if advertencias:
+            res['advertencia'] = advertencias[0]
+        return res
     except Exception as ex:
         return {'ok': False, 'error': 'impresion', 'mensaje': str(ex)[:300], 'impresora': nombre}
     finally:

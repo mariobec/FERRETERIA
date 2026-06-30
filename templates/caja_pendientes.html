@@ -274,6 +274,7 @@
         vertical-align: middle;
     }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-trf-bell.css') }}?v=1">
 {% endblock %}
 
 {% block content %}
@@ -302,6 +303,9 @@
             <a href="{{ url_for('caja_cambios') }}" class="caja-nav-dock__link caja-nav-dock__link--accent-sky">
                 <i class="fas fa-rotate" aria-hidden="true"></i><span>Cambios</span>
             </a>
+            <a href="{{ url_for('caja_transferencias') }}" class="caja-nav-dock__link caja-nav-dock__link--accent-amber">
+                <i class="fas fa-university" aria-hidden="true"></i><span>Transferencias{% if n_transferencias_pendientes %} <span class="badge bg-danger ms-1">{{ n_transferencias_pendientes }}</span>{% endif %}</span>
+            </a>
             <a href="{{ url_for('movimiento_caja') }}" class="caja-nav-dock__link">
                 <i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Movimientos</span>
             </a>
@@ -312,6 +316,8 @@
             <span id="fecha-actual" class="caja-hdr-premium__date"></span>
         </div>
     </header>
+
+    {% include 'caja/includes/caja_trf_bell.html' %}
 
     <!-- 2. BOTÓN DE IMPRESIÓN (Si existe última venta) -->
     {% if request.args.get('ultima_venta') %}
@@ -702,8 +708,15 @@
                                         <option value="Efectivo" selected>Efectivo</option>
                                         <option value="Debito">Débito / prepago</option>
                                         <option value="TarjetaCredito">Tarjeta de crédito (banco)</option>
+                                        <option value="Transferencia">Transferencia bancaria</option>
                                         <option value="Credito">Crédito tienda (cartera)</option>
                                     </select>
+                                </div>
+                                <div class="mb-3 d-none" id="transferencia_ref_wrap_{{ v.id }}">
+                                    <label class="form-label fw-bold">Referencia transferencia <span class="text-muted fw-normal">(opcional)</span></label>
+                                    <input type="text" name="transferencia_referencia" class="form-control" maxlength="80"
+                                           placeholder="Nº operación, comprobante cliente…" autocomplete="off">
+                                    <div class="form-text">El vale quedará pagado pero la entrega se habilita al confirmar el abono en «Transferencias por confirmar».</div>
                                 </div>
                                 {% if v.cliente %}
                                 <div class="mb-3 d-none border rounded p-3 bg-light" id="credito_cuotas_wrap_{{ v.id }}">
@@ -827,7 +840,9 @@
         const saldo = parseFloat(inp.dataset.saldo || 0) || 0;
         const cliente = inp.dataset.cliente || 'cliente';
         const wrapCuotas = document.getElementById('credito_cuotas_wrap_' + id);
+        const wrapTrf = document.getElementById('transferencia_ref_wrap_' + id);
         if (sel.value === 'Credito') {
+            if (wrapTrf) wrapTrf.classList.add('d-none');
             if (saldoInp) {
                 saldoInp.value = 0;
                 saldoInp.readOnly = true;
@@ -844,16 +859,21 @@
             }
         } else {
             if (wrapCuotas) wrapCuotas.classList.add('d-none');
+            if (wrapTrf) wrapTrf.classList.toggle('d-none', sel.value !== 'Transferencia');
             if (saldoInp) saldoInp.readOnly = false;
             inp.readOnly = false;
             const saldoFavor = calcularSaldoFavorCobro(id);
             const totalPagar = Math.max(0, total - saldoFavor);
             inp.min = totalPagar;
             inp.step = 'any';
-            if (!inp.value || parseFloat(inp.value) < totalPagar) {
+            if (sel.value === 'Transferencia') {
+                inp.value = Math.round(totalPagar);
+                inp.readOnly = true;
+                if (hint) hint.textContent = 'Transferencia: monto exacto del vale. Confirme abono en bandeja antes de entregar.';
+            } else if (!inp.value || parseFloat(inp.value) < totalPagar) {
                 inp.value = Math.round(totalPagar);
             }
-            if (hint) hint.textContent = 'Para efectivo, débito o tarjeta de crédito debe ser mayor o igual al total pendiente después de saldo a favor.';
+            if (hint && sel.value !== 'Transferencia') hint.textContent = 'Para efectivo, débito o tarjeta de crédito debe ser mayor o igual al total pendiente después de saldo a favor.';
         }
         actualizarSaldoFavorCobro(id);
     }
@@ -1211,4 +1231,5 @@
 {% endif %}
 <script src="{{ url_for('static', filename='js/caja-folio-escaneo.js') }}?v=caja-folio-1"></script>
 <script src="{{ url_for('static', filename='js/caja-ticket-termica.js') }}?v=1"></script>
+<script src="{{ url_for('static', filename='js/caja-trf-bell.js') }}?v=2"></script>
 {% endblock %}

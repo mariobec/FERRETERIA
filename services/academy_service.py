@@ -41,6 +41,9 @@ PRACTICAR_HREF_POR_DEDUPE: dict[str, str] = {
     'academy:manual_v2:seccion_c_telemetria_v3': '/inventario/enrolamiento',
     'academy:manual_v2:seccion_d_apertura_caja': '/abrir_caja',
     'academy:manual_v2:seccion_e_movimiento_caja': '/movimiento_caja',
+    'academy:manual_v2:seccion_f_cobro_vales': '/caja/vales_pendientes',
+    'academy:manual_v2:seccion_g_tablet_bodega': '/bodega/enrolador',
+    'academy:manual_v2:seccion_h_salud_inventario': '/inventario/salud',
     'academy:pos:emitir_vale': '/punto_venta',
     'academy:caja:cobrar_vale': '/caja/vales_pendientes',
     'academy:caja:cambios_devoluciones': '/caja/cambios',
@@ -62,6 +65,9 @@ ANCLA_POR_DEDUPE: dict[str, str] = {
     'academy:manual_v2:seccion_c_telemetria_v3': '/academy#academy-bodega',
     'academy:manual_v2:seccion_d_apertura_caja': '/academy#academy-caja',
     'academy:manual_v2:seccion_e_movimiento_caja': '/academy#academy-caja',
+    'academy:manual_v2:seccion_f_cobro_vales': '/academy#academy-caja',
+    'academy:manual_v2:seccion_g_tablet_bodega': '/academy#academy-bodega',
+    'academy:manual_v2:seccion_h_salud_inventario': '/academy#academy-bodega',
 }
 
 
@@ -91,19 +97,19 @@ CAMINO_ACADEMY_META: dict[str, dict[str, str]] = {
         'titulo': 'Ruta del Vendedor',
         'icon': 'fa-cash-register',
         'ancla_id': 'academy-pos',
-        'descripcion': 'POS, semáforos de stock y emisión de vales.',
+        'descripcion': 'POS, semáforos, filtros de búsqueda y emisión de vales.',
     },
     'caja': {
         'titulo': 'Ruta del Cajero',
         'icon': 'fa-hand-holding-usd',
         'ancla_id': 'academy-caja',
-        'descripcion': 'Apertura, cobros, movimientos, arqueo y devoluciones.',
+        'descripcion': 'Apertura, cobro de vales, movimientos, arqueo y cierre.',
     },
     'bodega': {
         'titulo': 'Ruta del Bodeguero',
         'icon': 'fa-warehouse',
         'ancla_id': 'academy-bodega',
-        'descripcion': 'Enrolamiento, telemetría y salud de inventario.',
+        'descripcion': 'Enrolamiento, tablet + pistola y salud del inventario.',
     },
 }
 
@@ -119,9 +125,9 @@ ATAJOS_POR_CATEGORIA: dict[str, list[dict[str, str]]] = {
         {'tecla': 'F5', 'accion': 'Refrescar cola de vales pendientes'},
     ],
     'bodega': [
-        {'tecla': 'F2', 'accion': 'Foco escaneo / código'},
-        {'tecla': 'F5', 'accion': 'Refrescar panel telemetría'},
-        {'tecla': 'Enter', 'accion': 'Confirmar línea de enrolamiento'},
+        {'tecla': 'Enter', 'accion': 'Confirmar código escaneado'},
+        {'tecla': 'Esc', 'accion': 'Cerrar panel u overlay'},
+        {'tecla': 'F2', 'accion': 'Foco búsqueda maestro (Caso B)'},
     ],
 }
 

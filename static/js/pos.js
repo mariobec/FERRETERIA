@@ -5141,6 +5141,24 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && sidebar.classList.contains("is-open")) setOpen(false);
     });
+
+    var launchParams = new URLSearchParams(window.location.search);
+    var launchGuide = launchParams.get("academy_guide") || launchParams.get("academy_launch");
+    if (launchParams.get("mentor_open") === "1" || launchGuide) {
+      setTimeout(function () {
+        openSidebar();
+        if (launchGuide && libraryEl) {
+          setTimeout(function () {
+            var wrap = libraryEl.querySelector('[data-dedupe-key="' + launchGuide + '"]');
+            if (wrap) {
+              wrap.classList.add("is-open");
+              var btn = wrap.querySelector(".lhexia-mentor-guide__toggle");
+              if (btn) btn.setAttribute("aria-expanded", "true");
+            }
+          }, 600);
+        }
+      }, 450);
+    }
   };
 
   document.addEventListener("DOMContentLoaded", function () {

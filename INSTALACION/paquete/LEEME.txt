@@ -1,0 +1,15 @@
+NO busque carpeta 02_APLICACION aqui.
+
+En el instalador nuevo la aplicacion NO va dentro de paquete\.
+Va en la carpeta HERMANA:
+
+  INSTALACION\
+    erp\LhexIA_ERP.exe    <-- aplicacion (generada con COMPILAR_ERP_EXE.bat)
+    paquete\              <-- solo scripts de instalacion (esta carpeta)
+
+El paso 3 (03_instalar_aplicacion.bat) configura erp\ — no copia desde 02_APLICACION.
+
+En DEV antes del USB:
+  1. COMPILAR_ERP_EXE.bat
+  2. VALIDAR_PAQUETE_USB.bat
+  3. Copiar INSTALACION completa

@@ -119,6 +119,10 @@ def _fmt_clp(n: float | int | None) -> str:
 
 
 def _precio_mostrar(chm, prod) -> float:
+    # Prioridad: Precio ajustado en enrolamiento (Piloto SD), luego lista Vtex, luego precio base ERP
+    sd = float(getattr(prod, 'precio_venta_sd', None) or 0)
+    if sd > 0:
+        return sd
     pl = getattr(chm, 'precio_lista', None)
     if pl is not None and float(pl) > 0:
         return float(pl)
@@ -1088,8 +1092,7 @@ def listar_productos(
         precio_min=precio_min,
         precio_max=precio_max,
     )
-    if solo_disponibles:
-        q = q.filter(Producto.stock > 0)
+    # solo_disponibles: filtrar por stock TIENDA después de cargar almacenes (no productos.stock maestro)
 
     q = _ordenar(q, orden)
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)

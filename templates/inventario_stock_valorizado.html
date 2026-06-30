@@ -1,0 +1,430 @@
+{% extends 'base.html' %}
+{% block body_class %}erp-ops-space page-inventario-stock-valorizado{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-stock-valorizado.css') }}?v=sv-3">
+{% endblock %}
+
+{% block content %}
+{% set tot = informe.totales %}
+{% set meta = informe.meta %}
+<div class="container-fluid px-0 sv-informe">
+  <header class="sv-hdr mb-3">
+    <div class="sv-hdr__main">
+      <div class="sv-hdr__eyebrow">Inventario · capital en stock</div>
+      <h1 class="sv-hdr__title"><i class="fas fa-coins me-2"></i>Stock valorizado</h1>
+      <p class="sv-hdr__meta mb-0">
+        Mercadería a costo y capital a precio POS por <strong>categoría</strong>, <strong>ubicación</strong> y
+        <strong>{{ meta.nom_bodega }}</strong> vs <strong>{{ meta.nom_tienda }}</strong>.
+        El bloque «Capital dormido» muestra dónde está empolvada la plata (ej. pinturas en bodega).
+      </p>
+    </div>
+    <div class="sv-hdr__actions d-flex flex-wrap gap-2">
+      <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm sv-btn-ghost">Catálogo</a>
+      <a href="{{ url_for('inventario_dashboard_premium') }}#integridad" class="btn btn-sm sv-btn-ghost">Integridad</a>
+      <a href="{{ url_for('inventario_stock_valorizado_exportar', **request.args) }}" class="btn btn-sm sv-btn-primary">
+        <i class="fas fa-file-excel me-1"></i>Excel
+      </a>
+    </div>
+  </header>
+
+  <div class="card card-ds sv-filter-card mb-3">
+    <div class="card-body">
+      <form method="GET" action="{{ url_for('inventario_stock_valorizado') }}" class="row g-2 align-items-end">
+        <input type="hidden" name="vista" value="{{ vista or 'resumen' }}">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold">Buscar</label>
+          <input type="search" name="q" value="{{ filtros.q or '' }}" class="form-control form-control-sm" placeholder="Nombre o código">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Categoría</label>
+          <select name="categoria" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            {% for c in categorias_opts or [] %}
+            <option value="{{ c }}" {% if filtros.categoria == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Pasillo</label>
+          <input type="text" name="pasillo" value="{{ filtros.pasillo or '' }}" class="form-control form-control-sm" placeholder="P02">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Stock</label>
+          <select name="solo_con_stock" class="form-select form-select-sm">
+            <option value="1" {% if filtros.solo_con_stock %}selected{% endif %}>Solo con stock</option>
+            <option value="0" {% if not filtros.solo_con_stock %}selected{% endif %}>Incluir ceros</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button type="submit" class="btn btn-sm sv-btn-primary flex-grow-1">Aplicar</button>
+          <a href="{{ url_for('inventario_stock_valorizado') }}" class="btn btn-sm sv-btn-ghost">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="sv-kpi"><div class="sv-kpi__lbl">Mercadería total</div><div class="sv-kpi__val">{{ meta.fmt_mercaderia_total }}</div></div></div>
+    <div class="col-md-3"><div class="sv-kpi sv-kpi--warn"><div class="sv-kpi__lbl">En {{ meta.nom_bodega }} (dormido)</div><div class="sv-kpi__val">{{ meta.fmt_mercaderia_bodega }}</div><div class="sv-kpi__sub">{{ tot.pct_bodega_mercaderia }}% del total</div></div></div>
+    <div class="col-md-3"><div class="sv-kpi"><div class="sv-kpi__lbl">Capital (precio POS)</div><div class="sv-kpi__val">{{ meta.fmt_capital_total }}</div></div></div>
+    <div class="col-md-3"><div class="sv-kpi"><div class="sv-kpi__lbl">Unidades</div><div class="sv-kpi__val">{{ "{:,.0f}".format(tot.stock_total).replace(",", ".") }}</div><div class="sv-kpi__sub">{{ tot.skus }} SKU · T {{ tot.stock_tienda }} / B {{ tot.stock_bodega }}</div></div></div>
+  </div>
+
+  <ul class="nav nav-tabs sv-tabs mb-3" role="tablist">
+    {% for tab_id, tab_label in [('resumen','Resumen'), ('categorias','Categorías'), ('ubicacion','Ubicación'), ('marca','Marca / tono'), ('dormido','Capital dormido')] %}
+    <li class="nav-item">
+      <a class="nav-link{% if vista == tab_id %} active{% endif %}"
+         href="{{ url_for('inventario_stock_valorizado', vista=tab_id, q=filtros.q or None, categoria=filtros.categoria or None, pasillo=filtros.pasillo or None, solo_con_stock='1' if filtros.solo_con_stock else '0') }}">{{ tab_label }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if vista == 'resumen' %}
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card h-100">
+        <div class="card-header fw-bold">Top categorías (mercadería)</div>
+        <div class="card-body p-0 sv-table-hud table-responsive">
+          <table class="table table-sm table-hover mb-0 sv-table">
+            <thead class="table-light"><tr><th>Categoría</th><th class="text-end">Bodega</th><th class="text-end">Total</th><th class="text-end">%</th></tr></thead>
+            <tbody>
+              {% for row in informe.por_categoria_subcategoria[:12] %}
+              <tr class="sv-drill" data-tipo="categoria" data-clave="{{ row.categoria }}" title="Clic: detalle SKU">
+                <td>{{ row.categoria }}</td>
+                <td class="text-end text-warning-emphasis">${{ "{:,.0f}".format(row.mercaderia_bodega).replace(",", ".") }}</td>
+                <td class="text-end fw-semibold">${{ "{:,.0f}".format(row.mercaderia_total).replace(",", ".") }}</td>
+                <td class="text-end">{{ "%.1f"|format(row.mercaderia_total / tot.mercaderia_total * 100 if tot.mercaderia_total else 0) }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card h-100">
+        <div class="card-header fw-bold">Top pasillos (mercadería)</div>
+        <div class="card-body p-0 sv-table-hud table-responsive">
+          <table class="table table-sm table-hover mb-0 sv-table">
+            <thead class="table-light"><tr><th>Pasillo</th><th class="text-end">Tienda</th><th class="text-end">Bodega</th><th class="text-end">Total</th></tr></thead>
+            <tbody>
+              {% for row in informe.por_pasillo[:12] %}
+              <tr class="sv-drill" data-tipo="pasillo" data-clave="{{ row.clave }}" title="Clic: detalle SKU">
+                <td>{{ row.clave }}</td>
+                <td class="text-end">${{ "{:,.0f}".format(row.mercaderia_tienda).replace(",", ".") }}</td>
+                <td class="text-end text-warning-emphasis">${{ "{:,.0f}".format(row.mercaderia_bodega).replace(",", ".") }}</td>
+                <td class="text-end fw-semibold">${{ "{:,.0f}".format(row.mercaderia_total).replace(",", ".") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% elif vista == 'categorias' %}
+  <div class="card card-ds sv-panel-card">
+    <div class="card-header fw-bold">Por categoría y subcategoría</div>
+    <div class="card-body p-0 sv-table-hud table-responsive">
+      <table class="table table-sm table-hover mb-0 sv-table">
+        <thead class="table-light">
+          <tr>
+            <th>Categoría</th><th>Subcategoría</th><th class="text-end">SKUs</th>
+            <th class="text-end">{{ meta.nom_tienda }}</th><th class="text-end">{{ meta.nom_bodega }}</th>
+            <th class="text-end">Mercadería</th><th class="text-end">Capital</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cat in informe.por_categoria_subcategoria %}
+            {% for sub in cat.subcategorias %}
+            <tr class="sv-drill" data-tipo="subcategoria" data-clave="{{ cat.categoria }}" data-clave2="{{ sub.subcategoria }}">
+              <td>{{ cat.categoria }}</td>
+              <td>{{ sub.subcategoria }}</td>
+              <td class="text-end">{{ sub.skus }}</td>
+              <td class="text-end">{{ sub.stock_tienda }}</td>
+              <td class="text-end">{{ sub.stock_bodega }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(sub.mercaderia_total).replace(",", ".") }}</td>
+              <td class="text-end">${{ "{:,.0f}".format(sub.capital_total).replace(",", ".") }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">Sin datos para el filtro.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif vista == 'ubicacion' %}
+  <div class="card card-ds sv-panel-card">
+    <div class="card-header fw-bold">Por ubicación física (P-E-N)</div>
+    <div class="card-body p-0 sv-table-hud table-responsive">
+      <table class="table table-sm table-hover mb-0 sv-table">
+        <thead class="table-light">
+          <tr>
+            <th>Ubicación</th><th class="text-end">SKUs</th>
+            <th class="text-end">{{ meta.nom_tienda }}</th><th class="text-end">{{ meta.nom_bodega }}</th>
+            <th class="text-end">Mercadería tienda</th><th class="text-end">Mercadería bodega</th><th class="text-end">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in informe.por_ubicacion %}
+          <tr class="sv-drill" data-tipo="ubicacion" data-clave="{{ row.clave }}">
+            <td><code>{{ row.clave }}</code></td>
+            <td class="text-end">{{ row.skus }}</td>
+            <td class="text-end">{{ row.stock_tienda }}</td>
+            <td class="text-end">{{ row.stock_bodega }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(row.mercaderia_tienda).replace(",", ".") }}</td>
+            <td class="text-end">${{ "{:,.0f}".format(row.mercaderia_bodega).replace(",", ".") }}</td>
+            <td class="text-end fw-semibold">${{ "{:,.0f}".format(row.mercaderia_total).replace(",", ".") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">Sin ubicaciones con stock.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif vista == 'marca' %}
+  <div class="card card-ds sv-panel-card mb-3">
+    <div class="card-body small text-muted">
+      Marca y tono se leen del catálogo (<strong>marca</strong> / <strong>tono_color</strong> en /productos) o se infieren del nombre.
+      Completá esos campos al corregir bodega para pinturas (ej. galón rojo industrial).
+    </div>
+  </div>
+  <div class="card card-ds sv-panel-card">
+    <div class="card-header fw-bold">Por marca y tono / color</div>
+    <div class="card-body p-0 sv-table-hud table-responsive">
+      <table class="table table-sm table-hover mb-0 sv-table">
+        <thead class="table-light">
+          <tr>
+            <th>Marca</th><th>Tono / color</th><th class="text-end">SKUs</th>
+            <th class="text-end">Uds bodega</th><th class="text-end">Merc. bodega</th><th class="text-end">Merc. total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in informe.por_marca_tono %}
+          {% set marca, tono = row.clave %}
+          <tr class="sv-drill" data-tipo="marca_tono" data-clave="{{ marca }}" data-clave2="{{ tono }}">
+            <td>{{ marca }}</td>
+            <td>{{ tono }}</td>
+            <td class="text-end">{{ row.skus }}</td>
+            <td class="text-end">{{ row.stock_bodega }}</td>
+            <td class="text-end text-warning-emphasis">${{ "{:,.0f}".format(row.mercaderia_bodega).replace(",", ".") }}</td>
+            <td class="text-end fw-semibold">${{ "{:,.0f}".format(row.mercaderia_total).replace(",", ".") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">Sin datos.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif vista == 'dormido' %}
+  <div class="card card-ds sv-panel-card">
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+      <span><i class="fas fa-warehouse me-1"></i>Capital dormido en {{ meta.nom_bodega }}</span>
+      <span class="badge bg-warning text-dark">{{ informe.capital_dormido_top|length }} SKU</span>
+    </div>
+    <div class="card-body p-0 sv-table-hud table-responsive">
+      <table class="table table-sm table-hover mb-0 sv-table">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th><th>Producto</th><th>Categoría</th><th>Marca</th><th>Tono</th><th>Ubic.</th>
+            <th class="text-end">Uds B</th><th class="text-end">Uds T</th><th class="text-end">Merc. bodega</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ln in informe.capital_dormido_top %}
+          <tr>
+            <td><code>{{ ln.codigo }}</code></td>
+            <td title="{{ ln.nombre }}">{{ ln.nombre[:55] }}{% if ln.nombre|length > 55 %}…{% endif %}</td>
+            <td class="small">{{ ln.categoria }} / {{ ln.subcategoria }}</td>
+            <td class="small">{{ ln.marca }}</td>
+            <td class="small">{{ ln.tono_color }}</td>
+            <td><code>{{ ln.ubicacion }}</code></td>
+            <td class="text-end fw-semibold">{{ ln.stock_bodega }}</td>
+            <td class="text-end">{{ ln.stock_tienda }}</td>
+            <td class="text-end text-warning-emphasis">${{ "{:,.0f}".format(ln.mercaderia_bodega).replace(",", ".") }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-center text-muted py-4">No hay stock valorizado en bodega con estos filtros.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <p class="small text-muted mt-3 mb-0">
+    Generado {{ meta.generado_at.strftime('%d-%m-%Y %H:%M') }} · Mercadería = unidades × precio compra · Capital = unidades × precio POS (SD).
+    {% if tot.sin_costo_skus %}<span class="text-warning"> {{ tot.sin_costo_skus }} SKU con stock sin costo (subestimados).</span>{% endif %}
+  </p>
+</div>
+
+<div class="modal fade" id="svDetalleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="svDetalleTitle">Detalle SKU</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="svDetalleLoading" class="p-4 text-center text-muted d-none">Cargando…</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" id="svDetalleTable">
+            <thead class="table-light">
+              <tr>
+                <th>Código</th><th>Producto</th><th>Ubic.</th>
+                <th class="text-end sv-detalle-sort" data-sort="stock_tienda" title="Ordenar por cantidad tienda">T <span class="sv-sort-icon"></span></th>
+                <th class="text-end sv-detalle-sort" data-sort="stock_bodega" title="Ordenar por cantidad bodega">B <span class="sv-sort-icon"></span></th>
+                <th class="text-end sv-detalle-sort sv-detalle-sort--active" data-sort="mercaderia_total" title="Ordenar por mercadería">Merc. <span class="sv-sort-icon">▼</span></th>
+                <th class="text-end sv-detalle-sort" data-sort="capital_total" title="Ordenar por capital">Capital <span class="sv-sort-icon"></span></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var apiBase = {{ url_for('api_inventario_stock_valorizado_detalle') | tojson }};
+  var qs = window.location.search.replace(/^\?/, '');
+  var modalEl = document.getElementById('svDetalleModal');
+  var modal = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+  var tbody = document.querySelector('#svDetalleTable tbody');
+  var titleEl = document.getElementById('svDetalleTitle');
+  var loadingEl = document.getElementById('svDetalleLoading');
+  var detalleItems = [];
+  var detalleMeta = { truncados: false, total: 0, shown: 0 };
+  var sortKey = 'mercaderia_total';
+  var sortDir = 'desc';
+
+  function fmt(n) {
+    return '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+  }
+
+  function escAttr(s) {
+    return String(s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  }
+
+  function compareItems(a, b) {
+    var av = a[sortKey];
+    var bv = b[sortKey];
+    if (sortKey === 'stock_tienda' || sortKey === 'stock_bodega') {
+      av = Number(av) || 0;
+      bv = Number(bv) || 0;
+    } else {
+      av = Number(av) || 0;
+      bv = Number(bv) || 0;
+    }
+    if (av !== bv) {
+      return sortDir === 'desc' ? bv - av : av - bv;
+    }
+    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+  }
+
+  function updateSortHeaders() {
+    document.querySelectorAll('#svDetalleTable .sv-detalle-sort').forEach(function (th) {
+      var key = th.getAttribute('data-sort');
+      var icon = th.querySelector('.sv-sort-icon');
+      var active = key === sortKey;
+      th.classList.toggle('sv-detalle-sort--active', active);
+      if (icon) {
+        icon.textContent = active ? (sortDir === 'desc' ? '▼' : '▲') : '';
+      }
+    });
+  }
+
+  function renderDetalleRows() {
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    var sorted = detalleItems.slice().sort(compareItems);
+    sorted.forEach(function (it) {
+      var row = document.createElement('tr');
+      row.innerHTML =
+        '<td><code>' + escAttr(it.codigo || '') + '</code></td>' +
+        '<td title="' + escAttr(it.nombre || '') + '">' + escAttr((it.nombre || '').substring(0, 60)) + '</td>' +
+        '<td><code>' + escAttr(it.ubicacion || '—') + '</code></td>' +
+        '<td class="text-end">' + (it.stock_tienda || 0) + '</td>' +
+        '<td class="text-end">' + (it.stock_bodega || 0) + '</td>' +
+        '<td class="text-end">' + fmt(it.mercaderia_total) + '</td>' +
+        '<td class="text-end">' + fmt(it.capital_total) + '</td>';
+      tbody.appendChild(row);
+    });
+    if (detalleMeta.truncados) {
+      var info = document.createElement('tr');
+      info.innerHTML = '<td colspan="7" class="text-center small text-muted py-2">Mostrando ' +
+        detalleMeta.shown + ' de ' + detalleMeta.total + '</td>';
+      tbody.appendChild(info);
+    }
+    updateSortHeaders();
+  }
+
+  document.querySelectorAll('#svDetalleTable .sv-detalle-sort').forEach(function (th) {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var key = th.getAttribute('data-sort');
+      if (!key || !detalleItems.length) return;
+      if (sortKey === key) {
+        sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+      } else {
+        sortKey = key;
+        sortDir = 'desc';
+      }
+      renderDetalleRows();
+    });
+  });
+
+  document.querySelectorAll('.sv-drill').forEach(function (tr) {
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', function () {
+      if (!modal) return;
+      var tipo = tr.getAttribute('data-tipo') || 'categoria';
+      var clave = tr.getAttribute('data-clave') || '';
+      var clave2 = tr.getAttribute('data-clave2') || '';
+      titleEl.textContent = 'Detalle: ' + clave + (clave2 ? ' / ' + clave2 : '');
+      tbody.innerHTML = '';
+      loadingEl.classList.remove('d-none');
+      modal.show();
+      var url = apiBase + '?' + qs + (qs ? '&' : '') +
+        'tipo=' + encodeURIComponent(tipo) +
+        '&clave=' + encodeURIComponent(clave) +
+        (clave2 ? '&clave2=' + encodeURIComponent(clave2) : '');
+      fetch(url, { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          loadingEl.classList.add('d-none');
+          if (!data.ok) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">' + (data.mensaje || 'Error') + '</td></tr>';
+            return;
+          }
+          detalleItems = data.items || [];
+          detalleMeta = {
+            truncados: !!data.items_truncados,
+            total: data.items_total || detalleItems.length,
+            shown: detalleItems.length,
+          };
+          sortKey = 'mercaderia_total';
+          sortDir = 'desc';
+          renderDetalleRows();
+        })
+        .catch(function () {
+          loadingEl.classList.add('d-none');
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">No se pudo cargar el detalle.</td></tr>';
+        });
+    });
+  });
+})();
+</script>
+{% endblock %}

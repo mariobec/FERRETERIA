@@ -2106,6 +2106,24 @@ body.tienda-cart-open {
   margin-bottom: 12px;
 }
 
+/* Lista items: scroll interno para no aplastar campos de contacto */
+.tienda-checkout__lines {
+  max-height: 210px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.tienda-checkout__lines::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tienda-checkout__lines::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
 .tienda-checkout-line {
   display: flex;
   justify-content: space-between;
@@ -2184,12 +2202,29 @@ body.tienda-cart-open {
   margin-bottom: 10px;
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  position: relative;
 }
 
 .tienda-checkout-pay-opt:hover {
   border-color: var(--chm-green);
   box-shadow: 0 6px 16px rgba(0, 166, 81, 0.12);
+}
+
+.tienda-checkout-pay-opt--webpay {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.tienda-checkout-pay-opt--webpay:hover {
+  border-color: #1d4ed8;
+  box-shadow: 0 6px 16px rgba(29, 78, 216, 0.14);
+  background: #dbeafe;
+}
+
+.tienda-checkout-pay-opt.is-loading {
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .tienda-checkout-pay-opt__icon {
@@ -2210,6 +2245,11 @@ body.tienda-cart-open {
   color: #15803d;
 }
 
+.tienda-checkout-pay-opt__icon--khipu {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
 .tienda-checkout-pay-opt__body {
   flex: 1;
   min-width: 0;
@@ -2222,6 +2262,108 @@ body.tienda-cart-open {
 
 .tienda-checkout-pay-opt__body small {
   color: #64748b;
+}
+
+/* Botón Khipu */
+.tienda-checkout-pay-opt--khipu {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+}
+
+.tienda-checkout-pay-opt--khipu:hover {
+  border-color: #6d28d9;
+  box-shadow: 0 6px 16px rgba(109, 40, 217, 0.12);
+  background: #ede9fe;
+}
+
+.tienda-checkout-pay-opt__badge-kh {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6d28d9;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Badge "Webpay" y logos tarjeta */
+.tienda-checkout-pay-opt__badge-wp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tienda-checkout-pay-opt__cards {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.tienda-checkout-pay-opt__card-icon {
+  width: 32px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.tienda-checkout-pay-opt__card-icon--visa {
+  background: #1a1f71;
+  color: #fff;
+}
+
+.tienda-checkout-pay-opt__card-icon--mc {
+  background: #eb001b;
+  color: #fff;
+  position: relative;
+}
+
+.tienda-checkout-pay-opt__spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0,0,0,0.15);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: tiendaSpinWp 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+.tienda-checkout-pay-opt.is-loading .tienda-checkout-pay-opt__spinner {
+  display: block;
+}
+
+.tienda-checkout-pay-opt.is-loading .tienda-checkout-pay-opt__badge-wp,
+.tienda-checkout-pay-opt.is-loading .tienda-checkout-pay-opt__badge-kh,
+.tienda-checkout-pay-opt.is-loading .tienda-checkout-pay-opt__cards,
+.tienda-checkout-pay-opt.is-loading .tienda-checkout-pay-opt__chevron {
+  display: none;
+}
+
+@keyframes tiendaSpinWp {
+  to { transform: rotate(360deg); }
 }
 
 .tienda-checkout-success {
@@ -2248,6 +2390,19 @@ body.tienda-cart-open {
 
 body.tienda-checkout-open {
   overflow: hidden;
+}
+
+.tienda-checkout-error-msg {
+  display: none;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 12px;
+  text-align: center;
 }
 
 .tienda-pago-resultado__main {

@@ -1,40 +1,90 @@
 {# LhexIA Academy — sidebar Mentor (POS + caja). Requiere initLhexiaMentorAcademy en JS. #}
-<aside id="lhexia-mentor-sidebar" class="lhexia-mentor-sidebar" aria-hidden="true" aria-label="LhexIA Academy Mentor">
+
+<aside id="lhexia-mentor-sidebar" class="lhexia-mentor-sidebar" aria-hidden="true" aria-label="Maylén Mentor Academy">
+
   <div class="lhexia-mentor-sidebar__backdrop" id="lhexiaMentorBackdrop" tabindex="-1"></div>
+
   <div class="lhexia-mentor-sidebar__panel" role="dialog" aria-modal="true" aria-labelledby="lhexiaMentorTitle">
-    <header class="lhexia-mentor-sidebar__head">
+
+    <header class="lhexia-mentor-sidebar__head lhexia-mentor-sidebar__head--maylen">
+
+      {% with maylen_size='md', maylen_show_badge=True, maylen_decorative=True %}
+
+      {% include 'partials/maylen_mentor_avatar.html' %}
+
+      {% endwith %}
+
       <div>
+
         <h2 id="lhexiaMentorTitle" class="lhexia-mentor-sidebar__title">
-          <i class="fas fa-graduation-cap me-2"></i>LhexIA Academy
+
+          <span class="maylen-mentor-identity__name">Maylén</span> · Mentor Academy
+
         </h2>
-        <p class="lhexia-mentor-sidebar__sub mb-0">Mentor · guías interactivas</p>
+
+        <p class="lhexia-mentor-sidebar__sub mb-0 maylen-mentor-identity__role">Profesora ERP · guías en piso</p>
+
       </div>
+
       <button type="button" class="btn btn-sm btn-outline-light" id="lhexiaMentorClose" aria-label="Cerrar Mentor">
+
         <i class="fas fa-times"></i>
+
       </button>
+
     </header>
+
     <div class="lhexia-mentor-sidebar__body">
+
       <div id="lhexiaMentorLoading" class="lhexia-mentor-sidebar__loading d-none">
+
         <i class="fas fa-circle-notch fa-spin me-2"></i>Cargando contexto…
+
       </div>
+
       <div id="lhexiaMentorInvariante" class="lhexia-mentor-invariante d-none" aria-live="polite"></div>
+
       <div id="lhexiaMentorPriority" class="lhexia-mentor-sidebar__priority"></div>
+
       <section id="lhexiaMentorShortcuts" class="lhexia-mentor-sidebar__shortcuts d-none" aria-label="Atajos de teclado">
+
         <h3 class="lhexia-mentor-sidebar__section-title">Atajos críticos</h3>
+
         <ul id="lhexiaMentorShortcutsList" class="lhexia-mentor-shortcuts-list mb-0"></ul>
+
       </section>
+
       <section class="lhexia-mentor-sidebar__library" aria-label="Biblioteca virtual">
+
         <h3 class="lhexia-mentor-sidebar__section-title">Biblioteca</h3>
+
         <div id="lhexiaMentorLibrary" class="lhexia-mentor-sidebar__guides"></div>
+
       </section>
+
     </div>
+
     <footer class="lhexia-mentor-sidebar__foot">
+
       <a href="{{ url_for('lhexia_academy') }}" class="btn btn-sm btn-outline-secondary w-100" target="_blank" rel="noopener">
+
         <i class="fas fa-book-open me-1"></i>Manual completo
+
       </a>
+
     </footer>
+
   </div>
+
 </aside>
-<button type="button" class="lhexia-mentor-fab" id="lhexiaMentorFab" title="Abrir LhexIA Academy Mentor" aria-controls="lhexia-mentor-sidebar" aria-expanded="false">
-  <i class="fas fa-graduation-cap"></i>
+
+<button type="button" class="lhexia-mentor-fab lhexia-mentor-fab--maylen" id="lhexiaMentorFab" title="Abrir Maylén — Mentor Academy" aria-controls="lhexia-mentor-sidebar" aria-expanded="false" aria-label="Abrir Maylén Mentor Academy">
+
+  {% with maylen_size='fab', maylen_decorative=True %}
+
+  {% include 'partials/maylen_mentor_avatar.html' %}
+
+  {% endwith %}
+
 </button>
+

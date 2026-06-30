@@ -1,142 +1,490 @@
 {% extends "base.html" %}
-{% block body_class %}lhexia-academy-hub-page{% endblock %}
+{% block body_class %}lhexia-academy-hub-page lhexia-academy-hub-page--claro{% endblock %}
 
 {% block extra_css %}
 <style>
+  /* Hub Academy — tema claro, legible, clase mundial */
+  body.lhexia-academy-hub-page--claro {
+    background: #eef2f7 !important;
+    color: #1e293b;
+  }
+  body.lhexia-academy-hub-page--claro .app-main {
+    background: transparent !important;
+  }
+  .lhexia-academy-hub-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
   .lhexia-academy-hub-hero {
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(76, 29, 149, 0.35));
-    border: 1px solid rgba(167, 139, 250, 0.35);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #1e5631;
     border-radius: 16px;
-    padding: 1.5rem 1.75rem;
-    color: var(--lhexia-platinum, #e2e8f0);
-    box-shadow: 0 0 40px rgba(139, 92, 246, 0.15);
+    padding: 1.25rem 1.5rem;
+    color: #0f172a;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
   }
-  .lhexia-academy-camino {
-    background: rgba(15, 23, 42, 0.72);
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: 14px;
-    padding: 1rem 1.15rem 1.15rem;
-    height: 100%;
-    backdrop-filter: blur(8px);
-  }
-  .lhexia-academy-camino__head {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-  }
-  .lhexia-academy-camino__title {
-    font-size: 1rem;
+  .lhexia-academy-hub-hero__eyebrow {
+    font-size: 0.72rem;
     font-weight: 700;
-    color: #f5f3ff;
-    margin: 0;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #1e5631;
+    margin-bottom: 0.35rem;
   }
-  .lhexia-academy-camino__desc {
-    font-size: 0.8rem;
-    color: #94a3b8;
-    margin: 0.2rem 0 0;
-  }
-  .lhexia-academy-camino__progress {
-    height: 8px;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 999px;
-    overflow: hidden;
-    margin-bottom: 0.85rem;
-  }
-  .lhexia-academy-camino__progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #8b5cf6, #22c55e);
-    border-radius: 999px;
-    transition: width 0.35s ease;
-  }
-  .lhexia-academy-hub-card {
-    background: rgba(30, 27, 75, 0.35);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 12px;
-    overflow: hidden;
+  .lhexia-academy-hub-hero h1 {
+    font-size: 1.65rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #0f172a;
     margin-bottom: 0.5rem;
   }
-  .lhexia-academy-hub-card.is-done {
-    border-color: rgba(34, 197, 94, 0.45);
+  .lhexia-academy-hub-hero h1 i { color: #f37021; }
+  .lhexia-academy-hub-hero__lead {
+    color: #475569;
+    font-size: 0.98rem;
+    line-height: 1.55;
+    max-width: 52rem;
+    margin-bottom: 0;
   }
-  .lhexia-academy-hub-card__head {
-    padding: 0.65rem 0.85rem;
-  }
-  .lhexia-academy-hub-card__toggle {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.5rem;
-    background: transparent;
-    border: 0;
-    color: #e2e8f0;
+  .lhexia-academy-hub-hero__badge {
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    color: #c2410c;
     font-weight: 600;
-    font-size: 0.88rem;
-    text-align: left;
-    padding: 0;
+    font-size: 0.78rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+  }
+  .lhexia-academy-hub-invariante {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    color: #92400e;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    margin: 0 0 1.25rem;
+  }
+  .lhexia-academy-quicknav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  .lhexia-academy-quicknav__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .lhexia-academy-quicknav__link:hover {
+    background: #fff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+  .lhexia-academy-quicknav__link--pos { border-left: 3px solid #3b82f6; }
+  .lhexia-academy-quicknav__link--caja { border-left: 3px solid #1e5631; }
+  .lhexia-academy-quicknav__link--bodega { border-left: 3px solid #f37021; }
+  .lhexia-academy-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.85rem;
+  }
+  .lhexia-academy-section-head h2 {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+  }
+  .lhexia-academy-section-head p {
+    font-size: 0.84rem;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .lhexia-academy-camino {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1.15rem 1.2rem 1.25rem;
+    height: 100%;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  }
+  .lhexia-academy-camino--pos { border-top: 4px solid #3b82f6; }
+  .lhexia-academy-camino--caja { border-top: 4px solid #1e5631; }
+  .lhexia-academy-camino--bodega { border-top: 4px solid #f37021; }
+
+  .lhexia-academy-camino__icon-wrap {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0;
+  }
+  .lhexia-academy-camino--pos .lhexia-academy-camino__icon-wrap { background: #eff6ff; color: #2563eb; }
+  .lhexia-academy-camino--caja .lhexia-academy-camino__icon-wrap { background: #ecfdf5; color: #1e5631; }
+  .lhexia-academy-camino--bodega .lhexia-academy-camino__icon-wrap { background: #fff7ed; color: #ea580c; }
+
+  .lhexia-academy-camino__head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 0.75rem; margin-bottom: 0.85rem;
+  }
+  .lhexia-academy-camino__title {
+    font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 0;
+  }
+  .lhexia-academy-camino__desc {
+    font-size: 0.84rem; color: #64748b; margin: 0.15rem 0 0; line-height: 1.4;
+  }
+  .lhexia-academy-camino__badge-count {
+    background: #f1f5f9; border: 1px solid #e2e8f0;
+    color: #334155; font-weight: 700; font-size: 0.78rem;
+    border-radius: 999px; padding: 0.25rem 0.65rem; white-space: nowrap;
+  }
+  .lhexia-academy-camino__progress {
+    height: 10px; background: #e2e8f0; border-radius: 999px;
+    overflow: hidden; margin-bottom: 0.45rem;
+  }
+  .lhexia-academy-camino--pos .lhexia-academy-camino__progress-bar {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  }
+  .lhexia-academy-camino--caja .lhexia-academy-camino__progress-bar {
+    background: linear-gradient(90deg, #1e5631, #22c55e);
+  }
+  .lhexia-academy-camino--bodega .lhexia-academy-camino__progress-bar {
+    background: linear-gradient(90deg, #f37021, #fbbf24);
+  }
+  .lhexia-academy-camino__progress-bar {
+    height: 100%; border-radius: 999px; transition: width 0.4s ease;
+  }
+  .lhexia-academy-camino__pct {
+    font-size: 0.78rem; color: #64748b; margin-bottom: 0.85rem;
+  }
+
+  .lhexia-academy-hub-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 0.55rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .lhexia-academy-hub-card:hover { border-color: #cbd5e1; }
+  .lhexia-academy-hub-card.is-done {
+    border-color: #86efac;
+    background: #f0fdf4;
+  }
+  .lhexia-academy-hub-card__head { padding: 0.7rem 0.9rem; }
+  .lhexia-academy-hub-card__toggle {
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    gap: 0.5rem; background: transparent; border: 0;
+    color: #0f172a; font-weight: 600; font-size: 0.9rem;
+    text-align: left; padding: 0;
   }
   .lhexia-academy-hub-card__toggle i.fa-chevron-down {
-    color: #a78bfa;
-    transition: transform 0.2s ease;
+    color: #64748b; transition: transform 0.2s ease; font-size: 0.75rem;
   }
   .lhexia-academy-hub-card.is-open .lhexia-academy-hub-card__toggle i.fa-chevron-down {
     transform: rotate(180deg);
   }
   .lhexia-academy-hub-card__content {
-    display: none;
-    padding: 0 0.85rem 0.85rem;
-    font-size: 0.84rem;
-    color: #cbd5e1;
+    display: none; padding: 0 0.9rem 0.9rem;
+    font-size: 0.88rem; color: #334155; line-height: 1.55;
   }
-  .lhexia-academy-hub-card.is-open .lhexia-academy-hub-card__content {
-    display: block;
-  }
+  .lhexia-academy-hub-card.is-open .lhexia-academy-hub-card__content { display: block; }
   .lhexia-academy-hub-card__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.65rem;
+    display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;
   }
+
+  /* Contenido rich en tema claro */
+  .lhexia-academy-hub-page--claro .lhexia-academy-rich { color: #334155; }
+  .lhexia-academy-hub-page--claro .lhexia-academy-subtitle {
+    color: #1e5631; letter-spacing: 0.06em;
+  }
+  .lhexia-academy-hub-page--claro .lhexia-academy-kbd-row {
+    background: #f1f5f9; border-color: #e2e8f0; color: #334155;
+  }
+  .lhexia-academy-hub-page--claro .lhexia-academy-kbd-row kbd {
+    background: #ffffff; border-color: #cbd5e1; color: #0f172a;
+  }
+  .lhexia-academy-hub-page--claro .lhexia-academy-p { color: #475569; }
+
+  .lhexia-academy-hub-tip {
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 14px;
+    padding: 1rem 1.15rem;
+    font-size: 0.88rem;
+    color: #475569;
+    line-height: 1.5;
+  }
+  .lhexia-academy-hub-tip strong { color: #0f172a; }
+
+  /* Maylén IA — panel chat único (sin duplicar avatar en hero) */
+  .lhexia-academy-ai {
+    background: #ffffff;
+    border: 1px solid #ddd6fe;
+    border-radius: 20px;
+    margin-bottom: 1rem;
+    box-shadow: 0 16px 40px rgba(91, 33, 182, 0.12);
+    overflow: visible;
+  }
+  .lhexia-academy-ai__top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.65rem 1.15rem 0.35rem;
+    min-height: 108px;
+    background: linear-gradient(90deg, #5b21b6 0%, #7c3aed 55%, #9333ea 100%);
+    color: #fff;
+    overflow: visible;
+  }
+  .lhexia-academy-ai__identity {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow: visible;
+  }
+  .lhexia-academy-ai__identity .maylen-mentor-avatar--header {
+    margin-bottom: -18px;
+  }
+  .lhexia-academy-ai__title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+  .lhexia-academy-ai__badge {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.22);
+    border: 1px solid rgba(255,255,255,0.35);
+  }
+  .lhexia-academy-ai__status {
+    font-size: 0.78rem;
+    opacity: 0.92;
+    margin: 0.15rem 0 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .lhexia-academy-ai__dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.35);
+    animation: aiDotPulse 2s ease-in-out infinite;
+  }
+  @keyframes aiDotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(0.92); }
+  }
+  .lhexia-academy-ai__model {
+    font-size: 0.72rem;
+    opacity: 0.88;
+    white-space: nowrap;
+  }
+  .lhexia-academy-ai__body {
+    padding: 1.35rem 1.15rem 1.15rem;
+    background: linear-gradient(180deg, #faf5ff 0%, #ffffff 100px);
+    border-radius: 0 0 20px 20px;
+  }
+  .lhexia-academy-ai__thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    max-height: min(420px, 52vh);
+    overflow-y: auto;
+    padding: 0.25rem 0.15rem 0.75rem;
+    margin-bottom: 0.85rem;
+  }
+  .lhexia-academy-coach__form { display: flex; gap: 0.5rem; margin-bottom: 0.65rem; }
+  .lhexia-academy-coach__input {
+    flex: 1; border-radius: 12px; border: 2px solid #e2e8f0;
+    padding: 0.65rem 0.9rem; font-size: 1rem; color: #0f172a;
+    background: #fff;
+  }
+  .lhexia-academy-coach__input:focus {
+    border-color: #7c3aed; outline: none;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.18);
+  }
+  .lhexia-academy-coach__submit {
+    border-radius: 12px; font-weight: 700; padding-left: 1.1rem; padding-right: 1.1rem;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9); border: 0;
+  }
+  .lhexia-academy-coach-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .lhexia-academy-coach-chip {
+    border-radius: 999px; border: 1px solid #ddd6fe;
+    background: #ffffff; color: #5b21b6; font-size: 0.78rem;
+    font-weight: 600; padding: 0.35rem 0.75rem; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .lhexia-academy-coach-chip:hover { background: #ede9fe; transform: translateY(-1px); }
+  .lhexia-coach-msg {
+    display: flex; gap: 0.65rem; align-items: flex-start;
+    max-width: 92%;
+  }
+  .lhexia-coach-msg--bot {
+    align-self: flex-start;
+  }
+  .lhexia-coach-msg--bot .lhexia-coach-msg__bubble {
+    background: #ffffff;
+    border: 1px solid #e9d5ff;
+    border-radius: 4px 16px 16px 16px;
+    padding: 0.75rem 0.95rem;
+    color: #1e293b;
+    line-height: 1.55;
+    font-size: 0.92rem;
+    box-shadow: 0 4px 12px rgba(91, 33, 182, 0.06);
+  }
+  .lhexia-coach-msg--user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+    max-width: 85%;
+  }
+  .lhexia-coach-msg--user .lhexia-coach-msg__bubble {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    color: #fff;
+    border-radius: 16px 16px 4px 16px;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    box-shadow: 0 4px 14px rgba(109, 40, 217, 0.25);
+  }
+  .lhexia-coach-msg--thinking .lhexia-coach-msg__bubble {
+    background: #f8fafc;
+    border: 1px dashed #c4b5fd;
+    color: #64748b;
+  }
+  .lhexia-coach-msg--err .lhexia-coach-msg__bubble {
+    border-color: #fecaca; background: #fef2f2; color: #991b1b;
+  }
+  .lhexia-coach-msg__meta {
+    font-size: 0.72rem; color: #7c3aed; margin-top: 0.45rem;
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .lhexia-coach-thinking-text { font-style: italic; }
+  .lhexia-coach-typing {
+    display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle;
+  }
+  .lhexia-coach-typing span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #7c3aed;
+    animation: coachTypingDot 1.2s ease-in-out infinite;
+  }
+  .lhexia-coach-typing span:nth-child(2) { animation-delay: 0.15s; }
+  .lhexia-coach-typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes coachTypingDot {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  .lhexia-coach-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+  .lhexia-coach-alts { margin-top: 0.5rem; }
+  .lhexia-coach-msg__avatar { flex-shrink: 0; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <header id="lhexia-academy" class="lhexia-academy-hub-hero help-anchor mb-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-      <div>
-        <h1 class="h4 fw-bold mb-2">
-          <i class="fas fa-graduation-cap me-2" style="color:#a78bfa;"></i>LhexIA Mentor Academy
-        </h1>
-        <p class="mb-0 small" style="color:#cbd5e1; line-height:1.6;">
-          Tres caminos por rol — progreso según guías consultadas y checklists completados.
-          En piso use el botón violeta <strong>Mentor</strong> en POS y caja.
-        </p>
-      </div>
-      <span class="badge text-orange border px-2 py-1" style="color:#ff5500;border-color:#ff5500;background:rgba(255,85,0,0.12);font-weight:600;">
-        <i class="fas fa-satellite-dish me-1"></i>vertex_mentor
-      </span>
-    </div>
-    <div class="lhexia-academy-callout lhexia-academy-callout--invariante mt-3 mb-0">
-      <i class="fas fa-shield-halved me-2" style="color:#ff5500;"></i>{{ invariante_financiera }}
-    </div>
+<div class="container-fluid py-4 lhexia-academy-hub-wrap">
+  <header id="lhexia-academy" class="lhexia-academy-hub-hero help-anchor mb-3">
+    <div class="lhexia-academy-hub-hero__eyebrow">Capacitación · Ferretería Santo Domingo</div>
+    <h1 class="mb-2">
+      <i class="fas fa-graduation-cap me-2"></i>LhexIA Mentor Academy
+    </h1>
+    <p class="lhexia-academy-hub-hero__lead mb-0">
+      Manuales paso a paso por rol. <strong>Maylén</strong>, tu profesora IA, responde abajo y te lleva a la pantalla exacta.
+      En piso también está en el botón violeta del POS y caja.
+    </p>
+    <nav class="lhexia-academy-quicknav" aria-label="Saltar a ruta de aprendizaje">
+      <a href="#academy-pos" class="lhexia-academy-quicknav__link lhexia-academy-quicknav__link--pos">
+        <i class="fas fa-cash-register"></i> Vendedor
+      </a>
+      <a href="#academy-caja" class="lhexia-academy-quicknav__link lhexia-academy-quicknav__link--caja">
+        <i class="fas fa-money-bill-wave"></i> Cajero
+      </a>
+      <a href="#academy-bodega" class="lhexia-academy-quicknav__link lhexia-academy-quicknav__link--bodega">
+        <i class="fas fa-boxes-stacked"></i> Bodeguero
+      </a>
+    </nav>
   </header>
 
+  <section class="lhexia-academy-ai" aria-label="Maylén — profesora IA">
+    <header class="lhexia-academy-ai__top">
+      <div class="lhexia-academy-ai__identity">
+        {% with maylen_size='header', maylen_live=True, maylen_decorative=True %}
+        {% include 'partials/maylen_mentor_avatar.html' %}
+        {% endwith %}
+        <div class="pb-2">
+          <h2 class="lhexia-academy-ai__title">
+            Maylén
+            <span class="lhexia-academy-ai__badge">IA</span>
+          </h2>
+          <p class="lhexia-academy-ai__status">
+            <span class="lhexia-academy-ai__dot" aria-hidden="true"></span>
+            Profesora ERP · en línea
+          </p>
+        </div>
+      </div>
+      <span class="lhexia-academy-ai__model d-none d-md-inline pb-2"><i class="fas fa-microchip me-1"></i>LhexIA · Ollama</span>
+    </header>
+    <div class="lhexia-academy-ai__body">
+      <div id="lhexiaAcademyCoachOut" class="lhexia-academy-ai__thread" aria-live="polite"></div>
+      <form id="lhexiaAcademyCoachForm" class="lhexia-academy-coach__form" autocomplete="off">
+        <input type="text" id="lhexiaAcademyCoachInput" class="lhexia-academy-coach__input"
+               placeholder="Escribí tu consulta… ej. ¿Cómo cierro caja con arqueo?" maxlength="240" aria-label="Tu pregunta">
+        <button type="submit" class="btn btn-primary lhexia-academy-coach__submit">
+          <i class="fas fa-paper-plane me-1"></i>Enviar
+        </button>
+      </form>
+      <div id="lhexiaAcademyCoachChips" class="lhexia-academy-coach-chips">
+        {% for chip in academy_preguntas_rapidas or [] %}
+        <button type="button" class="lhexia-academy-coach-chip" data-coach-q="{{ chip.q }}">{{ chip.label }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <aside class="lhexia-academy-hub-invariante" role="note">
+    <i class="fas fa-shield-halved me-2" style="color:#ea580c;"></i>{{ invariante_financiera }}
+  </aside>
+
   {% if academy_caminos %}
+  <div class="lhexia-academy-section-head">
+    <h2><i class="fas fa-route me-2 text-success"></i>Rutas de aprendizaje</h2>
+    <p>Tu progreso se guarda al leer cada guía · botón <strong>Practicar ahora</strong></p>
+  </div>
   <div class="row g-3 mb-4">
     {% for camino in academy_caminos %}
     <div class="col-lg-4">
-      <section id="{{ camino.ancla_id }}" class="lhexia-academy-camino help-anchor">
+      <section id="{{ camino.ancla_id }}"
+               class="lhexia-academy-camino lhexia-academy-camino--{{ camino.category }} help-anchor">
         <div class="lhexia-academy-camino__head">
-          <div>
-            <h2 class="lhexia-academy-camino__title">
-              <i class="fas {{ camino.icon }} me-2 text-info"></i>{{ camino.titulo }}
-            </h2>
-            <p class="lhexia-academy-camino__desc">{{ camino.descripcion }}</p>
+          <div class="d-flex gap-2 align-items-start">
+            <div class="lhexia-academy-camino__icon-wrap">
+              <i class="fas {{ camino.icon }}" aria-hidden="true"></i>
+            </div>
+            <div>
+              <h2 class="lhexia-academy-camino__title">{{ camino.titulo }}</h2>
+              <p class="lhexia-academy-camino__desc">{{ camino.descripcion }}</p>
+            </div>
           </div>
-          <span class="badge bg-dark border border-secondary text-nowrap">
+          <span class="lhexia-academy-camino__badge-count">
             {{ camino.completados }}/{{ camino.total }}
           </span>
         </div>
@@ -145,7 +493,7 @@
              aria-label="Progreso {{ camino.titulo }}">
           <div class="lhexia-academy-camino__progress-bar" style="width: {{ camino.pct }}%;"></div>
         </div>
-        <p class="small text-muted mb-2">{{ camino.pct }}% completado</p>
+        <p class="lhexia-academy-camino__pct mb-0">{{ camino.pct }}% completado</p>
 
         {% for art in camino.articulos %}
         <article class="lhexia-academy-hub-card{% if art.completado %} is-done{% endif %}"
@@ -163,7 +511,7 @@
             {% if art.summary_html %}
             <div class="lhexia-academy-rich mb-2">{{ art.summary_html | safe }}</div>
             {% elif art.summary %}
-            <p class="mb-2">{{ art.summary }}</p>
+            <p class="mb-2 text-muted">{{ art.summary }}</p>
             {% endif %}
             <div class="lhexia-academy-rich">
               {% if art.content_html %}
@@ -174,12 +522,16 @@
             </div>
             <div class="lhexia-academy-hub-card__actions">
               {% if art.practicar_href %}
-              <a class="btn btn-sm btn-outline-info" href="{{ art.practicar_href }}">
+              <a class="btn btn-sm btn-success fw-semibold"
+                 href="{{ art.practicar_href }}?mentor_open=1&amp;academy_guide={{ art.dedupe_key }}">
+                <i class="fas fa-play me-1"></i>Guía interactiva
+              </a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ art.practicar_href }}">
                 <i class="fas fa-bolt me-1"></i>Practicar ahora
               </a>
               {% endif %}
               <a class="btn btn-sm btn-outline-secondary" href="{{ art.ancla or art.ancla_ayuda }}">
-                <i class="fas fa-book-open me-1"></i>En esta página
+                <i class="fas fa-bookmark me-1"></i>En esta ruta
               </a>
             </div>
           </div>
@@ -189,15 +541,28 @@
     </div>
     {% endfor %}
   </div>
+
+  <div class="lhexia-academy-hub-tip">
+    <i class="fas fa-lightbulb me-2 text-warning"></i>
+    <strong>Consejo:</strong> completá cada módulo en orden. Si trabajás en tablet de bodega,
+    empezá por <a href="/academy#academy-bodega">Ruta del Bodeguero</a> → Enrolamiento tablet.
+    Los administradores ven todas las rutas; el resto del equipo solo las de su permiso.
+  </div>
   {% elif academy_articulos %}
   <p class="text-muted">No hay caminos visibles para su rol. Revise permisos con el administrador.</p>
   {% else %}
-  <p class="text-muted">Manual V2 no disponible. Contacte al administrador.</p>
+  <p class="text-muted">Manual no disponible. Contacte al administrador para inicializar la Academy.</p>
   {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script id="lhexia-academy-coach-config" type="application/json">{{ {
+  'pregunta_url': url_for('api_mentor_pregunta'),
+  'maylen_avatar_url': url_for('static', filename='img/maylen_avatar_cutout.png') ~ '?v=7'
+} | tojson }}</script>
+<script src="{{ url_for('static', filename='js/academy-coach.js') }}?v=academy-coach-6"></script>
+<script src="{{ url_for('static', filename='js/academy-maylen-live.js') }}?v=4"></script>
 <script id="lhexia-academy-hub-config" type="application/json">{{ {
   'log_read_url': url_for('api_mentor_log_read')
 } | tojson }}</script>

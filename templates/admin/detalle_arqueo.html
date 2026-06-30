@@ -17,7 +17,7 @@
     - cuadra (bool) — derivado: diferencia_cierre == 0
     - requiere_supervisor (bool) — abs(diferencia) >= umbral y sin supervisor_cierre
     - boletas_pendientes_sii (int) — emitidas - sincronizadas
-    - url_reintentar_sii (str) — url_for('api_admin_facturacion_reintentar_cola') stub
+    - url_reintentar_sii (str) — url_for('api_admin_facturacion_reintentar', venta_id=...) por venta
 #}
 {% extends "base.html" %}
 

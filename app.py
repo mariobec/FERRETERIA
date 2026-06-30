@@ -77,11 +77,24 @@ import shutil
 import unicodedata
 import urllib.error
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 import pdfkit
 import requests
-from lxml import etree, html as lxml_html
 from flask import make_response, render_template
+
+
+def _erp_runtime_root():
+    """Raíz de datos/config en desarrollo o instalación PyInstaller (onedir)."""
+    import sys as _sys_rt
+    if getattr(_sys_rt, 'frozen', False):
+        return os.path.dirname(os.path.abspath(_sys_rt.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _erp_bundle_root():
+    """Recursos empaquetados (templates/static) — _MEIPASS en frozen."""
+    import sys as _sys_rt
+    return getattr(_sys_rt, '_MEIPASS', _erp_runtime_root())
 
 
 def _load_env_archivos(force_local_overwrite=False):
@@ -93,7 +106,7 @@ def _load_env_archivos(force_local_overwrite=False):
     vuelve a aplicar .env.qa y .env.local sobrescribiendo cada clave definida en esos archivos
     (env_qa.txt sigue solo con setdefault para no pisar variables del sistema).
     """
-    root = os.path.dirname(os.path.abspath(__file__))
+    root = _erp_runtime_root()
 
     def _parse_line(line):
         if not line or line.startswith('#') or '=' not in line:
@@ -144,16 +157,42 @@ def _load_env_archivos(force_local_overwrite=False):
 
 
 try:
+    from config.lhexia_runtime_secrets import apply_install_secrets_to_environ
+    apply_install_secrets_to_environ()
+except Exception:
+    pass
+try:
     _load_env_archivos()
 except Exception:
     pass
 # --- CONFIGURACIÓN DE LA APP ---
-app = Flask(__name__)
+_bundle_root = _erp_bundle_root()
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_bundle_root, 'templates'),
+    static_folder=os.path.join(_bundle_root, 'static'),
+)
 # Evita doble import: cuando se ejecuta `python app.py`, __name__ es "__main__"
 # pero los servicios hacen `import app as m`. Sin esto, Python re-importa app.py
 # como modulo "app", creando una segunda Flask/SQLAlchemy que rompe las sessions.
 import sys as _sys
 _sys.modules.setdefault('app', _sys.modules[__name__])
+
+
+def _postgres_sqlalchemy_prefix():
+    """Driver Postgres: psycopg2 (default) o pg8000 (puro Python, sin DLL nativa)."""
+    forced = (os.getenv('ERP_PG_DRIVER') or '').strip().lower()
+    if forced == 'pg8000':
+        return 'postgresql+pg8000://'
+    if forced == 'psycopg2':
+        return 'postgresql+psycopg2://'
+    # Windows Application Control puede bloquear _psycopg.dll sin aviso previo en pip.
+    if os.name == 'nt':
+        try:
+            import psycopg2  # noqa: F401
+        except ImportError:
+            return 'postgresql+pg8000://'
+    return 'postgresql+psycopg2://'
 
 
 def _resolver_database_uri():
@@ -163,16 +202,33 @@ def _resolver_database_uri():
       1. SQLALCHEMY_DATABASE_URI (override explícito)
       2. DATABASE_URL (estándar Render/Neon/Heroku)
       3. Default local MySQL para desarrollo.
+
+    ERP_PG_DRIVER=pg8000 evita psycopg2 cuando Windows Application Control bloquea _psycopg.
     """
     uri = (os.getenv('SQLALCHEMY_DATABASE_URI') or '').strip()
     if not uri:
         uri = (os.getenv('DATABASE_URL') or '').strip()
     if not uri:
-        return 'mysql+pymysql://mbecerra:clave_segura@localhost/ferreteria'
+        import sys as _sys_db
+        if getattr(_sys_db, 'frozen', False) or os.getenv('LHEXIA_RUNTIME_MODE') == 'exe':
+            _db = os.getenv('LHEXIA_DB_NAME', 'ferreteria_local')
+            _port = os.getenv('LHEXIA_PG_PORT', '5432')
+            _user = os.getenv('LHEXIA_PG_USER', 'postgres')
+            _pw = (os.getenv('LHEXIA_PG_SUPERPASS') or '').strip()
+            _host = 'localhost'
+            if _pw:
+                uri = f'postgresql://{_user}:{_pw}@{_host}:{_port}/{_db}'
+            else:
+                uri = f'postgresql://{_user}@{_host}:{_port}/{_db}'
+        else:
+            return 'mysql+pymysql://mbecerra:clave_segura@localhost/ferreteria'
+    pg_prefix = _postgres_sqlalchemy_prefix()
     if uri.startswith('postgres://'):
-        uri = 'postgresql+psycopg2://' + uri[len('postgres://'):]
-    elif uri.startswith('postgresql://') and '+psycopg2' not in uri.split('://', 1)[0]:
-        uri = 'postgresql+psycopg2://' + uri[len('postgresql://'):]
+        uri = pg_prefix + uri[len('postgres://'):]
+    elif uri.startswith('postgresql://') and '+' not in uri.split('://', 1)[0]:
+        uri = pg_prefix + uri[len('postgresql://'):]
+    elif uri.startswith('postgresql+') and _postgres_sqlalchemy_prefix().endswith('pg8000://'):
+        uri = _postgres_sqlalchemy_prefix() + uri.split('://', 1)[1]
     return uri
 
 
@@ -188,19 +244,24 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '60')),
 }
 if db_uri.startswith('postgresql'):
-    app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args'] = {
-        'connect_timeout': int(os.getenv('DB_CONNECT_TIMEOUT', '8')),
-        'keepalives': 1,
-        'keepalives_idle': 30,
-        'keepalives_interval': 10,
-        'keepalives_count': 3,
-        # En Windows con Postgres en castellano libpq devuelve mensajes en cp1252
-        # y psycopg2 puede caer con UnicodeDecodeError ("byte 0xf3 in position ...").
-        # Forzar UTF-8 evita el problema tanto en local como en Neon.
-        'client_encoding': 'utf8',
-    }
-    # Refuerzo a nivel libpq por si la conexion se establece antes de aplicar client_encoding.
-    os.environ.setdefault('PGCLIENTENCODING', 'UTF8')
+    if '+pg8000' in db_uri:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args'] = {
+            'timeout': int(os.getenv('DB_CONNECT_TIMEOUT', '8')),
+        }
+    else:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args'] = {
+            'connect_timeout': int(os.getenv('DB_CONNECT_TIMEOUT', '8')),
+            'keepalives': 1,
+            'keepalives_idle': 30,
+            'keepalives_interval': 10,
+            'keepalives_count': 3,
+            # En Windows con Postgres en castellano libpq devuelve mensajes en cp1252
+            # y psycopg2 puede caer con UnicodeDecodeError ("byte 0xf3 in position ...").
+            # Forzar UTF-8 evita el problema tanto en local como en Neon.
+            'client_encoding': 'utf8',
+        }
+        # Refuerzo a nivel libpq por si la conexion se establece antes de aplicar client_encoding.
+        os.environ.setdefault('PGCLIENTENCODING', 'UTF8')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'clave_secreta_segura')
 _INSECURE_KEYS = {'clave_secreta_segura', 'dev', 'secret', 'changeme', 'insecure', ''}
 if app.config['SECRET_KEY'] in _INSECURE_KEYS:
@@ -323,6 +384,25 @@ def _asegurar_columnas_recepcion_rcv():
         return False
 
 
+def _asegurar_tabla_recepcion_linea_documento():
+    """Tabla ítems XML DTE por recepción (visor + match posterior SKU)."""
+    if app.config.get('_RECEPCION_LINEA_DOC_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if insp.has_table('recepcion_linea_documento'):
+            app.config['_RECEPCION_LINEA_DOC_OK'] = True
+            return True
+        RecepcionLineaDocumento.__table__.create(db.engine, checkfirst=True)
+        db.session.commit()
+        app.config['_RECEPCION_LINEA_DOC_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('recepcion_linea_documento: migracion parcial (%s)', ex)
+        return False
+
+
 def _tablas_enrolamiento_existen():
     global _ENROL_TABLAS_OK
     if _ENROL_TABLAS_OK is not None:
@@ -338,6 +418,7 @@ def _tablas_enrolamiento_existen():
 
 
 _CATALOGO_TABLAS_OK = None
+_CATALOGO_PINTURAS_MAESTRO_OK = None
 _ORDEN_COMPRA_TABLAS_OK = None
 
 
@@ -369,6 +450,65 @@ def _tablas_catalogo_producto_existen():
     except Exception:
         _CATALOGO_TABLAS_OK = False
     return _CATALOGO_TABLAS_OK
+
+
+def _tablas_catalogo_pinturas_maestro_existen():
+    global _CATALOGO_PINTURAS_MAESTRO_OK
+    try:
+        insp = sa_inspect(db.engine)
+        ok = bool(insp.has_table('catalogo_marcas') and insp.has_table('catalogo_tonos_color'))
+        if ok:
+            _CATALOGO_PINTURAS_MAESTRO_OK = True
+        return ok
+    except Exception:
+        return False
+
+
+def _asegurar_tablas_catalogo_pinturas_maestro():
+    """Crea tablas maestro marcas/tonos y siembra paleta base si están vacías."""
+    global _CATALOGO_PINTURAS_MAESTRO_OK
+    if app.config.get('_CATALOGO_PINTURAS_MAESTRO_OK'):
+        return True
+    try:
+        if not _tablas_catalogo_pinturas_maestro_existen():
+            db.create_all()
+        if not _tablas_catalogo_pinturas_maestro_existen():
+            return False
+        from services.catalogo_pinturas_maestro_service import sembrar_inicial_si_vacio
+        sembrar_inicial_si_vacio()
+        _CATALOGO_PINTURAS_MAESTRO_OK = True
+        app.config['_CATALOGO_PINTURAS_MAESTRO_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('No se pudo asegurar maestro marcas/tonos: %s', ex)
+        return False
+
+
+def _marcas_catalogo_lista():
+    try:
+        from services.catalogo_pinturas_maestro_service import listar_marcas
+        if _asegurar_tablas_catalogo_pinturas_maestro():
+            return listar_marcas()
+    except Exception:
+        pass
+    rows = db.session.query(Producto.marca).filter(
+        Producto.marca.isnot(None), Producto.marca != '',
+    ).distinct().order_by(Producto.marca.asc()).all()
+    return sorted({(r[0] or '').strip() for r in rows if (r[0] or '').strip()}, key=str.lower)
+
+
+def _tonos_catalogo_lista():
+    try:
+        from services.catalogo_pinturas_maestro_service import listar_tonos
+        if _asegurar_tablas_catalogo_pinturas_maestro():
+            return [t['nombre'] for t in listar_tonos()]
+    except Exception:
+        pass
+    rows = db.session.query(Producto.tono_color).filter(
+        Producto.tono_color.isnot(None), Producto.tono_color != '',
+    ).distinct().order_by(Producto.tono_color.asc()).all()
+    return sorted({(r[0] or '').strip() for r in rows if (r[0] or '').strip()}, key=str.lower)
 
 
 def _catalogo_ui_disponible():
@@ -432,10 +572,25 @@ def _catalogo_sub_opciones_filtro(categoria_nombre):
     return out
 
 
+_CATALOGO_ARBOL_CACHE = None
+_CATALOGO_ARBOL_CACHE_AT: float = 0.0
+_CATALOGO_ARBOL_TTL_S: float = 300.0  # 5 min — invalidar tras editar /admin/catalogo
+
+
+def _invalidar_cache_catalogo_arbol():
+    global _CATALOGO_ARBOL_CACHE, _CATALOGO_ARBOL_CACHE_AT
+    _CATALOGO_ARBOL_CACHE = None
+    _CATALOGO_ARBOL_CACHE_AT = 0.0
+
+
 def _catalogo_arbol_registro():
     """Árbol para selects encadenados al registrar producto (categoría → nivel2 → hoja)."""
+    global _CATALOGO_ARBOL_CACHE, _CATALOGO_ARBOL_CACHE_AT
     if not _catalogo_ui_disponible():
         return None
+    now = time.time()
+    if _CATALOGO_ARBOL_CACHE is not None and (now - _CATALOGO_ARBOL_CACHE_AT) < _CATALOGO_ARBOL_TTL_S:
+        return _CATALOGO_ARBOL_CACHE
     try:
         cats = (
             CatalogoCategoria.query.filter_by(activo=True)
@@ -461,6 +616,8 @@ def _catalogo_arbol_registro():
                 by_n2.setdefault(k, []).append({'id': s.id, 'n3': s.nombre or ''})
             n2_blocks = [{'n2': k, 'subs': v} for k, v in sorted(by_n2.items(), key=lambda x: x[0])]
             tree.append({'id': c.id, 'nombre': c.nombre, 'nivel2': n2_blocks})
+        _CATALOGO_ARBOL_CACHE = tree
+        _CATALOGO_ARBOL_CACHE_AT = now
         return tree
     except Exception:
         return None
@@ -605,7 +762,20 @@ def _config_empresa_default():
         "portal_gastos_op_mensual_clp": "0",
         "portal_activos_fijos_clp": "0",
         "portal_meta_ventas_anual_clp": "0",
+        # URL fija LAN (tablets/PC en WiFi). Ej: http://192.168.1.100:5000 o http://erp-sd:5000
+        "url_red_erp": (os.getenv("ERP_URL_RED_FIJA") or "").strip(),
     }
+
+
+def _url_red_erp_configurada():
+    """URL fija para acceder al ERP desde la red local (sin depender de IP dinámica)."""
+    cfg = obtener_config_empresa()
+    raw = (cfg.get("url_red_erp") or os.getenv("ERP_URL_RED_FIJA") or "").strip()
+    if not raw:
+        return None
+    if not raw.startswith(("http://", "https://")):
+        raw = f"http://{raw}"
+    return raw.rstrip("/")
 
 
 POS_RUT_OBLIGATORIO_SESSION = 'pos_rut_obligatorio_session'
@@ -1847,6 +2017,18 @@ _NAV_MAP = [
             {'label': 'Vales pendientes', 'icon': 'fa-file-invoice-dollar', 'endpoint': 'caja_pendientes',
              'permisos': ['caja_cobrar_vale'],
              'endpoints_activos': ['caja_pendientes', 'procesar_cobro_caja']},
+            {'label': 'Transferencias por confirmar', 'icon': 'fa-university', 'endpoint': 'caja_transferencias',
+             'permisos': ['caja_cobrar_vale'],
+             'endpoints_activos': [
+                 'caja_transferencias',
+                 'api_caja_transferencia_confirmar',
+                 'api_caja_transferencia_rechazar',
+                 'api_caja_transferencia_sincronizar_correo',
+                 'api_caja_transferencia_confirmar_correo',
+                 'api_caja_transferencia_descartar_correo',
+                 'api_caja_transferencias_alerta',
+                 'api_caja_transferencia_correo_detalle',
+             ]},
             {'label': 'Cambios / devoluciones', 'icon': 'fa-rotate', 'endpoint': 'caja_cambios',
              'permisos': ['caja_cobrar_vale'], 'endpoints_activos': ['caja_cambios']},
             {'label': 'Historial cambios', 'icon': 'fa-clock-rotate-left', 'endpoint': 'caja_cambios_historial',
@@ -1911,28 +2093,30 @@ _NAV_MAP = [
         'id': 'inventario_stock', 'label': 'Stock e inventario', 'icon': 'fa-boxes-stacked', 'modulo': 'inventario',
         'permisos_grupo': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios'],
         'items': [
-            {'label': 'Enrolamiento inventario', 'icon': 'fa-barcode', 'endpoint': 'inventario_enrolamiento',
+            {'label': 'Enrolamiento', 'icon': 'fa-barcode', 'endpoint': 'inventario_enrolamiento',
              'permisos': ['enrolamiento_inventario', 'admin_inventario'],
-             'endpoints_activos': ['inventario_enrolamiento', 'inventario_enrolamiento_tablet', 'bodega_enrolador_setup'], 'requiere_endpoint': 'inventario_enrolamiento'},
-            {'label': 'Enrolador bodega (tablet)', 'icon': 'fa-tablet-alt', 'endpoint': 'bodega_enrolador_setup',
-             'permisos': ['enrolamiento_inventario', 'admin_inventario'],
-             'endpoints_activos': ['bodega_enrolador_setup', 'inventario_enrolamiento_tablet']},
-            {'label': 'Salud inventario', 'icon': 'fa-heartbeat', 'endpoint': 'inventario_salud',
-             'permisos': ['enrolamiento_inventario', 'admin_inventario'],
-             'endpoints_activos': ['inventario_salud'], 'requiere_endpoint': 'inventario_salud'},
-            {'label': 'Panel inventario', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_dashboard_premium',
+             'endpoints_activos': ['inventario_enrolamiento', 'inventario_enrolamiento_tablet', 'bodega_enrolador_setup', 'imprimir_etiquetas_enrolamiento'], 'requiere_endpoint': 'inventario_enrolamiento'},
+            {'label': 'Centro de stock', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_dashboard_premium',
              'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario'],
-             'endpoints_activos': ['inventario_dashboard_premium']},
+             'endpoints_activos': ['inventario_dashboard_premium', 'inventario_salud']},
+            {'label': 'Productos y stock', 'icon': 'fa-boxes', 'endpoint': 'mostrar_productos',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos', 'exportar_productos_excel', 'exportar_stock_valorizado_categoria', 'imprimir_etiquetas_catalogo', 'descargar_plantilla_productos', 'guardar_pagina_catalogo_productos', 'producto_editar_catalogo']},
             {'label': 'Kardex', 'icon': 'fa-clipboard-list', 'endpoint': 'kardex',
              'permisos': ['ver_inventario', 'admin_inventario'],
              'endpoints_activos': ['kardex']},
-            {'label': 'Catálogo e inventario base', 'icon': 'fa-boxes', 'endpoint': 'mostrar_productos',
+            {'label': 'Stock valorizado', 'icon': 'fa-coins', 'endpoint': 'inventario_stock_valorizado',
              'permisos': ['ver_inventario', 'admin_inventario'],
-             'endpoints_activos': ['mostrar_productos', 'filtrar_productos', 'guardar_producto', 'cargar_productos', 'editar_stock_producto', 'actualizar_stock_masivo_productos', 'exportar_productos_excel', 'descargar_plantilla_productos']},
-            {'label': 'Carga masiva Excel/CSV', 'icon': 'fa-file-import', 'endpoint': 'mostrar_productos',
-             'url_hash': '#carga-masiva',
+             'endpoints_activos': ['inventario_stock_valorizado', 'inventario_stock_valorizado_exportar', 'api_inventario_stock_valorizado_detalle']},
+            {'label': 'Pinturas · stock visual', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_pinturas_stock',
              'permisos': ['ver_inventario', 'admin_inventario'],
-             'endpoints_activos': ['mostrar_productos', 'cargar_productos']},
+             'endpoints_activos': ['inventario_pinturas_stock']},
+            {'label': 'Pinturas · informe inteligente', 'icon': 'fa-chart-column', 'endpoint': 'inventario_pinturas_streamlit',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['inventario_pinturas_streamlit']},
+            {'label': 'Pinturas · compras y remates', 'icon': 'fa-palette', 'endpoint': 'inventario_pinturas_compras_remates',
+             'permisos': ['ver_inventario', 'admin_inventario', 'gestionar_compras'],
+             'endpoints_activos': ['inventario_pinturas_compras_remates']},
             {'label': 'Stock crítico', 'icon': 'fa-triangle-exclamation', 'endpoint': 'stock_critico',
              'permisos': ['ver_inventario', 'admin_inventario'],
              'endpoints_activos': ['stock_critico']},
@@ -1960,6 +2144,15 @@ _NAV_MAP = [
             {'label': 'IA Abastecimiento', 'icon': 'fa-robot', 'endpoint': 'ia_abastecimiento',
              'permisos': ['gestionar_compras', 'admin_inventario'],
              'endpoints_activos': ['ia_abastecimiento'], 'modulo_item': 'ia'},
+            {'label': 'Pinturas · stock visual', 'icon': 'fa-chart-pie', 'endpoint': 'inventario_pinturas_stock',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['inventario_pinturas_stock']},
+            {'label': 'Pinturas · informe inteligente', 'icon': 'fa-chart-column', 'endpoint': 'inventario_pinturas_streamlit',
+             'permisos': ['ver_inventario', 'admin_inventario'],
+             'endpoints_activos': ['inventario_pinturas_streamlit']},
+            {'label': 'Pinturas · compras y remates', 'icon': 'fa-palette', 'endpoint': 'inventario_pinturas_compras_remates',
+             'permisos': ['gestionar_compras', 'admin_inventario', 'ver_inventario'],
+             'endpoints_activos': ['inventario_pinturas_compras_remates']},
         ],
     },
     {
@@ -2068,6 +2261,13 @@ _NAV_MAP = [
         'items': [
             {'label': 'Datos de empresa', 'icon': 'fa-building', 'endpoint': 'admin_empresa',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_empresa']},
+            {'label': 'Etiquetas Zebra (GX420d)', 'icon': 'fa-barcode', 'endpoint': 'admin_etiquetas_zebra',
+             'permisos': ['gestionar_usuarios'],
+             'endpoints_activos': [
+                 'admin_etiquetas_zebra',
+                 'panel_etiquetas_zebra_enrolamiento',
+                 'panel_etiquetas_zebra_catalogo',
+             ]},
             {'label': 'Almacenes', 'icon': 'fa-warehouse', 'endpoint': 'admin_almacenes',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_almacenes']},
             {'label': 'Usuarios y roles', 'icon': 'fa-users-cog', 'endpoint': 'usuarios',
@@ -2078,6 +2278,9 @@ _NAV_MAP = [
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_clientes']},
             {'label': 'Catálogo categorías', 'icon': 'fa-sitemap', 'endpoint': 'admin_catalogo',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_catalogo']},
+            {'label': 'Marcas y tonos pintura', 'icon': 'fa-palette', 'endpoint': 'admin_catalogo_pinturas',
+             'permisos': ['gestionar_usuarios', 'admin_inventario'],
+             'endpoints_activos': ['admin_catalogo_pinturas']},
             {'label': 'Unidades de medida', 'icon': 'fa-balance-scale', 'endpoint': 'admin_unidades',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_unidades']},
             {'label': 'POS — autorización descuentos', 'icon': 'fa-id-card', 'endpoint': 'admin_pos_autorizacion',
@@ -2118,6 +2321,9 @@ def _construir_nav_usuario():
         for it in grupo.get('items', []):
             req_ep = it.get('requiere_endpoint')
             if req_ep and req_ep not in ep_reg:
+                continue
+            it_ep = it.get('endpoint')
+            if it_ep and it_ep not in ep_reg:
                 continue
             mod_item = it.get('modulo_item')
             if mod_item and not modulo_activo(mod_item):
@@ -2161,6 +2367,7 @@ _MODULOS_HUB = [
         'atajos_max': 3,
         'atajos': [
             {'label': 'Vales pendientes', 'endpoint': 'caja_pendientes', 'icon': 'fa-file-invoice-dollar', 'permisos': ['caja_cobrar_vale']},
+            {'label': 'Transferencias por confirmar', 'endpoint': 'caja_transferencias', 'icon': 'fa-university', 'permisos': ['caja_cobrar_vale']},
             {'label': 'Abrir caja', 'endpoint': 'abrir_caja', 'icon': 'fa-door-open', 'permisos': ['caja_abrir']},
             {'label': 'Cerrar caja', 'endpoint': 'cerrar_caja', 'icon': 'fa-door-closed', 'permisos': ['caja_cerrar']},
             {'label': 'Movimientos', 'endpoint': 'movimiento_caja', 'icon': 'fa-exchange-alt', 'permisos': ['caja_movimientos']},
@@ -2233,14 +2440,11 @@ _MODULOS_HUB = [
         'accent': '#2563eb',
         'atajos_max': 3,
         'atajos': [
-            {'label': 'Enrolamiento inventario', 'endpoint': 'inventario_enrolamiento', 'icon': 'fa-barcode', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
-            {'label': 'Salud inventario', 'endpoint': 'inventario_salud', 'icon': 'fa-heartbeat', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
-            {'label': 'Catálogo productos', 'endpoint': 'mostrar_productos', 'icon': 'fa-boxes', 'permisos': ['ver_inventario', 'admin_inventario']},
-            {'label': 'Carga masiva Excel', 'endpoint': 'mostrar_productos', 'url_hash': '#carga-masiva', 'icon': 'fa-file-import', 'permisos': ['ver_inventario', 'admin_inventario']},
-            {'label': 'Enrolador tablet / QR', 'endpoint': 'bodega_enrolador_setup', 'icon': 'fa-tablet-alt', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
+            {'label': 'Enrolamiento', 'endpoint': 'inventario_enrolamiento', 'icon': 'fa-barcode', 'permisos': ['enrolamiento_inventario', 'admin_inventario']},
+            {'label': 'Centro de stock', 'endpoint': 'inventario_dashboard_premium', 'icon': 'fa-chart-pie', 'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario']},
+            {'label': 'Productos y stock', 'endpoint': 'mostrar_productos', 'icon': 'fa-boxes', 'permisos': ['ver_inventario', 'admin_inventario']},
             {'label': 'Kardex', 'endpoint': 'kardex', 'icon': 'fa-clipboard-list', 'permisos': ['ver_inventario', 'admin_inventario']},
             {'label': 'Stock crítico', 'endpoint': 'stock_critico', 'icon': 'fa-triangle-exclamation', 'permisos': ['ver_inventario', 'admin_inventario']},
-            {'label': 'Panel inventario', 'endpoint': 'inventario_dashboard_premium', 'icon': 'fa-chart-pie', 'permisos': ['ver_inventario', 'admin_inventario', 'enrolamiento_inventario']},
         ],
     },
     {
@@ -2710,6 +2914,15 @@ _ENDPOINTS_CAJA_ESTRICTA = {
     # Caja operativa / cobranzas
     'caja_pendientes',
     'procesar_cobro_caja',
+    'caja_transferencias',
+    'api_caja_transferencia_confirmar',
+    'api_caja_transferencia_rechazar',
+    'api_caja_transferencia_sincronizar_correo',
+    'api_caja_transferencia_confirmar_correo',
+    'api_caja_transferencia_descartar_correo',
+    'api_caja_transferencias_alerta',
+    'api_caja_transferencia_correo_detalle',
+    'api_caja_transferencias_historial',
     'anular_vale_caja',
     'anular_vales_caja_lote',
     'ver_ticket_cobro',
@@ -2730,6 +2943,14 @@ _ENDPOINTS_CAJA_ESTRICTA = {
 _ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA = frozenset({
     'caja_pendientes',
     'procesar_cobro_caja',
+    'caja_transferencias',
+    'api_caja_transferencia_confirmar',
+    'api_caja_transferencia_rechazar',
+    'api_caja_transferencia_sincronizar_correo',
+    'api_caja_transferencia_confirmar_correo',
+    'api_caja_transferencia_descartar_correo',
+    'api_caja_transferencias_alerta',
+    'api_caja_transferencia_correo_detalle',
     'anular_vale_caja',
     'anular_vales_caja_lote',
     'ver_ticket_cobro',
@@ -2902,6 +3123,7 @@ def _seed_permisos_roles_operativos():
             'ver_inventario', 'gestionar_compras', 'ver_auditoria',
         }
         _PERMISOS_VENDEDOR = {'pos_emitir_vale', 'ver_creditos_cartera', 'ecommerce_pedidos'}
+        _PERMISOS_TEST_PISO = _PERMISOS_CAJERA | {'ver_inventario'}
         mapa_por_rol = {
             'vendedor':   _PERMISOS_VENDEDOR,
             'vendedora':  _PERMISOS_VENDEDOR,
@@ -2910,6 +3132,7 @@ def _seed_permisos_roles_operativos():
             'cajera':     _PERMISOS_CAJERA,
             'cajero':     _PERMISOS_CAJERA,
             'caja':       _PERMISOS_CAJERA,
+            'test piso':  _PERMISOS_TEST_PISO,
             'supervisor': _PERMISOS_SUPERVISOR,
             'encargado':  _PERMISOS_SUPERVISOR,
             'gerente':    _PERMISOS_GERENTE,
@@ -3004,6 +3227,8 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_columnas_bodega_retiro()
                     _asegurar_columnas_bodega_sugerido_preparar()
                     _asegurar_columnas_entrega_ticket()
+                    _asegurar_columnas_transferencia_caja()
+                    _asegurar_tabla_transferencia_correo()
             except (SATimeoutError, OperationalError) as ex:
                 app.config['_SCHEMA_ENSURE_BACKOFF_UNTIL'] = time.time() + float(
                     os.getenv('SCHEMA_ENSURE_BACKOFF_SEC', '45')
@@ -3084,6 +3309,25 @@ class CatalogoCategoria(db.Model):
     )
 
 
+class CatalogoMarca(db.Model):
+    """Maestro marcas pintura / ferretería (informes stock valorizado y pinturas)."""
+    __tablename__ = 'catalogo_marcas'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(80), nullable=False, unique=True)
+    orden = db.Column(db.Integer, nullable=False, default=0)
+    activo = db.Column(db.Boolean, default=True)
+
+
+class CatalogoTonoColor(db.Model):
+    """Maestro tonos / colores pintura."""
+    __tablename__ = 'catalogo_tonos_color'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(80), nullable=False, unique=True)
+    hex_color = db.Column(db.String(7), nullable=True)
+    orden = db.Column(db.Integer, nullable=False, default=0)
+    activo = db.Column(db.Boolean, default=True)
+
+
 # 1. PRODUCTO: base de todo, se usa en los detalles de venta
 class Producto(db.Model):
     __tablename__ = 'productos'
@@ -3105,6 +3349,8 @@ class Producto(db.Model):
     stock = db.Column(db.Integer)
     categoria = db.Column(db.String(50), index=True)
     subcategoria = db.Column(db.String(50))
+    marca = db.Column(db.String(80))
+    tono_color = db.Column(db.String(80))
     subcategoria_catalogo_id = db.Column(
         db.Integer,
         db.ForeignKey('catalogo_subcategorias.id', ondelete='SET NULL'),
@@ -3191,26 +3437,141 @@ def _enrol_normalizar_codigo(c):
 
 
 def _enrol_buscar_producto_por_codigo(codigo):
-    c = _enrol_normalizar_codigo(codigo)
-    if not c:
+    """Misma cadena que POS: alias → barras/interno → variantes EAN → Chilemat."""
+    from services.catalogo_resolucion_codigo_service import buscar_producto_por_codigo_escaneado
+
+    return buscar_producto_por_codigo_escaneado(
+        codigo,
+        Producto=Producto,
+        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+        db=db,
+        app=app,
+        buscar_chilemat_fn=_producto_por_codigo_chilemat_escaneo,
+    )
+
+
+def _enrol_prefijo_codigo_interno():
+    return (os.getenv('CODIGO_INTERNO_PREFIX') or 'FERRE').strip().upper().rstrip('-')
+
+
+def _enrol_asignar_codigo_interno_si_falta(producto):
+    """Asigna código interno automático (ej. FERRE-000123) si el maestro no tiene uno."""
+    if (producto.codigo_interno or '').strip():
+        return False
+    if not producto.id:
+        db.session.flush()
+    pref = _enrol_prefijo_codigo_interno()
+    base = f'{pref}-{int(producto.id):06d}'
+    candidato = base[:32]
+    n = 0
+    while Producto.query.filter(
+        Producto.codigo_interno == candidato,
+        Producto.id != int(producto.id),
+    ).first():
+        n += 1
+        candidato = f'{base}-{n}'[:32]
+        if n > 99:
+            candidato = f'{pref}-{int(producto.id):06d}X'[:32]
+            break
+    producto.codigo_interno = candidato
+    return True
+
+
+def _enrol_asegurar_categoria_texto(nombre_cat):
+    """Persiste categoría en maestro CatalogoCategoria si el UI de catálogo está disponible."""
+    nombre = (nombre_cat or '').strip()
+    if not nombre:
+        return ''
+    nombre = nombre[:50]
+    if _catalogo_ui_disponible():
+        existente = CatalogoCategoria.query.filter(
+            db.func.lower(db.func.trim(CatalogoCategoria.nombre)) == nombre.lower(),
+        ).first()
+        if not existente:
+            max_ord = db.session.query(
+                db.func.coalesce(db.func.max(CatalogoCategoria.orden), 0)
+            ).scalar()
+            db.session.add(CatalogoCategoria(
+                nombre=nombre[:80],
+                orden=int(max_ord or 0) + 1,
+                activo=True,
+            ))
+            db.session.flush()
+            _invalidar_cache_catalogo_arbol()
+        elif (existente.nombre or '').strip():
+            nombre = (existente.nombre or nombre)[:50]
+    return nombre
+
+
+def _enrol_vincular_codigo_barras(producto, codigo_barras, *, usuario=None):
+    """
+    Vincula código pistola: asigna maestro si está vacío; alias si ya hay barras maestro.
+    Retorna dict con ok/error o None si no hay código.
+    """
+    from services.producto_codigo_escaneo_service import (
+        codigo_escaneo_ocupado,
+        producto_que_ocupa_codigo,
+        vincular_codigo_a_producto,
+    )
+
+    cb = _enrol_normalizar_codigo(codigo_barras)
+    if not cb:
         return None
-    p = Producto.query.filter(Producto.codigo_barra == c).first()
-    if p:
-        return p
-    p = Producto.query.filter(Producto.codigo_interno == c).first()
-    if p:
-        return p
-    return _producto_por_codigo_chilemat_escaneo(c.upper())
+    if codigo_escaneo_ocupado(
+        cb,
+        Producto=Producto,
+        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+        db=db,
+        app=app,
+        excluir_producto_id=producto.id,
+    ):
+        otro = producto_que_ocupa_codigo(
+            cb,
+            Producto=Producto,
+            ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+            db=db,
+            app=app,
+        )
+        nom = (otro.nombre if otro else '') or 'otro producto'
+        return {
+            'ok': False,
+            'error': 'barras_duplicado',
+            'mensaje': f'El código de barras ya está en «{nom[:60]}».',
+        }
+    maestro = (producto.codigo_barra or '').strip()
+    if not maestro:
+        producto.codigo_barra = cb[:50]
+        return {'ok': True, 'modo': 'maestro'}
+    res = vincular_codigo_a_producto(
+        cb,
+        producto.id,
+        Producto=Producto,
+        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+        db=db,
+        app=app,
+        usuario=usuario,
+        tipo='enrol_vinculo',
+        origen='enrolamiento',
+    )
+    if not res.get('ok'):
+        return res
+    return {'ok': True, 'modo': 'alias'}
 
 
 def _enrol_codigo_barra_ocupado(codigo, excluir_producto_id=None):
+    from services.producto_codigo_escaneo_service import codigo_escaneo_ocupado
+
     c = _enrol_normalizar_codigo(codigo)
     if not c:
         return False
-    q = Producto.query.filter(Producto.codigo_barra == c)
-    if excluir_producto_id:
-        q = q.filter(Producto.id != int(excluir_producto_id))
-    return q.first() is not None
+    return codigo_escaneo_ocupado(
+        c,
+        Producto=Producto,
+        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+        db=db,
+        app=app,
+        excluir_producto_id=excluir_producto_id,
+    )
 
 
 def _enrol_linea_conteo_sumar(sesion_id, producto_id, delta):
@@ -3266,15 +3627,20 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
                 'es_sesion': es_sesion,
             })
 
+    pe_pos = float(precio_efectivo_pos_producto(producto) or 0)
     return {
         'id': producto.id,
         'nombre': producto.nombre,
         'categoria': producto.categoria or '',
         'subcategoria': producto.subcategoria or '',
+        'subcategoria_catalogo_id': int(producto.subcategoria_catalogo_id or 0) or None,
+        'codigo_barra': (producto.codigo_barra or '').strip(),
         'codigo_chilemat': (producto.codigo_chilemat or '').strip(),
         'codigo_interno': (producto.codigo_interno or '').strip(),
         'imagen_url': (producto.imagen_url or '').strip(),
         'precio_venta': float(producto.precio_venta or 0),
+        'precio_venta_sd': float(getattr(producto, 'precio_venta_sd', None) or 0),
+        'precio_efectivo_pos': pe_pos,
         'precio_compra': float(producto.precio_compra or 0),
         'precio_mayoreo': float(producto.precio_mayoreo or 0),
         'stock_tienda': st_t,
@@ -3283,7 +3649,80 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
         'stock_por_almacen': stock_rows,
         'conteo_sesion': conteo,
         'stock_almacen_sesion_nombre': nom_sesion,
+        'stock_en_almacen_sesion': (
+            int(stock_producto_en_almacen(producto.id, int(sesion_almacen_id)) or 0)
+            if (mult and sesion_almacen_id)
+            else None
+        ),
+        'vendible_pos': bool(st_t > 0 and pe_pos > 0),
+        'activo': bool(getattr(producto, 'activo', True)),
+        'marca': (getattr(producto, 'marca', None) or '').strip(),
+        'tono_color': (getattr(producto, 'tono_color', None) or '').strip(),
     }
+
+
+def _enrol_aplicar_categoria_subcategoria(producto, data, *, requerida=False):
+    """Categoría y subcategoría desde enrolador (catálogo o texto libre)."""
+    sub_raw = data.get('subcategoria_catalogo_id')
+    if sub_raw not in (None, ''):
+        try:
+            sid = int(sub_raw)
+            if sid > 0:
+                _sincronizar_producto_desde_subcatalogo(producto, sid)
+                return None
+        except (TypeError, ValueError):
+            pass
+
+    cat_raw = data.get('categoria_catalogo_id')
+    cat_txt = (data.get('categoria') or '').strip()
+    applied_cat = False
+    if cat_raw not in (None, ''):
+        try:
+            cc = CatalogoCategoria.query.get(int(cat_raw))
+            if cc:
+                producto.categoria = (cc.nombre or '')[:50]
+                applied_cat = True
+        except (TypeError, ValueError):
+            pass
+    if not applied_cat and cat_txt:
+        producto.categoria = _enrol_asegurar_categoria_texto(cat_txt)
+        applied_cat = True
+    elif requerida and not applied_cat:
+        return 'Indique una categoría o elija «Sin categoría».'
+
+    if 'subcategoria' in data or 'subcategoria_catalogo_id' in data:
+        sub_txt = (data.get('subcategoria') or '').strip()
+        if sub_txt:
+            producto.subcategoria = sub_txt[:50]
+            if _catalogo_ui_disponible() and not sub_raw:
+                producto.subcategoria_catalogo_id = None
+        elif not sub_raw:
+            producto.subcategoria = None
+            producto.subcategoria_catalogo_id = None
+    return None
+
+
+def _enrol_aplicar_marca_tono(producto, data):
+    """Marca/tono desde enrolador; registra en maestro pinturas si aplica."""
+    if 'marca' in data:
+        producto.marca = ((data.get('marca') or '').strip()[:80] or None)
+    tono_raw = data.get('tono_color') if 'tono_color' in data else data.get('tono')
+    if 'tono_color' in data or 'tono' in data:
+        producto.tono_color = ((tono_raw or '').strip()[:80] or None)
+    if producto.marca or producto.tono_color:
+        try:
+            from services.catalogo_pinturas_maestro_service import asegurar_marca, asegurar_tono
+            if producto.marca:
+                producto.marca = asegurar_marca(producto.marca)
+            if producto.tono_color:
+                producto.tono_color = asegurar_tono(producto.tono_color)
+        except Exception:
+            pass
+
+
+def _enrol_producto_disponible(producto):
+    """Producto utilizable en enrolador (activo en maestro)."""
+    return bool(producto and getattr(producto, 'activo', True))
 
 
 def _enrol_sesion_get_or_404(sid):
@@ -3292,8 +3731,27 @@ def _enrol_sesion_get_or_404(sid):
     return EnrolamientoTomaSesion.query.get(int(sid))
 
 
-def _enrol_destino_almacen(sesion_row, id_almacen_destino):
-    if id_almacen_destino:
+def _enrol_producto_ruta_bodega(producto=None, nombre=None):
+    """Aerosoles / espray: inventario preferente en bodega (no góndola POS)."""
+    import re
+
+    n = (nombre or (getattr(producto, 'nombre', None) or '')).upper()
+    return bool(re.search(r'(?:SPRAY|ESPRAY|AEROSOL)', n))
+
+
+def _enrol_destino_almacen(
+    sesion_row,
+    id_almacen_destino,
+    *,
+    producto=None,
+    ruta_bodega=False,
+):
+    """Resuelve almacén destino: ruta bodega/spray → explícito → sesión → tienda."""
+    if ruta_bodega or _enrol_producto_ruta_bodega(producto):
+        bid = id_almacen_bodega()
+        if bid:
+            return int(bid)
+    if id_almacen_destino is not None and str(id_almacen_destino).strip() != '':
         try:
             aid = int(id_almacen_destino)
         except (TypeError, ValueError):
@@ -3502,39 +3960,36 @@ def _badges_busqueda_pos(item, precio_min, precio_max):
 
 def _stock_ui_producto(producto):
     """Resumen consistente para vistas de inventario: maestro vs almacenes."""
-    total_maestro = int(producto.stock or 0)
-    if not producto or not _tablas_inventario_almacen_existen():
+    if not producto:
         return {
-            'tienda': total_maestro,
+            'tienda': 0,
             'bodega': 0,
-            'total_almacenes': total_maestro,
-            'total_maestro': total_maestro,
+            'total_almacenes': 0,
+            'total_maestro': 0,
             'desajustado': False,
         }
-    tid = id_almacen_tienda()
-    bid = id_almacen_bodega()
-    tienda = int(stock_producto_en_almacen(producto.id, tid) or 0) if tid else 0
-    bodega = int(stock_producto_en_almacen(producto.id, bid) or 0) if bid else 0
-    try:
-        total_almacenes = int(db.session.execute(
-            text("SELECT COALESCE(SUM(cantidad), 0) FROM stock_por_almacen WHERE id_producto = :p"),
-            {"p": int(producto.id)},
-        ).scalar() or 0)
-    except Exception:
-        db.session.rollback()
-        total_almacenes = total_maestro
+    ui = _stock_service.stock_ui_por_producto_ids([int(producto.id)]).get(int(producto.id))
+    if ui is not None:
+        return ui
+    total_maestro = int(producto.stock or 0)
     return {
-        'tienda': tienda,
-        'bodega': bodega,
-        'total_almacenes': total_almacenes,
+        'tienda': total_maestro,
+        'bodega': 0,
+        'total_almacenes': total_maestro,
         'total_maestro': total_maestro,
-        'desajustado': total_almacenes != total_maestro,
+        'desajustado': False,
     }
 
 
 def _adjuntar_stock_ui(productos):
-    for producto in productos or []:
-        producto.stock_ui = _stock_ui_producto(producto)
+    items = list(productos or [])
+    if not items:
+        return productos
+    pids = [int(p.id) for p in items if getattr(p, 'id', None)]
+    ui_map = _stock_service.stock_ui_por_producto_ids(pids)
+    for producto in items:
+        pid = int(producto.id)
+        producto.stock_ui = ui_map.get(pid) or _stock_ui_producto(producto)
     return productos
 
 
@@ -3830,6 +4285,10 @@ class Venta(db.Model):
     # Seguimiento entrega ticket QR (tienda / bodega / despacho) post-cobro.
     entrega_ticket_estado = db.Column(db.String(24), nullable=True)
     entrega_ticket_cerrado_at = db.Column(db.DateTime, nullable=True)
+    # Transferencia bancaria: cobro en caja requiere confirmación de abono antes de entrega.
+    transferencia_referencia = db.Column(db.String(80), nullable=True)
+    transferencia_confirmada_at = db.Column(db.DateTime, nullable=True)
+    transferencia_confirmada_por = db.Column(db.String(80), nullable=True)
     # Fase 2 — sugerido preparar (solo informativo; vale Pendiente + retiro Bodega; no reserva stock).
     bodega_sugerido_preparar = db.Column(db.SmallInteger, nullable=False, default=0, server_default='0')
     bodega_sugerido_preparar_at = db.Column(db.DateTime, nullable=True)
@@ -3923,6 +4382,30 @@ class VentaCuotaCredito(db.Model):
             order_by='VentaCuotaCredito.nro_cuota',
         ),
     )
+
+
+class TransferenciaCorreoIngreso(db.Model):
+    """Aviso bancario por transferencia recibido vía IMAP (misma cuenta que DTE)."""
+
+    __tablename__ = 'transferencia_correo_ingreso'
+    id = db.Column(db.Integer, primary_key=True)
+    message_id = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    imap_uid = db.Column(db.String(64), nullable=True)
+    fecha_correo = db.Column(db.DateTime, nullable=True)
+    remitente = db.Column(db.String(200), nullable=True)
+    asunto = db.Column(db.String(500), nullable=True)
+    monto = db.Column(db.Float, nullable=True)
+    referencia = db.Column(db.String(120), nullable=True)
+    rut_ordenante = db.Column(db.String(20), nullable=True)
+    nombre_ordenante = db.Column(db.String(200), nullable=True)
+    extracto = db.Column(db.Text, nullable=True)
+    venta_id_sugerida = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=True, index=True)
+    venta_id_vinculada = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=True, index=True)
+    estado = db.Column(db.String(20), nullable=False, default='pendiente', server_default='pendiente')
+    sync_usuario = db.Column(db.String(80), nullable=True)
+    confirmado_at = db.Column(db.DateTime, nullable=True)
+    confirmado_por = db.Column(db.String(80), nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
 
 class CobranzaRecordatorioWhatsappLog(db.Model):
@@ -4878,6 +5361,8 @@ def _seo_parse_page_snapshot(path):
 
     if html_text:
         try:
+            from lxml import html as lxml_html
+
             doc = lxml_html.fromstring(html_text)
             titles = doc.xpath('//title/text()')
             title = _web_analytics_clean(titles[0] if titles else '', 255)
@@ -4944,6 +5429,8 @@ def _seo_fetch_site_files():
     sitemap_count = 0
     if sitemap_text:
         try:
+            from lxml import etree
+
             root = etree.fromstring(sitemap_text.encode('utf-8'))
             sitemap_count = len(root.xpath('//*[local-name()="url"]'))
         except Exception:
@@ -5729,6 +6216,28 @@ class RecepcionCompra(db.Model):
     proveedor = db.relationship('Proveedor', backref='recepciones')
     orden_compra = db.relationship('OrdenCompra', backref='recepciones')
     detalles = db.relationship('DetalleRecepcion', backref='recepcion', lazy=True)
+    lineas_documento = db.relationship(
+        'RecepcionLineaDocumento',
+        backref='recepcion',
+        lazy=True,
+        order_by='RecepcionLineaDocumento.nro_linea',
+    )
+
+
+class RecepcionLineaDocumento(db.Model):
+    """Ítems del XML DTE (factura) — visibles aunque no haya match SKU en catálogo."""
+    __tablename__ = 'recepcion_linea_documento'
+    id = db.Column(db.Integer, primary_key=True)
+    recepcion_id = db.Column(db.Integer, db.ForeignKey('recepciones_compra.id'), nullable=False)
+    nro_linea = db.Column(db.Integer, nullable=False, default=1)
+    codigo_factura = db.Column(db.String(80), nullable=True)
+    nombre = db.Column(db.String(500), nullable=False)
+    cantidad = db.Column(db.Float, nullable=False, default=0)
+    precio_unitario = db.Column(db.Float, nullable=True)
+    monto_linea = db.Column(db.Float, nullable=True)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True)
+
+    producto = db.relationship('Producto', backref='lineas_documento_recepcion')
 
 
 class DetalleRecepcion(db.Model):
@@ -8961,27 +9470,136 @@ def api_catalogo_subs_por_categoria():
     return jsonify(_catalogo_sub_opciones_filtro(cat))
 
 
-@app.route('/productos')
-@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
-def mostrar_productos():
-    query = (request.args.get('q') or '').strip()
-    codigo_barra = (request.args.get('codigo_barra') or '').strip()
-    categoria = (request.args.get('categoria') or '').strip()
-    subcategoria = (request.args.get('subcategoria') or '').strip()
-    sub_id = request.args.get('sub_id', type=int)
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 25, type=int)
-    per_page = max(5, min(per_page, 100))
+def _parse_fecha_filtro_dia(val):
+    """Parsea YYYY-MM-DD, DD-MM-YYYY o DD/MM/YYYY → datetime inicio de día."""
+    if not val:
+        return None
+    from datetime import datetime
 
+    raw = str(val).strip()[:10]
+    for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _subquery_fecha_enrol_producto():
+    """Primera fecha de enrolamiento por producto (alias POS ∪ toma inventario)."""
+    q_alias = db.session.query(
+        ProductoCodigoEscaneo.producto_id.label('producto_id'),
+        ProductoCodigoEscaneo.creado_at.label('fecha'),
+    )
+    q_toma = (
+        db.session.query(
+            EnrolamientoTomaLinea.producto_id.label('producto_id'),
+            EnrolamientoTomaSesion.iniciado_at.label('fecha'),
+        )
+        .join(EnrolamientoTomaSesion, EnrolamientoTomaSesion.id == EnrolamientoTomaLinea.sesion_id)
+    )
+    union_q = q_alias.union_all(q_toma).subquery()
+    return (
+        db.session.query(
+            union_q.c.producto_id.label('producto_id'),
+            func.min(union_q.c.fecha).label('fecha_enrol'),
+        )
+        .group_by(union_q.c.producto_id)
+        .subquery()
+    )
+
+
+def _adjuntar_fechas_enrolamiento(productos):
+    """Atributos enrolado_en, tiene_enrolamiento, tiene_alias en instancias Producto."""
+    if not productos:
+        return
+    page_ids = [int(p.id) for p in productos]
+    fechas_alias = {
+        int(pid): fecha
+        for pid, fecha in db.session.query(
+            ProductoCodigoEscaneo.producto_id,
+            func.min(ProductoCodigoEscaneo.creado_at),
+        )
+        .filter(ProductoCodigoEscaneo.producto_id.in_(page_ids))
+        .group_by(ProductoCodigoEscaneo.producto_id)
+        .all()
+    }
+    fechas_toma = {}
+    if _tablas_enrolamiento_existen():
+        fechas_toma = {
+            int(pid): fecha
+            for pid, fecha in db.session.query(
+                EnrolamientoTomaLinea.producto_id,
+                func.min(EnrolamientoTomaSesion.iniciado_at),
+            )
+            .join(EnrolamientoTomaSesion, EnrolamientoTomaSesion.id == EnrolamientoTomaLinea.sesion_id)
+            .filter(EnrolamientoTomaLinea.producto_id.in_(page_ids))
+            .group_by(EnrolamientoTomaLinea.producto_id)
+            .all()
+        }
+    for p in productos:
+        pid = int(p.id)
+        p.enrolado_en = fechas_alias.get(pid) or fechas_toma.get(pid)
+        p.tiene_alias = pid in fechas_alias
+        p.tiene_enrolamiento = pid in fechas_alias or pid in fechas_toma
+        p.origen_enrolamiento = 'alias' if p.tiene_alias else ('toma' if p.tiene_enrolamiento else '')
+
+
+def _filtros_listado_productos(req):
+    """Parámetros GET del listado catálogo / inventario base."""
+    return {
+        'query': (req.args.get('q') or '').strip(),
+        'codigo_barra': (req.args.get('codigo_barra') or '').strip(),
+        'categoria': (req.args.get('categoria') or '').strip(),
+        'subcategoria': (req.args.get('subcategoria') or '').strip(),
+        'sub_id': req.args.get('sub_id', type=int),
+        'activo_filtro': (req.args.get('activo') or '').strip(),
+        'solo_enrolados': (req.args.get('solo_enrolados') or '').strip().lower() in ('1', 'true', 'si', 'sí', 'yes'),
+        'con_alias': (req.args.get('con_alias') or '').strip().lower() in ('1', 'true', 'si', 'sí', 'yes'),
+        'stock_solo_tienda': (req.args.get('stock_solo_tienda') or '').strip().lower() in ('1', 'true', 'si', 'sí', 'yes'),
+        'enrolado_desde': (req.args.get('enrolado_desde') or '').strip(),
+        'enrolado_hasta': (req.args.get('enrolado_hasta') or '').strip(),
+        'stock_min': req.args.get('stock_min', type=int),
+        'stock_max': req.args.get('stock_max', type=int),
+        'precio_min': req.args.get('precio_min', type=float),
+        'precio_max': req.args.get('precio_max', type=float),
+        'orden': (req.args.get('orden') or 'reciente').strip().lower(),
+    }
+
+
+def _query_productos_listado(filtros):
+    """Query SQLAlchemy de productos según filtros del listado catálogo."""
     productos = Producto.query
+    query = filtros.get('query') or ''
+    codigo_barra = filtros.get('codigo_barra') or ''
+    categoria = filtros.get('categoria') or ''
+    subcategoria = filtros.get('subcategoria') or ''
+    sub_id = filtros.get('sub_id')
+    activo_filtro = filtros.get('activo_filtro') or ''
+
     if query:
         productos = productos.filter(
             (Producto.nombre.like(f"%{query}%")) |
             (Producto.codigo_barra.like(f"%{query}%"))
         )
     if codigo_barra:
-        productos = productos.filter(Producto.codigo_barra.like(f"%{codigo_barra}%"))
-    # sub_id ya define la hoja del maestro; no combinar con categoria texto (evita vaciar resultados + búsqueda q).
+        cb = (codigo_barra or '').strip()
+        if cb.isdigit() and len(cb) <= 8:
+            pid = int(cb)
+            productos = productos.filter(
+                or_(
+                    Producto.id == pid,
+                    Producto.codigo_barra.like(f'%{cb}%'),
+                    Producto.codigo_interno.like(f'%{cb}%'),
+                )
+            )
+        else:
+            productos = productos.filter(
+                or_(
+                    Producto.codigo_barra.like(f'%{cb}%'),
+                    Producto.codigo_interno.like(f'%{cb}%'),
+                )
+            )
     if sub_id and _catalogo_ui_disponible():
         productos = productos.filter(Producto.subcategoria_catalogo_id == sub_id)
     else:
@@ -8990,17 +9608,663 @@ def mostrar_productos():
         if subcategoria:
             productos = productos.filter_by(subcategoria=subcategoria)
 
+    if activo_filtro == '1':
+        productos = productos.filter(Producto.activo.is_(True))
+    elif activo_filtro == '0':
+        productos = productos.filter(Producto.activo.is_(False))
+
+    alias_exists = exists().where(ProductoCodigoEscaneo.producto_id == Producto.id)
+    enrol_exists = exists().where(EnrolamientoTomaLinea.producto_id == Producto.id)
+    if filtros.get('solo_enrolados'):
+        productos = productos.filter(or_(alias_exists, enrol_exists))
+    if filtros.get('con_alias'):
+        productos = productos.filter(alias_exists)
+
+    stock_min = filtros.get('stock_min')
+    stock_max = filtros.get('stock_max')
+    precio_min = filtros.get('precio_min')
+    precio_max = filtros.get('precio_max')
+    if stock_min is not None:
+        productos = productos.filter(Producto.stock >= stock_min)
+    if stock_max is not None:
+        productos = productos.filter(Producto.stock <= stock_max)
+    if precio_min is not None:
+        productos = productos.filter(or_(Producto.precio_venta >= precio_min, Producto.precio_compra >= precio_min))
+    if precio_max is not None:
+        productos = productos.filter(or_(Producto.precio_venta <= precio_max, Producto.precio_compra <= precio_max))
+
+    if filtros.get('stock_solo_tienda') and _tablas_inventario_almacen_existen():
+        aid_tienda = id_almacen_tienda()
+        aid_bodega = id_almacen_bodega()
+        if aid_tienda and aid_bodega:
+            tiene_tienda = exists().where(
+                StockPorAlmacen.id_producto == Producto.id,
+                StockPorAlmacen.id_almacen == int(aid_tienda),
+                StockPorAlmacen.cantidad > 0,
+            )
+            sin_bodega = ~exists().where(
+                StockPorAlmacen.id_producto == Producto.id,
+                StockPorAlmacen.id_almacen == int(aid_bodega),
+                StockPorAlmacen.cantidad > 0,
+            )
+            productos = productos.filter(tiene_tienda, sin_bodega)
+
+    desde = _parse_fecha_filtro_dia(filtros.get('enrolado_desde'))
+    hasta = _parse_fecha_filtro_dia(filtros.get('enrolado_hasta'))
+    if desde:
+        productos = productos.filter(
+            or_(
+                exists().where(
+                    ProductoCodigoEscaneo.producto_id == Producto.id,
+                    ProductoCodigoEscaneo.creado_at >= desde,
+                ),
+                exists().where(
+                    EnrolamientoTomaLinea.producto_id == Producto.id,
+                    EnrolamientoTomaSesion.id == EnrolamientoTomaLinea.sesion_id,
+                    EnrolamientoTomaSesion.iniciado_at >= desde,
+                ),
+            )
+        )
+    if hasta:
+        from datetime import timedelta
+
+        fin = hasta + timedelta(days=1)
+        productos = productos.filter(
+            or_(
+                exists().where(
+                    ProductoCodigoEscaneo.producto_id == Producto.id,
+                    ProductoCodigoEscaneo.creado_at < fin,
+                ),
+                exists().where(
+                    EnrolamientoTomaLinea.producto_id == Producto.id,
+                    EnrolamientoTomaSesion.id == EnrolamientoTomaLinea.sesion_id,
+                    EnrolamientoTomaSesion.iniciado_at < fin,
+                ),
+            )
+        )
+    return productos
+
+
+def _orden_clause_productos_listado(orden, fecha_enrol_col=None):
+    orden = (orden or 'reciente').lower()
+    if orden == 'enrolado_desc' and fecha_enrol_col is not None:
+        return (fecha_enrol_col.desc().nullslast(), Producto.id.desc())
+    if orden == 'enrolado_asc' and fecha_enrol_col is not None:
+        return (fecha_enrol_col.asc().nullslast(), Producto.id.asc())
+    if orden == 'precio_asc':
+        return (Producto.precio_venta.asc().nullslast(), Producto.id.desc())
+    if orden == 'precio_desc':
+        return (Producto.precio_venta.desc().nullslast(), Producto.id.desc())
+    if orden == 'stock_asc':
+        return (Producto.stock.asc().nullslast(), Producto.id.desc())
+    if orden == 'stock_desc':
+        return (Producto.stock.desc().nullslast(), Producto.id.desc())
+    return (Producto.id.desc(),)
+
+
+def _calcular_stock_valorizado_catalogo(productos_list, stocks_tienda):
+    """Totales y desglose por categoría (stock tienda × costo / venta)."""
+    from collections import defaultdict
+
+    por_cat = defaultdict(lambda: {
+        'productos': 0,
+        'stock': 0,
+        'mercaderia_clp': 0.0,
+        'capital_activo_clp': 0.0,
+    })
+    total_con_alias = 0
+    total_activos = 0
+    total_stock = 0
+    total_costo_clp = 0.0
+    total_venta_clp = 0.0
+
+    for p in productos_list or []:
+        st = int(stocks_tienda.get(int(p.id), 0) or 0)
+        costo = float(p.precio_compra or 0)
+        venta = float(precio_efectivo_pos_producto(p) or p.precio_venta or 0)
+        total_stock += st
+        total_costo_clp += st * costo
+        total_venta_clp += st * venta
+        if getattr(p, 'activo', True):
+            total_activos += 1
+        if p.codigo_barra and not str(p.codigo_barra).startswith('PEND-'):
+            total_con_alias += 1
+        cat = (p.categoria or '').strip() or 'Sin categoría'
+        bucket = por_cat[cat]
+        bucket['productos'] += 1
+        bucket['stock'] += st
+        bucket['mercaderia_clp'] += st * costo
+        bucket['capital_activo_clp'] += st * venta
+
+    sin_costo_productos = 0
+    sin_costo_stock = 0
+    sin_costo_capital_clp = 0.0
+    for p in productos_list or []:
+        st = int(stocks_tienda.get(int(p.id), 0) or 0)
+        if st <= 0:
+            continue
+        costo = float(p.precio_compra or 0)
+        if costo > 0:
+            continue
+        sin_costo_productos += 1
+        sin_costo_stock += st
+        venta = float(precio_efectivo_pos_producto(p) or p.precio_venta or 0)
+        sin_costo_capital_clp += st * venta
+
+    stock_valorizado = {
+        'total_enrolados': len(productos_list or []),
+        'total_activos': total_activos,
+        'total_con_alias': total_con_alias,
+        'total_stock': total_stock,
+        'capital_activo_clp': total_venta_clp,
+        'mercaderia_clp': total_costo_clp,
+        'brecha_clp': total_venta_clp - total_costo_clp,
+        'sin_costo_productos': sin_costo_productos,
+        'sin_costo_stock': sin_costo_stock,
+        'sin_costo_capital_clp': sin_costo_capital_clp,
+    }
+
+    filas = []
+    for cat, b in por_cat.items():
+        merc = float(b['mercaderia_clp'])
+        venta = float(b['capital_activo_clp'])
+        filas.append({
+            'categoria': cat,
+            'productos': int(b['productos']),
+            'stock': int(b['stock']),
+            'mercaderia_clp': merc,
+            'capital_activo_clp': venta,
+            'brecha_clp': venta - merc,
+            'pct_mercaderia': 0.0,
+            'pct_capital': 0.0,
+        })
+    filas.sort(key=lambda row: (-row['mercaderia_clp'], row['categoria']))
+    if total_costo_clp > 0:
+        for row in filas:
+            row['pct_mercaderia'] = round(row['mercaderia_clp'] / total_costo_clp * 100, 1)
+    if total_venta_clp > 0:
+        for row in filas:
+            row['pct_capital'] = round(row['capital_activo_clp'] / total_venta_clp * 100, 1)
+    return stock_valorizado, filas
+
+
+def _calcular_stock_valorizado_catalogo_query(productos_query):
+    """Totales valorizados desde query filtrada (SQL, sin cargar todo el catálogo)."""
+    from sqlalchemy import and_, case, func
+
+    pid_subq = productos_query.with_entities(Producto.id.label('pid')).subquery()
+    aid_tienda = id_almacen_tienda()
+    mult_alm = bool(aid_tienda and _tablas_inventario_almacen_existen())
+
+    if mult_alm:
+        st_qty = func.coalesce(StockPorAlmacen.cantidad, 0)
+        join_st = db.session.query(Producto.id).join(
+            pid_subq, Producto.id == pid_subq.c.pid
+        ).outerjoin(
+            StockPorAlmacen,
+            and_(
+                StockPorAlmacen.id_producto == Producto.id,
+                StockPorAlmacen.id_almacen == int(aid_tienda),
+            ),
+        )
+        st_sum = func.coalesce(func.sum(st_qty), 0)
+        merc_sum = func.coalesce(func.sum(st_qty * func.coalesce(Producto.precio_compra, 0)), 0)
+        venta_unit = case(
+            (Producto.precio_venta_sd > 0, Producto.precio_venta_sd),
+            else_=0,
+        )
+        venta_sum = func.coalesce(func.sum(st_qty * venta_unit), 0)
+        q_tot = join_st.with_entities(st_sum, merc_sum, venta_sum)
+        total_stock, total_costo_clp, total_venta_clp = q_tot.one()
+        cat_expr = case(
+            (
+                (Producto.categoria.is_(None)) | (func.trim(Producto.categoria) == ''),
+                'Sin categoría',
+            ),
+            else_=Producto.categoria,
+        )
+        rows = (
+            db.session.query(
+                cat_expr.label('categoria'),
+                func.count(Producto.id),
+                func.coalesce(func.sum(st_qty), 0),
+                func.coalesce(func.sum(st_qty * func.coalesce(Producto.precio_compra, 0)), 0),
+                func.coalesce(func.sum(st_qty * venta_unit), 0),
+            )
+            .join(pid_subq, Producto.id == pid_subq.c.pid)
+            .outerjoin(
+                StockPorAlmacen,
+                and_(
+                    StockPorAlmacen.id_producto == Producto.id,
+                    StockPorAlmacen.id_almacen == int(aid_tienda),
+                ),
+            )
+            .group_by(db.text('1'))
+            .all()
+        )
+    else:
+        st_qty = func.coalesce(Producto.stock, 0)
+        q_tot = db.session.query(
+            func.coalesce(func.sum(st_qty), 0),
+            func.coalesce(func.sum(st_qty * func.coalesce(Producto.precio_compra, 0)), 0),
+            func.coalesce(
+                func.sum(
+                    st_qty * case(
+                        (Producto.precio_venta_sd > 0, Producto.precio_venta_sd),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        ).join(pid_subq, Producto.id == pid_subq.c.pid)
+        total_stock, total_costo_clp, total_venta_clp = q_tot.one()
+        cat_expr = case(
+            (
+                (Producto.categoria.is_(None)) | (func.trim(Producto.categoria) == ''),
+                'Sin categoría',
+            ),
+            else_=Producto.categoria,
+        )
+        rows = (
+            db.session.query(
+                cat_expr.label('categoria'),
+                func.count(Producto.id),
+                func.coalesce(func.sum(st_qty), 0),
+                func.coalesce(func.sum(st_qty * func.coalesce(Producto.precio_compra, 0)), 0),
+                func.coalesce(
+                    func.sum(
+                        st_qty * case(
+                            (Producto.precio_venta_sd > 0, Producto.precio_venta_sd),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ),
+            )
+            .join(pid_subq, Producto.id == pid_subq.c.pid)
+            .group_by(db.text('1'))
+            .all()
+        )
+
+    total_enrolados = db.session.query(func.count()).select_from(pid_subq).scalar() or 0
+    total_activos = (
+        db.session.query(func.count(Producto.id))
+        .join(pid_subq, Producto.id == pid_subq.c.pid)
+        .filter(Producto.activo.is_(True))
+        .scalar()
+        or 0
+    )
+    total_con_alias = (
+        db.session.query(func.count(Producto.id))
+        .join(pid_subq, Producto.id == pid_subq.c.pid)
+        .filter(
+            Producto.codigo_barra.isnot(None),
+            ~Producto.codigo_barra.like('PEND-%'),
+        )
+        .scalar()
+        or 0
+    )
+
+    total_stock = int(total_stock or 0)
+    total_costo_clp = float(total_costo_clp or 0)
+    total_venta_clp = float(total_venta_clp or 0)
+    stock_valorizado = {
+        'total_enrolados': int(total_enrolados),
+        'total_activos': int(total_activos),
+        'total_con_alias': int(total_con_alias),
+        'total_stock': total_stock,
+        'capital_activo_clp': total_venta_clp,
+        'mercaderia_clp': total_costo_clp,
+        'brecha_clp': total_venta_clp - total_costo_clp,
+        'sin_costo_productos': 0,
+        'sin_costo_stock': 0,
+        'sin_costo_capital_clp': 0.0,
+    }
+
+    filas = []
+    for cat, n_prod, st, merc, venta in rows:
+        merc = float(merc or 0)
+        venta = float(venta or 0)
+        filas.append({
+            'categoria': cat or 'Sin categoría',
+            'productos': int(n_prod or 0),
+            'stock': int(st or 0),
+            'mercaderia_clp': merc,
+            'capital_activo_clp': venta,
+            'brecha_clp': venta - merc,
+            'pct_mercaderia': 0.0,
+            'pct_capital': 0.0,
+        })
+    filas.sort(key=lambda row: (-row['mercaderia_clp'], row['categoria']))
+    if total_costo_clp > 0:
+        for row in filas:
+            row['pct_mercaderia'] = round(row['mercaderia_clp'] / total_costo_clp * 100, 1)
+    if total_venta_clp > 0:
+        for row in filas:
+            row['pct_capital'] = round(row['capital_activo_clp'] / total_venta_clp * 100, 1)
+    return stock_valorizado, filas
+
+
+def _query_productos_categoria_valorizado(filtros, categoria_nombre):
+    """Productos del listado filtrado restringidos a una categoría del informe valorizado."""
+    from sqlalchemy import func
+
+    filtros_base = dict(filtros or {})
+    filtros_base['categoria'] = ''
+    q = _query_productos_listado(filtros_base)
+    cat = (categoria_nombre or '').strip()
+    if cat == 'Sin categoría':
+        return q.filter(or_(Producto.categoria.is_(None), func.trim(Producto.categoria) == ''))
+    return q.filter(Producto.categoria == cat)
+
+
+def _args_export_filtros_productos(filtros):
+    """Query string kwargs para exportaciones del listado catálogo."""
+    return {
+        'q': filtros.get('query') or '',
+        'codigo_barra': filtros.get('codigo_barra') or '',
+        'categoria': filtros.get('categoria') or '',
+        'subcategoria': filtros.get('subcategoria') or '',
+        'sub_id': filtros.get('sub_id') or '',
+        'activo': filtros.get('activo_filtro') or '',
+        'solo_enrolados': '1' if filtros.get('solo_enrolados') else '',
+        'con_alias': '1' if filtros.get('con_alias') else '',
+        'stock_solo_tienda': '1' if filtros.get('stock_solo_tienda') else '',
+        'enrolado_desde': filtros.get('enrolado_desde') or '',
+        'enrolado_hasta': filtros.get('enrolado_hasta') or '',
+        'stock_min': filtros.get('stock_min') if filtros.get('stock_min') is not None else '',
+        'stock_max': filtros.get('stock_max') if filtros.get('stock_max') is not None else '',
+        'precio_min': filtros.get('precio_min') if filtros.get('precio_min') is not None else '',
+        'precio_max': filtros.get('precio_max') if filtros.get('precio_max') is not None else '',
+        'orden': filtros.get('orden') or 'reciente',
+    }
+
+
+def _qs_filtros_productos_sin(filtros, omit_keys=None):
+    """Args GET del listado catálogo omitiendo claves indicadas."""
+    omit = set(omit_keys or [])
+    if 'categoria' in omit:
+        omit.update({'subcategoria', 'sub_id'})
+    args = _args_export_filtros_productos(filtros)
+    cleaned = {}
+    for key, val in args.items():
+        if key in omit:
+            continue
+        if val in (None, ''):
+            continue
+        if key == 'orden' and str(val).strip().lower() == 'reciente':
+            continue
+        cleaned[key] = val
+    return cleaned
+
+
+def _url_filtros_productos(filtros, omit_keys=None):
+    from urllib.parse import urlencode
+
+    cleaned = _qs_filtros_productos_sin(filtros, omit_keys)
+    qs = urlencode(cleaned)
+    base = url_for('mostrar_productos')
+    return f'{base}?{qs}' if qs else base
+
+
+def _es_preset_post_spray_productos(filtros):
+    """Vista típica revisión post-spray: enrolados con stock aún solo en tienda."""
+    return bool(filtros.get('solo_enrolados') and filtros.get('stock_solo_tienda'))
+
+
+def _filtros_productos_tienen_avanzados(filtros):
+    """Solo fechas/rangos numéricos — no toggles rápidos."""
+    return any([
+        filtros.get('enrolado_desde'),
+        filtros.get('enrolado_hasta'),
+        filtros.get('stock_min') is not None,
+        filtros.get('stock_max') is not None,
+        filtros.get('precio_min') is not None,
+        filtros.get('precio_max') is not None,
+    ])
+
+
+def _resumen_filtros_activos_productos(filtros):
+    """Chips removibles para filtros GET activos en /productos."""
+    items = []
+    q = (filtros.get('query') or '').strip()
+    if q:
+        items.append({'label': f'Contiene: {q[:36]}', 'omit': ['q'], 'tone': 'default'})
+    cod = (filtros.get('codigo_barra') or '').strip()
+    if cod:
+        items.append({'label': f'Código: {cod[:24]}', 'omit': ['codigo_barra'], 'tone': 'default'})
+    cat = (filtros.get('categoria') or '').strip()
+    if cat:
+        items.append({'label': f'Categoría: {cat[:28]}', 'omit': ['categoria'], 'tone': 'default'})
+    sub_id = filtros.get('sub_id')
+    if sub_id and _catalogo_ui_disponible():
+        items.append({'label': f'Ítem catálogo #{sub_id}', 'omit': ['sub_id'], 'tone': 'default'})
+    else:
+        sub = (filtros.get('subcategoria') or '').strip()
+        if sub:
+            items.append({'label': f'Sub: {sub[:28]}', 'omit': ['subcategoria'], 'tone': 'default'})
+    activo = (filtros.get('activo_filtro') or '').strip()
+    if activo == '1':
+        items.append({'label': 'Solo activos', 'omit': ['activo'], 'tone': 'ok'})
+    elif activo == '0':
+        items.append({'label': 'Solo inactivos', 'omit': ['activo'], 'tone': 'danger'})
+    es_post = _es_preset_post_spray_productos(filtros)
+    if es_post:
+        items.insert(0, {
+            'label': 'Vista Post-spray',
+            'omit': ['solo_enrolados', 'stock_solo_tienda', 'enrolado_desde'],
+            'tone': 'warn',
+            'hint': 'Quita enrolados + solo tienda + fecha desde',
+        })
+    if filtros.get('solo_enrolados') and not es_post:
+        items.append({'label': 'Solo enrolados', 'omit': ['solo_enrolados'], 'tone': 'ok'})
+    if filtros.get('con_alias'):
+        items.append({'label': 'Con alias POS', 'omit': ['con_alias'], 'tone': 'default'})
+    if filtros.get('stock_solo_tienda') and not es_post:
+        items.append({
+            'label': 'Stock solo tienda',
+            'omit': ['stock_solo_tienda'],
+            'tone': 'warn',
+            'hint': 'Muestra SKUs con stock en tienda y cero en bodega',
+        })
+    desde = (filtros.get('enrolado_desde') or '').strip()
+    if desde:
+        items.append({'label': f'Enrolado desde {desde}', 'omit': ['enrolado_desde'], 'tone': 'default'})
+    hasta = (filtros.get('enrolado_hasta') or '').strip()
+    if hasta:
+        items.append({'label': f'Enrolado hasta {hasta}', 'omit': ['enrolado_hasta'], 'tone': 'default'})
+    if filtros.get('stock_min') is not None:
+        items.append({'label': f'Stock ≥ {filtros["stock_min"]}', 'omit': ['stock_min'], 'tone': 'default'})
+    if filtros.get('stock_max') is not None:
+        items.append({'label': f'Stock ≤ {filtros["stock_max"]}', 'omit': ['stock_max'], 'tone': 'default'})
+    if filtros.get('precio_min') is not None:
+        items.append({'label': f'Precio ≥ {filtros["precio_min"]}', 'omit': ['precio_min'], 'tone': 'default'})
+    if filtros.get('precio_max') is not None:
+        items.append({'label': f'Precio ≤ {filtros["precio_max"]}', 'omit': ['precio_max'], 'tone': 'default'})
+    orden = (filtros.get('orden') or 'reciente').strip().lower()
+    orden_labels = {
+        'precio_desc': 'Orden: mayor precio',
+        'precio_asc': 'Orden: menor precio',
+        'stock_desc': 'Orden: más stock',
+        'stock_asc': 'Orden: menos stock',
+        'enrolado_desc': 'Orden: enrol. reciente',
+        'enrolado_asc': 'Orden: enrol. antiguo',
+    }
+    if orden in orden_labels:
+        items.append({'label': orden_labels[orden], 'omit': ['orden'], 'tone': 'muted'})
+    for it in items:
+        it['url'] = _url_filtros_productos(filtros, it.get('omit'))
+    return items
+
+
+def _parse_filtros_desde_referrer(referrer):
+    """Reconstruye filtros GET desde la URL de retorno del listado."""
+    from urllib.parse import parse_qs, urlparse
+
+    path = urlparse(referrer or '')
+    if not path.path.rstrip('/').endswith('productos'):
+        return None
+    qs = parse_qs(path.query or '', keep_blank_values=False)
+    flat = {k: (v[0] if v else '') for k, v in qs.items()}
+
+    class _FakeArgs:
+        def get(self, key, default='', type=None):
+            val = flat.get(key, default)
+            if val in (None, ''):
+                val = default
+            if type is int:
+                try:
+                    return int(val)
+                except (TypeError, ValueError):
+                    return None
+            if type is float:
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return None
+            return val
+
+    class _FakeReq:
+        args = _FakeArgs()
+
+    return _filtros_listado_productos(_FakeReq())
+
+
+def _mensaje_post_guardado_fila_catalogo(producto, stock_tienda, stock_bodega, filtros_referrer):
+    msg = (
+        f'Producto «{producto.nombre}» guardado (tienda={stock_tienda}, bodega={stock_bodega}).'
+    )
+    if not filtros_referrer:
+        return msg
+    cat_filtro = (filtros_referrer.get('categoria') or '').strip()
+    cat_prod = (producto.categoria or '').strip()
+    if cat_filtro and cat_filtro != cat_prod:
+        msg += (
+            f' Ya no coincide con el filtro de categoría «{cat_filtro}»'
+            f' (ahora: «{cat_prod or "Sin categoría"}»).'
+        )
+    if filtros_referrer.get('stock_solo_tienda'):
+        visible = int(stock_tienda or 0) > 0 and int(stock_bodega or 0) == 0
+        if not visible:
+            msg += (
+                ' Ya no aparece en «Stock solo tienda»'
+                ' (moviste unidades a bodega o dejaste tienda en cero).'
+            )
+    return msg
+
+
+def _codigo_etiqueta_catalogo(producto):
+    codigo = (producto.codigo_barra or '').strip()
+    if codigo:
+        return codigo
+    codigo = (producto.codigo_interno or '').strip()
+    if codigo:
+        return codigo
+    return f'ID{int(producto.id)}'
+
+
+def _precio_etiqueta_catalogo(producto):
+    """Precio visible en góndola: lista maestro o precio POS (SD) si no hay lista."""
+    lista = float(producto.precio_venta or 0)
+    if lista > 0:
+        return lista
+    return float(precio_efectivo_pos_producto(producto) or 0)
+
+
+def _filas_etiquetas_catalogo(productos, cantidad=1):
+    cantidad = max(1, min(int(cantidad or 1), 50))
+    filas = []
+    for p in productos or []:
+        filas.append({
+            'id': int(p.id),
+            'nombre': (p.nombre or 'Sin nombre').strip()[:80],
+            'codigo': _codigo_etiqueta_catalogo(p),
+            'precio_clp': _precio_etiqueta_catalogo(p),
+            'cantidad': cantidad,
+        })
+    return filas
+
+
+def _filas_etiquetas_enrolamiento(productos, cantidad=1):
+    """Filas para etiquetas de góndola con precios POS, lista y mayoreo."""
+    cantidad = max(1, min(int(cantidad or 1), 50))
+    filas = []
+    for p in productos or []:
+        pe_pos = float(precio_efectivo_pos_producto(p) or 0)
+        pv = float(p.precio_venta or 0)
+        pm = float(p.precio_mayoreo or 0)
+        precio_principal = pe_pos if pe_pos > 0 else (pv if pv > 0 else 0)
+        filas.append({
+            'id': int(p.id),
+            'nombre': (p.nombre or 'Sin nombre').strip()[:80],
+            'codigo': _codigo_etiqueta_catalogo(p),
+            'precio_clp': precio_principal,
+            'precio_pos': pe_pos,
+            'precio_lista': pv,
+            'precio_mayoreo': pm,
+            'cantidad': cantidad,
+        })
+    return filas
+
+
+@app.route('/productos')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def mostrar_productos():
+    filtros = _filtros_listado_productos(request)
+    query = filtros['query']
+    codigo_barra = filtros['codigo_barra']
+    categoria = filtros['categoria']
+    subcategoria = filtros['subcategoria']
+    sub_id = filtros['sub_id']
+    activo_filtro = filtros['activo_filtro']
+    solo_enrolados = filtros['solo_enrolados']
+    con_alias = filtros['con_alias']
+    stock_min = filtros['stock_min']
+    stock_max = filtros['stock_max']
+    precio_min = filtros['precio_min']
+    precio_max = filtros['precio_max']
+    orden = filtros['orden']
+    enrolado_desde = filtros.get('enrolado_desde') or ''
+    enrolado_hasta = filtros.get('enrolado_hasta') or ''
+    stock_solo_tienda = filtros.get('stock_solo_tienda')
+    filtros_export = _args_export_filtros_productos(filtros)
+    from urllib.parse import urlencode
+
+    url_filtros_qs = urlencode(
+        {k: v for k, v in (filtros_export or {}).items() if v not in (None, '')}
+    )
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 25, type=int)
+    per_page = max(5, min(per_page, 100))
+
+    productos = _query_productos_listado(filtros)
+    fecha_enrol_col = None
+    if orden in ('enrolado_desc', 'enrolado_asc') and _tablas_enrolamiento_existen():
+        sq_fe = _subquery_fecha_enrol_producto()
+        productos = productos.outerjoin(sq_fe, Producto.id == sq_fe.c.producto_id)
+        fecha_enrol_col = sq_fe.c.fecha_enrol
+    order_clause = _orden_clause_productos_listado(orden, fecha_enrol_col)
+
+    productos_pagination = productos.order_by(*order_clause).paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False
+    )
+    stock_valorizado, stock_valorizado_categorias = _calcular_stock_valorizado_catalogo_query(productos)
+
     categorias = _categorias_filtro_lista()
     subcategorias = _subcategorias_filtro_legacy(categoria)
     catalogo_sub_opciones = _catalogo_sub_opciones_filtro(categoria) if categoria else []
     mostrar_filtro_sub_id = bool(_catalogo_ui_disponible() and categoria)
 
-    productos_pagination = productos.order_by(Producto.id.desc()).paginate(
-        page=page,
-        per_page=per_page,
-        error_out=False
-    )
     _adjuntar_stock_ui(productos_pagination.items)
+    _adjuntar_fechas_enrolamiento(productos_pagination.items)
+    for p in productos_pagination.items:
+        su = getattr(p, 'stock_ui', None)
+        st_t = int((su.get('tienda') if isinstance(su, dict) else getattr(su, 'tienda', None)) or (p.stock or 0) or 0)
+        p.valor_stock_costo = float(st_t * float(p.precio_compra or 0))
+        p.valor_stock_venta = float(st_t * float(precio_efectivo_pos_producto(p) or p.precio_venta or 0))
+
     return render_template(
         'productos.html',
         productos=productos_pagination.items,
@@ -9020,6 +10284,27 @@ def mostrar_productos():
         puede_editar_stock_admin=_usuario_puede_ajustar_stock(),
         c360_fases_obra=C360_FASE_OBRA_VALORES,
         c360_fase_labels=C360_FASE_OBRA_LABELS,
+        activo_filtro=activo_filtro,
+        solo_enrolados=solo_enrolados,
+        con_alias=con_alias,
+        stock_min=stock_min,
+        stock_max=stock_max,
+        precio_min=precio_min,
+        precio_max=precio_max,
+        orden=orden,
+        enrolado_desde=enrolado_desde,
+        enrolado_hasta=enrolado_hasta,
+        stock_solo_tienda=stock_solo_tienda,
+        stock_valorizado=stock_valorizado,
+        stock_valorizado_categorias=stock_valorizado_categorias,
+        filtros_export=filtros_export,
+        url_filtros_qs=url_filtros_qs,
+        filtros_activos_resumen=_resumen_filtros_activos_productos(filtros),
+        es_vista_post_spray=_es_preset_post_spray_productos(filtros),
+        filtros_avanzados_abiertos=_filtros_productos_tienen_avanzados(filtros),
+        marcas_catalogo=_marcas_catalogo_lista(),
+        tonos_catalogo=_tonos_catalogo_lista(),
+        catalogo_pinturas_maestro_ok=_tablas_catalogo_pinturas_maestro_existen(),
     )
 
 
@@ -9032,6 +10317,583 @@ def producto_actualizar_fase_obra(id):
     db.session.commit()
     flash('Fase de obra del producto actualizada.', 'success')
     return redirect(request.referrer or url_for('mostrar_productos'))
+
+
+def _parse_filas_catalogo_bulk_form(form):
+    """Extrae filas[{id}][campo] del POST masivo de catálogo."""
+    import re
+
+    pat = re.compile(r'^filas\[(\d+)\]\[(\w+)\]$')
+    filas = {}
+    for key in form.keys():
+        m = pat.match(key)
+        if not m:
+            continue
+        pid = int(m.group(1))
+        field = m.group(2)
+        filas.setdefault(pid, {})[field] = form.get(key)
+    return filas
+
+
+def _validar_datos_fila_catalogo(data):
+    """Valida POST fila_catalogo sin tocar la sesión SQLAlchemy."""
+    if not data:
+        return False, 'Datos incompletos.', None
+
+    def _val(key, default=''):
+        raw = data.get(key, default)
+        return '' if raw is None else raw
+
+    nombre = (str(_val('nombre')) or '').strip()
+    if not nombre:
+        return False, 'El nombre no puede quedar vacío.', None
+
+    cat = (str(_val('categoria')) or '').strip()
+    sub = (str(_val('subcategoria')) or '').strip()
+    sub_id_raw = _val('subcategoria_catalogo_id', '')
+    sub_id = None
+    if str(sub_id_raw).strip().isdigit():
+        sub_id = int(str(sub_id_raw).strip())
+
+    def _clip_ubic(v):
+        s = (str(v or '')).strip()
+        return s[:12] if s else None
+
+    stock_nuevo_raw = (str(_val('stock')) or '').strip()
+    stock_bodega_raw = (str(_val('stock_bodega')) or '').strip()
+    try:
+        stock_nuevo = int(stock_nuevo_raw)
+    except (TypeError, ValueError):
+        return False, 'Stock tienda inválido.', None
+    if stock_nuevo < 0:
+        return False, 'Stock tienda negativo.', None
+    try:
+        stock_bodega_nuevo = int(stock_bodega_raw) if stock_bodega_raw != '' else 0
+    except (TypeError, ValueError):
+        return False, 'Stock bodega inválido.', None
+    if stock_bodega_nuevo < 0:
+        return False, 'Stock bodega negativo.', None
+
+    pc = _parse_clp_monto(_val('precio_compra'))
+    if pc is None:
+        return False, 'Precio de compra no válido.', None
+    if pc < 0:
+        return False, 'Precio de compra negativo.', None
+
+    n_lista = _parse_clp_monto(_val('precio_venta'))
+    if n_lista is None:
+        return False, 'Precio de venta no válido.', None
+    if n_lista <= 0:
+        return False, 'Precio de venta debe ser > 0.', None
+
+    return True, None, {
+        'nombre': nombre[:100],
+        'categoria': cat,
+        'subcategoria': sub,
+        'subcategoria_catalogo_id': sub_id,
+        'ubicacion_pasillo': _clip_ubic(_val('ubicacion_pasillo')),
+        'ubicacion_estante': _clip_ubic(_val('ubicacion_estante')),
+        'ubicacion_nivel': _clip_ubic(_val('ubicacion_nivel')),
+        'marca': (str(_val('marca')) or '').strip()[:80],
+        'tono_color': (str(_val('tono_color')) or '').strip()[:80],
+        'stock_tienda': stock_nuevo,
+        'stock_bodega': stock_bodega_nuevo,
+        'precio_compra': float(pc),
+        'precio_venta': float(n_lista),
+    }
+
+
+def _aplicar_fila_catalogo(producto, data, *, motivo_bitacora='Ajuste rápido catálogo enrolados'):
+    """
+    Aplica los campos de fila_catalogo a un producto.
+    Retorna (ok, error_msg, info) sin commit.
+    """
+    if not producto:
+        return False, 'Producto no encontrado.', None
+
+    ok, err, parsed = _validar_datos_fila_catalogo(data)
+    if not ok:
+        return False, err, None
+
+    producto.nombre = parsed['nombre']
+
+    cat = parsed['categoria']
+    sub = parsed['subcategoria']
+    sub_id = parsed['subcategoria_catalogo_id']
+    if sub_id and _catalogo_ui_disponible():
+        _sincronizar_producto_desde_subcatalogo(producto, sub_id)
+        if not producto.subcategoria_catalogo_id:
+            return False, 'La subcategoría del maestro no es válida.', None
+        if cat and cat != (producto.categoria or ''):
+            producto.categoria = cat[:50]
+    else:
+        producto.categoria = cat[:50] if cat else None
+        producto.subcategoria = sub[:50] if sub else None
+        producto.subcategoria_catalogo_id = None
+
+    producto.ubicacion_pasillo = parsed['ubicacion_pasillo']
+    producto.ubicacion_estante = parsed['ubicacion_estante']
+    producto.ubicacion_nivel = parsed['ubicacion_nivel']
+
+    if hasattr(producto, 'marca'):
+        producto.marca = parsed['marca'] or None
+    if hasattr(producto, 'tono_color'):
+        producto.tono_color = parsed['tono_color'] or None
+    if producto.marca or producto.tono_color:
+        try:
+            from services.catalogo_pinturas_maestro_service import asegurar_marca, asegurar_tono
+            if producto.marca:
+                producto.marca = asegurar_marca(producto.marca)
+            if producto.tono_color:
+                producto.tono_color = asegurar_tono(producto.tono_color)
+        except Exception:
+            pass
+
+    stock_nuevo = parsed['stock_tienda']
+    stock_bodega_nuevo = parsed['stock_bodega']
+    producto.precio_compra = parsed['precio_compra']
+
+    n_lista = parsed['precio_venta']
+    antes = float(precio_efectivo_pos_producto(producto) or 0)
+    producto.precio_venta = float(n_lista)
+    if float(getattr(producto, 'precio_venta_sd', None) or 0) <= 0:
+        producto.precio_venta_sd = float(n_lista)
+    despues = float(precio_efectivo_pos_producto(producto) or 0)
+    if abs(antes - despues) >= 0.01:
+        registrar_bitacora_precio(
+            producto_id=producto.id,
+            precio_anterior=antes,
+            precio_nuevo=despues,
+            costo_referencia=producto.precio_compra or 0,
+            margen_objetivo=None,
+            usuario=(current_user.nombre if current_user and getattr(current_user, 'is_authenticated', False) else None),
+            motivo=motivo_bitacora,
+        )
+
+    mult_alm = _tablas_inventario_almacen_existen()
+    aid_tienda = id_almacen_tienda() if mult_alm else None
+    aid_bodega = id_almacen_bodega() if mult_alm else None
+    if mult_alm:
+        if aid_tienda:
+            fijar_stock_almacen(producto.id, aid_tienda, stock_nuevo)
+        if aid_bodega:
+            fijar_stock_almacen(producto.id, aid_bodega, stock_bodega_nuevo)
+        if aid_tienda or aid_bodega:
+            _refrescar_stock_total_producto(producto)
+    else:
+        producto.stock = stock_nuevo
+
+    return True, None, {
+        'stock_tienda': stock_nuevo,
+        'stock_bodega': stock_bodega_nuevo,
+    }
+
+
+@app.route('/productos/<int:id>/editar-catalogo', methods=['POST'])
+@permisos_required('admin_inventario', 'gestionar_usuarios')
+def producto_editar_catalogo(id):
+    """Ajuste rápido desde el listado de enrolados (stock tienda, categoría, precio, ubicación)."""
+    if not _usuario_puede_ajustar_stock():
+        flash('No tienes permisos para editar productos desde esta pantalla.', 'danger')
+        return redirect(request.referrer or url_for('mostrar_productos'))
+
+    producto = Producto.query.get_or_404(id)
+    campo = (request.form.get('campo') or '').strip().lower()
+    _redir = lambda: redirect(request.referrer or url_for('mostrar_productos'))
+
+    if campo == 'fila_catalogo':
+        _asegurar_columnas_productos_legacy()
+        try:
+            ok, err, info = _aplicar_fila_catalogo(producto, request.form)
+            if not ok:
+                db.session.rollback()
+                flash(err or 'No se pudo guardar el producto.', 'warning')
+                return _redir()
+            db.session.commit()
+        except Exception as ex:
+            db.session.rollback()
+            causa = ex
+            while getattr(causa, '__cause__', None):
+                causa = causa.__cause__
+            flash(f'No se pudo guardar el producto: {causa or ex}', 'danger')
+            return _redir()
+        flash(
+            _mensaje_post_guardado_fila_catalogo(
+                producto,
+                info['stock_tienda'],
+                info['stock_bodega'],
+                _parse_filtros_desde_referrer(request.referrer),
+            ),
+            'success',
+        )
+        return _redir()
+
+    if campo == 'nombre':
+        nombre = (request.form.get('nombre') or '').strip()
+        if not nombre:
+            flash('El nombre no puede quedar vacío.', 'warning')
+            return _redir()
+        producto.nombre = nombre[:100]
+        db.session.commit()
+        flash(f'Nombre actualizado para «{producto.nombre}».', 'success')
+        return _redir()
+
+    if campo == 'stock':
+        stock_nuevo_raw = (request.form.get('stock') or '').strip()
+        stock_bodega_raw = (request.form.get('stock_bodega') or '').strip()
+        try:
+            stock_nuevo = int(stock_nuevo_raw)
+        except (TypeError, ValueError):
+            flash('Stock tienda inválido. Debe ingresar un número entero.', 'warning')
+            return _redir()
+        if stock_nuevo < 0:
+            flash('El stock tienda no puede ser negativo.', 'warning')
+            return _redir()
+        stock_bodega_nuevo = None
+        if stock_bodega_raw != '':
+            try:
+                stock_bodega_nuevo = int(stock_bodega_raw)
+            except (TypeError, ValueError):
+                flash('Stock bodega inválido. Debe ingresar un número entero.', 'warning')
+                return _redir()
+            if stock_bodega_nuevo < 0:
+                flash('El stock bodega no puede ser negativo.', 'warning')
+                return _redir()
+
+        mult_alm = _tablas_inventario_almacen_existen()
+        aid_tienda = id_almacen_tienda() if mult_alm else None
+        aid_bodega = id_almacen_bodega() if mult_alm else None
+        stock_maestro_antes = int(producto.stock or 0)
+        stock_tienda_antes = (
+            stock_producto_en_almacen(producto.id, aid_tienda) if aid_tienda is not None else None
+        )
+        stock_bodega_antes = (
+            stock_producto_en_almacen(producto.id, aid_bodega) if aid_bodega is not None else None
+        )
+        with transaccion_critica():
+            if mult_alm:
+                if aid_tienda:
+                    fijar_stock_almacen(producto.id, aid_tienda, stock_nuevo)
+                if stock_bodega_nuevo is not None and aid_bodega:
+                    fijar_stock_almacen(producto.id, aid_bodega, stock_bodega_nuevo)
+                if aid_tienda or aid_bodega:
+                    _refrescar_stock_total_producto(producto)
+            else:
+                producto.stock = stock_nuevo
+        _audit_log(
+            'ajuste_stock_catalogo_ui',
+            'producto',
+            producto.id,
+            usuario=(current_user.nombre if current_user and getattr(current_user, 'is_authenticated', False) else None),
+            datos_antes={
+                'stock_maestro': stock_maestro_antes,
+                'stock_tienda': stock_tienda_antes,
+                'stock_bodega': stock_bodega_antes,
+            },
+            datos_despues={
+                'stock_tienda_solicitado': stock_nuevo,
+                'stock_bodega_solicitado': stock_bodega_nuevo,
+                'stock_maestro': int(producto.stock or 0),
+            },
+        )
+        db.session.commit()
+        msg = f'Stock actualizado para «{producto.nombre}»: tienda={stock_nuevo}'
+        if stock_bodega_nuevo is not None:
+            msg += f', bodega={stock_bodega_nuevo}'
+        flash(msg + '.', 'success')
+        return _redir()
+
+    if campo == 'clasificacion':
+        cat = (request.form.get('categoria') or '').strip()
+        sub = (request.form.get('subcategoria') or '').strip()
+        sub_id = request.form.get('subcategoria_catalogo_id', type=int)
+        if sub_id and _catalogo_ui_disponible():
+            _sincronizar_producto_desde_subcatalogo(producto, sub_id)
+            if not producto.subcategoria_catalogo_id:
+                flash('La subcategoría del maestro no es válida.', 'warning')
+                return _redir()
+            if cat and cat != (producto.categoria or ''):
+                producto.categoria = cat[:50]
+        else:
+            producto.categoria = cat[:50] if cat else None
+            producto.subcategoria = sub[:50] if sub else None
+            producto.subcategoria_catalogo_id = None
+        db.session.commit()
+        flash(f'Clasificación actualizada para «{producto.nombre}».', 'success')
+        return _redir()
+
+    if campo == 'precio_compra':
+        pc = _parse_clp_monto(request.form.get('precio_compra'))
+        if pc is None:
+            flash('Precio de compra no válido.', 'warning')
+            return _redir()
+        if pc < 0:
+            flash('El precio de compra no puede ser negativo.', 'warning')
+            return _redir()
+        producto.precio_compra = float(pc)
+        db.session.commit()
+        flash(f'Precio de compra actualizado para «{producto.nombre}».', 'success')
+        return _redir()
+
+    if campo == 'precio':
+        n_lista = _parse_clp_monto(request.form.get('precio_venta'))
+        if n_lista is None:
+            flash('Precio de venta no válido.', 'warning')
+            return _redir()
+        if n_lista <= 0:
+            flash('El precio de venta debe ser mayor a cero.', 'warning')
+            return _redir()
+        antes = float(precio_efectivo_pos_producto(producto) or 0)
+        producto.precio_venta = float(n_lista)
+        if float(getattr(producto, 'precio_venta_sd', None) or 0) <= 0:
+            producto.precio_venta_sd = float(n_lista)
+        despues = float(precio_efectivo_pos_producto(producto) or 0)
+        if abs(antes - despues) >= 0.01:
+            registrar_bitacora_precio(
+                producto_id=producto.id,
+                precio_anterior=antes,
+                precio_nuevo=despues,
+                costo_referencia=producto.precio_compra or 0,
+                margen_objetivo=None,
+                usuario=(current_user.nombre if current_user and getattr(current_user, 'is_authenticated', False) else None),
+                motivo='Ajuste rápido catálogo enrolados',
+            )
+        db.session.commit()
+        flash(f'Precio de venta actualizado para «{producto.nombre}».', 'success')
+        return _redir()
+
+    if campo == 'ubicacion':
+        def _clip_ubic(v):
+            s = (v or '').strip()
+            return s[:12] if s else None
+
+        producto.ubicacion_pasillo = _clip_ubic(request.form.get('ubicacion_pasillo'))
+        producto.ubicacion_estante = _clip_ubic(request.form.get('ubicacion_estante'))
+        producto.ubicacion_nivel = _clip_ubic(request.form.get('ubicacion_nivel'))
+        db.session.commit()
+        flash(f'Ubicación actualizada para «{producto.nombre}».', 'success')
+        return _redir()
+
+    flash('Campo de edición no reconocido.', 'warning')
+    return _redir()
+
+
+@app.route('/productos/guardar_pagina_catalogo', methods=['POST'])
+@permisos_required('admin_inventario', 'gestionar_usuarios')
+def guardar_pagina_catalogo_productos():
+    """Guarda en lote filas del listado catálogo (página visible)."""
+    if not _usuario_puede_ajustar_stock():
+        flash('No tienes permisos para editar productos desde esta pantalla.', 'danger')
+        return redirect(request.referrer or url_for('mostrar_productos'))
+
+    return_url = (request.form.get('return_url') or '').strip()
+    if return_url and not return_url.startswith('/'):
+        return_url = ''
+    destino = return_url or request.referrer or url_for('mostrar_productos')
+
+    filas = _parse_filas_catalogo_bulk_form(request.form)
+    permitidos_raw = request.form.getlist('pagina_ids[]') or request.form.getlist('pagina_ids')
+    permitidos = {int(x) for x in permitidos_raw if str(x).strip().isdigit()}
+    if permitidos:
+        filas = {pid: data for pid, data in filas.items() if pid in permitidos}
+
+    if not filas:
+        flash('No hay filas para guardar. Modificá al menos un producto o usá Guardar por fila.', 'warning')
+        return redirect(destino)
+
+    _asegurar_columnas_productos_legacy()
+
+    ok_n = 0
+    errores = []
+    usr = current_user.nombre if current_user.is_authenticated else None
+
+    for pid in sorted(filas.keys()):
+        cod = f'#{pid}'
+        try:
+            with transaccion_critica():
+                producto = Producto.query.get(int(pid))
+                if not producto:
+                    raise ValueError('Producto no encontrado')
+                cod = _codigo_etiqueta_catalogo(producto)
+                ok, err, _info = _aplicar_fila_catalogo(
+                    producto,
+                    filas[pid],
+                    motivo_bitacora='Guardado masivo catálogo (página)',
+                )
+                if not ok:
+                    raise ValueError(err or 'No se pudo guardar')
+            db.session.commit()
+            ok_n += 1
+        except Exception as ex:
+            db.session.rollback()
+            causa = ex
+            while getattr(causa, '__cause__', None):
+                causa = causa.__cause__
+            msg = str(causa or ex).strip() or 'Error desconocido'
+            if 'InFailedSqlTransaction' in str(ex) and msg == str(ex).strip():
+                msg = 'Transacción interrumpida; reintente guardar esta fila sola.'
+            errores.append(f'{cod}: {msg}')
+
+    if ok_n:
+        _audit_log(
+            'guardado_pagina_catalogo',
+            'producto',
+            None,
+            usuario=usr,
+            datos_despues={
+                'guardados': ok_n,
+                'errores': len(errores),
+                'total_enviados': len(filas),
+            },
+        )
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    if ok_n and not errores:
+        flash(f'Guardados {ok_n} producto(s) de esta página.', 'success')
+    elif ok_n:
+        det = '; '.join(errores[:5])
+        if len(errores) > 5:
+            det += f' … (+{len(errores) - 5} más)'
+        flash(f'Guardados {ok_n} producto(s). {len(errores)} con error: {det}', 'warning')
+    else:
+        det = '; '.join(errores[:6]) or 'Revisá los datos ingresados.'
+        flash(f'No se guardó ningún producto. {det}', 'danger')
+
+    return redirect(destino)
+
+
+def _serializar_fila_valorizado_producto(producto):
+    """Una fila del detalle valorizado por categoría (para API listado y post-ajuste)."""
+    st_t = int(stock_tienda_por_producto_ids([producto.id]).get(int(producto.id), 0) or 0)
+    st_b = int(stock_bodega_por_producto_ids([producto.id]).get(int(producto.id), 0) or 0)
+    costo = float(producto.precio_compra or 0)
+    venta = float(precio_efectivo_pos_producto(producto) or producto.precio_venta or 0)
+    merc = st_t * costo
+    cap = st_t * venta
+    return {
+        'id': int(producto.id),
+        'nombre': (producto.nombre or 'Sin nombre').strip()[:80],
+        'codigo': _codigo_etiqueta_catalogo(producto),
+        'stock_tienda': st_t,
+        'stock_bodega': st_b,
+        'precio_compra': costo,
+        'precio_venta': float(producto.precio_venta or 0),
+        'precio_venta_sd': float(getattr(producto, 'precio_venta_sd', None) or 0),
+        'mercaderia_clp': merc,
+        'capital_activo_clp': cap,
+        'sin_costo': costo <= 0 and st_t > 0,
+    }
+
+
+def _aplicar_ajuste_inventario_rapido_producto(producto, data, *, usuario=None):
+    """Stock tienda/bodega y precios desde detalle valorizado por categoría."""
+    cambios = []
+    mult_alm = _tablas_inventario_almacen_existen()
+    aid_tienda = id_almacen_tienda() if mult_alm else None
+    aid_bodega = id_almacen_bodega() if mult_alm else None
+
+    stock_t = data.get('stock_tienda')
+    stock_b = data.get('stock_bodega')
+    if stock_t is not None:
+        try:
+            stock_t = int(stock_t)
+        except (TypeError, ValueError):
+            return {'ok': False, 'mensaje': 'Stock tienda inválido.'}
+        if stock_t < 0:
+            return {'ok': False, 'mensaje': 'Stock tienda no puede ser negativo.'}
+        cambios.append('stock_tienda')
+    if stock_b is not None:
+        try:
+            stock_b = int(stock_b)
+        except (TypeError, ValueError):
+            return {'ok': False, 'mensaje': 'Stock bodega inválido.'}
+        if stock_b < 0:
+            return {'ok': False, 'mensaje': 'Stock bodega no puede ser negativo.'}
+        cambios.append('stock_bodega')
+
+    pc = data.get('precio_compra')
+    if pc is not None and pc != '':
+        pc_val = _parse_clp_monto(pc)
+        if pc_val is None or pc_val < 0:
+            return {'ok': False, 'mensaje': 'Precio de compra no válido.'}
+        producto.precio_compra = float(pc_val)
+        cambios.append('precio_compra')
+
+    pv = data.get('precio_venta')
+    if pv is not None and pv != '':
+        pv_val = _parse_clp_monto(pv)
+        if pv_val is None or pv_val <= 0:
+            return {'ok': False, 'mensaje': 'Precio de venta no válido.'}
+        antes = float(precio_efectivo_pos_producto(producto) or 0)
+        producto.precio_venta = float(pv_val)
+        if float(getattr(producto, 'precio_venta_sd', None) or 0) <= 0:
+            producto.precio_venta_sd = float(pv_val)
+        despues = float(precio_efectivo_pos_producto(producto) or 0)
+        if abs(antes - despues) >= 0.01:
+            registrar_bitacora_precio(
+                producto_id=producto.id,
+                precio_anterior=antes,
+                precio_nuevo=despues,
+                costo_referencia=producto.precio_compra or 0,
+                margen_objetivo=None,
+                usuario=usuario,
+                motivo='Ajuste detalle valorizado categoría',
+            )
+        cambios.append('precio_venta')
+
+    if not cambios:
+        return {'ok': False, 'mensaje': 'Nada que actualizar.'}
+
+    stock_m_antes = int(producto.stock or 0)
+    with transaccion_critica():
+        if 'stock_tienda' in cambios or 'stock_bodega' in cambios:
+            if mult_alm:
+                if 'stock_tienda' in cambios and aid_tienda:
+                    fijar_stock_almacen(producto.id, aid_tienda, stock_t)
+                if 'stock_bodega' in cambios and aid_bodega:
+                    fijar_stock_almacen(producto.id, aid_bodega, stock_b)
+                if aid_tienda or aid_bodega:
+                    _refrescar_stock_total_producto(producto)
+            elif 'stock_tienda' in cambios:
+                producto.stock = stock_t
+        db.session.flush()
+
+    _audit_log(
+        'ajuste_inventario_rapido_valorizado',
+        'producto',
+        producto.id,
+        usuario=usuario,
+        datos_antes={'stock_maestro': stock_m_antes},
+        datos_despues={
+            'cambios': cambios,
+            'stock_maestro': int(producto.stock or 0),
+            'stock_tienda': stock_t if 'stock_tienda' in cambios else None,
+            'stock_bodega': stock_b if 'stock_bodega' in cambios else None,
+            'precio_compra': float(producto.precio_compra or 0),
+            'precio_venta': float(producto.precio_venta or 0),
+        },
+    )
+    db.session.commit()
+    return {'ok': True, 'item': _serializar_fila_valorizado_producto(producto)}
+
+
+@app.route('/api/productos/<int:id>/ajuste-inventario-rapido', methods=['POST'])
+@login_required
+@permisos_required('admin_inventario', 'gestionar_usuarios')
+def api_producto_ajuste_inventario_rapido(id):
+    """JSON: ajuste stock/precios desde detalle valorizado por categoría."""
+    if not _usuario_puede_ajustar_stock():
+        return jsonify(ok=False, mensaje='Sin permisos para editar inventario.'), 403
+    producto = Producto.query.get_or_404(id)
+    data = request.get_json(silent=True) or {}
+    usr = current_user.nombre if current_user.is_authenticated else None
+    res = _aplicar_ajuste_inventario_rapido_producto(producto, data, usuario=usr)
+    if not res.get('ok'):
+        return jsonify(ok=False, mensaje=res.get('mensaje') or 'Error al guardar.'), 400
+    return jsonify(ok=True, item=res['item'], mensaje='Producto actualizado.')
 
 
 @app.route('/precios/revision')
@@ -9563,18 +11425,23 @@ def stock_critico():
 @app.route('/inventario/dashboard-premium')
 @permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
 def inventario_dashboard_premium():
-    """Panel premium de inventario con métricas reales (catálogo, stock, salud)."""
+    """Centro de stock: KPIs, categorías e integridad maestro/depósitos."""
     from services.inventario_dashboard_service import collect_dashboard_premium
 
     umbral = request.args.get('umbral', 5, type=int)
+    q = (request.args.get('q') or '').strip()
+    min_bodega = request.args.get('min_bodega', 1, type=int)
     payload = collect_dashboard_premium(umbral_critico=umbral)
+    integridad = _inventario_salud_payload(q, min_bodega)
+    dash_url = url_for('inventario_dashboard_premium')
     return render_template(
         'stock_dashboard_premium.html',
         dash=payload,
+        integridad=integridad,
         urls={
             'productos': url_for('mostrar_productos'),
             'stock_critico': url_for('stock_critico', umbral=umbral),
-            'salud': url_for('inventario_salud'),
+            'integridad': dash_url + '#integridad',
             'enrolamiento': url_for('inventario_enrolamiento'),
         },
     )
@@ -9703,9 +11570,9 @@ def _inventario_salud_payload(q, min_bodega):
 
 
 @app.route('/inventario/salud')
-@permisos_required('enrolamiento_inventario', 'admin_inventario')
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario')
 def inventario_salud():
-    """Stock maestro vs suma por depósitos activos; candidatos bodega→tienda."""
+    """Legacy: export CSV; vista HTML redirige al Centro de stock (#integridad)."""
     q = (request.args.get('q') or '').strip()
     try:
         min_bodega = int(request.args.get('min_bodega') or 1)
@@ -9763,18 +11630,176 @@ def inventario_salud():
             headers={'Content-Disposition': 'attachment; filename=salud_inventario_reposicion.csv'},
         )
 
+    params = {}
+    if q:
+        params['q'] = q
+    if min_bodega != 1:
+        params['min_bodega'] = min_bodega
+    dest = url_for('inventario_dashboard_premium', **params) + '#integridad'
+    return redirect(dest)
+
+
+def _filtros_informe_stock_valorizado(req):
+    """Query params del informe stock valorizado."""
+    solo = (req.args.get('solo_con_stock') or '1').strip().lower()
+    return {
+        'categoria': (req.args.get('categoria') or '').strip(),
+        'subcategoria': (req.args.get('subcategoria') or '').strip(),
+        'q': (req.args.get('q') or '').strip(),
+        'pasillo': (req.args.get('pasillo') or '').strip(),
+        'solo_con_stock': solo not in ('0', 'false', 'no'),
+        'vista': (req.args.get('vista') or 'resumen').strip().lower(),
+    }
+
+
+@app.route('/inventario/stock-valorizado')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def inventario_stock_valorizado():
+    """Informe de capital en stock: categoría, ubicación, almacén y capital dormido en bodega."""
+    from services.stock_valorizado_informe_service import (
+        generar_informe_stock_valorizado,
+        listar_categorias_informe,
+    )
+
+    filtros = _filtros_informe_stock_valorizado(request)
+    informe = generar_informe_stock_valorizado(filtros)
+    categorias_opts = listar_categorias_informe()
     return render_template(
-        'inventario_salud.html',
-        q=pl['q'],
-        min_bodega=pl['min_bodega'],
-        n_desajuste=pl['n_desajuste'],
-        rows_des=pl['rows_des'],
-        puede_reposicion_lista=pl['puede_reposicion_lista'],
-        detalle_tienda_bodega=pl.get('detalle_tienda_bodega', False),
-        nom_tienda=pl['nom_tienda'],
-        nom_bodega=pl['nom_bodega'],
-        n_reposicion=pl['n_reposicion'],
-        rows_rep=pl['rows_rep'],
+        'inventario_stock_valorizado.html',
+        informe=informe,
+        filtros=filtros,
+        categorias_opts=categorias_opts,
+        vista=filtros.get('vista') or 'resumen',
+    )
+
+
+@app.route('/inventario/stock-valorizado/exportar')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def inventario_stock_valorizado_exportar():
+    """Excel multi-hoja del informe stock valorizado."""
+    from services.stock_valorizado_informe_service import exportar_informe_excel
+
+    filtros = _filtros_informe_stock_valorizado(request)
+    bio = exportar_informe_excel(filtros)
+    return send_file(
+        io.BytesIO(bio),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='stock_valorizado_informe.xlsx',
+    )
+
+
+def _filtros_pinturas_compras_remates(req):
+    solo = (req.args.get('solo_con_stock') or '0').strip().lower()
+    return {
+        'q': (req.args.get('q') or '').strip(),
+        'marca': (req.args.get('marca') or '').strip(),
+        'solo_con_stock': solo in ('1', 'true', 'si', 'yes'),
+        'solo_compra': (req.args.get('solo_compra') or '').strip() == '1',
+        'solo_remate': (req.args.get('solo_remate') or '').strip() == '1',
+        'vista': (req.args.get('vista') or 'agrupado').strip().lower(),
+    }
+
+
+def _filtros_pinturas_stock(req):
+    solo = (req.args.get('solo_con_stock') or '1').strip().lower()
+    return {
+        'q': (req.args.get('q') or '').strip(),
+        'categoria': (req.args.get('categoria') or '').strip(),
+        'marca': (req.args.get('marca') or '').strip(),
+        'tono_color': (req.args.get('tono_color') or '').strip(),
+        'solo_con_stock': solo in ('1', 'true', 'si', 'yes'),
+        'vista': (req.args.get('vista') or 'dashboard').strip().lower(),
+    }
+
+
+@app.route('/inventario/pinturas-analytics')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def inventario_pinturas_streamlit():
+    """Redirige al dashboard Streamlit de analytics pinturas (puerto 8501 por defecto)."""
+    destino = (os.environ.get('STREAMLIT_PINTURAS_URL') or 'http://127.0.0.1:8501').strip().rstrip('/')
+    return redirect(destino)
+
+
+@app.route('/inventario/pinturas-stock')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def inventario_pinturas_stock():
+    """Informe visual de stock pinturas — categoría, marca, tono (gráficos barra/torta)."""
+    from services.pinturas_stock_informe_service import generar_informe_pinturas_stock
+
+    filtros = _filtros_pinturas_stock(request)
+    informe = generar_informe_pinturas_stock(filtros)
+    vista = filtros.get('vista') or 'dashboard'
+    if vista not in ('dashboard', 'tablas', 'detalle'):
+        vista = 'dashboard'
+    return render_template(
+        'inventario_pinturas_stock.html',
+        informe=informe,
+        filtros=filtros,
+        vista=vista,
+    )
+
+
+@app.route('/inventario/pinturas-compras-remates')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_compras')
+def inventario_pinturas_compras_remates():
+    """Sugerido de compras y remates de pinturas por marca, categoría, subcategoría y tono."""
+    from services.pinturas_compras_remates_service import generar_informe_pinturas_compras_remates
+
+    filtros = _filtros_pinturas_compras_remates(request)
+    informe = generar_informe_pinturas_compras_remates(filtros)
+    vista = filtros.get('vista') or 'agrupado'
+    if vista not in ('agrupado', 'compras', 'remates', 'detalle'):
+        vista = 'agrupado'
+    return render_template(
+        'inventario_pinturas_compras_remates.html',
+        informe=informe,
+        filtros=filtros,
+        vista=vista,
+    )
+
+
+@app.route('/api/inventario/stock-valorizado/detalle')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def api_inventario_stock_valorizado_detalle():
+    """Detalle SKU para drill-down del informe (categoría, ubicación o marca)."""
+    from services.stock_valorizado_informe_service import _fetch_lineas_stock
+
+    filtros = _filtros_informe_stock_valorizado(request)
+    tipo = (request.args.get('tipo') or 'categoria').strip().lower()
+    clave = unquote((request.args.get('clave') or '').strip())
+    clave2 = unquote((request.args.get('clave2') or '').strip())
+
+    from services.stock_valorizado_informe_service import _fetch_lineas_stock
+
+    todas = _fetch_lineas_stock(filtros)
+    items = []
+    for ln in todas:
+        ok = False
+        if tipo == 'categoria' and ln['categoria'] == clave:
+            ok = True
+        elif tipo == 'subcategoria' and ln['categoria'] == clave and ln['subcategoria'] == clave2:
+            ok = True
+        elif tipo == 'ubicacion' and ln['ubicacion'] == clave:
+            ok = True
+        elif tipo == 'pasillo' and ln['ubicacion_pasillo'] == clave:
+            ok = True
+        elif tipo == 'marca' and ln['marca'] == clave:
+            ok = True
+        elif tipo == 'marca_tono' and ln['marca'] == clave and ln['tono_color'] == clave2:
+            ok = True
+        if ok:
+            items.append(ln)
+    items.sort(key=lambda r: (-float(r['mercaderia_total']), r['nombre'].lower()))
+    limite = min(max(int(request.args.get('limite', 60)), 10), 200)
+    return jsonify(
+        ok=True,
+        tipo=tipo,
+        clave=clave,
+        clave2=clave2 or None,
+        items=items[:limite],
+        items_total=len(items),
+        items_truncados=len(items) > limite,
     )
 
 
@@ -9825,17 +11850,71 @@ def api_enrol_procesar_escaneo():
         sesion_id = int(data.get('sesion_id'))
     except (TypeError, ValueError):
         return jsonify(ok=False, mensaje='Sesión inválida.'), 400
-    codigo = data.get('codigo')
+    codigo = _enrol_normalizar_codigo(data.get('codigo'))
+    if not codigo:
+        return jsonify(ok=False, mensaje='Código vacío.'), 400
     ses = _enrol_sesion_get_or_404(sesion_id)
     if not ses:
         return jsonify(ok=False, mensaje='Sesión no encontrada.'), 404
     p = _enrol_buscar_producto_por_codigo(codigo)
+    if p and not _enrol_producto_disponible(p):
+        return jsonify(
+            ok=False,
+            caso='inactivo',
+            mensaje='Producto inactivo en catálogo. Reactivalo en Catálogo de productos o vinculá el código a otro maestro.',
+            codigo_pendiente=codigo,
+        )
     if p:
         return jsonify(
+            ok=True,
             caso='A',
             producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen),
+            ruta_bodega_sugerida=_enrol_producto_ruta_bodega(p),
         )
-    return jsonify(caso='B', codigo_pendiente=_enrol_normalizar_codigo(codigo))
+    return jsonify(ok=True, caso='B', codigo_pendiente=codigo)
+
+
+@app.route('/api/enrolamiento/abrir_producto', methods=['POST'])
+@login_required
+def api_enrol_abrir_producto():
+    """Abre ficha de producto existente en el panel (sin vincular ni mover stock)."""
+    if not _usuario_enrol_autorizado():
+        return jsonify(ok=False, mensaje='No autorizado.'), 403
+    if not _tablas_enrolamiento_existen():
+        return jsonify(ok=False, mensaje='Tablas de enrolamiento no instaladas.'), 503
+    data = request.get_json(silent=True) or {}
+    try:
+        sesion_id = int(data.get('sesion_id'))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Sesión inválida.'), 400
+    ses = _enrol_sesion_get_or_404(sesion_id)
+    if not ses:
+        return jsonify(ok=False, mensaje='Sesión no encontrada.'), 404
+
+    p = None
+    producto_id = data.get('producto_id')
+    if producto_id not in (None, ''):
+        try:
+            p = Producto.query.get(int(producto_id))
+        except (TypeError, ValueError):
+            p = None
+    if p is None:
+        codigo = _enrol_normalizar_codigo(data.get('codigo') or data.get('q'))
+        if codigo:
+            p = _enrol_buscar_producto_por_codigo(codigo)
+    if not p:
+        return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+    if not _enrol_producto_disponible(p):
+        return jsonify(
+            ok=False,
+            caso='inactivo',
+            mensaje='Producto inactivo. Reactivalo en Catálogo de productos.',
+        ), 400
+    return jsonify(
+        ok=True,
+        producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen),
+        ruta_bodega_sugerida=_enrol_producto_ruta_bodega(p),
+    )
 
 
 @app.route('/api/enrolamiento/buscar_maestro')
@@ -9843,31 +11922,233 @@ def api_enrol_procesar_escaneo():
 def api_enrol_buscar_maestro():
     if not _usuario_enrol_autorizado():
         return jsonify(ok=False, mensaje='No autorizado.'), 403
+    from services.pos_busqueda_service import resolver_filtro_busqueda_pos
+
     q = (request.args.get('q') or '').strip()
+    filtro_pos = resolver_filtro_busqueda_pos(request.args)
     if len(q) < 2:
-        return jsonify(ok=True, items=[])
-    like = f"%{q}%"
-    filtros = [
-        Producto.nombre.like(like),
-        Producto.codigo_barra.like(like),
-    ]
-    filtros.append(and_(Producto.codigo_interno.isnot(None), Producto.codigo_interno.like(like)))
-    filtros.append(and_(Producto.codigo_chilemat.isnot(None), Producto.codigo_chilemat.like(like)))
-    items_q = (
-        Producto.query.filter(or_(*filtros))
-        .order_by(Producto.nombre.asc())
-        .limit(40)
+        return jsonify(ok=True, items=[], meta={'filtro_pos': filtro_pos})
+    data = _buscar_productos_json(
+        q,
+        filtro_pos=filtro_pos,
+        enriquecido=True,
+        out_lim=40,
     )
+    results = data.get('results') or []
+    meta = dict(data.get('meta') or {})
+    meta['filtro_pos'] = filtro_pos
+    if not results and filtro_pos in ('operativo', 'tienda'):
+        meta.setdefault('filtrados_por_stock', True)
+    pids = []
+    for r in results:
+        try:
+            pid = int(r.get('producto_id') or r.get('id') or 0)
+        except (TypeError, ValueError):
+            pid = 0
+        if pid > 0:
+            pids.append(pid)
+    prods = {}
+    if pids:
+        prods = {p.id: p for p in Producto.query.filter(Producto.id.in_(pids)).all()}
     items = []
-    for it in items_q:
+    for r in results:
+        try:
+            pid = int(r.get('producto_id') or r.get('id') or 0)
+        except (TypeError, ValueError):
+            continue
+        if pid <= 0:
+            continue
+        p = prods.get(pid)
+        pe = float(r.get('precio') or 0)
+        st_t = int(r.get('stock_tienda') or 0)
         items.append({
-            'id': it.id,
-            'nombre': it.nombre,
-            'codigo_chilemat': (it.codigo_chilemat or '').strip(),
-            'codigo_interno': (it.codigo_interno or '').strip(),
-            'imagen_url': (it.imagen_url or '').strip(),
+            'id': pid,
+            'nombre': (r.get('nombre') or '').strip(),
+            'codigo_barra': (p.codigo_barra or '').strip() if p else '',
+            'codigo_chilemat': (p.codigo_chilemat or '').strip() if p else '',
+            'codigo_interno': (p.codigo_interno or '').strip() if p else '',
+            'marca': (p.marca or '').strip() if p else '',
+            'tono_color': (p.tono_color or '').strip() if p else '',
+            'categoria': (p.categoria or '').strip() if p else '',
+            'subcategoria': (p.subcategoria or '').strip() if p else '',
+            'imagen_url': (r.get('imagen_url') or '').strip(),
+            'stock_tienda': st_t,
+            'stock_bodega': int(r.get('stock_bodega') or 0),
+            'semaforo': r.get('semaforo'),
+            'vendible_pos': bool(st_t > 0 and pe > 0),
         })
-    return jsonify(ok=True, items=items)
+    return jsonify(ok=True, items=items, meta=meta)
+
+
+@app.route('/api/enrolamiento/categorias', methods=['GET', 'POST'])
+@login_required
+def api_enrol_categorias():
+    """GET: busca/lista categorías. POST: crea una nueva en CatalogoCategoria."""
+    if not _usuario_enrol_autorizado():
+        return jsonify(ok=False, mensaje='No autorizado.'), 403
+
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        nombre = (data.get('nombre') or '').strip()[:80]
+        if not nombre:
+            return jsonify(ok=False, mensaje='El nombre es obligatorio.'), 400
+        try:
+            if _catalogo_ui_disponible():
+                existente = CatalogoCategoria.query.filter(
+                    db.func.lower(db.func.trim(CatalogoCategoria.nombre)) == nombre.lower()
+                ).first()
+                if existente:
+                    return jsonify(ok=True, id=existente.id, nombre=existente.nombre, existia=True)
+                max_ord = db.session.query(
+                    db.func.coalesce(db.func.max(CatalogoCategoria.orden), 0)
+                ).scalar()
+                nueva = CatalogoCategoria(nombre=nombre, orden=int(max_ord or 0) + 1, activo=True)
+                db.session.add(nueva)
+                db.session.commit()
+                return jsonify(ok=True, id=nueva.id, nombre=nueva.nombre, existia=False), 201
+            # Sin tabla de catálogo activa: retornar solo el texto (se guarda como string en producto)
+            return jsonify(ok=True, id=None, nombre=nombre, existia=False)
+        except SQLAlchemyError as ex:
+            db.session.rollback()
+            app.logger.error('api_enrol_categorias POST: %s', ex)
+            return jsonify(ok=False, mensaje='Error al guardar la categoría.'), 500
+
+    # GET — listar / buscar
+    q = (request.args.get('q') or '').strip()
+    items = []
+    vistos = set()
+    try:
+        if _catalogo_ui_disponible():
+            qcat = CatalogoCategoria.query.filter_by(activo=True)
+            if q:
+                qcat = qcat.filter(CatalogoCategoria.nombre.ilike(f'%{q}%'))
+            for c in qcat.order_by(CatalogoCategoria.nombre.asc()).limit(80).all():
+                items.append({'id': c.id, 'nombre': c.nombre, 'origen': 'catalogo'})
+                vistos.add(c.nombre.strip().lower())
+    except Exception:
+        pass
+    try:
+        qprod = db.session.query(Producto.categoria).filter(
+            Producto.categoria.isnot(None),
+            Producto.categoria != '',
+        )
+        if q:
+            qprod = qprod.filter(Producto.categoria.ilike(f'%{q}%'))
+        for (cat,) in qprod.distinct().order_by(Producto.categoria.asc()).limit(200).all():
+            cnom = (cat or '').strip()
+            if cnom and cnom.lower() not in vistos:
+                items.append({'id': None, 'nombre': cnom, 'origen': 'producto'})
+                vistos.add(cnom.lower())
+    except Exception:
+        pass
+    if q:
+        lq = q.lower()
+        items.sort(key=lambda x: (
+            0 if x['nombre'].lower() == lq
+            else (1 if x['nombre'].lower().startswith(lq) else 2),
+            x['nombre'].lower(),
+        ))
+    else:
+        items.sort(key=lambda x: x['nombre'].lower())
+    return jsonify(ok=True, items=items[:60])
+
+
+@app.route('/api/enrolamiento/subcategorias')
+@login_required
+def api_enrol_subcategorias():
+    """GET: busca subcategorías del catálogo (filtradas por categoría) y textos usados en productos."""
+    if not _usuario_enrol_autorizado():
+        return jsonify(ok=False, mensaje='No autorizado.'), 403
+
+    q = (request.args.get('q') or '').strip()
+    cat_id = request.args.get('categoria_id', type=int)
+    cat_nom = (request.args.get('categoria') or '').strip()
+    items = []
+    vistos = set()
+
+    if _catalogo_ui_disponible():
+        qsub = (
+            CatalogoSubcategoria.query.join(
+                CatalogoCategoria, CatalogoCategoria.id == CatalogoSubcategoria.categoria_id
+            )
+            .filter(
+                CatalogoSubcategoria.activo.is_(True),
+                CatalogoCategoria.activo.is_(True),
+            )
+        )
+        if cat_id:
+            qsub = qsub.filter(CatalogoSubcategoria.categoria_id == int(cat_id))
+        elif cat_nom:
+            qsub = qsub.filter(
+                db.func.lower(db.func.trim(CatalogoCategoria.nombre)) == cat_nom.lower()
+            )
+        if q:
+            qsub = qsub.filter(
+                db.or_(
+                    CatalogoSubcategoria.nombre.ilike(f'%{q}%'),
+                    CatalogoSubcategoria.nivel2.ilike(f'%{q}%'),
+                )
+            )
+        for s in qsub.order_by(
+            CatalogoSubcategoria.nivel2.asc(),
+            CatalogoSubcategoria.orden.asc(),
+            CatalogoSubcategoria.nombre.asc(),
+        ).limit(80).all():
+            n2 = (s.nivel2 or '').strip()
+            leaf = (s.nombre or '').strip()
+            etiqueta = f'{n2} — {leaf}' if n2 else leaf
+            texto = f'{n2} / {leaf}'[:50] if n2 else leaf[:50]
+            key = (texto or etiqueta).lower()
+            if key in vistos:
+                continue
+            vistos.add(key)
+            items.append({
+                'id': s.id,
+                'etiqueta': etiqueta,
+                'subcategoria': texto,
+                'origen': 'catalogo',
+            })
+
+    try:
+        qprod = db.session.query(Producto.subcategoria).filter(
+            Producto.subcategoria.isnot(None),
+            Producto.subcategoria != '',
+        )
+        if cat_nom:
+            qprod = qprod.filter(Producto.categoria == cat_nom)
+        elif cat_id and _catalogo_ui_disponible():
+            cc = CatalogoCategoria.query.get(int(cat_id))
+            if cc and cc.nombre:
+                qprod = qprod.filter(Producto.categoria == cc.nombre)
+        if q:
+            qprod = qprod.filter(Producto.subcategoria.ilike(f'%{q}%'))
+        for (sub,) in qprod.distinct().order_by(Producto.subcategoria.asc()).limit(120).all():
+            snom = (sub or '').strip()
+            if not snom:
+                continue
+            lk = snom.lower()
+            if lk in vistos:
+                continue
+            vistos.add(lk)
+            items.append({
+                'id': None,
+                'etiqueta': snom,
+                'subcategoria': snom,
+                'origen': 'producto',
+            })
+    except Exception:
+        pass
+
+    if q:
+        lq = q.lower()
+        items.sort(key=lambda x: (
+            0 if x['etiqueta'].lower() == lq
+            else (1 if x['etiqueta'].lower().startswith(lq) else 2),
+            x['etiqueta'].lower(),
+        ))
+    else:
+        items.sort(key=lambda x: x['etiqueta'].lower())
+    return jsonify(ok=True, items=items[:60])
 
 
 @app.route('/api/enrolamiento/vincular', methods=['POST'])
@@ -9889,18 +12170,34 @@ def api_enrol_vincular():
     p = Producto.query.get(producto_id)
     if not p:
         return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+    if not _enrol_producto_disponible(p):
+        return jsonify(
+            ok=False,
+            mensaje='El producto está inactivo. Reactivalo en Catálogo de productos antes de vincular.',
+        ), 400
     cb = _enrol_normalizar_codigo(data.get('codigo_barras'))
-    if cb and _enrol_codigo_barra_ocupado(cb, excluir_producto_id=p.id):
-        return jsonify(ok=False, error='barras_duplicado', mensaje='El código de barras ya está en otro producto.'), 409
     if cb:
-        p.codigo_barra = cb[:50]
+        usr_vin = current_user.nombre if current_user.is_authenticated else None
+        vin_res = _enrol_vincular_codigo_barras(p, cb, usuario=usr_vin)
+        if vin_res and not vin_res.get('ok'):
+            return jsonify(
+                ok=False,
+                error=vin_res.get('error') or 'barras_duplicado',
+                mensaje=vin_res.get('mensaje') or 'No se pudo vincular el código.',
+            ), 409
+    _enrol_asignar_codigo_interno_si_falta(p)
     try:
         cant = int(data.get('cantidad_inicial', 0))
     except (TypeError, ValueError):
         cant = 0
     cant = max(0, cant)
     mult = _tablas_inventario_almacen_existen()
-    aid = _enrol_destino_almacen(ses, data.get('id_almacen_destino'))
+    aid = _enrol_destino_almacen(
+        ses,
+        data.get('id_almacen_destino'),
+        producto=p,
+        ruta_bodega=bool(data.get('ruta_bodega')),
+    )
     stock_m_antes = int(p.stock or 0)
     alm_dest_antes = stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
     try:
@@ -9942,7 +12239,7 @@ def api_enrol_vincular():
     except SQLAlchemyError as ex:
         db.session.rollback()
         return jsonify(ok=False, mensaje=str(ex)), 400
-    return jsonify(producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
+    return jsonify(ok=True, producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
 
 
 @app.route('/api/enrolamiento/alta_manual', methods=['POST'])
@@ -9987,6 +12284,12 @@ def api_enrol_alta_manual():
     except (TypeError, ValueError):
         cantidad_inicial = 0
     cantidad_inicial = max(0, cantidad_inicial)
+    if cantidad_inicial > 0 and pc <= 0:
+        return jsonify(
+            ok=False,
+            mensaje='Indique precio de compra para valorizar el stock (cuenta mercadería).',
+            error='precio_compra_requerido',
+        ), 400
 
     p = Producto(
         nombre=nombre[:100],
@@ -10001,30 +12304,28 @@ def api_enrol_alta_manual():
         unidad_venta='Unidad',
         unidad_compra='Unidad',
     )
-    sub_raw = data.get('subcategoria_catalogo_id')
-    cat_raw = data.get('categoria_catalogo_id')
-    if sub_raw:
-        try:
-            _sincronizar_producto_desde_subcatalogo(p, int(sub_raw))
-        except (TypeError, ValueError):
-            pass
-    elif cat_raw:
-        try:
-            cc = CatalogoCategoria.query.get(int(cat_raw))
-            if cc:
-                p.categoria = (cc.nombre or '')[:50]
-        except (TypeError, ValueError):
-            pass
-    else:
-        cat_txt = (data.get('categoria') or '').strip()
-        if cat_txt:
-            p.categoria = cat_txt[:50]
+    err_cat = _enrol_aplicar_categoria_subcategoria(
+        p,
+        data,
+        requerida=bool(data.get('categoria_requerida')),
+    )
+    if err_cat:
+        return jsonify(ok=False, mensaje=err_cat), 400
+
+    _enrol_aplicar_marca_tono(p, data)
 
     mult = _tablas_inventario_almacen_existen()
-    aid = _enrol_destino_almacen(ses, data.get('id_almacen_destino'))
+    aid = _enrol_destino_almacen(
+        ses,
+        data.get('id_almacen_destino'),
+        producto=p,
+        ruta_bodega=bool(data.get('ruta_bodega')),
+    )
     try:
         db.session.add(p)
         db.session.flush()
+        _enrol_asignar_codigo_interno_si_falta(p)
+        _pos_aplicar_precio_sd_desde_pos(p, data={'precio_venta': pv})
         if mult:
             if cantidad_inicial and not aid:
                 db.session.rollback()
@@ -10063,7 +12364,7 @@ def api_enrol_alta_manual():
     except SQLAlchemyError as ex:
         db.session.rollback()
         return jsonify(ok=False, mensaje=str(ex)), 400
-    return jsonify(producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
+    return jsonify(ok=True, producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
 
 
 @app.route('/api/enrolamiento/entrada_stock', methods=['POST'])
@@ -10093,9 +12394,11 @@ def api_enrol_entrada_stock():
     if act_precios:
         if data.get('precio_venta') not in (None, ''):
             try:
-                pv = float(str(data.get('precio_venta')).replace(',', '.'))
-                if pv > 0:
-                    p.precio_venta = pv
+                pv_in = float(str(data.get('precio_venta')).replace(',', '.'))
+                if pv_in > 0:
+                    p.precio_venta = pv_in
+                    if not (getattr(p, 'precio_venta_sd', None) and float(p.precio_venta_sd or 0) > 0):
+                        p.precio_venta_sd = pv_in
             except (TypeError, ValueError):
                 pass
         if data.get('precio_compra') not in (None, ''):
@@ -10110,9 +12413,20 @@ def api_enrol_entrada_stock():
                 pass
 
     mult = _tablas_inventario_almacen_existen()
-    aid = _enrol_destino_almacen(ses, data.get('id_almacen_destino'))
+    aid = _enrol_destino_almacen(
+        ses,
+        data.get('id_almacen_destino'),
+        producto=p,
+        ruta_bodega=bool(data.get('ruta_bodega')),
+    )
     stock_m_antes = int(p.stock or 0)
     alm_dest_antes = stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
+    if float(p.precio_compra or 0) <= 0 and not act_precios:
+        return jsonify(
+            ok=False,
+            mensaje='Este producto no tiene precio de compra. Marque «Actualizar precios» e indique el costo.',
+            error='precio_compra_requerido',
+        ), 422
     try:
         if mult:
             if not aid:
@@ -10152,6 +12466,236 @@ def api_enrol_entrada_stock():
         db.session.rollback()
         return jsonify(ok=False, mensaje=str(ex)), 400
     return jsonify(producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
+
+
+@app.route('/api/enrolamiento/salida_stock', methods=['POST'])
+@login_required
+def api_enrol_salida_stock():
+    """Descuenta stock desde el almacén de la sesión (o el elegido en el panel)."""
+    if not _usuario_enrol_autorizado():
+        return jsonify(ok=False, mensaje='No autorizado.'), 403
+    if not _tablas_enrolamiento_existen():
+        return jsonify(ok=False, mensaje='Tablas de enrolamiento no instaladas.'), 503
+    data = request.get_json(silent=True) or {}
+    try:
+        sesion_id = int(data.get('sesion_id'))
+        producto_id = int(data.get('producto_id'))
+        cantidad = int(data.get('cantidad'))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Datos incompletos.'), 400
+    if cantidad < 1:
+        return jsonify(ok=False, mensaje='La cantidad debe ser al menos 1.'), 400
+    ses = _enrol_sesion_get_or_404(sesion_id)
+    if not ses:
+        return jsonify(ok=False, mensaje='Sesión no encontrada.'), 404
+    p = Producto.query.get(producto_id)
+    if not p:
+        return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+
+    mult = _tablas_inventario_almacen_existen()
+    aid = _enrol_destino_almacen(
+        ses,
+        data.get('id_almacen_destino'),
+        producto=p,
+        ruta_bodega=bool(data.get('ruta_bodega')),
+    )
+    stock_m_antes = int(p.stock or 0)
+    alm_origen_antes = stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
+    try:
+        if mult:
+            if not aid:
+                return jsonify(ok=False, mensaje='No hay almacén de origen.'), 400
+            _, err = ajustar_stock_almacen(p.id, aid, -cantidad)
+            if err:
+                db.session.rollback()
+                return jsonify(ok=False, mensaje=err), 400
+            _refrescar_stock_total_producto(p)
+        else:
+            if stock_m_antes < cantidad:
+                return jsonify(ok=False, mensaje='Stock insuficiente.'), 400
+            p.stock = stock_m_antes - cantidad
+        _enrol_linea_conteo_sumar(ses.id, p.id, -cantidad)
+        usr_ss = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_salida_stock',
+            'producto',
+            p.id,
+            usuario=usr_ss,
+            datos_antes={
+                'sesion_id': ses.id,
+                'cantidad': cantidad,
+                'stock_maestro': stock_m_antes,
+                'stock_en_almacen_origen': alm_origen_antes,
+                'id_almacen_origen': aid,
+                'multi_almacen': mult,
+            },
+            datos_despues={
+                'stock_maestro': int(p.stock or 0),
+                'stock_en_almacen_origen': (
+                    stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
+                ),
+            },
+        )
+        db.session.commit()
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 400
+    return jsonify(ok=True, producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
+
+
+@app.route('/api/enrolamiento/editar_ficha', methods=['POST'])
+@login_required
+def api_enrol_editar_ficha():
+    if not _usuario_enrol_autorizado():
+        return jsonify(ok=False, mensaje='No autorizado.'), 403
+    if not _tablas_enrolamiento_existen():
+        return jsonify(ok=False, mensaje='Tablas de enrolamiento no instaladas.'), 503
+    data = request.get_json(silent=True) or {}
+    try:
+        sesion_id = int(data.get('sesion_id'))
+        producto_id = int(data.get('producto_id'))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Datos incompletos.'), 400
+    ses = _enrol_sesion_get_or_404(sesion_id)
+    if not ses:
+        return jsonify(ok=False, mensaje='Sesión no encontrada.'), 404
+    p = Producto.query.get(producto_id)
+    if not p:
+        return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+
+    nombre = (data.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify(ok=False, mensaje='El nombre es obligatorio.'), 400
+
+    cb = _enrol_normalizar_codigo(data.get('codigo_barra'))
+    if cb and _enrol_codigo_barra_ocupado(cb, excluir_producto_id=p.id):
+        return jsonify(ok=False, error='barras_duplicado', mensaje='El código de barras ya está en otro producto.'), 409
+
+    ci_actual = (p.codigo_interno or '').strip()
+    forzar_interno = bool(data.get('forzar_interno'))
+    ci_nuevo = (data.get('codigo_interno') or '').strip()
+    if forzar_interno and ci_nuevo:
+        otro = Producto.query.filter(Producto.codigo_interno == ci_nuevo, Producto.id != p.id).first()
+        if otro:
+            return jsonify(ok=False, error='interno_duplicado', mensaje='El código interno ya está en otro producto.'), 409
+
+    datos_antes = {
+        'nombre': (p.nombre or '')[:120],
+        'codigo_barra': (p.codigo_barra or '').strip(),
+        'codigo_chilemat': (p.codigo_chilemat or '').strip(),
+        'codigo_interno': (p.codigo_interno or '').strip(),
+        'categoria': (p.categoria or '').strip(),
+        'subcategoria': (p.subcategoria or '').strip(),
+        'precio_venta': float(p.precio_venta or 0),
+        'precio_venta_sd': float(getattr(p, 'precio_venta_sd', None) or 0),
+        'precio_compra': float(p.precio_compra or 0),
+        'precio_mayoreo': float(p.precio_mayoreo or 0),
+        'marca': (p.marca or '').strip(),
+        'tono_color': (p.tono_color or '').strip(),
+    }
+
+    p.nombre = nombre[:100]
+    if cb:
+        p.codigo_barra = cb[:50]
+    cc = (data.get('codigo_chilemat') or '').strip()
+    if cc:
+        p.codigo_chilemat = cc[:80]
+    if forzar_interno and ci_nuevo:
+        p.codigo_interno = ci_nuevo[:32]
+    elif not ci_actual:
+        _enrol_asignar_codigo_interno_si_falta(p)
+    cat_raw_ef = data.get('categoria_catalogo_id')
+    cat_txt = (data.get('categoria') or '').strip()
+    if cat_raw_ef:
+        try:
+            cc_ef = CatalogoCategoria.query.get(int(cat_raw_ef))
+            if cc_ef:
+                p.categoria = (cc_ef.nombre or '')[:50]
+            elif cat_txt:
+                p.categoria = _enrol_asegurar_categoria_texto(cat_txt)
+        except (TypeError, ValueError):
+            if cat_txt:
+                p.categoria = _enrol_asegurar_categoria_texto(cat_txt)
+    elif cat_txt:
+        p.categoria = _enrol_asegurar_categoria_texto(cat_txt)
+
+    sub_raw_ef = data.get('subcategoria_catalogo_id')
+    if sub_raw_ef not in (None, ''):
+        try:
+            sid_ef = int(sub_raw_ef)
+            if sid_ef > 0:
+                _sincronizar_producto_desde_subcatalogo(p, sid_ef)
+            else:
+                p.subcategoria = None
+                p.subcategoria_catalogo_id = None
+        except (TypeError, ValueError):
+            pass
+    elif 'subcategoria' in data:
+        sub_txt_ef = (data.get('subcategoria') or '').strip()
+        if sub_txt_ef:
+            p.subcategoria = sub_txt_ef[:50]
+            if _catalogo_ui_disponible():
+                p.subcategoria_catalogo_id = None
+        else:
+            p.subcategoria = None
+            p.subcategoria_catalogo_id = None
+
+    _enrol_aplicar_marca_tono(p, data)
+
+    if data.get('precio_venta') not in (None, ''):
+        try:
+            pv = float(str(data.get('precio_venta')).replace(',', '.'))
+            if pv > 0:
+                p.precio_venta = pv
+        except (TypeError, ValueError):
+            pass
+    if data.get('precio_venta_sd') not in (None, ''):
+        try:
+            psd = float(str(data.get('precio_venta_sd')).replace(',', '.'))
+            if psd > 0:
+                p.precio_venta_sd = psd
+        except (TypeError, ValueError):
+            pass
+    if data.get('precio_compra') not in (None, ''):
+        try:
+            p.precio_compra = max(0.0, float(str(data.get('precio_compra')).replace(',', '.')))
+        except (TypeError, ValueError):
+            pass
+    if data.get('precio_mayoreo') not in (None, ''):
+        try:
+            p.precio_mayoreo = max(0.0, float(str(data.get('precio_mayoreo')).replace(',', '.')))
+        except (TypeError, ValueError):
+            pass
+
+    try:
+        usr_ef = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_editar_ficha',
+            'producto',
+            p.id,
+            usuario=usr_ef,
+            datos_antes=datos_antes,
+            datos_despues={
+                'sesion_id': ses.id,
+                'nombre': (p.nombre or '')[:120],
+                'codigo_barra': (p.codigo_barra or '').strip(),
+                'codigo_chilemat': (p.codigo_chilemat or '').strip(),
+                'codigo_interno': (p.codigo_interno or '').strip(),
+                'categoria': (p.categoria or '').strip(),
+                'subcategoria': (p.subcategoria or '').strip(),
+                'precio_venta': float(p.precio_venta or 0),
+                'precio_venta_sd': float(getattr(p, 'precio_venta_sd', None) or 0),
+                'precio_compra': float(p.precio_compra or 0),
+                'precio_mayoreo': float(p.precio_mayoreo or 0),
+                'marca': (p.marca or '').strip(),
+                'tono_color': (p.tono_color or '').strip(),
+            },
+        )
+        db.session.commit()
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 400
+    return jsonify(ok=True, producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
 
 
 @app.route('/api/enrolamiento/traslado', methods=['POST'])
@@ -10226,6 +12770,88 @@ def api_enrol_traslado():
     return jsonify(producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
 
 
+def _flash_enrolamiento_tablas_faltantes():
+    flash(
+        'Faltan las tablas de enrolamiento. Ejecutá en MySQL el script sql/2026_05_06_enrolamiento_inventario.sql '
+        '(y las migraciones de almacenes si aún no las aplicaste).',
+        'danger',
+    )
+
+
+def _contexto_vista_enrolamiento(*, prefer_bodega=False):
+    """Contexto compartido PC y tablet — None si faltan tablas."""
+    if not _tablas_enrolamiento_existen():
+        return None
+    almacenes_ui = _enrol_almacenes_ui()
+    enrol_cat_padres = None
+    enrol_cat_nombres = _categorias_filtro_lista()
+    if _catalogo_ui_disponible():
+        enrol_cat_padres = [
+            {'id': c.id, 'nombre': c.nombre}
+            for c in CatalogoCategoria.query.filter_by(activo=True)
+            .order_by(CatalogoCategoria.orden.asc(), CatalogoCategoria.nombre.asc())
+            .all()
+        ]
+    id_almacen_default = None
+    if prefer_bodega:
+        bid = id_almacen_bodega()
+        if bid and almacenes_ui and any(a['id'] == bid for a in almacenes_ui):
+            id_almacen_default = bid
+    tid = id_almacen_tienda()
+    if id_almacen_default is None and tid and almacenes_ui and any(a['id'] == tid for a in almacenes_ui):
+        id_almacen_default = tid
+    elif id_almacen_default is None and almacenes_ui:
+        id_almacen_default = almacenes_ui[0]['id']
+    return {
+        'almacenes_ui': almacenes_ui,
+        'puede_traslado_almacenes': _enrol_permite_traslado_ui(),
+        'id_almacen_default': id_almacen_default,
+        'enrol_cat_padres': enrol_cat_padres,
+        'enrol_cat_nombres': enrol_cat_nombres,
+        'marcas_catalogo': _marcas_catalogo_lista(),
+        'tonos_catalogo': _tonos_catalogo_lista(),
+    }
+
+
+def bodega_enrolador_setup():
+    from services.bodega_enrolador_service import urls_enrolador_bodega
+
+    lan_preview = (request.args.get('lan_preview') or '').strip().rstrip('/')
+    lan_explicit = bool((os.getenv('BODEGA_ENROLADOR_LAN_URL') or os.getenv('ERP_LAN_BASE_URL') or '').strip())
+    if lan_preview:
+        urls = {
+            'base_lan': lan_preview,
+            'login': f'{lan_preview}/login',
+            'tablet': f'{lan_preview}/inventario/enrolamiento/tablet',
+            'setup': f'{lan_preview}/bodega/enrolador',
+            'enrolamiento': f'{lan_preview}/inventario/enrolamiento',
+        }
+        lan_auto = False
+    else:
+        urls = urls_enrolador_bodega(request)
+        host = (request.host or '').split(':')[0].lower()
+        lan_auto = not lan_explicit and host in ('127.0.0.1', 'localhost', '::1')
+    return render_template(
+        'bodega_enrolador_setup.html',
+        urls=urls,
+        qr_tablet=_qr_data_uri_png(urls['tablet'], box_size=6, border=2),
+        qr_login=_qr_data_uri_png(urls['login'], box_size=5, border=2),
+        lan_explicit=lan_explicit,
+        lan_auto=lan_auto,
+        lan_preview=lan_preview or None,
+    )
+
+
+def inventario_enrolamiento_tablet():
+    ctx = _contexto_vista_enrolamiento(prefer_bodega=True)
+    if ctx is None:
+        _flash_enrolamiento_tablas_faltantes()
+        return _redirigir_home_erp()
+    if not ctx['almacenes_ui']:
+        flash('No hay almacenes activos. Creá al menos uno en Administración → Almacenes.', 'warning')
+    return render_template('inventario_enrolamiento.html', modo_tablet=True, **ctx)
+
+
 @app.route('/inventario/enrolamiento')
 @permisos_required('enrolamiento_inventario', 'admin_inventario')
 def inventario_enrolamiento():
@@ -10261,6 +12887,70 @@ def inventario_enrolamiento():
         id_almacen_default=id_almacen_default,
         enrol_cat_padres=enrol_cat_padres,
         enrol_cat_nombres=enrol_cat_nombres,
+        marcas_catalogo=_marcas_catalogo_lista(),
+        tonos_catalogo=_tonos_catalogo_lista(),
+    )
+
+
+@app.route('/inventario/enrolamiento/etiquetas')
+@permisos_required('enrolamiento_inventario', 'admin_inventario', 'ver_inventario')
+def imprimir_etiquetas_enrolamiento():
+    """Etiquetas de góndola para productos enrolados: nombre, código de barras y precios."""
+    cantidad = request.args.get('cantidad', 1, type=int)
+    auto_print = (request.args.get('auto_print') or '1').strip() != '0'
+    ids_raw = (request.args.get('ids') or '').strip()
+    sesion_id = request.args.get('sesion_id', type=int)
+
+    productos = []
+    titulo = 'Etiquetas — productos enrolados'
+    origen = ''
+
+    if ids_raw:
+        ids_set = {int(x) for x in ids_raw.split(',') if x.strip().isdigit()}
+        productos = (
+            Producto.query.filter(Producto.id.in_(list(ids_set))).order_by(Producto.nombre.asc()).all()
+            if ids_set else []
+        )
+        origen = f'{len(productos)} producto(s) seleccionado(s)'
+    elif sesion_id and _tablas_enrolamiento_existen():
+        pids = [
+            int(row[0])
+            for row in db.session.query(EnrolamientoTomaLinea.producto_id)
+            .filter_by(sesion_id=int(sesion_id))
+            .distinct()
+            .all()
+        ]
+        if pids:
+            productos = Producto.query.filter(Producto.id.in_(pids)).order_by(Producto.nombre.asc()).all()
+        origen = f'Sesión enrolamiento #{sesion_id} · {len(productos)} producto(s)'
+    else:
+        filtros = _filtros_listado_productos(request)
+        filtros['solo_enrolados'] = True
+        productos = (
+            _query_productos_listado(filtros)
+            .order_by(Producto.nombre.asc())
+            .limit(150)
+            .all()
+        )
+        origen = 'Hasta 150 productos enrolados según filtros activos'
+
+    filas = _filas_etiquetas_enrolamiento(productos, cantidad=cantidad)
+    total_etiquetas = sum(int(f.get('cantidad') or 1) for f in filas)
+    if not filas:
+        flash('No hay productos enrolados para generar etiquetas.', 'info')
+        return redirect(request.referrer or url_for('inventario_enrolamiento'))
+    if total_etiquetas > 500:
+        flash('Demasiadas etiquetas (máx. 500). Reduzca copias o filtra menos productos.', 'warning')
+        return redirect(request.referrer or url_for('inventario_enrolamiento'))
+
+    return render_template(
+        'enrolamiento_etiquetas.html',
+        titulo=titulo,
+        origen=origen,
+        filas=filas,
+        total_etiquetas=total_etiquetas,
+        cantidad_por_producto=max(1, min(int(cantidad or 1), 50)),
+        auto_print=auto_print,
     )
 
 
@@ -10514,10 +13204,13 @@ def cargar_productos():
     if fn.endswith('.xlsx') or fn.endswith('.xlsm'):
         try:
             import pandas as pd
-            df = pd.read_excel(io.BytesIO(contenido), engine='openpyxl')
+            from services.excel_carga_utils import leer_excel_carga_productos
+            df = leer_excel_carga_productos(contenido)
         except Exception as e:
             flash(
-                f"No se pudo leer el Excel (.xlsx). Si usó formato .xls antiguo, guarde como .xlsx en Excel. Detalle: {e}",
+                f"No se pudo leer el Excel (.xlsx/.xlsm). "
+                f"Si usó formato .xls antiguo, guarde como .xlsx en Excel. "
+                f"También puede exportar como CSV desde Excel. Detalle: {e}",
                 "danger",
             )
             return redirect(url_for('mostrar_productos'))
@@ -10730,6 +13423,25 @@ def cargar_productos():
                 if _csv_has('ubicacion_nivel'):
                     prod.ubicacion_nivel = _clip(_csv_cell(row, 'ubicacion_nivel'), 12) or None
 
+                if _csv_has('marca'):
+                    prod.marca = _clip(_csv_cell(row, 'marca'), 80) or None
+                if _csv_has('tono_color') or _csv_has('tono') or _csv_has('color'):
+                    tono_val = (
+                        _csv_cell(row, 'tono_color')
+                        or _csv_cell(row, 'tono')
+                        or _csv_cell(row, 'color')
+                    )
+                    prod.tono_color = _clip(tono_val, 80) or None
+                if prod.marca or prod.tono_color:
+                    try:
+                        from services.catalogo_pinturas_maestro_service import asegurar_marca, asegurar_tono
+                        if prod.marca:
+                            prod.marca = asegurar_marca(prod.marca)
+                        if prod.tono_color:
+                            prod.tono_color = asegurar_tono(prod.tono_color)
+                    except Exception:
+                        pass
+
                 prod.activo = True
 
                 if es_nuevo:
@@ -10822,6 +13534,8 @@ def exportar_productos_excel():
             'stock': int(p.stock or 0),
             'categoria': p.categoria or '',
             'subcategoria': p.subcategoria or '',
+            'marca': (p.marca or '').strip(),
+            'tono_color': (p.tono_color or '').strip(),
             'ubicacion_pasillo': p.ubicacion_pasillo or '',
             'ubicacion_estante': p.ubicacion_estante or '',
             'ubicacion_nivel': p.ubicacion_nivel or '',
@@ -10839,17 +13553,418 @@ def exportar_productos_excel():
     )
 
 
+@app.route('/api/productos/valorizado-categoria-detalle')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def api_valorizado_categoria_detalle():
+    """Detalle por producto de una fila del informe stock valorizado por categoría."""
+    cat_drill = unquote((request.args.get('categoria') or '').strip())
+    if not cat_drill:
+        return jsonify(ok=False, mensaje='Categoría requerida.'), 400
+    filtros = _filtros_listado_productos(request)
+    prods = _query_productos_categoria_valorizado(filtros, cat_drill).order_by(Producto.nombre.asc()).all()
+    pids = [int(p.id) for p in prods]
+    st_t = stock_tienda_por_producto_ids(pids) if pids else {}
+    st_b = stock_bodega_por_producto_ids(pids) if pids else {}
+
+    items = []
+    tot_st = tot_merc = tot_cap = 0.0
+    con_stock = sin_costo = 0
+    for p in prods:
+        st = int(st_t.get(int(p.id), 0) or 0)
+        sb = int(st_b.get(int(p.id), 0) or 0)
+        costo = float(p.precio_compra or 0)
+        venta = float(precio_efectivo_pos_producto(p) or p.precio_venta or 0)
+        merc = st * costo
+        cap = st * venta
+        tot_st += st
+        tot_merc += merc
+        tot_cap += cap
+        if st > 0:
+            con_stock += 1
+        if st > 0 and costo <= 0:
+            sin_costo += 1
+        items.append({
+            'id': int(p.id),
+            'nombre': (p.nombre or 'Sin nombre').strip()[:80],
+            'codigo': _codigo_etiqueta_catalogo(p),
+            'stock_tienda': st,
+            'stock_bodega': sb,
+            'precio_compra': costo,
+            'precio_venta': float(p.precio_venta or 0),
+            'precio_venta_sd': float(getattr(p, 'precio_venta_sd', None) or 0),
+            'mercaderia_clp': merc,
+            'capital_activo_clp': cap,
+            'sin_costo': costo <= 0 and st > 0,
+        })
+    items.sort(key=lambda row: (-int(row['stock_tienda']), -float(row['mercaderia_clp']), row['nombre'].lower()))
+    limite = min(max(int(request.args.get('limite', 50)), 10), 120)
+    return jsonify(
+        ok=True,
+        categoria=cat_drill,
+        resumen={
+            'productos': len(prods),
+            'con_stock_tienda': con_stock,
+            'sin_precio_compra_con_stock': sin_costo,
+            'stock_tienda': int(tot_st),
+            'mercaderia_clp': tot_merc,
+            'capital_activo_clp': tot_cap,
+        },
+        items=items[:limite],
+        items_total=len(items),
+        items_truncados=len(items) > limite,
+    )
+
+
+@app.route('/productos/exportar_stock_valorizado_categoria')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def exportar_stock_valorizado_categoria():
+    """Excel con stock valorizado agrupado por categoría (respeta filtros del listado)."""
+    filtros = _filtros_listado_productos(request)
+    productos_q = _query_productos_listado(filtros)
+    productos_list = productos_q.order_by(Producto.categoria.asc(), Producto.nombre.asc()).all()
+    ids_list = [int(p.id) for p in productos_list]
+    from services.stock_consulta_service import stock_tienda_por_ids
+
+    stocks_tienda = stock_tienda_por_ids(ids_list) if ids_list else {}
+    _, filas = _calcular_stock_valorizado_catalogo(productos_list, stocks_tienda)
+    import pandas as pd
+
+    rows = [{
+        'categoria': r['categoria'],
+        'productos': r['productos'],
+        'stock_tienda': r['stock'],
+        'mercaderia_clp': round(r['mercaderia_clp']),
+        'capital_activo_clp': round(r['capital_activo_clp']),
+        'brecha_clp': round(r['brecha_clp']),
+        'pct_mercaderia': r['pct_mercaderia'],
+        'pct_capital': r['pct_capital'],
+    } for r in filas]
+    df = pd.DataFrame(rows)
+    bio = io.BytesIO()
+    with pd.ExcelWriter(bio, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Stock valorizado')
+    bio.seek(0)
+    return send_file(
+        bio,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name='stock_valorizado_por_categoria.xlsx',
+    )
+
+
+@app.route('/productos/etiquetas')
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def imprimir_etiquetas_catalogo():
+    """Etiquetas de góndola: código de barras, nombre y precio (vista filtrada o IDs puntuales)."""
+    cantidad = request.args.get('cantidad', 1, type=int)
+    auto_print = (request.args.get('auto_print') or '1').strip() != '0'
+    ids_raw = (request.args.get('ids') or '').strip()
+
+    if ids_raw:
+        ids_set = {int(x) for x in ids_raw.split(',') if x.strip().isdigit()}
+        productos = (
+            Producto.query.filter(Producto.id.in_(list(ids_set))).order_by(Producto.nombre.asc()).all()
+            if ids_set else []
+        )
+        titulo = 'Etiquetas de catálogo'
+        origen = f'{len(productos)} producto(s) seleccionado(s)'
+    else:
+        filtros = _filtros_listado_productos(request)
+        productos = (
+            _query_productos_listado(filtros)
+            .order_by(Producto.nombre.asc())
+            .limit(150)
+            .all()
+        )
+        titulo = 'Etiquetas — vista filtrada del catálogo'
+        origen = 'Hasta 150 productos según filtros activos'
+
+    filas = _filas_etiquetas_catalogo(productos, cantidad=cantidad)
+    total_etiquetas = sum(int(f.get('cantidad') or 1) for f in filas)
+    if not filas:
+        flash('No hay productos para generar etiquetas.', 'info')
+        return redirect(request.referrer or url_for('mostrar_productos'))
+    if total_etiquetas > 500:
+        flash('Demasiadas etiquetas (máx. 500). Reduzca copias o filtra menos productos.', 'warning')
+        return redirect(request.referrer or url_for('mostrar_productos'))
+
+    return render_template(
+        'catalogo_etiquetas.html',
+        titulo=titulo,
+        origen=origen,
+        filas=filas,
+        total_etiquetas=total_etiquetas,
+        cantidad_por_producto=max(1, min(int(cantidad or 1), 50)),
+        auto_print=auto_print,
+    )
+
+
+def _resolver_lote_etiquetas_request(*, variante: str = 'catalogo'):
+    """Productos + filas para etiquetas catálogo o enrolamiento (HTML o Zebra)."""
+    cantidad = request.args.get('cantidad', 1, type=int)
+    ids_raw = (request.args.get('ids') or '').strip()
+    sesion_id = request.args.get('sesion_id', type=int)
+    productos = []
+    titulo = 'Etiquetas — catálogo'
+    origen = ''
+
+    if variante == 'enrolamiento':
+        titulo = 'Etiquetas — productos enrolados'
+        if ids_raw:
+            ids_set = {int(x) for x in ids_raw.split(',') if x.strip().isdigit()}
+            productos = (
+                Producto.query.filter(Producto.id.in_(list(ids_set))).order_by(Producto.nombre.asc()).all()
+                if ids_set else []
+            )
+            origen = f'{len(productos)} producto(s) seleccionado(s)'
+        elif sesion_id and _tablas_enrolamiento_existen():
+            pids = [
+                int(row[0])
+                for row in db.session.query(EnrolamientoTomaLinea.producto_id)
+                .filter_by(sesion_id=int(sesion_id))
+                .distinct()
+                .all()
+            ]
+            if pids:
+                productos = Producto.query.filter(Producto.id.in_(pids)).order_by(Producto.nombre.asc()).all()
+            origen = f'Sesión enrolamiento #{sesion_id} · {len(productos)} producto(s)'
+        else:
+            filtros = _filtros_listado_productos(request)
+            filtros['solo_enrolados'] = True
+            productos = (
+                _query_productos_listado(filtros)
+                .order_by(Producto.nombre.asc())
+                .limit(150)
+                .all()
+            )
+            origen = 'Hasta 150 productos enrolados según filtros activos'
+        filas_fn = _filas_etiquetas_enrolamiento
+        redirect_url = request.referrer or url_for('inventario_enrolamiento')
+    else:
+        if ids_raw:
+            ids_set = {int(x) for x in ids_raw.split(',') if x.strip().isdigit()}
+            productos = (
+                Producto.query.filter(Producto.id.in_(list(ids_set))).order_by(Producto.nombre.asc()).all()
+                if ids_set else []
+            )
+            titulo = 'Etiquetas de catálogo'
+            origen = f'{len(productos)} producto(s) seleccionado(s)'
+        else:
+            filtros = _filtros_listado_productos(request)
+            productos = (
+                _query_productos_listado(filtros)
+                .order_by(Producto.nombre.asc())
+                .limit(150)
+                .all()
+            )
+            titulo = 'Etiquetas — vista filtrada del catálogo'
+            origen = 'Hasta 150 productos según filtros activos'
+        filas_fn = _filas_etiquetas_catalogo
+        redirect_url = request.referrer or url_for('mostrar_productos')
+
+    filas = filas_fn(productos, cantidad=cantidad)
+    total_etiquetas = sum(int(f.get('cantidad') or 1) for f in filas)
+    return {
+        'filas': filas,
+        'total_etiquetas': total_etiquetas,
+        'cantidad': max(1, min(int(cantidad or 1), 50)),
+        'titulo': titulo,
+        'origen': origen,
+        'variante': variante,
+        'redirect_url': redirect_url,
+        'query_string': request.query_string.decode('utf-8') if request.query_string else '',
+    }
+
+
+@app.route('/configuracion/etiquetas/zebra', endpoint='admin_etiquetas_zebra')
+@app.route('/inventario/etiquetas/zebra', endpoint='panel_etiquetas_zebra_enrolamiento')
+@app.route('/productos/etiquetas/zebra', endpoint='panel_etiquetas_zebra_catalogo')
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def panel_etiquetas_zebra():
+    """Calibración e impresión ZPL · Zebra GX420d (mismos filtros que etiquetas HTML)."""
+    from services.etiquetas_zebra_zpl_service import (
+        cargar_config_etiqueta_zebra,
+        fila_ejemplo_calibracion,
+        generar_zpl_lote,
+        impresora_para_panel,
+        nombre_impresora_zebra,
+        resolver_impresora_zebra,
+    )
+
+    modo_config = request.path.startswith('/configuracion')
+    if modo_config:
+        variante = 'enrolamiento'
+        filas = [fila_ejemplo_calibracion()]
+        total_etiquetas = 1
+        origen = 'Calibración · etiqueta de prueba (sin lote de productos)'
+        url_volver = url_for('admin_empresa')
+    else:
+        variante = 'enrolamiento' if request.path.startswith('/inventario') else 'catalogo'
+        lote = _resolver_lote_etiquetas_request(variante=variante)
+        if not lote['filas']:
+            flash('No hay productos para generar etiquetas Zebra.', 'info')
+            return redirect(lote['redirect_url'])
+        if lote['total_etiquetas'] > 500:
+            flash('Demasiadas etiquetas (máx. 500). Reduzca copias o filtra menos productos.', 'warning')
+            return redirect(lote['redirect_url'])
+        filas = lote['filas']
+        total_etiquetas = lote['total_etiquetas']
+        origen = lote['origen']
+        url_volver = (
+            url_for('imprimir_etiquetas_enrolamiento') + ('?' + lote['query_string'] if lote['query_string'] else '')
+            if variante == 'enrolamiento'
+            else url_for('imprimir_etiquetas_catalogo') + ('?' + lote['query_string'] if lote['query_string'] else '')
+        )
+
+    cfg = cargar_config_etiqueta_zebra()
+    impresora_seleccionada, impresoras_zebra, colas_zebra = impresora_para_panel(cfg)
+    from services.ticket_impresion_escpos import describir_cola_impresora
+
+    impresora_desc = describir_cola_impresora(impresora_seleccionada or '')
+    zpl_inicial = generar_zpl_lote(filas, cfg, variante=variante)
+    total_franjas = total_etiquetas
+    if (cfg.get('layout') or '').strip() == 'doble_columna':
+        total_franjas = (total_etiquetas + 1) // 2
+    return render_template(
+        'etiquetas_zebra_panel.html',
+        config=cfg,
+        filas=filas,
+        variante=variante,
+        modo_config=modo_config,
+        origen=origen,
+        total_etiquetas=total_etiquetas,
+        total_franjas=total_franjas,
+        zpl_inicial=zpl_inicial,
+        impresora_zebra=nombre_impresora_zebra(cfg),
+        impresora_zebra_resuelta=resolver_impresora_zebra(cfg),
+        impresora_seleccionada=impresora_seleccionada,
+        impresoras_zebra=impresoras_zebra,
+        colas_zebra=colas_zebra,
+        impresora_desc=impresora_desc,
+        url_volver=url_volver,
+    )
+
+
+@app.route('/api/etiquetas/zebra/impresoras', methods=['GET'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def api_etiquetas_zebra_impresoras():
+    from services.etiquetas_zebra_zpl_service import cargar_config_etiqueta_zebra, impresora_para_panel
+
+    cfg = cargar_config_etiqueta_zebra()
+    seleccionada, opciones, colas = impresora_para_panel(cfg)
+    from services.ticket_impresion_escpos import describir_cola_impresora
+
+    cola_q = (request.args.get('cola') or '').strip()
+    if cola_q:
+        return jsonify(ok=True, cola=describir_cola_impresora(cola_q))
+    return jsonify(
+        ok=True,
+        seleccionada=seleccionada,
+        impresoras_zebra=[c.get('nombre') for c in colas if c.get('usable')],
+        colas=colas,
+        opciones=opciones,
+        cola=describir_cola_impresora(seleccionada),
+        nota='Etiquetas ZPL no usan POS_IMPRESORA_NOMBRE (tickets 80 mm).',
+    )
+
+
+@app.route('/api/etiquetas/zebra/config', methods=['GET', 'POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def api_etiquetas_zebra_config():
+    from services.etiquetas_zebra_zpl_service import cargar_config_etiqueta_zebra, guardar_config_etiqueta_zebra
+
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        cfg = guardar_config_etiqueta_zebra(data.get('config') or {})
+        return jsonify(ok=True, config=cfg)
+    return jsonify(ok=True, config=cargar_config_etiqueta_zebra())
+
+
+@app.route('/api/etiquetas/zebra/preview', methods=['POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def api_etiquetas_zebra_preview():
+    from services.etiquetas_zebra_zpl_service import cargar_config_etiqueta_zebra, generar_zpl_lote, guardar_config_etiqueta_zebra
+
+    data = request.get_json(silent=True) or {}
+    filas = data.get('filas') or []
+    if not filas:
+        return jsonify(ok=False, mensaje='Sin productos para etiqueta.'), 400
+    cfg = cargar_config_etiqueta_zebra()
+    if data.get('config'):
+        from services.etiquetas_zebra_zpl_service import _aplicar_config_parcial
+        cfg = _aplicar_config_parcial(cfg, data.get('config'))
+    variante = (data.get('variante') or 'catalogo').strip()
+    zpl = generar_zpl_lote(filas, cfg, variante=variante)
+    return jsonify(ok=True, zpl=zpl, config=cfg, total=len(filas))
+
+
+@app.route('/api/etiquetas/zebra/imprimir', methods=['POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def api_etiquetas_zebra_imprimir():
+    from services.etiquetas_zebra_zpl_service import imprimir_zpl_en_zebra, zebra_habilitada
+
+    if not zebra_habilitada():
+        return jsonify(ok=False, mensaje='Etiquetas Zebra deshabilitadas (ZEBRA_ETIQUETAS_HABILITADA=0).'), 503
+    data = request.get_json(silent=True) or {}
+    zpl = (data.get('zpl') or '').strip()
+    if not zpl:
+        return jsonify(ok=False, mensaje='ZPL vacío.'), 400
+    from services.etiquetas_zebra_zpl_service import (
+        _aplicar_config_parcial,
+        cargar_config_etiqueta_zebra,
+        imprimir_zpl_en_zebra,
+    )
+
+    cfg = _aplicar_config_parcial(cargar_config_etiqueta_zebra(), data.get('config'))
+    imp = (data.get('impresora') or cfg.get('impresora_nombre') or '').strip()
+    from services.ticket_impresion_escpos import _es_cola_zebra
+
+    if imp and not _es_cola_zebra(imp):
+        return jsonify(
+            ok=False,
+            error='impresora_no_zebra',
+            mensaje=(
+                f'«{imp}» es la térmica de tickets (80 mm), no una cola Zebra. '
+                'Elija «Zebra GX420d - ZPL» o «ZDesigner GX420d» en el panel.'
+            ),
+        ), 400
+    res = imprimir_zpl_en_zebra(zpl, impresora=imp or None, cfg=cfg)
+    return jsonify(res)
+
+
+@app.route('/api/etiquetas/zebra/descargar', methods=['POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def api_etiquetas_zebra_descargar():
+    from services.etiquetas_zebra_zpl_service import cargar_config_etiqueta_zebra, generar_zpl_lote
+
+    data = request.get_json(silent=True) or {}
+    filas = data.get('filas') or []
+    cfg = cargar_config_etiqueta_zebra()
+    variante = (data.get('variante') or 'catalogo').strip()
+    zpl = generar_zpl_lote(filas, cfg, variante=variante)
+    return Response(
+        zpl,
+        mimetype='text/plain; charset=utf-8',
+        headers={'Content-Disposition': 'attachment; filename=etiquetas_lhexia.zpl'},
+    )
+
+
 @app.route('/descargar_plantilla_productos')
 def descargar_plantilla_productos():
     # precio_venta vacío + precio_compra > 0 → precio venta sugerido (misma lógica que Revisión de precios).
     # terminacion: 0 redondeo entero, 90 termina en …90, 990 en …990.
     contenido = (
         "nombre,codigo_barra,codigo_interno,codigo_chilemat,precio_compra,precio_venta,precio_mayoreo,margen_venta,terminacion,"
-        "unidad_compra,unidad_venta,factor_conversion,stock,categoria,subcategoria,"
+        "unidad_compra,unidad_venta,factor_conversion,stock,categoria,subcategoria,marca,tono_color,"
         "ubicacion_pasillo,ubicacion_estante,ubicacion_nivel\n"
     )
-    contenido += "Tornillo Zincado 1in,123456,INT-TOR-001,CHM-000001,12000,180,160,0.30,90,Caja,Unidad,100,3500,Herramientas,Tornillos,P02,E04,N1\n"
-    contenido += "Producto precio sugerido,999888,INT-DEMO-02,,5000,,,0.35,90,Pieza,Unidad,1,100,Herramientas,Varios,P01,E01,N1\n"
+    contenido += "Tornillo Zincado 1in,123456,INT-TOR-001,CHM-000001,12000,180,160,0.30,90,Caja,Unidad,100,3500,Herramientas,Tornillos,,,P02,E04,N1\n"
+    contenido += "Esmalte rojo 1gal,999888,INT-DEMO-02,,5000,,,0.35,90,Pieza,Unidad,1,100,Pinturas,Esmaltes,Ceresita,Rojo teja,P01,E01,N1\n"
     return Response(
         contenido,
         mimetype="text/csv",
@@ -11421,6 +14536,61 @@ def _asegurar_columnas_entrega_ticket():
     except Exception as ex:
         db.session.rollback()
         app.logger.exception('No se pudo asegurar columnas entrega ticket: %s', ex)
+        return False
+
+
+def _asegurar_columnas_transferencia_caja():
+    """Confirmación abono transferencia antes de entrega mercadería."""
+    if app.config.get('_TRANSFERENCIA_CAJA_COL_OK'):
+        return True
+    ok = _asegurar_columnas_entrega_ticket()
+    if not ok:
+        return False
+    try:
+        insp = sa_inspect(db.engine)
+        dn = (db.engine.dialect.name or '').lower()
+        if 'ventas' not in set(insp.get_table_names()):
+            return False
+        vcols = {c['name'] for c in insp.get_columns('ventas')}
+        for col_sql_pg, col_sql_my, col_name in (
+            (
+                'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS transferencia_referencia VARCHAR(80) NULL',
+                'ALTER TABLE ventas ADD COLUMN transferencia_referencia VARCHAR(80) NULL',
+                'transferencia_referencia',
+            ),
+            (
+                'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS transferencia_confirmada_at TIMESTAMP NULL',
+                'ALTER TABLE ventas ADD COLUMN transferencia_confirmada_at DATETIME NULL',
+                'transferencia_confirmada_at',
+            ),
+            (
+                'ALTER TABLE ventas ADD COLUMN IF NOT EXISTS transferencia_confirmada_por VARCHAR(80) NULL',
+                'ALTER TABLE ventas ADD COLUMN transferencia_confirmada_por VARCHAR(80) NULL',
+                'transferencia_confirmada_por',
+            ),
+        ):
+            if col_name in vcols:
+                continue
+            db.session.execute(text(col_sql_pg if dn == 'postgresql' else col_sql_my))
+        db.session.commit()
+        app.config['_TRANSFERENCIA_CAJA_COL_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('transferencia_caja: migracion parcial (%s)', ex)
+        return False
+
+
+def _asegurar_tabla_transferencia_correo():
+    if app.config.get('_TRANSFERENCIA_CORREO_TABLE_OK'):
+        return True
+    try:
+        TransferenciaCorreoIngreso.__table__.create(bind=db.engine, checkfirst=True)
+        app.config['_TRANSFERENCIA_CORREO_TABLE_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.warning('transferencia_correo_ingreso: %s', ex)
         return False
 
 
@@ -12535,6 +15705,12 @@ def _asegurar_columnas_productos_legacy():
             db.session.execute(text(
                 "ALTER TABLE productos ADD COLUMN precio_venta_sd NUMERIC(14,2) NULL"
             ))
+            cambios = True
+        if 'marca' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN marca VARCHAR(80) NULL"))
+            cambios = True
+        if 'tono_color' not in cols:
+            db.session.execute(text("ALTER TABLE productos ADD COLUMN tono_color VARCHAR(80) NULL"))
             cambios = True
         if cambios:
             db.session.commit()
@@ -14213,6 +17389,23 @@ def api_mentor_save_step():
         return jsonify({'ok': False, 'error': 'save_step'}), 500
 
 
+def api_mentor_pregunta():
+    """Mentor Coach — pregunta en lenguaje natural sobre Manual Academy."""
+    data = request.get_json(silent=True) or {}
+    pregunta = (data.get('pregunta') or data.get('q') or '').strip()
+    usar_ia = data.get('usar_ia', True) is not False
+    from services.academy_coach_service import responder_pregunta_academy
+
+    try:
+        out = responder_pregunta_academy(pregunta, usar_ia=usar_ia)
+        code = 200 if out.get('ok') else 400
+        return jsonify(out), code
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception('api_mentor_pregunta: %s', ex)
+        return jsonify({'ok': False, 'error': 'coach'}), 500
+
+
 def api_pos_pedidos_apedido():
     """Bandeja vendedora: compromisos / líneas a pedido (ventas_a_pedido)."""
     if not usuario_tiene_permiso('pos_emitir_vale'):
@@ -15035,11 +18228,15 @@ def pos_despacho_vale(vid):
     )
     entrega_resumen = venta_entrega_resumen(entrega_lineas)
     entrega_estado = (getattr(venta, 'entrega_ticket_estado', None) or '').strip()
+    from services.transferencia_caja_service import es_transferencia_pendiente_confirmacion
+
+    transferencia_pendiente = es_transferencia_pendiente_confirmacion(venta)
     auto_abrir_entrega = (
         st == 'Pagado'
         and not entrega_resumen.get('completa')
         and bool(entrega_lineas)
         and (ver_canal_tienda or ver_canal_bodega)
+        and not transferencia_pendiente
     )
 
     import json as _json
@@ -15068,6 +18265,7 @@ def pos_despacho_vale(vid):
         entrega_resumen=entrega_resumen,
         entrega_estado=entrega_estado or ('PENDIENTE' if st == 'Pagado' else '—'),
         entrega_config_json=_json.dumps(entrega_config, ensure_ascii=False),
+        transferencia_pendiente=transferencia_pendiente,
     )
 
 
@@ -15983,6 +19181,14 @@ def caja_pendientes():
         1 for v in cola_combined if not getattr(v, 'cola_es_borrador', False) and (getattr(v, 'sla_tier', 0) or 0) >= 2
     )
 
+    from services.transferencia_caja_service import contar_transferencias_pendientes
+    from services.transferencia_correo_carga_service import contar_correos_transferencia_bandaja
+
+    _asegurar_columnas_transferencia_caja()
+    _asegurar_tabla_transferencia_correo()
+    n_transferencias_pendientes = contar_transferencias_pendientes(caja_id=cid)
+    n_correos_transferencia = contar_correos_transferencia_bandaja()
+
     return render_template(
         'caja_pendientes.html',
         tickets_emitidos=tickets_emitidos,
@@ -16002,6 +19208,238 @@ def caja_pendientes():
         n_sla_atencion=n_sla_atencion,
         n_sla_modal=n_sla_modal,
         pos_impresion_termica=_pos_impresion_termica_habilitada(),
+        n_transferencias_pendientes=n_transferencias_pendientes,
+        n_correos_transferencia=n_correos_transferencia,
+    )
+
+
+def caja_transferencias():
+    """Bandeja: transferencias cobradas en caja pendientes de confirmación de abono."""
+    from services.imap_correo_util import imap_configurado
+    from services.transferencia_caja_service import contar_transferencias_pendientes, query_transferencias_pendientes
+    from services.transferencia_correo_carga_service import contar_correos_transferencia_bandaja, query_correos_bandaja
+
+    _asegurar_columnas_transferencia_caja()
+    _asegurar_tabla_transferencia_correo()
+    caja = obtener_caja_activa()
+    cid = caja.id if caja else None
+    q = query_transferencias_pendientes(caja_id=cid)
+    ventas = (
+        q.options(joinedload(Venta.cliente), joinedload(Venta.detalles))
+        .all()
+    )
+    correos = query_correos_bandaja(limit=100).all()
+    correo_por_venta = {}
+    for c in correos:
+        vid = c.venta_id_sugerida or c.venta_id_vinculada
+        if vid and vid not in correo_por_venta:
+            correo_por_venta[int(vid)] = c
+    destacado = request.args.get('destacado', type=int)
+    correo_destacado = request.args.get('correo', type=int)
+    return render_template(
+        'caja_transferencias.html',
+        ventas=ventas,
+        correos=correos,
+        correo_por_venta=correo_por_venta,
+        caja=caja,
+        destacado=destacado,
+        correo_destacado=correo_destacado,
+        total=len(ventas),
+        total_correos=len(correos),
+        n_transferencias_pendientes=len(ventas),
+        n_correos_transferencia=len(correos),
+        imap_configurado=imap_configurado(),
+    )
+
+
+def api_caja_transferencia_confirmar(vid):
+    from services.transferencia_caja_service import confirmar_transferencia_venta
+
+    usr = (current_user.nombre or '')[:80] if current_user.is_authenticated else 'Caja'
+    res = confirmar_transferencia_venta(int(vid), usr)
+    wants_json = request.is_json or (request.headers.get('Accept') or '').find('json') >= 0
+    if wants_json:
+        code = 200 if res.get('ok') else 400
+        return jsonify(**res), code
+    if res.get('ok'):
+        flash(res.get('mensaje') or 'Transferencia confirmada.', 'success')
+    else:
+        flash(res.get('error') or 'No se pudo confirmar.', 'warning')
+    return redirect(url_for('caja_transferencias'))
+
+
+def api_caja_transferencia_rechazar(vid):
+    from services.transferencia_caja_service import revertir_cobro_transferencia
+
+    data = request.get_json(silent=True) or {}
+    motivo = (data.get('motivo') or request.form.get('motivo') or '').strip()
+    usr = (current_user.nombre or '')[:80] if current_user.is_authenticated else 'Caja'
+    res = revertir_cobro_transferencia(int(vid), usr, motivo=motivo)
+    if request.path.startswith('/api/') or request.is_json or (request.headers.get('Accept') or '').find('json') >= 0:
+        code = 200 if res.get('ok') else 400
+        return jsonify(**res), code
+    if res.get('ok'):
+        flash(res.get('mensaje') or 'Cobro revertido.', 'info')
+        return redirect(url_for('caja_pendientes'))
+    flash(res.get('error') or 'No se pudo revertir.', 'warning')
+    return redirect(url_for('caja_transferencias'))
+
+
+def api_caja_transferencia_sincronizar_correo():
+    from services.transferencia_correo_carga_service import sincronizar_correo_transferencias
+
+    data = request.get_json(silent=True) or {}
+    usr = (current_user.nombre or '')[:80] if current_user.is_authenticated else 'Caja'
+    res = sincronizar_correo_transferencias(
+        limite=int(data.get('limite') or request.form.get('limite') or 80),
+        offset=int(data.get('offset') or 0),
+        solo_no_leidos=bool(data.get('solo_no_leidos')),
+        usuario=usr,
+        dry_run=bool(data.get('dry_run')),
+    )
+    if request.path.startswith('/api/') or request.is_json or (request.headers.get('Accept') or '').find('json') >= 0:
+        code = 200 if res.get('ok') else 400
+        return jsonify(**res), code
+    if res.get('ok'):
+        flash(res.get('mensaje') or 'Correo sincronizado.', 'success')
+    else:
+        flash(res.get('error') or 'No se pudo sincronizar correo.', 'warning')
+    return redirect(url_for('caja_transferencias'))
+
+
+def api_caja_transferencia_confirmar_correo(cid):
+    from services.transferencia_correo_carga_service import confirmar_desde_correo
+
+    data = request.get_json(silent=True) or {}
+    vid = data.get('venta_id') or request.form.get('venta_id')
+    usr = (current_user.nombre or '')[:80] if current_user.is_authenticated else 'Caja'
+    res = confirmar_desde_correo(int(cid), int(vid) if vid else None, usr)
+    wants_json = request.is_json or (request.headers.get('Accept') or '').find('json') >= 0
+    if wants_json or request.path.startswith('/api/'):
+        code = 200 if res.get('ok') else 400
+        return jsonify(**res), code
+    if res.get('ok'):
+        flash(res.get('mensaje') or 'Confirmado.', 'success')
+    else:
+        flash(res.get('error') or 'No se pudo confirmar.', 'warning')
+    return redirect(url_for('caja_transferencias'))
+
+
+def api_caja_transferencia_descartar_correo(cid):
+    from services.transferencia_correo_carga_service import descartar_correo
+
+    usr = (current_user.nombre or '')[:80] if current_user.is_authenticated else 'Caja'
+    res = descartar_correo(int(cid), usr)
+    if request.path.startswith('/api/') or request.is_json:
+        code = 200 if res.get('ok') else 400
+        return jsonify(**res), code
+    return redirect(url_for('caja_transferencias'))
+
+
+def api_caja_transferencias_alerta():
+    """Polling campanita caja: vales transferencia + avisos banco pendientes."""
+    from services.transferencia_correo_carga_service import payload_alerta_transferencias_caja
+
+    caja = obtener_caja_activa()
+    cid = caja.id if caja else None
+    body = payload_alerta_transferencias_caja(caja_id=cid)
+    body['url_bandaja'] = url_for('caja_transferencias')
+    for c in body.get('correos_recientes') or []:
+        c['url_revisar'] = url_for('caja_transferencias', correo=c['id'])
+        if c.get('venta_id_sugerida'):
+            c['url_confirmar'] = url_for('api_caja_transferencia_confirmar_correo', cid=c['id'])
+    for v in body.get('vales_recientes') or []:
+        v['url_revisar'] = url_for('caja_transferencias', destacado=v['id'])
+        v['url_confirmar'] = url_for('api_caja_transferencia_confirmar', vid=v['id'])
+    for it in body.get('items') or []:
+        if it.get('tipo') == 'correo':
+            it['url_revisar'] = url_for('caja_transferencias', correo=it['id'])
+            if it.get('venta_id_sugerida'):
+                it['url_confirmar'] = url_for('api_caja_transferencia_confirmar_correo', cid=it['id'])
+        elif it.get('tipo') == 'vale':
+            it['url_revisar'] = url_for('caja_transferencias', destacado=it['id'])
+            it['url_confirmar'] = url_for('api_caja_transferencia_confirmar', vid=it['id'])
+    return jsonify(body)
+
+
+def api_caja_transferencia_correo_detalle(cid):
+    """Detalle JSON de un aviso bancario (modal campanita / bandeja)."""
+    from services.transferencia_correo_carga_service import obtener_correo_transferencia_detalle
+
+    body = obtener_correo_transferencia_detalle(int(cid))
+    if body.get('ok'):
+        body['url_bandaja'] = url_for('caja_transferencias', correo=int(cid))
+    code = 200 if body.get('ok') else 404
+    return jsonify(body), code
+
+
+def api_caja_transferencias_reactivar_descartados():
+    """Reactiva correos descartados que tenían monto o venían de dominio bancario."""
+    _asegurar_tabla_transferencia_correo()
+    from services.transferencia_correo_parser import _dominios_banco
+    usr = (current_user.nombre or 'Admin') if current_user.is_authenticated else 'Admin'
+    dominios_banco = _dominios_banco()
+    rows = TransferenciaCorreoIngreso.query.filter_by(estado='descartado').all()
+    reactivados = 0
+    for row in rows:
+        tiene_monto = row.monto is not None and row.monto > 0
+        rem_l = (row.remitente or '').lower()
+        es_banco = any(d in rem_l for d in dominios_banco)
+        if tiene_monto or es_banco:
+            row.estado = 'pendiente'
+            row.confirmado_por = None
+            reactivados += 1
+    if reactivados:
+        db.session.commit()
+    return jsonify(ok=True, reactivados=reactivados, total_revisados=len(rows),
+                   mensaje=f'{reactivados} aviso(s) reactivado(s) a pendiente.')
+
+
+def api_caja_transferencias_historial():
+    """Historial paginado de todos los avisos bancarios (todos los estados)."""
+    _asegurar_tabla_transferencia_correo()
+    page = request.args.get('page', 1, type=int)
+    per_page = min(int(request.args.get('per_page', 50)), 200)
+    estado = (request.args.get('estado') or '').strip() or None
+    q = TransferenciaCorreoIngreso.query
+    if estado:
+        q = q.filter(TransferenciaCorreoIngreso.estado == estado)
+    total = q.count()
+    rows = (
+        q.order_by(
+            TransferenciaCorreoIngreso.fecha_correo.desc(),
+            TransferenciaCorreoIngreso.id.desc(),
+        )
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    def _fmt(c):
+        monto = int(round(float(c.monto))) if c.monto else None
+        return {
+            'id': c.id,
+            'fecha': c.fecha_correo.strftime('%d/%m/%Y %H:%M') if c.fecha_correo else '—',
+            'fecha_iso': c.fecha_correo.isoformat() if c.fecha_correo else None,
+            'monto': monto,
+            'monto_fmt': f'${monto:,}'.replace(',', '.') if monto else '—',
+            'ordenante': (c.nombre_ordenante or c.remitente or '—')[:80],
+            'rut': (c.rut_ordenante or '')[:20] or None,
+            'referencia': (c.referencia or '')[:80] or None,
+            'asunto': (c.asunto or '')[:120],
+            'estado': c.estado or 'pendiente',
+            'venta_id': c.venta_id_vinculada or c.venta_id_sugerida,
+            'confirmado_at': c.confirmado_at.strftime('%d/%m/%Y %H:%M') if c.confirmado_at else None,
+            'confirmado_por': (c.confirmado_por or '')[:80] or None,
+        }
+
+    return jsonify(
+        ok=True,
+        items=[_fmt(c) for c in rows],
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=max(1, -(-total // per_page)),
     )
 
 
@@ -17436,7 +20874,14 @@ def procesar_cobro_caja(id):
                     venta.bodega_preparacion_cobrado_at = datetime.now()
                 _venta_inicializar_entrega_ticket_post_cobro(venta)
 
-            # Re-validar stock DENTRO del savepoint (defensa en profundidad contra TOCTOU).
+            if metodo == 'Transferencia':
+                _asegurar_columnas_transferencia_caja()
+                ref_tr = (request.form.get('transferencia_referencia') or '').strip()[:80]
+                venta.transferencia_referencia = ref_tr or None
+                venta.transferencia_confirmada_at = None
+                venta.transferencia_confirmada_por = None
+
+            # Re-validar stock DENTRO del savepoint
             # Relee la venta para obtener datos frescos y detecta si otro cobro concurrente
             # ya agotó el stock entre la validación previa y este punto.
             venta = Venta.query.options(joinedload(Venta.detalles)).filter_by(id=venta.id).first()
@@ -17531,27 +20976,35 @@ def procesar_cobro_caja(id):
             return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
         else:
             msg_fin = f"┬íVenta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}"
-            if (venta.punto_retiro or '').strip().lower() == 'bodega':
+            if metodo == 'Transferencia':
+                msg_fin = (
+                    f"Vale #{venta.id} registrado con transferencia bancaria. "
+                    f"Confirme el abono en «Transferencias por confirmar» antes de entregar mercadería."
+                )
+            elif (venta.punto_retiro or '').strip().lower() == 'bodega':
                 msg_fin += (
                     " Retiro en bodega: el vale aparece en la plataforma de bodega; "
                     "los operadores reciben aviso sonoro en pantalla (consulta cada pocos segundos)."
                 )
             if _cobro_respuesta_json_solicitada():
-                return jsonify(
-                    {
-                        'exito': True,
-                        'venta_id': venta.id,
-                        'turno': int(getattr(venta, 'prioridad', None) or 0),
-                        'vuelto': float(venta.vuelto or 0),
-                        'vuelto_fmt': f"${float(venta.vuelto or 0):,.0f}".replace(',', '.'),
-                        'monto_total': float(venta.monto_total or 0),
-                        'monto_total_fmt': f"${float(venta.monto_total or 0):,.0f}".replace(',', '.'),
-                        'estado': venta.estado,
-                        'metodo_pago': metodo,
-                        'dte_estado': dte_estado_ui,
-                    }
-                )
+                body = {
+                    'exito': True,
+                    'venta_id': venta.id,
+                    'turno': int(getattr(venta, 'prioridad', None) or 0),
+                    'vuelto': float(venta.vuelto or 0),
+                    'vuelto_fmt': f"${float(venta.vuelto or 0):,.0f}".replace(',', '.'),
+                    'monto_total': float(venta.monto_total or 0),
+                    'monto_total_fmt': f"${float(venta.monto_total or 0):,.0f}".replace(',', '.'),
+                    'estado': venta.estado,
+                    'metodo_pago': metodo,
+                    'dte_estado': dte_estado_ui,
+                }
+                if metodo == 'Transferencia':
+                    body['transferencia_pendiente_confirmacion'] = True
+                return jsonify(body)
             flash(msg_fin, "success")
+            if metodo == 'Transferencia':
+                return redirect(url_for('caja_transferencias', destacado=venta.id))
             return redirect(
                 url_for(
                     'ver_ticket_cobro',
@@ -17878,12 +21331,15 @@ def _cotizacion_item_desde_busqueda(row: dict) -> dict:
         pid = int(pid)
     except (TypeError, ValueError):
         pid = None
+    precio_bruto = float(row.get('precio') or 0)
+    precio_neto = _precio_neto_cotizacion_desde_catalogo(precio_bruto)
     return {
         'id': pid,
         'codigo': row.get('codigo') or '',
         'nombre': row.get('nombre') or row.get('text') or '',
-        'precio': float(row.get('precio') or 0),
-        'precio_fmt': row.get('precio_fmt') or _fmt_clp_busqueda_pos(row.get('precio') or 0),
+        'precio': float(precio_neto),
+        'precio_bruto_catalogo': precio_bruto,
+        'precio_fmt': _fmt_clp_busqueda_pos(precio_neto) + ' neto',
         'unidad': row.get('unidad') or '',
         'stock': int(row.get('stock_total') or 0),
         'stock_tienda': int(row.get('stock_tienda') or 0),
@@ -17946,7 +21402,10 @@ def abrir_caja():
                 'danger',
             )
             return redirect(url_for('abrir_caja'))
-        caja = Caja(monto_inicial=monto_inicial, usuario_apertura="Admin")
+        caja = Caja(
+            monto_inicial=monto_inicial,
+            usuario_apertura=(current_user.nombre if current_user.is_authenticated else 'Sistema'),
+        )
         db.session.add(caja)
         db.session.commit()
         flash("Caja abierta con monto inicial: ${}".format(monto_inicial))
@@ -19063,8 +22522,12 @@ def _home_por_perfil(usuario):
     ):
         return url_for('bodega_plataforma')
     if _hub_usuario_tiene_permiso(usuario, 'pos_emitir_vale'):
+        if not obtener_caja_activa() and _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
+            return url_for('abrir_caja', next=_pos_url_destino(usuario))
         return _pos_url_destino(usuario)
     if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale', 'caja_abrir'):
+        if not obtener_caja_activa() and _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
+            return url_for('abrir_caja')
         return url_for('caja_pendientes')
     return url_for('erp_hub')
 
@@ -20133,12 +23596,17 @@ def c360_oferta_publica_pdf(token):
                 logo_b64 = base64.b64encode(fimg.read()).decode()
     except Exception:
         logo_b64 = None
+    cot_lineas = _lineas_presentacion_cotizacion(cot)
     return render_template(
         'cotizacion_pdf.html',
         cotizacion=cot,
         empresa=empresa,
         logo_cliente_b64=logo_b64,
         auto_print=False,
+        cot_totales=_presentacion_totales_cotizacion(cot),
+        subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
+        cot_lineas=cot_lineas,
+        cot_paginas=_paginas_pdf_cotizacion(cot_lineas),
     )
 
 
@@ -20255,6 +23723,280 @@ def admin_roles_permisos():
         permisos=permisos,
         rol_permiso_ids=rol_permiso_ids,
     )
+
+
+@app.route('/admin/catalogo-pinturas', methods=['GET', 'POST'])
+@permisos_required('gestionar_usuarios', 'admin_inventario')
+def admin_catalogo_pinturas():
+    """Mantenedor marcas y tonos/color pintura (maestro para catálogo e informes)."""
+    from services.catalogo_pinturas_maestro_service import (
+        aplicar_asignacion_tonos,
+        asegurar_marca,
+        asegurar_tono,
+        contar_productos_marca,
+        contar_productos_tono,
+        inferir_tono_desde_descripcion,
+        previsualizar_asignacion_tonos,
+        sembrar_desde_productos,
+    )
+
+    if not _asegurar_tablas_catalogo_pinturas_maestro():
+        flash('No se pudo crear el maestro de marcas/tonos. Revise logs del servidor.', 'danger')
+        return redirect(url_for('inicio'))
+
+    if request.method == 'POST':
+        act = (request.form.get('action') or '').strip()
+        try:
+            if act == 'crear_marca':
+                nombre = (request.form.get('nombre') or '').strip()[:80]
+                orden = request.form.get('orden', type=int) or 0
+                if not nombre:
+                    flash('Nombre de marca obligatorio.', 'warning')
+                else:
+                    asegurar_marca(nombre, commit=True)
+                    m = CatalogoMarca.query.filter(
+                        db.func.lower(db.func.trim(CatalogoMarca.nombre)) == nombre.lower(),
+                    ).first()
+                    if m:
+                        m.orden = orden
+                        db.session.commit()
+                    flash(f'Marca «{nombre}» guardada.', 'success')
+            elif act == 'editar_marca':
+                mid = request.form.get('id', type=int)
+                m = CatalogoMarca.query.get(mid) if mid else None
+                if not m:
+                    flash('Marca no encontrada.', 'warning')
+                else:
+                    nombre = (request.form.get('nombre') or '').strip()[:80]
+                    if not nombre:
+                        flash('Nombre obligatorio.', 'warning')
+                    else:
+                        otra = CatalogoMarca.query.filter(
+                            CatalogoMarca.id != m.id,
+                            db.func.lower(db.func.trim(CatalogoMarca.nombre)) == nombre.lower(),
+                        ).first()
+                        if otra:
+                            flash('Ya existe otra marca con ese nombre.', 'warning')
+                        else:
+                            m.nombre = nombre
+                            m.orden = request.form.get('orden', type=int) or 0
+                            m.activo = bool(request.form.get('activo'))
+                            db.session.commit()
+                            flash('Marca actualizada.', 'success')
+            elif act == 'toggle_marca':
+                mid = request.form.get('id', type=int)
+                m = CatalogoMarca.query.get(mid) if mid else None
+                if m:
+                    m.activo = not bool(m.activo)
+                    db.session.commit()
+                    flash('Estado de marca actualizado.', 'success')
+            elif act == 'crear_tono':
+                nombre = (request.form.get('nombre') or '').strip()[:80]
+                hx = (request.form.get('hex_color') or '').strip()[:7]
+                orden = request.form.get('orden', type=int) or 0
+                if not nombre:
+                    flash('Nombre de tono obligatorio.', 'warning')
+                else:
+                    asegurar_tono(nombre, hx or None, commit=True)
+                    t = CatalogoTonoColor.query.filter(
+                        db.func.lower(db.func.trim(CatalogoTonoColor.nombre)) == nombre.lower(),
+                    ).first()
+                    if t:
+                        t.orden = orden
+                        if hx:
+                            t.hex_color = hx
+                        db.session.commit()
+                    flash(f'Tono «{nombre}» guardado.', 'success')
+            elif act == 'editar_tono':
+                tid = request.form.get('id', type=int)
+                t = CatalogoTonoColor.query.get(tid) if tid else None
+                if not t:
+                    flash('Tono no encontrado.', 'warning')
+                else:
+                    nombre = (request.form.get('nombre') or '').strip()[:80]
+                    if not nombre:
+                        flash('Nombre obligatorio.', 'warning')
+                    else:
+                        otra = CatalogoTonoColor.query.filter(
+                            CatalogoTonoColor.id != t.id,
+                            db.func.lower(db.func.trim(CatalogoTonoColor.nombre)) == nombre.lower(),
+                        ).first()
+                        if otra:
+                            flash('Ya existe otro tono con ese nombre.', 'warning')
+                        else:
+                            t.nombre = nombre
+                            t.hex_color = (request.form.get('hex_color') or '').strip()[:7] or None
+                            t.orden = request.form.get('orden', type=int) or 0
+                            t.activo = bool(request.form.get('activo'))
+                            db.session.commit()
+                            flash('Tono actualizado.', 'success')
+            elif act == 'toggle_tono':
+                tid = request.form.get('id', type=int)
+                t = CatalogoTonoColor.query.get(tid) if tid else None
+                if t:
+                    t.activo = not bool(t.activo)
+                    db.session.commit()
+                    flash('Estado de tono actualizado.', 'success')
+            elif act == 'sembrar_productos':
+                stats = sembrar_desde_productos()
+                flash(
+                    f'Importado desde productos: {stats["marcas_nuevas"]} marcas nuevas, '
+                    f'{stats["tonos_nuevos"]} tonos nuevos.',
+                    'success',
+                )
+            elif act == 'importar_sodimac_muestras':
+                from services.sodimac_muestras_pintura_service import importar_sodimac_al_maestro_desde_web
+
+                detalle_pdp = request.form.get('detalle_pdp') == '1'
+                res = importar_sodimac_al_maestro_desde_web(enriquecer_pdp=detalle_pdp)
+                if not res.get('ok'):
+                    flash(res.get('mensaje') or 'No se pudo importar desde Sodimac.', 'warning')
+                else:
+                    ext = res.get('extraccion') or {}
+                    imp = res.get('importacion') or {}
+                    msg = (
+                        f'Sodimac: {ext.get("total_extraido", 0)} colores únicos importados '
+                        f'({imp.get("marcas_nuevas", 0)} marcas nuevas, '
+                        f'{imp.get("tonos_nuevos", 0)} tonos nuevos).'
+                    )
+                    if ext.get('nota'):
+                        msg += f' {ext["nota"]}'
+                    if res.get('respaldo_json'):
+                        msg += f' Respaldo: {res["respaldo_json"]}'
+                    flash(msg, 'success')
+            elif act == 'aplicar_tonos_inteligente':
+                solo_sin = request.form.get('solo_sin_tono') == '1'
+                ids_raw = request.form.getlist('producto_ids')
+                ids = []
+                for x in ids_raw:
+                    try:
+                        ids.append(int(x))
+                    except (TypeError, ValueError):
+                        pass
+                stats = aplicar_asignacion_tonos(
+                    ids if ids else None,
+                    solo_sin_tono=solo_sin,
+                    limite=500,
+                )
+                flash(
+                    f'Asignación inteligente: {stats["actualizados"]} productos actualizados '
+                    f'(de {stats["propuestas"]} sugerencias).',
+                    'success',
+                )
+            elif act == 'inferir_tono_form':
+                desc = (request.form.get('descripcion_color') or '').strip()
+                if desc:
+                    inf = inferir_tono_desde_descripcion(desc)
+                    if inf.get('tono_sugerido'):
+                        flash(
+                            f'Sugerido: «{inf["tono_sugerido"]}» '
+                            f'(confianza {int(float(inf.get("confianza") or 0) * 100)}%). '
+                            f'Complete el formulario «Nuevo tono» o aplique en productos.',
+                            'info',
+                        )
+                    else:
+                        flash('No se detectó un color reconocible en esa descripción.', 'warning')
+            else:
+                flash('Acción no reconocida.', 'warning')
+        except Exception as ex:
+            db.session.rollback()
+            flash(f'Error al guardar: {ex}', 'danger')
+        return redirect(url_for('admin_catalogo_pinturas', solo_sin_tono='1' if request.form.get('solo_sin_tono') == '1' else '0'))
+
+    solo_sin_tono = request.args.get('solo_sin_tono', '1') != '0'
+    asignacion_preview = previsualizar_asignacion_tonos(solo_sin_tono=solo_sin_tono, limite=120)
+
+    marcas = CatalogoMarca.query.order_by(
+        CatalogoMarca.orden.asc(), CatalogoMarca.nombre.asc(),
+    ).all()
+    tonos = CatalogoTonoColor.query.order_by(
+        CatalogoTonoColor.orden.asc(), CatalogoTonoColor.nombre.asc(),
+    ).all()
+    uso_marcas = {m.id: contar_productos_marca(m.nombre) for m in marcas}
+    uso_tonos = {t.id: contar_productos_tono(t.nombre) for t in tonos}
+    return render_template(
+        'admin_catalogo_pinturas.html',
+        marcas=marcas,
+        tonos=tonos,
+        uso_marcas=uso_marcas,
+        uso_tonos=uso_tonos,
+        asignacion_preview=asignacion_preview,
+        solo_sin_tono=solo_sin_tono,
+    )
+
+
+@app.route('/api/catalogo-pinturas/marcas', methods=['GET', 'POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def api_catalogo_pinturas_marcas():
+    from services.catalogo_pinturas_maestro_service import asegurar_marca, listar_marcas
+    if not _asegurar_tablas_catalogo_pinturas_maestro():
+        return jsonify(ok=False, mensaje='Maestro no disponible.'), 503
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        nombre = (data.get('nombre') or request.form.get('nombre') or '').strip()[:80]
+        if not nombre:
+            return jsonify(ok=False, mensaje='Nombre obligatorio.'), 400
+        try:
+            canon = asegurar_marca(nombre, commit=True)
+            row = CatalogoMarca.query.filter(
+                db.func.lower(db.func.trim(CatalogoMarca.nombre)) == canon.lower(),
+            ).first()
+            return jsonify(ok=True, nombre=canon, id=row.id if row else None)
+        except Exception as ex:
+            db.session.rollback()
+            return jsonify(ok=False, mensaje=str(ex)[:200]), 500
+    q = (request.args.get('q') or '').strip().lower()
+    items = [{'nombre': n} for n in listar_marcas()]
+    if q:
+        items = [x for x in items if q in x['nombre'].lower()]
+    return jsonify(ok=True, items=items[:80])
+
+
+@app.route('/api/catalogo-pinturas/tonos', methods=['GET', 'POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def api_catalogo_pinturas_tonos():
+    from services.catalogo_pinturas_maestro_service import asegurar_tono, listar_tonos
+    if not _asegurar_tablas_catalogo_pinturas_maestro():
+        return jsonify(ok=False, mensaje='Maestro no disponible.'), 503
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        nombre = (data.get('nombre') or request.form.get('nombre') or '').strip()[:80]
+        hx = (data.get('hex_color') or request.form.get('hex_color') or '').strip()[:7]
+        if not nombre:
+            return jsonify(ok=False, mensaje='Nombre obligatorio.'), 400
+        try:
+            canon = asegurar_tono(nombre, hx or None, commit=True)
+            row = CatalogoTonoColor.query.filter(
+                db.func.lower(db.func.trim(CatalogoTonoColor.nombre)) == canon.lower(),
+            ).first()
+            return jsonify(
+                ok=True,
+                nombre=canon,
+                id=row.id if row else None,
+                hex_color=(row.hex_color if row else hx) or '',
+            )
+        except Exception as ex:
+            db.session.rollback()
+            return jsonify(ok=False, mensaje=str(ex)[:200]), 500
+    q = (request.args.get('q') or '').strip().lower()
+    items = listar_tonos()
+    if q:
+        items = [x for x in items if q in (x.get('nombre') or '').lower()]
+    return jsonify(ok=True, items=items[:80])
+
+
+@app.route('/api/catalogo-pinturas/inferir-tono', methods=['GET'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def api_catalogo_pinturas_inferir_tono():
+    from services.catalogo_pinturas_maestro_service import inferir_tono_desde_descripcion
+    q = (request.args.get('q') or request.args.get('descripcion') or '').strip()
+    if not q:
+        return jsonify(ok=False, mensaje='Indique descripción del producto o color.'), 400
+    inf = inferir_tono_desde_descripcion(q)
+    return jsonify(ok=True, **inf)
 
 
 @app.route('/admin/unidades', methods=['GET', 'POST'])
@@ -20486,6 +24228,7 @@ def admin_catalogo():
             db.session.rollback()
             flash(f'Error al guardar: {ex}', 'danger')
 
+        _invalidar_cache_catalogo_arbol()
         cid = request.form.get('redirect_cat_id', type=int)
         return redirect(url_for('admin_catalogo', cat_id=cid) if cid else url_for('admin_catalogo'))
 
@@ -20510,10 +24253,16 @@ def admin_catalogo():
 
     sin_catalogo = (
         Producto.query.filter(Producto.subcategoria_catalogo_id.is_(None), Producto.activo.isnot(False))
-        .order_by(Producto.nombre.asc())
-        .limit(200)
+        .limit(400)
         .all()
     )
+    _adjuntar_fechas_enrolamiento(sin_catalogo)
+    _adjuntar_stock_ui(sin_catalogo)
+    sin_catalogo.sort(
+        key=lambda p: p.enrolado_en or datetime.min,
+        reverse=True,
+    )
+    sin_catalogo = sin_catalogo[:200]
     opciones_hojas = _opciones_hojas_catalogo_para_select()
     # Árbol jerárquico para visualización y mantenimiento por dependencia:
     # categoría (nivel 1) -> familia/nivel2 (nivel 2) -> hojas (nivel 3).
@@ -20585,8 +24334,8 @@ def admin_erp_audit_log():
 @app.route('/api/buscar_producto/<codigo>')
 @login_required
 def api_buscar_producto(codigo):
-    # Busca por código de barras
-    producto = Producto.query.filter_by(codigo_barra=codigo).first()
+    # Usa la misma cadena de resolución que POS: alias, barra/interno, variantes y Chilemat.
+    producto = _pos_buscar_producto_por_codigo(codigo)
     
     if producto:
         aid_t = id_almacen_tienda()
@@ -20660,6 +24409,15 @@ def _ruta_doc_recepcion(recepcion_id):
         if nom.startswith(pref):
             return nom
     return None
+
+
+def _borrar_adjunto_recepcion(recepcion_id):
+    nom = _ruta_doc_recepcion(recepcion_id)
+    if not nom:
+        return
+    path = os.path.join(_carpeta_docs_recepcion(), nom)
+    if os.path.isfile(path):
+        os.remove(path)
 
 
 def _guardar_doc_recepcion(recepcion_id, archivo):
@@ -21214,6 +24972,40 @@ def _normalizar_texto_factura(valor) -> str:
     return re.sub(r'\s+', ' ', s)
 
 
+def _producto_es_generico_oc(p) -> bool:
+    return bool(p and (p.codigo_interno or '') == 'COMPRA-HIST-MAESTRA')
+
+
+def _match_codigo_factura_recepcion(rec, codigo_factura: str):
+    """Busca producto por código factura (equivalencias OC/factura + maestro)."""
+    codigo_factura = (codigo_factura or '').strip()
+    if not codigo_factura or not rec:
+        return None, None
+    prov_oc = rec.orden_compra.proveedor_id if rec.orden_compra else None
+    prov_rec = rec.proveedor_id
+    for prov_id in (prov_oc, prov_rec):
+        if not prov_id:
+            continue
+        p_match, how = _matchear_producto_linea_factura(codigo_factura, '', prov_id)
+        if p_match:
+            return p_match, how
+    return None, None
+
+
+def _parse_fecha_filtro_recepcion(valor):
+    from datetime import datetime as _dt
+
+    s = (valor or '').strip()
+    if not s:
+        return None
+    for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y'):
+        try:
+            return _dt.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def _producto_activo_por_campo_codigo(campo: str, codigo: str):
     col = getattr(Producto, campo, None)
     if col is None or not codigo:
@@ -21659,17 +25451,20 @@ def lista_ordenes_compra():
     if not _tablas_orden_compra_existen():
         flash('Ejecute la migración sql/2026_05_03_ordenes_compra.sql en la base de datos.', 'warning')
         return redirect(url_for('inicio'))
-    ordenes = (
-        OrdenCompra.query.options(
-            joinedload(OrdenCompra.proveedor),
-            joinedload(OrdenCompra.detalles),
-        )
-        .order_by(OrdenCompra.id.desc())
-        .limit(500)
-        .all()
-    )
+
     sin_seg_dias = max(0, int(request.args.get('sin_seg_dias', 0) or 0))
     solo_pendientes = (request.args.get('solo_pendientes', '1') or '1').strip() == '1'
+    q = (request.args.get('q') or '').strip()
+
+    from services.compras_busqueda_service import filtro_oc_por_texto
+
+    consulta = OrdenCompra.query.options(
+        joinedload(OrdenCompra.proveedor),
+        joinedload(OrdenCompra.detalles),
+    )
+    consulta = filtro_oc_por_texto(consulta, q)
+    ordenes = consulta.order_by(OrdenCompra.id.desc()).limit(500).all()
+
     ahora = datetime.now()
     estados_pendientes = {'Borrador', 'Enviada', 'Parcial'}
 
@@ -21697,7 +25492,38 @@ def lista_ordenes_compra():
         sin_seg_dias=sin_seg_dias,
         solo_pendientes=solo_pendientes,
         oc_alerta_ids=oc_alerta_ids,
+        q=q,
     )
+
+
+@app.route('/compras/ordenes/eliminar_test', methods=['POST'])
+@permisos_required('gestionar_usuarios')
+def ordenes_compra_eliminar_test():
+    """Elimina OCs cuyo número empieza por TEST-, CAS-OC-, QA- o cuyo proveedor contiene TEST."""
+    if not _tablas_orden_compra_existen():
+        return jsonify(ok=False, mensaje='Tablas no disponibles.'), 503
+    prefijos = ('TEST-', 'CAS-OC-', 'QA-')
+    candidatas = OrdenCompra.query.options(joinedload(OrdenCompra.proveedor)).all()
+    a_borrar = []
+    for oc in candidatas:
+        num = (oc.numero or '').upper()
+        prov_nom = ((oc.proveedor.nombre if oc.proveedor else '') or '').upper()
+        if any(num.startswith(p) for p in prefijos) or 'TEST' in prov_nom:
+            a_borrar.append(oc)
+    if not a_borrar:
+        return jsonify(ok=True, eliminadas=0, mensaje='No se encontraron OCs TEST para eliminar.')
+    ids = [o.id for o in a_borrar]
+    try:
+        DetalleOrdenCompra.query.filter(DetalleOrdenCompra.orden_compra_id.in_(ids)).delete(synchronize_session=False)
+        RecepcionCompra.query.filter(RecepcionCompra.orden_compra_id.in_(ids)).update(
+            {RecepcionCompra.orden_compra_id: None}, synchronize_session=False
+        )
+        OrdenCompra.query.filter(OrdenCompra.id.in_(ids)).delete(synchronize_session=False)
+        db.session.commit()
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 500
+    return jsonify(ok=True, eliminadas=len(ids), mensaje=f'{len(ids)} OC(s) TEST eliminadas correctamente.')
 
 
 @app.route('/compras/ordenes/<int:oid>/seguimiento_rapido', methods=['POST'])
@@ -22537,6 +26363,16 @@ def api_registrar_entrega_ticket(vid):
     )
     if (venta.estado or '').strip() != 'Pagado':
         return jsonify(ok=False, mensaje='Solo vales pagados admiten registro de entrega.'), 400
+
+    from services.transferencia_caja_service import transferencia_autoriza_entrega
+
+    if not transferencia_autoriza_entrega(venta):
+        return jsonify(
+            ok=False,
+            mensaje='Pago por transferencia pendiente de confirmación en caja. '
+            'Confirme el abono en «Transferencias por confirmar» antes de entregar.',
+            codigo='transferencia_pendiente',
+        ), 403
 
     usr = ((current_user.nombre or '').strip() if current_user.is_authenticated else '') or 'Entrega QR'
     accion = (data.get('accion') or '').strip().lower()
@@ -23407,40 +27243,68 @@ def lista_recepciones():
     from services.rcv_sii_import_service import ESTADO_PENDIENTE_ITEMS
 
     _asegurar_columnas_recepcion_rcv()
+    _asegurar_tabla_recepcion_linea_documento()
     estado_f = (request.args.get('estado') or '').strip()
     anio_f = request.args.get('anio', type=int)
     orden_f = (request.args.get('orden') or ORDEN_FECHA).strip().lower()
     if orden_f not in (ORDEN_FECHA, ORDEN_MONTO):
         orden_f = ORDEN_FECHA
     folio_f = (request.args.get('folio') or '').strip()
+    producto_f = (request.args.get('producto') or request.args.get('q_producto') or '').strip()
+    mes_f = request.args.get('mes', type=int)
+    origen_f = (request.args.get('origen') or '').strip()
+    sin_oc_f = (request.args.get('sin_oc') or '').strip() in ('1', 'true', 'yes')
     page = max(1, request.args.get('page', 1, type=int))
+    fecha_desde_f = _parse_fecha_filtro_recepcion(request.args.get('fecha_desde'))
+    fecha_hasta_f = _parse_fecha_filtro_recepcion(request.args.get('fecha_hasta'))
 
     q = query_lista_recepciones(
         estado=estado_f or None,
-        anio=anio_f if anio_f in (2025, 2026) else None,
+        anio=anio_f if anio_f in (2023, 2024, 2025, 2026) else None,
+        mes=mes_f if mes_f and 1 <= mes_f <= 12 else None,
+        fecha_desde=fecha_desde_f,
+        fecha_hasta=fecha_hasta_f,
         folio=folio_f or None,
+        producto=producto_f or None,
+        origen=origen_f or None,
         orden=orden_f,
         ocultar_archivado=(estado_f != '__todos__' and estado_f != 'Archivado RCV'),
+        sin_oc=sin_oc_f,
     )
     pagination = (
-        q.options(joinedload(RecepcionCompra.proveedor))
+        q.options(
+            joinedload(RecepcionCompra.proveedor),
+            joinedload(RecepcionCompra.orden_compra),
+            joinedload(RecepcionCompra.detalles).joinedload(DetalleRecepcion.producto),
+            joinedload(RecepcionCompra.lineas_documento).joinedload(RecepcionLineaDocumento.producto),
+        )
         .paginate(page=page, per_page=PER_PAGE_RECEPCIONES, error_out=False)
     )
+    recs = pagination.items
+    for r in recs:
+        r._tiene_doc = bool(_ruta_doc_recepcion(r.id))
+
     try:
         resumen = resumen_filtros_actuales(estado_f, anio_f)
     except Exception:
-        resumen = {'pendiente_items': 0, 'pendiente_items_2026': 0}
+        resumen = {'pendiente_items': 0, 'pendiente_items_2026': 0, 'sin_oc_activas': 0, 'limpiables_rcv_2026': 0}
 
     filtros = {
         'estado': estado_f,
         'anio': anio_f,
+        'mes': mes_f,
+        'fecha_desde': fecha_desde_f.isoformat() if fecha_desde_f else '',
+        'fecha_hasta': fecha_hasta_f.isoformat() if fecha_hasta_f else '',
         'folio': folio_f,
+        'producto': producto_f,
+        'origen': origen_f,
         'orden': orden_f,
+        'sin_oc': sin_oc_f,
         'page': page,
     }
     return render_template(
         'recepciones_lista.html',
-        recepciones=pagination.items,
+        recepciones=recs,
         pagination=pagination,
         filtros=filtros,
         estado_pendiente_items=ESTADO_PENDIENTE_ITEMS,
@@ -23491,6 +27355,246 @@ def archivar_recepciones_rcv():
             orden=request.args.get('orden', 'fecha'),
         )
     )
+
+
+@app.route('/recepciones/visor')
+@permisos_required('gestionar_compras', 'ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def recepciones_visor():
+    from services.recepciones_lista_service import (
+        ORDEN_FECHA,
+        ORDEN_MONTO,
+        PER_PAGE_RECEPCIONES,
+        query_lista_recepciones,
+    )
+    from services.rcv_sii_import_service import ESTADO_PENDIENTE_ITEMS
+
+    _asegurar_columnas_recepcion_rcv()
+    _asegurar_tabla_recepcion_linea_documento()
+    estado_f = (request.args.get('estado') or '').strip()
+    anio_f = request.args.get('anio', type=int)
+    mes_f = request.args.get('mes', type=int)
+    orden_f = (request.args.get('orden') or ORDEN_FECHA).strip().lower()
+    if orden_f not in (ORDEN_FECHA, ORDEN_MONTO):
+        orden_f = ORDEN_FECHA
+    folio_f = (request.args.get('folio') or '').strip()
+    producto_f = (request.args.get('producto') or '').strip()
+    origen_f = (request.args.get('origen') or '').strip()
+    page = max(1, request.args.get('page', 1, type=int))
+    fecha_desde_f = _parse_fecha_filtro_recepcion(request.args.get('fecha_desde'))
+    fecha_hasta_f = _parse_fecha_filtro_recepcion(request.args.get('fecha_hasta'))
+
+    q = query_lista_recepciones(
+        estado=estado_f or None,
+        anio=anio_f if anio_f in (2023, 2024, 2025, 2026) else None,
+        mes=mes_f if mes_f and 1 <= mes_f <= 12 else None,
+        fecha_desde=fecha_desde_f,
+        fecha_hasta=fecha_hasta_f,
+        folio=folio_f or None,
+        producto=producto_f or None,
+        origen=origen_f or None,
+        orden=orden_f,
+        ocultar_archivado=(estado_f != '__todos__' and estado_f != 'Archivado RCV'),
+    )
+    pagination = (
+        q.options(
+            joinedload(RecepcionCompra.proveedor),
+            joinedload(RecepcionCompra.orden_compra),
+            joinedload(RecepcionCompra.detalles).joinedload(DetalleRecepcion.producto),
+        )
+        .paginate(page=page, per_page=PER_PAGE_RECEPCIONES, error_out=False)
+    )
+    recs = pagination.items
+    for r in recs:
+        r._tiene_doc = bool(_ruta_doc_recepcion(r.id))
+
+    filtros = {
+        'estado': estado_f,
+        'anio': anio_f,
+        'mes': mes_f,
+        'fecha_desde': fecha_desde_f.isoformat() if fecha_desde_f else '',
+        'fecha_hasta': fecha_hasta_f.isoformat() if fecha_hasta_f else '',
+        'folio': folio_f,
+        'producto': producto_f,
+        'origen': origen_f,
+        'orden': orden_f,
+        'page': page,
+    }
+    return render_template(
+        'recepciones_visor.html',
+        recepciones=recs,
+        pagination=pagination,
+        filtros=filtros,
+        estado_pendiente_items=ESTADO_PENDIENTE_ITEMS,
+        per_page=PER_PAGE_RECEPCIONES,
+    )
+
+
+@app.route('/api/recepciones/<int:rid>/visor')
+@login_required
+@permisos_required('gestionar_compras', 'ver_inventario', 'admin_inventario', 'gestionar_usuarios')
+def api_recepcion_visor_detalle(rid):
+    from services.dte_correo_carga_service import payload_visor_recepcion
+
+    rec = RecepcionCompra.query.options(
+        joinedload(RecepcionCompra.proveedor),
+        joinedload(RecepcionCompra.orden_compra),
+        joinedload(RecepcionCompra.detalles).joinedload(DetalleRecepcion.producto),
+    ).get_or_404(rid)
+    rec._tiene_doc = bool(_ruta_doc_recepcion(rec.id))
+    data = payload_visor_recepcion(rec)
+    data['url_detalle'] = url_for('detalle_recepcion', rid=rid)
+    data['url_documento'] = url_for('ver_documento_recepcion', rid=rid) if rec._tiene_doc else None
+    return jsonify(ok=True, recepcion=data)
+
+
+@app.route('/recepciones/cargador-dte')
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
+def recepciones_cargador_dte():
+    return render_template('recepciones_cargador_dte.html', anio_actual=date.today().year)
+
+
+@app.route('/api/recepciones/cargador-dte/ejecutar', methods=['POST'])
+@login_required
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
+def api_recepciones_cargador_dte_ejecutar():
+    from services.dte_correo_carga_service import (
+        ejecutar_carga_anio,
+        ejecutar_carga_mes,
+    )
+
+    data = request.get_json(silent=True) or {}
+    try:
+        anio = int(data.get('anio') or date.today().year)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Año inválido.'), 400
+    mes_raw = data.get('mes')
+    mes = int(mes_raw) if mes_raw not in (None, '', 0, '0') else None
+    if mes is not None and not (1 <= mes <= 12):
+        return jsonify(ok=False, mensaje='Mes inválido (1-12).'), 400
+    limite = max(10, min(2000, int(data.get('limite') or 300)))
+    solo_etiquetar = bool(data.get('solo_etiquetar'))
+    dry_run = bool(data.get('dry_run'))
+
+    try:
+        if mes:
+            res = ejecutar_carga_mes(anio, mes, limite=limite, solo_etiquetar=solo_etiquetar, dry_run=dry_run)
+        else:
+            res = ejecutar_carga_anio(anio, limite=limite, solo_etiquetar=solo_etiquetar, dry_run=dry_run)
+    except ValueError as ex:
+        return jsonify(ok=False, mensaje=str(ex)), 400
+    except Exception as ex:
+        return jsonify(ok=False, mensaje=str(ex)), 500
+
+    if not res.get('ok'):
+        return jsonify(ok=False, mensaje=res.get('error') or 'Error IMAP'), 503
+
+    stats = res.get('stats') or {}
+    return jsonify(
+        ok=True,
+        periodo={'desde': res.get('desde'), 'hasta': res.get('hasta')},
+        stats=stats,
+        mensaje=(
+            f"Correos revisados: {stats.get('correos_buscados', 0)} · "
+            f"XML: {stats.get('correos_con_xml', 0)} · "
+            f"ERP SD: {stats.get('recepciones_erp', 0)} · "
+            f"Etiqueta SD: {stats.get('etiquetados_sd', 0)}"
+        ),
+    )
+
+
+@app.route('/recepciones/limpiar-documentales', methods=['POST'])
+@login_required
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
+def limpiar_recepciones_documentales_route():
+    from services.recepciones_lista_service import limpiar_recepciones_documentales
+
+    _asegurar_columnas_recepcion_rcv()
+    _asegurar_tabla_recepcion_linea_documento()
+    accion = (request.form.get('accion') or '').strip()
+    ids_raw = request.form.getlist('recepcion_ids')
+    ids = []
+    for x in ids_raw:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            pass
+
+    anio = request.form.get('anio', type=int) or request.args.get('anio', type=int)
+    if accion == 'anio_2026_rcv':
+        anio = 2026
+        ids = None
+    elif accion == 'anio_2025_rcv':
+        anio = 2025
+        ids = None
+    elif accion == 'seleccion' and ids:
+        anio = None
+    else:
+        flash('Acción de limpieza no válida.', 'warning')
+        return redirect(request.referrer or url_for('lista_recepciones'))
+
+    res = limpiar_recepciones_documentales(
+        anio=anio,
+        ids=ids or None,
+        origen='rcv_sii',
+        solo_sin_lineas=True,
+        dry_run=False,
+        borrar_adjunto_fn=_borrar_adjunto_recepcion,
+    )
+    if not res.get('ok'):
+        flash(res.get('error') or 'No se pudo limpiar.', 'warning')
+    elif res.get('eliminadas', 0) == 0:
+        flash('No había recepciones RCV vacías para eliminar.', 'info')
+    else:
+        flash(
+            f"Se eliminaron {res['eliminadas']} recepción(es) RCV sin ítems "
+            f"(listas para reimportar desde DTE).",
+            'success',
+        )
+    return redirect(request.referrer or url_for('lista_recepciones'))
+
+
+@app.route('/api/recepciones/limpiar-documentales', methods=['POST'])
+@login_required
+@permisos_required('gestionar_compras', 'admin_inventario', 'gestionar_usuarios')
+def api_limpiar_recepciones_documentales():
+    from services.recepciones_lista_service import limpiar_recepciones_documentales
+
+    _asegurar_columnas_recepcion_rcv()
+    _asegurar_tabla_recepcion_linea_documento()
+    data = request.get_json(silent=True) or {}
+    try:
+        anio = int(data['anio']) if data.get('anio') not in (None, '', 0) else None
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Año inválido.'), 400
+    mes_raw = data.get('mes')
+    mes = int(mes_raw) if mes_raw not in (None, '', 0, '0') else None
+    if mes is not None and not (1 <= mes <= 12):
+        return jsonify(ok=False, mensaje='Mes inválido.'), 400
+    dry_run = bool(data.get('dry_run'))
+    origen = (data.get('origen') or 'rcv_sii').strip() or 'rcv_sii'
+    solo_sin_lineas = data.get('solo_sin_lineas', True)
+    if isinstance(solo_sin_lineas, str):
+        solo_sin_lineas = solo_sin_lineas.lower() not in ('0', 'false', 'no')
+
+    res = limpiar_recepciones_documentales(
+        anio=anio,
+        mes=mes,
+        origen=origen,
+        solo_sin_lineas=solo_sin_lineas,
+        dry_run=dry_run,
+        borrar_adjunto_fn=_borrar_adjunto_recepcion,
+    )
+    if not res.get('ok'):
+        return jsonify(ok=False, mensaje=res.get('error') or 'Error'), 400
+    msg = (
+        f"{res.get('candidatas', 0)} candidata(s)"
+        if dry_run
+        else f"{res.get('eliminadas', 0)} eliminada(s)"
+    )
+    out = dict(res)
+    out['ok'] = True
+    out['mensaje'] = msg
+    return jsonify(**out)
 
 
 @app.route('/recepciones/tablet')
@@ -23986,6 +28090,132 @@ def api_ia_factura_aplicar(rid):
             db.session.rollback()
             errores.append({'producto_id': pid, 'error': str(ex)})
     return jsonify(ok=True, aplicados=ok_n, errores=errores, alertas=alertas)
+
+
+@app.route('/api/recepciones/<int:rid>/preview_match_codigo_oc', methods=['POST'])
+@login_required
+def api_recepcion_preview_match_codigo_oc(rid):
+    """Preview: ¿el código factura ya resuelve a un producto? (sin escribir en OC)."""
+    rec = RecepcionCompra.query.options(
+        joinedload(RecepcionCompra.orden_compra),
+    ).get_or_404(rid)
+    data = request.get_json(silent=True) or {}
+    codigo = (data.get('codigo_factura') or data.get('codigo_factura_proveedor') or '').strip()
+    if len(codigo) < 3:
+        return jsonify(ok=True, encontrado=False, mensaje='Código muy corto.')
+    p, how = _match_codigo_factura_recepcion(rec, codigo)
+    if not p:
+        return jsonify(ok=True, encontrado=False)
+    return jsonify(
+        ok=True,
+        encontrado=True,
+        producto_id=p.id,
+        producto_nombre=p.nombre,
+        producto_codigo=p.codigo_barra or p.codigo_interno or '',
+        match=how,
+        codigo_factura=_normalizar_texto_factura(codigo),
+    )
+
+
+@app.route('/api/recepciones/<int:rid>/resolver_linea_oc_generica', methods=['POST'])
+@login_required
+def api_recepcion_resolver_linea_oc_generica(rid):
+    """
+    Reemplaza COMPRA-HIST-MAESTRA en una línea de OC por un producto real.
+    Opcional: guarda código factura → producto (proveedor de la OC).
+    """
+    rec = RecepcionCompra.query.options(
+        joinedload(RecepcionCompra.orden_compra).joinedload(OrdenCompra.proveedor),
+        joinedload(RecepcionCompra.proveedor),
+    ).get_or_404(rid)
+    if rec.estado not in ESTADOS_RECEPCION_EDITABLE:
+        return jsonify(ok=False, mensaje='La recepción no admite cambios.'), 400
+    if not rec.orden_compra_id or not rec.orden_compra:
+        return jsonify(ok=False, mensaje='Vincule una OC primero.'), 400
+    if not _tablas_orden_compra_existen():
+        return jsonify(ok=False, mensaje='Tablas de OC no disponibles.'), 503
+
+    data = request.get_json(silent=True) or {}
+    try:
+        detalle_oc_id = int(data.get('detalle_oc_id') or 0)
+    except (TypeError, ValueError):
+        detalle_oc_id = 0
+    if not detalle_oc_id:
+        return jsonify(ok=False, mensaje='Indique detalle_oc_id.'), 400
+
+    det_oc = DetalleOrdenCompra.query.options(
+        joinedload(DetalleOrdenCompra.producto),
+    ).get(detalle_oc_id)
+    if not det_oc or int(det_oc.orden_compra_id) != int(rec.orden_compra_id):
+        return jsonify(ok=False, mensaje='Línea de OC no encontrada en esta recepción.'), 404
+    if not _producto_es_generico_oc(det_oc.producto):
+        return jsonify(ok=False, mensaje='Esta línea ya tiene un producto real en la OC.'), 400
+
+    codigo_factura = (data.get('codigo_factura') or data.get('codigo_factura_proveedor') or '').strip()
+    producto_id = data.get('producto_id')
+    prov_oc = rec.orden_compra.proveedor_id
+    prov_rec = rec.proveedor_id
+
+    if not producto_id and codigo_factura:
+        for prov_id in (prov_oc, prov_rec):
+            if not prov_id:
+                continue
+            p_match, _how = _matchear_producto_linea_factura(codigo_factura, '', prov_id)
+            if p_match:
+                producto_id = p_match.id
+                break
+
+    try:
+        producto_id = int(producto_id)
+    except (TypeError, ValueError):
+        return jsonify(
+            ok=False,
+            mensaje='Seleccione un producto del catálogo o ingrese un código que exista en equivalencias.',
+        ), 400
+
+    nuevo = Producto.query.get(producto_id)
+    if not nuevo or not getattr(nuevo, 'activo', True):
+        return jsonify(ok=False, mensaje='Producto no encontrado o inactivo.'), 400
+    if _producto_es_generico_oc(nuevo):
+        return jsonify(ok=False, mensaje='No puede vincular al producto genérico histórico.'), 400
+
+    det_oc.producto_id = int(nuevo.id)
+    vinculos = []
+    if codigo_factura:
+        usuario = current_user.nombre if current_user.is_authenticated else None
+        for prov_id in (prov_oc, prov_rec):
+            if not prov_id:
+                continue
+            ok_v, err_v = guardar_producto_codigo_proveedor(
+                prov_id,
+                codigo_factura,
+                nuevo.id,
+                usuario=usuario,
+                commit=False,
+            )
+            if ok_v:
+                vinculos.append(int(prov_id))
+            elif err_v and 'incompletos' not in (err_v or '').lower():
+                db.session.rollback()
+                return jsonify(ok=False, mensaje=err_v), 400
+
+    try:
+        db.session.commit()
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 500
+
+    cod_norm = _normalizar_texto_factura(codigo_factura) if codigo_factura else None
+    return jsonify(
+        ok=True,
+        detalle_oc_id=detalle_oc_id,
+        producto_id=nuevo.id,
+        producto_nombre=nuevo.nombre,
+        producto_codigo=nuevo.codigo_barra or nuevo.codigo_interno or '',
+        codigo_factura=cod_norm,
+        vinculos_proveedor=vinculos,
+        mensaje='Línea OC actualizada. Ya puede marcarla y cargar stock.',
+    )
 
 
 @app.route('/recepciones/<int:rid>/codigo-proveedor/vincular', methods=['POST'])
@@ -25460,23 +29690,145 @@ def _actualizar_estado_vencidas():
     return len(pendientes)
 
 
+def _subtotal_linea_cotizacion_clp(cantidad, precio_unitario, descuento_monto=0):
+    """Subtotal neto CLP de una línea: cant × precio neto − descuento $ (entero)."""
+    cant = float(cantidad or 0)
+    pu = float(precio_unitario or 0)
+    desc = float(descuento_monto or 0)
+    return max(0, int(round(cant * pu - desc)))
+
+
+def _precio_neto_cotizacion_desde_catalogo(precio_bruto):
+    """Convierte precio mostrador (IVA incl.) a neto unitario para cotización."""
+    from core.domain.shared.iva_chile import desglosar_iva_clp
+    bruto = max(0, int(round(float(precio_bruto or 0))))
+    if bruto <= 0:
+        return 0
+    neto, _iva, _total = desglosar_iva_clp(bruto)
+    return int(neto)
+
+
 def _calcular_totales_cotizacion(detalles, descuento_global=0.0):
-    """Recalcula neto, iva (19%) y total de un set de detalles.
-    Los precios capturados ya son brutos (incluyen IVA), por lo que el neto se obtiene dividiendo por 1.19.
+    """Recalcula neto, IVA (19%) y total de un set de detalles.
+
+    Precios unitarios **netos** (sin IVA). Total cotizado = neto + IVA 19%.
     """
-    bruto = 0.0
+    from core.domain.shared.iva_chile import iva_desde_neto_clp
+
+    neto_lineas = 0
     for d in detalles:
-        cant = float(d.cantidad or 0)
-        pu = float(d.precio_unitario or 0)
-        desc = float(d.descuento or 0)
-        sub = max(0.0, cant * pu - desc)
-        d.subtotal = round(sub, 2)
-        bruto += sub
-    bruto = max(0.0, bruto - float(descuento_global or 0))
-    neto = round(bruto / 1.19, 2)
-    iva = round(bruto - neto, 2)
-    total = round(neto + iva, 2)
-    return neto, iva, total
+        sub = _subtotal_linea_cotizacion_clp(d.cantidad, d.precio_unitario, d.descuento)
+        d.subtotal = float(sub)
+        neto_lineas += sub
+    neto = max(0, int(round(neto_lineas - float(descuento_global or 0))))
+    iva = iva_desde_neto_clp(neto)
+    total = neto + iva
+    return float(neto), float(iva), float(total)
+
+
+def _presentacion_totales_cotizacion(cot):
+    """Totales para detalle/PDF: neto = suma líneas; total = neto + IVA 19%."""
+    from core.domain.shared.iva_chile import iva_desde_neto_clp
+
+    suma_lineas = 0
+    for d in cot.detalles or []:
+        suma_lineas += _subtotal_linea_cotizacion_clp(d.cantidad, d.precio_unitario, d.descuento)
+    desc_global = float(cot.descuento_global or 0)
+    neto = max(0, int(round(suma_lineas - desc_global)))
+    iva = iva_desde_neto_clp(neto)
+    total = neto + iva
+    return {
+        'suma_lineas': int(suma_lineas),
+        'descuento_global': int(round(desc_global)),
+        'neto': int(neto),
+        'iva': int(iva),
+        'total': int(total),
+        'n_lineas': len(cot.detalles or []),
+    }
+
+
+def _subtotal_linea_cotizacion_detalle(det):
+    """Subtotal de línea para templates (cant × precio − dto $)."""
+    return _subtotal_linea_cotizacion_clp(
+        getattr(det, 'cantidad', 0),
+        getattr(det, 'precio_unitario', 0),
+        getattr(det, 'descuento', 0),
+    )
+
+
+def _codigo_impresion_linea_cotizacion(cot, det, indice_linea):
+    """Código visible en PDF/detalle: catálogo si existe; si no, ref. única de cotización."""
+    cod = (getattr(det, 'codigo', None) or '').strip()
+    if cod:
+        return cod, False
+    num = (getattr(cot, 'numero', None) or 'COT').strip()
+    return f'{num}-L{int(indice_linea):02d}', True
+
+
+def _lineas_presentacion_cotizacion(cot):
+    """Filas enriquecidas para detalle/PDF (código impresión, subtotal)."""
+    lineas = []
+    for i, d in enumerate(cot.detalles or [], start=1):
+        codigo_imp, codigo_es_ref = _codigo_impresion_linea_cotizacion(cot, d, i)
+        lineas.append({
+            'det': d,
+            'indice': i,
+            'codigo_impresion': codigo_imp,
+            'codigo_es_ref': codigo_es_ref,
+            'subtotal': _subtotal_linea_cotizacion_clp(d.cantidad, d.precio_unitario, d.descuento),
+        })
+    return lineas
+
+
+def _paginas_pdf_cotizacion(cot_lineas, lineas_p1=24, lineas_sig=34):
+    """Parte líneas del PDF: pág.1 con encabezado completo; pág.2+ con continuación."""
+    items = list(cot_lineas or [])
+    if not items:
+        return [{
+            'lineas': [],
+            'numero': 1,
+            'total': 1,
+            'es_primera': True,
+            'es_ultima': True,
+        }]
+
+    paginas = []
+    first = items[:lineas_p1]
+    rest = items[lineas_p1:]
+
+    if not rest:
+        paginas.append({
+            'lineas': first,
+            'numero': 1,
+            'total': 1,
+            'es_primera': True,
+            'es_ultima': True,
+        })
+        return paginas
+
+    paginas.append({
+        'lineas': first,
+        'numero': 1,
+        'total': 0,
+        'es_primera': True,
+        'es_ultima': False,
+    })
+
+    for i in range(0, len(rest), lineas_sig):
+        chunk = rest[i:i + lineas_sig]
+        paginas.append({
+            'lineas': chunk,
+            'numero': len(paginas) + 1,
+            'total': 0,
+            'es_primera': False,
+            'es_ultima': False,
+        })
+
+    total = len(paginas)
+    for p in paginas:
+        p['total'] = total
+        p['es_ultima'] = p['numero'] == total
+    return paginas
 
 
 def _construir_mensaje_whatsapp_cotizacion(cot):
@@ -25495,7 +29847,9 @@ def _construir_mensaje_whatsapp_cotizacion(cot):
     for d in cot.detalles:
         lineas.append(f"- {d.cantidad:g} x {d.nombre} -> ${(d.subtotal or 0):,.0f}".replace(",", "."))
     lineas.append("")
-    lineas.append(f"Total: ${(cot.monto_total or 0):,.0f}".replace(",", "."))
+    lineas.append(f"Monto neto: ${(cot.neto or 0):,.0f}".replace(",", "."))
+    lineas.append(f"IVA 19%: ${(cot.iva or 0):,.0f}".replace(",", "."))
+    lineas.append(f"*Total a pagar: ${(cot.monto_total or 0):,.0f}*".replace(",", "."))
     if cot.notas:
         lineas.append("")
         lineas.append(f"Notas: {cot.notas}")
@@ -25545,6 +29899,83 @@ def cotizaciones_lista():
     )
 
 
+def _resolver_cliente_id_cotizacion_form(
+    cliente_id_raw,
+    cliente_nombre,
+    cliente_rut,
+    cliente_telefono,
+    cliente_giro,
+    cliente_direccion,
+    cliente_comuna,
+    cliente_ciudad,
+    cliente_correo,
+):
+    """Enlaza cliente maestro existente o crea uno nuevo si hay RUT sin id."""
+    cliente_id_inicial = int(cliente_id_raw) if (cliente_id_raw or '').isdigit() else None
+    cliente_id_final = cliente_id_inicial
+    cliente_creado = False
+    cliente_actualizado = False
+    rut_normalizado = (cliente_rut or '').strip().upper().replace('.', '').replace(' ', '')
+
+    if rut_normalizado and not cliente_id_inicial:
+        existente = Cliente.query.filter(
+            db.func.upper(db.func.replace(Cliente.rut, '.', '')) == rut_normalizado
+        ).first()
+        if existente:
+            cliente_id_final = existente.id
+            _aplicar_campos_contacto_cliente(
+                existente,
+                direccion=cliente_direccion,
+                giro=cliente_giro,
+                telefono=cliente_telefono,
+                correo=cliente_correo,
+                comuna=cliente_comuna,
+                ciudad=cliente_ciudad,
+            )
+            cliente_actualizado = True
+        else:
+            try:
+                nuevo = Cliente(
+                    rut=rut_normalizado[:12],
+                    nombre=(cliente_nombre or rut_normalizado)[:100],
+                    giro=_limpiar_texto_cliente_ui(cliente_giro),
+                    direccion=(_limpiar_texto_cliente_ui(cliente_direccion) or '')[:200] or None,
+                    telefono=(_limpiar_texto_cliente_ui(cliente_telefono) or '')[:20] or None,
+                    correo=(_limpiar_texto_cliente_ui(cliente_correo) or '')[:100] or None,
+                    comuna=(_limpiar_texto_cliente_ui(cliente_comuna) or '')[:80] or None,
+                    ciudad=(_limpiar_texto_cliente_ui(cliente_ciudad) or '')[:80] or None,
+                    saldo_deudor=0.0,
+                    limite_credito=0.0,
+                    estado_credito='Activo',
+                )
+                db.session.add(nuevo)
+                db.session.flush()
+                cliente_id_final = nuevo.id
+                cliente_creado = True
+            except Exception as e:
+                db.session.rollback()
+                flash(
+                    f"No se pudo crear el cliente nuevo en la BD: {e}. "
+                    "La cotización se guardará igual con los datos ingresados manualmente.",
+                    "warning",
+                )
+    elif cliente_id_inicial:
+        cli_link = Cliente.query.get(cliente_id_inicial)
+        if cli_link:
+            _aplicar_campos_contacto_cliente(
+                cli_link,
+                direccion=cliente_direccion,
+                giro=cliente_giro,
+                telefono=cliente_telefono,
+                correo=cliente_correo,
+                comuna=cliente_comuna,
+                ciudad=cliente_ciudad,
+            )
+            cliente_actualizado = True
+
+    return cliente_id_final, cliente_creado, cliente_actualizado, rut_normalizado
+
+
 @app.route('/cotizaciones/nueva', methods=['GET', 'POST'])
 @login_required
 @permisos_required('pos_emitir_vale')
@@ -25576,66 +30007,17 @@ def cotizacion_nueva():
             flash('Agrega al menos una linea a la cotizacion.', 'warning')
             return redirect(url_for('cotizacion_nueva'))
 
-        # ---- Resolver cliente: enlazar a existente o crear uno nuevo si trae RUT ----
-        cliente_id_inicial = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
-        cliente_id_final = cliente_id_inicial
-        cliente_creado = False
-        cliente_actualizado = False
-
-        rut_normalizado = (cliente_rut or '').strip().upper().replace('.', '').replace(' ', '')
-        if rut_normalizado and not cliente_id_inicial:
-            existente = Cliente.query.filter(
-                db.func.upper(db.func.replace(Cliente.rut, '.', '')) == rut_normalizado
-            ).first()
-            if existente:
-                cliente_id_final = existente.id
-                # Sincronizar maestro con lo escrito en el formulario (mismo criterio que POS al emitir vale).
-                _aplicar_campos_contacto_cliente(
-                    existente,
-                    direccion=cliente_direccion,
-                    giro=cliente_giro,
-                    telefono=cliente_telefono,
-                    correo=cliente_correo,
-                    comuna=cliente_comuna,
-                    ciudad=cliente_ciudad,
-                )
-                cliente_actualizado = True
-            else:
-                # Crear nuevo cliente con cupo $0 (sin credito automatico)
-                try:
-                    nuevo = Cliente(
-                        rut=rut_normalizado[:12],
-                        nombre=(cliente_nombre or rut_normalizado)[:100],
-                        giro=_limpiar_texto_cliente_ui(cliente_giro),
-                        direccion=(_limpiar_texto_cliente_ui(cliente_direccion) or '')[:200] or None,
-                        telefono=(_limpiar_texto_cliente_ui(cliente_telefono) or '')[:20] or None,
-                        correo=(_limpiar_texto_cliente_ui(cliente_correo) or '')[:100] or None,
-                        comuna=(_limpiar_texto_cliente_ui(cliente_comuna) or '')[:80] or None,
-                        ciudad=(_limpiar_texto_cliente_ui(cliente_ciudad) or '')[:80] or None,
-                        saldo_deudor=0.0,
-                        limite_credito=0.0,
-                        estado_credito='Activo',
-                    )
-                    db.session.add(nuevo)
-                    db.session.flush()
-                    cliente_id_final = nuevo.id
-                    cliente_creado = True
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f"No se pudo crear el cliente nuevo en la BD: {e}. La cotizacion se guardara igual con los datos manualmente.", "warning")
-        elif cliente_id_inicial:
-            cli_link = Cliente.query.get(cliente_id_inicial)
-            if cli_link:
-                _aplicar_campos_contacto_cliente(
-                    cli_link,
-                    direccion=cliente_direccion,
-                    giro=cliente_giro,
-                    telefono=cliente_telefono,
-                    correo=cliente_correo,
-                    comuna=cliente_comuna,
-                    ciudad=cliente_ciudad,
-                )
-                cliente_actualizado = True
+        cliente_id_final, cliente_creado, cliente_actualizado, rut_normalizado = _resolver_cliente_id_cotizacion_form(
+            cliente_id_raw,
+            cliente_nombre,
+            cliente_rut,
+            cliente_telefono,
+            cliente_giro,
+            cliente_direccion,
+            cliente_comuna,
+            cliente_ciudad,
+            cliente_correo,
+        )
 
         # Crear cotizacion
         cot = Cotizacion(
@@ -25673,6 +30055,7 @@ def cotizacion_nueva():
                 cant, pu, desc = 1.0, 0.0, 0.0
             pid_raw = productos[i] if i < len(productos) else ''
             cod = (codigos[i] if i < len(codigos) else '').strip()[:80] or None
+            sub_lin = _subtotal_linea_cotizacion_clp(cant, pu, desc)
             det = CotizacionDetalle(
                 cotizacion_id=cot.id,
                 producto_id=int(pid_raw) if pid_raw and pid_raw.isdigit() else None,
@@ -25681,7 +30064,7 @@ def cotizacion_nueva():
                 cantidad=cant,
                 precio_unitario=pu,
                 descuento=desc,
-                subtotal=max(0.0, cant * pu - desc),
+                subtotal=float(sub_lin),
             )
             db.session.add(det)
 
@@ -25713,6 +30096,7 @@ def cotizacion_nueva():
         'cotizacion_form.html',
         cotizacion=None,
         productos_demo=productos_demo,
+        empresa=obtener_config_empresa(),
     )
 
 
@@ -25727,6 +30111,9 @@ def cotizacion_detalle(cot_id):
         'cotizacion_detalle.html',
         cotizacion=cot,
         empresa=empresa,
+        cot_totales=_presentacion_totales_cotizacion(cot),
+        subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
+        cot_lineas=_lineas_presentacion_cotizacion(cot),
     )
 
 
@@ -25766,8 +30153,20 @@ def cotizacion_editar(cot_id):
         precios = request.form.getlist('det_precio')
         descuentos = request.form.getlist('det_descuento')
 
+        cliente_id_final, cliente_creado, cliente_actualizado, rut_normalizado = _resolver_cliente_id_cotizacion_form(
+            cliente_id_raw,
+            cliente_nombre,
+            cliente_rut,
+            cliente_telefono,
+            cliente_giro,
+            cliente_direccion,
+            cliente_comuna,
+            cliente_ciudad,
+            cliente_correo,
+        )
+
         # Actualizar cabecera
-        cot.cliente_id = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
+        cot.cliente_id = cliente_id_final
         cot.cliente_nombre = cliente_nombre or None
         cot.cliente_rut = cliente_rut or None
         cot.cliente_telefono = cliente_telefono or None
@@ -25804,6 +30203,7 @@ def cotizacion_editar(cot_id):
                 cant, pu, desc = 1.0, 0.0, 0.0
             pid_raw = productos[i] if i < len(productos) else ''
             cod = (codigos[i] if i < len(codigos) else '').strip()[:80] or None
+            sub_lin = _subtotal_linea_cotizacion_clp(cant, pu, desc)
             det = CotizacionDetalle(
                 cotizacion_id=cot.id,
                 producto_id=int(pid_raw) if pid_raw and pid_raw.isdigit() else None,
@@ -25812,7 +30212,7 @@ def cotizacion_editar(cot_id):
                 cantidad=cant,
                 precio_unitario=pu,
                 descuento=desc,
-                subtotal=max(0.0, cant * pu - desc),
+                subtotal=float(sub_lin),
             )
             db.session.add(det)
 
@@ -25838,14 +30238,23 @@ def cotizacion_editar(cot_id):
                 maestro_ok = True
 
         db.session.commit()
-        if maestro_ok:
+        if cliente_creado:
+            flash(
+                f"Cotizacion {cot.numero} actualizada. Tambien se registro al cliente nuevo en la BD (RUT {rut_normalizado}, cupo $0).",
+                "success",
+            )
+        elif cliente_actualizado or maestro_ok:
             flash(f"Cotizacion {cot.numero} actualizada; tambien se actualizo el cliente en el maestro.", "success")
         else:
             flash(f"Cotizacion {cot.numero} actualizada correctamente.", "success")
         return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
 
     # GET: mostrar form prepoblado
-    return render_template('cotizacion_form.html', cotizacion=cot)
+    return render_template(
+        'cotizacion_form.html',
+        cotizacion=cot,
+        empresa=obtener_config_empresa(),
+    )
 
 
 @app.route('/cotizaciones/<int:cot_id>/contacto', methods=['POST'])
@@ -25930,12 +30339,17 @@ def cotizacion_pdf(cot_id):
         logo_b64 = None
 
     auto_print = (request.args.get('auto') or '1') == '1'
+    cot_lineas = _lineas_presentacion_cotizacion(cot)
     return render_template(
         'cotizacion_pdf.html',
         cotizacion=cot,
         empresa=empresa,
         logo_cliente_b64=logo_b64,
         auto_print=auto_print,
+        cot_totales=_presentacion_totales_cotizacion(cot),
+        subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
+        cot_lineas=cot_lineas,
+        cot_paginas=_paginas_pdf_cotizacion(cot_lineas),
     )
 
 
@@ -26545,6 +30959,7 @@ def api_admin_facturacion_reintentar(venta_id):
         return jsonify(ok=False, error='server'), 500
 
 
+from blueprints.bodega_enrolador import register_bodega_enrolador_routes
 from blueprints.bodega import register_bodega_routes
 from blueprints.c360 import register_c360_routes
 from blueprints.caja import register_caja_routes
@@ -26560,6 +30975,7 @@ from blueprints.ecommerce import register_ecommerce_routes
 from blueprints.portal_ejecutivo import register_portal_ejecutivo_routes
 
 register_bodega_routes(app)
+register_bodega_enrolador_routes(app)
 register_caja_routes(app)
 register_pos_routes(app)
 register_academy_routes(app)
@@ -26582,6 +30998,7 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_caja_cuadratura()
         _asegurar_columnas_ventas_legacy()
         _asegurar_columnas_productos_legacy()
+        _asegurar_tablas_catalogo_pinturas_maestro()
         _asegurar_columnas_detalle_ventas_legacy()
         _asegurar_columnas_usuario_pin_autorizacion()
         _asegurar_tabla_usuario_tarjeta_autorizacion()
@@ -26602,6 +31019,8 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_bodega_retiro()
         _asegurar_columnas_bodega_sugerido_preparar()
         _asegurar_columnas_entrega_ticket()
+        _asegurar_columnas_transferencia_caja()
+        _asegurar_tabla_transferencia_correo()
         try:
             db.session.execute(text('CREATE EXTENSION IF NOT EXISTS pg_trgm'))
             db.session.commit()
