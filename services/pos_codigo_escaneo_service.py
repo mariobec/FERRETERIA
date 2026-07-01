@@ -12,6 +12,36 @@ def _solo_digitos(codigo: str) -> str:
     return re.sub(r'\D', '', codigo or '')
 
 
+# Separadores que pistolas Code 128 suelen confundir con guion medio (-) en códigos FERRE-*.
+_PISTOL_SEP_ALTERNATIVOS = ("~", "'", "'", "`", "´", "–", "—")
+
+
+def _normalizar_guion_medio(codigo: str) -> str:
+    out = codigo or ""
+    for alt in _PISTOL_SEP_ALTERNATIVOS:
+        out = out.replace(alt, "-")
+    return out
+
+
+def _variantes_separador_pistola(codigo: str) -> list[str]:
+    """
+    Pistolas Code 128 a veces leen guion medio (-) como apóstrofo ('), virgulilla (~), etc.
+    Genera forma canónica con guion y variantes inversas en códigos alfanuméricos.
+    """
+    raw = (codigo or '').strip()
+    if not raw or _solo_digitos(raw) == raw:
+        return []
+    out: list[str] = []
+    canon = _normalizar_guion_medio(raw)
+    if canon != raw:
+        out.append(canon)
+    base = canon if '-' in canon else raw
+    if '-' in base:
+        for alt in ("'", "~", "'"):
+            out.append(base.replace('-', alt))
+    return out
+
+
 def variantes_codigo_barras_escaneo(codigo: str) -> list[str]:
     """
     Variantes habituales pistola vs maestro (EAN-13 + dígito empaque, ceros, mayúsculas).
@@ -33,6 +63,9 @@ def variantes_codigo_barras_escaneo(codigo: str) -> list[str]:
 
     add(raw)
     add(raw.upper())
+    for alt in _variantes_separador_pistola(raw):
+        add(alt)
+        add(alt.upper())
     digits = _solo_digitos(raw)
     if digits:
         add(digits)

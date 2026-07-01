@@ -15,6 +15,22 @@ def test_variantes_ean13_agrega_cero_final():
     assert '78061796080530' in v
 
 
+@pytest.mark.smoke
+def test_variantes_pistola_apostrofo_como_guion():
+    v = variantes_codigo_barras_escaneo("FERRE'009868")
+    assert "FERRE'009868" in v
+    assert "FERRE-009868" in v
+
+
+@pytest.mark.smoke
+def test_variantes_pistola_tilde_como_guion():
+    v = variantes_codigo_barras_escaneo('FERRE~009873')
+    assert 'FERRE~009873' in v
+    assert 'FERRE-009873' in v
+    v2 = variantes_codigo_barras_escaneo('FERRE-009873')
+    assert "FERRE'009873" in v2 or 'FERRE~009873' in v2
+
+
 def test_pos_buscar_resuelve_ean13_vs_maestro_14(app_ctx, productos_con_stock):
     p = productos_con_stock[0]
     old = p.codigo_barra
