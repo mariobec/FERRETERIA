@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body_class %}erp-ops-space page-cotizaciones{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-pdf-header-20260616">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-lista-a11y-20260702">
 {% endblock %}
 {% block content %}
 <div class="container-fluid py-3">
@@ -53,62 +53,66 @@
     </div>
   </form>
 
-  <div class="card cot-card shadow-sm">
+  <div class="card cot-card shadow-sm cot-lista-card">
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 table-ds">
+      <table class="table table-hover align-middle mb-0 table-ds cot-lista-table">
         <thead>
           <tr>
-            <th>Número</th>
-            <th>Fecha</th>
-            <th>Cliente</th>
-            <th class="text-end">Total</th>
-            <th>Vence</th>
-            <th>Estado</th>
-            <th class="text-end">Acciones</th>
+            <th class="cot-lista-th-num">Número</th>
+            <th class="cot-lista-th-fecha">Fecha</th>
+            <th class="cot-lista-th-cliente">Cliente</th>
+            <th class="text-end cot-lista-th-total">Total</th>
+            <th class="cot-lista-th-vence">Vence</th>
+            <th class="cot-lista-th-estado">Estado</th>
+            <th class="text-end cot-lista-th-acciones">Acciones</th>
           </tr>
         </thead>
         <tbody>
           {% for c in cotizaciones %}
-          <tr>
-            <td><strong>{{ c.numero }}</strong></td>
-            <td class="text-nowrap small">{{ c.fecha.strftime('%d-%m-%Y %H:%M') if c.fecha else '' }}</td>
-            <td>
-              <div>{{ c.cliente_nombre or '—' }}</div>
+          <tr class="cot-lista-row cot-lista-row--{{ (c.estado or 'vigente')|lower }}">
+            <td class="cot-lista-num"><strong>{{ c.numero }}</strong></td>
+            <td class="cot-lista-fecha text-nowrap">{{ c.fecha.strftime('%d-%m-%Y %H:%M') if c.fecha else '—' }}</td>
+            <td class="cot-lista-cliente">
+              <div class="cot-lista-cliente-nombre">{{ c.cliente_nombre or '—' }}</div>
               {% if c.cliente_rut or c.cliente_telefono %}
-              <small class="text-muted">{{ c.cliente_rut or '' }}{% if c.cliente_telefono %} · {{ c.cliente_telefono }}{% endif %}</small>
+              <div class="cot-lista-cliente-meta">{{ c.cliente_rut or '' }}{% if c.cliente_telefono %} · {{ c.cliente_telefono }}{% endif %}</div>
               {% endif %}
             </td>
-            <td class="text-end fw-bold">${{ "{:,.0f}".format(c.monto_total or 0).replace(",", ".") }}</td>
-            <td class="small">
+            <td class="text-end cot-lista-total">${{ "{:,.0f}".format(c.monto_total or 0).replace(",", ".") }}</td>
+            <td class="cot-lista-vence text-nowrap">
               {% if c.fecha_vencimiento %}
                 {{ c.fecha_vencimiento.strftime('%d-%m-%Y') }}
                 {% if c.estado == 'Vigente' and c.esta_vencida %}
-                <span class="badge bg-warning text-dark">Vencida</span>
+                <span class="cot-estado-pill cot-estado-pill--vencida cot-estado-pill--xs ms-1">Vencida</span>
                 {% endif %}
               {% else %}—{% endif %}
             </td>
             <td>
-              {% set estado_badge = {
-                'Vigente': 'bg-success',
-                'Vencida': 'bg-warning text-dark',
-                'Aceptada': 'bg-primary',
-                'Rechazada': 'bg-danger',
-                'Convertida': 'bg-info text-dark',
+              {% set estado_cls = {
+                'Vigente': 'vigente',
+                'Vencida': 'vencida',
+                'Aceptada': 'aceptada',
+                'Rechazada': 'rechazada',
+                'Convertida': 'convertida',
               } %}
-              <span class="badge {{ estado_badge.get(c.estado, 'bg-secondary') }}">{{ c.estado }}</span>
+              <span class="cot-estado-pill cot-estado-pill--{{ estado_cls.get(c.estado, 'vigente') }}">{{ c.estado }}</span>
             </td>
             <td class="text-end">
-              <div class="btn-group btn-group-sm">
-                <a href="{{ url_for('cotizacion_detalle', cot_id=c.id) }}" class="btn btn-outline-primary" title="Ver"><i class="fas fa-eye"></i></a>
+              <div class="cot-lista-acciones">
+                <a href="{{ url_for('cotizacion_detalle', cot_id=c.id) }}" class="btn btn-sm cot-lista-btn-ver" title="Ver cotización">
+                  <i class="fas fa-eye me-1"></i><span class="d-none d-xl-inline">Ver</span>
+                </a>
                 {% if c.estado in ('Vigente', 'Vencida') %}
-                <a href="{{ url_for('cotizacion_editar', cot_id=c.id) }}" class="btn btn-outline-warning" title="Editar"><i class="fas fa-pen"></i></a>
+                <a href="{{ url_for('cotizacion_editar', cot_id=c.id) }}" class="btn btn-sm cot-lista-btn-editar" title="Editar">
+                  <i class="fas fa-pen"></i>
+                </a>
                 {% endif %}
               </div>
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" class="text-center text-muted py-5">
+            <td colspan="7" class="text-center cot-lista-empty py-5">
               Sin cotizaciones. <a href="{{ url_for('cotizacion_nueva') }}" class="fw-bold">Crear la primera</a>
             </td>
           </tr>

@@ -1,0 +1,77 @@
+{# Documentos que impiden cerrar caja (turno actual). Variables: bloqueo_cierre_filas, bloqueo_cierre_fuera_cola, puede_limpiar_cola_cierre #}
+{% if bloqueo_cierre_filas|default([])|length > 0 %}
+<div class="caja-bloqueo-cierre alert alert-danger mx-2" role="alert">
+  <div class="fw-bold mb-2">
+    <i class="fas fa-ban me-1"></i>No puede cerrar la caja todavía
+  </div>
+  <p class="small mb-2">
+    Hay <strong>{{ bloqueo_cierre_filas|length }}</strong> documento(s) de <strong>esta caja</strong> sin resolver:
+    debe <strong>cobrarlos</strong> o <strong>anularlos</strong> (si el cliente no paga).
+  </p>
+  {% if bloqueo_cierre_fuera_cola|default([])|length > 0 %}
+  <p class="small mb-2 text-warning-emphasis">
+    <i class="fas fa-eye-slash me-1"></i>
+    {{ bloqueo_cierre_fuera_cola|length }} no aparecen en la cola de cobro — revíselos aquí abajo.
+  </p>
+  {% endif %}
+  <div class="table-responsive mb-2">
+    <table class="table table-sm table-bordered bg-white mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Documento</th>
+          <th>Tipo</th>
+          <th class="text-end">Total</th>
+          <th>En cola</th>
+          <th class="text-end">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in bloqueo_cierre_filas %}
+        <tr{% if not row.en_cola %} class="table-warning"{% endif %}>
+          <td class="fw-bold">#{{ row.id }}</td>
+          <td>{{ row.tipo_label }} · {{ row.hora }}</td>
+          <td class="text-end">$ {{ "{:,.0f}".format(row.monto).replace(",", ".") }}</td>
+          <td>{% if row.en_cola %}<span class="text-success">Sí</span>{% else %}<span class="text-danger fw-bold">No visible</span>{% endif %}</td>
+          <td class="text-end text-nowrap">
+            <a href="{{ url_caja_prototipo|default(url_for('caja_prototipo')) }}#cajaRowVale{{ row.id }}" class="btn btn-sm btn-outline-primary">
+              Cobrar
+            </a>
+            {% if usuario_tiene_permiso('anular_vale_caja') %}
+            <form method="post" action="{{ url_for('anular_vale_caja', id=row.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Anular documento #{{ row.id }}? Solo si el cliente no va a pagar.');">
+              <input type="hidden" name="motivo" value="Cliente no retorna a pagar / cierre de turno">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Anular</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <a href="{{ url_caja_prototipo|default(url_for('caja_prototipo')) }}" class="btn btn-sm btn-danger fw-bold">
+      <i class="fas fa-cash-register me-1"></i>Ir a pantalla de cobro
+    </a>
+    {% if puede_limpiar_cola_cierre|default(false) %}
+    <form method="post" action="{{ url_for('limpiar_cola_cierre_caja') }}" class="d-inline mb-0"
+          onsubmit="return confirm('¿Anular todos los documentos que bloquean el cierre? Solo descartes / no cobrados.');">
+      <input type="hidden" name="confirmar" value="1">
+      <input type="hidden" name="motivo" value="Limpieza cola cierre — descartes / no cobrados">
+      {% if caja_return_to|default('') == 'prototipo' %}
+      <input type="hidden" name="return_to" value="prototipo">
+      {% elif request.endpoint == 'cerrar_caja' %}
+      <input type="hidden" name="return_to" value="cerrar">
+      {% else %}
+      <input type="hidden" name="return_to" value="pendientes">
+      {% endif %}
+      <button type="submit" class="btn btn-sm btn-outline-dark">
+        <i class="fas fa-broom me-1"></i>Anular todos los que bloquean ({{ bloqueo_cierre_filas|length }})
+      </button>
+    </form>
+    {% elif not usuario_tiene_permiso('anular_vale_caja') %}
+    <span class="small text-muted">Si son descartes, pida a un encargado que los anule.</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

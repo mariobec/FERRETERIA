@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<DTE version="1.0" xmlns="http://www.sii.cl/SiiDte">
+  <Documento ID="F33T5005433">
+    <Encabezado>
+      <IdDoc>
+        <TipoDTE>33</TipoDTE>
+        <Folio>5005433</Folio>
+        <FchEmis>2026-06-01</FchEmis>
+      </IdDoc>
+      <Emisor>
+        <RUTEmisor>96516560-5</RUTEmisor>
+        <RznSoc>CHILEMAT CENTRAL DE COMPRAS S A</RznSoc>
+      </Emisor>
+      <Receptor>
+        <RUTRecep>8054120-1</RUTRecep>
+        <RznSocRecep>LUIS GASTON RIVERA PEREZ</RznSocRecep>
+      </Receptor>
+      <Totales>
+        <MntNeto>58160</MntNeto>
+        <TasaIVA>19</TasaIVA>
+        <IVA>11050</IVA>
+        <MntTotal>69210</MntTotal>
+      </Totales>
+    </Encabezado>
+    <Detalle>
+      <NroLinDet>1</NroLinDet>
+      <CdgItem>
+        <TpoCodigo>INT</TpoCodigo>
+        <VlrCodigo>INT-110109</VlrCodigo>
+      </CdgItem>
+      <NmbItem>ALAMBRE GALV N18 1KG</NmbItem>
+      <QtyItem>10</QtyItem>
+      <UnmdItem>UN</UnmdItem>
+      <PrcItem>1498</PrcItem>
+      <MontoItem>14980</MontoItem>
+    </Detalle>
+    <Detalle>
+      <NroLinDet>2</NroLinDet>
+      <NmbItem>CLAVO PULIDO 2 1/2 X 10 KG</NmbItem>
+      <QtyItem>2</QtyItem>
+      <PrcItem>8990</PrcItem>
+      <MontoItem>17980</MontoItem>
+    </Detalle>
+  </Documento>
+</DTE>

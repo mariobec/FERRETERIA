@@ -418,52 +418,62 @@ def limpiar_catalogo_casuisticas(db, m, sa_text):
     """Borra ventas y maestros SD-PRUEBA y legacy TEST-CAS (orden FK)."""
     db.session.rollback()
     try:
-        ruts = tuple(c['rut'] for c in CLIENTES_CASUISTICAS)
-        cli_ids = [r[0] for r in db.session.execute(
-            sa_text('SELECT id FROM clientes WHERE rut IN :r'), {'r': ruts}).fetchall()]
+        ruts = [c['rut'] for c in CLIENTES_CASUISTICAS]
+        cli_ids = []
+        if ruts:
+            cli_ids = [c.id for c in m.Cliente.query.filter(m.Cliente.rut.in_(ruts)).all()]
+
         if cli_ids:
-            ct = tuple(cli_ids)
-            vids = [r[0] for r in db.session.execute(
-                sa_text('SELECT id FROM ventas WHERE cliente_id IN :c'), {'c': ct}).fetchall()]
+            vids = [v.id for v in m.Venta.query.filter(m.Venta.cliente_id.in_(cli_ids)).all()]
             if vids:
-                vt = tuple(vids)
-                for tbl, col in (
-                    ('ventas_cuotas_credito', 'venta_id'),
-                    ('ventas_a_pedido', 'venta_id'),
-                    ('detalle_ventas', 'id_venta'),
-                ):
-                    try:
-                        db.session.execute(sa_text(f'DELETE FROM {tbl} WHERE {col} IN :v'), {'v': vt})
-                    except Exception:
-                        db.session.rollback()
-                db.session.execute(sa_text('DELETE FROM ventas WHERE id IN :v'), {'v': vt})
-            for dep in ('movimientos_saldo_favor', 'clientes_saldos_favor', 'abonos_credito'):
+                m.VentaCuotaCredito.query.filter(m.VentaCuotaCredito.venta_id.in_(vids)).delete(
+                    synchronize_session=False
+                )
                 try:
-                    db.session.execute(sa_text(f'DELETE FROM {dep} WHERE cliente_id IN :c'), {'c': ct})
+                    m.VentaAPedido.query.filter(m.VentaAPedido.venta_id.in_(vids)).delete(
+                        synchronize_session=False
+                    )
+                except Exception:
+                    db.session.rollback()
+                m.DetalleVenta.query.filter(m.DetalleVenta.id_venta.in_(vids)).delete(synchronize_session=False)
+                m.Venta.query.filter(m.Venta.id.in_(vids)).delete(synchronize_session=False)
+            for dep in (m.MovimientoSaldoFavor, m.ClienteSaldoFavor, m.AbonoCredito):
+                try:
+                    dep.query.filter(dep.cliente_id.in_(cli_ids)).delete(synchronize_session=False)
                 except Exception:
                     db.session.rollback()
 
         for like in (f'{QA_CAS_PREFIX_BARCODE}%', f'{LEGACY_BARCODE_PREFIX}%'):
-            pids = [r[0] for r in db.session.execute(
-                sa_text('SELECT id FROM productos WHERE codigo_barra LIKE :p'), {'p': like}).fetchall()]
+            pids = [p.id for p in m.Producto.query.filter(m.Producto.codigo_barra.like(like)).all()]
             if not pids:
                 continue
-            pt = tuple(pids)
-            dv_vids = [r[0] for r in db.session.execute(
-                sa_text('SELECT DISTINCT id_venta FROM detalle_ventas WHERE id_producto IN :p'),
-                {'p': pt}).fetchall()]
+            dv_vids = [
+                r[0]
+                for r in db.session.query(m.DetalleVenta.id_venta)
+                .filter(m.DetalleVenta.id_producto.in_(pids))
+                .distinct()
+                .all()
+            ]
             if dv_vids:
-                dvt = tuple(dv_vids)
-                db.session.execute(sa_text('DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v'), {'v': dvt})
-                db.session.execute(sa_text('DELETE FROM detalle_ventas WHERE id_venta IN :v'), {'v': dvt})
-                db.session.execute(sa_text('DELETE FROM ventas WHERE id IN :v'), {'v': dvt})
-            db.session.execute(sa_text('DELETE FROM movimientos_inventario WHERE id_producto IN :p'), {'p': pt})
-            db.session.execute(sa_text('DELETE FROM stock_por_almacen WHERE id_producto IN :p'), {'p': pt})
-            db.session.execute(sa_text('DELETE FROM detalle_orden_compra WHERE producto_id IN :p'), {'p': pt})
-            db.session.execute(sa_text('DELETE FROM productos WHERE id IN :p'), {'p': pt})
+                m.VentaCuotaCredito.query.filter(m.VentaCuotaCredito.venta_id.in_(dv_vids)).delete(
+                    synchronize_session=False
+                )
+                m.DetalleVenta.query.filter(m.DetalleVenta.id_venta.in_(dv_vids)).delete(synchronize_session=False)
+                m.Venta.query.filter(m.Venta.id.in_(dv_vids)).delete(synchronize_session=False)
+            m.MovimientoInventario.query.filter(m.MovimientoInventario.id_producto.in_(pids)).delete(
+                synchronize_session=False
+            )
+            m.StockPorAlmacen.query.filter(m.StockPorAlmacen.id_producto.in_(pids)).delete(
+                synchronize_session=False
+            )
+            m.DetalleOrdenCompra.query.filter(m.DetalleOrdenCompra.producto_id.in_(pids)).delete(
+                synchronize_session=False
+            )
+            m.Producto.query.filter(m.Producto.id.in_(pids)).delete(synchronize_session=False)
 
-        db.session.execute(sa_text('DELETE FROM clientes WHERE rut IN :r'), {'r': ruts})
-        db.session.execute(sa_text('DELETE FROM ventas WHERE usuario = :u'), {'u': QA_CAS_USER})
+        if ruts:
+            m.Cliente.query.filter(m.Cliente.rut.in_(ruts)).delete(synchronize_session=False)
+        m.Venta.query.filter(m.Venta.usuario == QA_CAS_USER).delete(synchronize_session=False)
         db.session.commit()
     except Exception:
         db.session.rollback()

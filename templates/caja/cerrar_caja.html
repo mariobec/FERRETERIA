@@ -20,13 +20,17 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-cierre-ciego.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-cierre-ciego.css') }}?v=cierre-tonos-20260703">
 {% endblock %}
 
 {% block body_class %}caja-cierre-ciego-page{% endblock %}
 
 {% block content %}
 <div class="caja-cierre-ciego py-3">
+
+  <a href="{{ url_for('caja_prototipo') }}" class="caja-cierre-ciego__back mx-2">
+    <i class="fas fa-arrow-left" aria-hidden="true"></i> Volver a pantalla de caja
+  </a>
 
   <header class="caja-cierre-ciego__hero">
     <img src="{{ lhexia_icon_src }}" alt="LhexIA" width="48" height="48">
@@ -41,13 +45,7 @@
     {% set help_anchor = 'academy-caja' %}{% set help_link_label = 'Guía de cierre' %}{% include 'partials/help_screen_link.html' %}
   </header>
 
-  {% if vales_pendientes_cierre or tickets_abiertos_cierre %}
-  <div class="alert alert-danger mx-2">
-    <strong><i class="fas fa-ban me-1"></i>No puede cerrar:</strong>
-    hay {{ (vales_pendientes_cierre|length) + (tickets_abiertos_cierre|length) }} documento(s) pendientes.
-    <a href="{{ url_for('caja_pendientes') }}" class="alert-link fw-bold">Resolver en caja</a>
-  </div>
-  {% endif %}
+  {% include 'caja/includes/caja_bloqueo_cierre_panel.html' %}
 
   {% if not cierre_a_ciegas %}
   {% include 'caja/_resumen_cierre_visible.html' %}

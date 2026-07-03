@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ titulo or 'Etiquetas de catálogo' }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 16px; color: #111; }
+    .header { margin-bottom: 12px; }
+    .header h2 { margin: 0 0 4px 0; font-size: 1.15rem; }
+    .header-meta { font-size: 0.85rem; color: #475569; }
+    .labels {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .label {
+      border: 1px solid #111;
+      border-radius: 8px;
+      padding: 8px;
+      min-height: 118px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .name {
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 6px;
+      min-height: 28px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .code { font-size: 10px; text-align: center; margin-top: 4px; letter-spacing: 0.02em; }
+    .price { font-size: 13px; font-weight: 800; text-align: center; margin-top: 6px; }
+    svg.barcode { width: 100%; height: 42px; display: block; }
+    @media print {
+      .no-print { display: none !important; }
+      body { padding: 4mm; }
+      .labels { gap: 6px; }
+    }
+    @media (max-width: 720px) {
+      .labels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header no-print">
+    <h2>{{ titulo or 'Etiquetas de catálogo' }}</h2>
+    <div class="header-meta">{{ origen or '' }} · {{ total_etiquetas or 0 }} etiqueta(s) · {{ cantidad_por_producto or 1 }} copia(s) c/u</div>
+    <div class="mt-2 d-flex flex-wrap gap-2">
+      <button type="button" onclick="window.print()">Imprimir</button>
+      <button type="button" onclick="window.close()">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="labels">
+    {% for row in filas or [] %}
+      {% for n in range(row.cantidad or 1) %}
+      <div class="label">
+        <div class="name">{{ row.nombre }}</div>
+        <svg class="barcode"
+             data-barcode="{{ row.codigo }}"
+             jsbarcode-format="CODE128"
+             jsbarcode-value="{{ row.codigo }}"
+             jsbarcode-height="38"
+             jsbarcode-fontsize="11"
+             jsbarcode-displayvalue="false"
+             jsbarcode-margin="0"></svg>
+        <div class="code">{{ row.codigo }}</div>
+        <div class="price">${{ "{:,.0f}".format(row.precio_clp or 0).replace(",", ".") }}</div>
+      </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+
+  <script src="{{ url_for('static', filename='vendor/jsbarcode/JsBarcode.all.min.js') }}"></script>
+  <script>
+    (function () {
+      document.querySelectorAll('svg.barcode').forEach(function (el) {
+        var val = (el.getAttribute('data-barcode') || el.getAttribute('jsbarcode-value') || '').trim();
+        if (!val || typeof window.JsBarcode === 'undefined') return;
+        try {
+          JsBarcode(el, val, {
+            format: 'CODE128',
+            height: 38,
+            fontSize: 11,
+            displayValue: false,
+            margin: 0
+          });
+        } catch (e) {
+          el.outerHTML = '<div class="code" style="color:#b91c1c">Código no válido</div>';
+        }
+      });
+      {% if auto_print %}
+      window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });
+      {% endif %}
+    })();
+  </script>
+</body>
+</html>

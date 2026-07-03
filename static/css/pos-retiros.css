@@ -1,0 +1,1003 @@
+/* ============================================================
+   POS · Retiros — Diseño "Operativo de mostrador"
+   Tema claro, alto contraste, targets táctiles grandes.
+   Autónomo: NO depende de erp-ops-space (sin overrides peleando).
+   ============================================================ */
+
+body.page-pos-retiros {
+  --rt-bg: #eef2f7;
+  --rt-surface: #ffffff;
+  --rt-surface-2: #f8fafc;
+  --rt-ink: #0f172a;
+  --rt-ink-soft: #475569;
+  --rt-muted: #64748b;
+  --rt-border: #e2e8f0;
+  --rt-border-strong: #cbd5e1;
+  --rt-blue: #2563eb;
+  --rt-blue-dark: #1d4ed8;
+  --rt-blue-soft: #eff6ff;
+  --rt-green: #16a34a;
+  --rt-green-dark: #15803d;
+  --rt-green-soft: #f0fdf4;
+  --rt-amber: #d97706;
+  --rt-amber-soft: #fffbeb;
+  --rt-red: #dc2626;
+  --rt-red-soft: #fef2f2;
+  --rt-violet: #7c3aed;
+  --rt-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --rt-shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+body.page-pos-retiros.retiros-theme-mostrador {
+  background: var(--rt-bg) !important;
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .app-main {
+  background: transparent !important;
+}
+
+body.page-pos-retiros .retiros-shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 0 3rem;
+}
+
+/* ─────────────────────────  HEADER  ───────────────────────── */
+body.page-pos-retiros .retiros-hdr {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #24344d 100%);
+  box-shadow: var(--rt-shadow);
+  color: #fff;
+}
+
+body.page-pos-retiros .retiros-hdr__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+body.page-pos-retiros .retiros-hdr__title {
+  margin: 0.35rem 0 0.4rem;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+body.page-pos-retiros .retiros-hdr__meta {
+  font-size: 0.95rem;
+  color: #cbd5e1;
+}
+
+body.page-pos-retiros .retiros-hdr__meta strong {
+  color: #fff;
+}
+
+body.page-pos-retiros .retiros-hdr__stat {
+  text-align: center;
+  padding: 0.85rem 1.5rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  min-width: 7rem;
+}
+
+body.page-pos-retiros .retiros-hdr__stat-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+body.page-pos-retiros .retiros-hdr__stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.1;
+}
+
+body.page-pos-retiros .retiros-hdr__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+body.page-pos-retiros .retiros-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0 1.15rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  text-decoration: none;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+body.page-pos-retiros .retiros-nav-link:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+body.page-pos-retiros .retiros-nav-link:active {
+  transform: translateY(1px);
+}
+
+body.page-pos-retiros .retiros-nav-link--primary {
+  background: var(--rt-blue);
+  border-color: var(--rt-blue);
+  color: #fff;
+}
+
+body.page-pos-retiros .retiros-nav-link--primary:hover {
+  background: var(--rt-blue-dark);
+  color: #fff;
+}
+
+@media (max-width: 860px) {
+  body.page-pos-retiros .retiros-hdr {
+    grid-template-columns: 1fr;
+  }
+  body.page-pos-retiros .retiros-hdr__title {
+    font-size: 1.6rem;
+  }
+}
+
+/* ─────────────────────────  SECCIONES  ───────────────────────── */
+body.page-pos-retiros .retiros-section {
+  position: relative;
+  margin-bottom: 1.75rem;
+  padding: 1.35rem 1.5rem 1.5rem;
+  border-radius: 20px;
+  background: var(--rt-surface);
+  border: 1px solid var(--rt-border);
+  box-shadow: var(--rt-shadow-sm);
+}
+
+/* Barra de acento a la izquierda para diferenciar cada bloque */
+body.page-pos-retiros .retiros-section::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.35rem;
+  bottom: 1.35rem;
+  width: 5px;
+  border-radius: 0 6px 6px 0;
+  background: var(--rt-blue);
+}
+
+body.page-pos-retiros .retiros-section--kpi::before { background: var(--rt-blue); }
+body.page-pos-retiros .retiros-section--search::before { background: var(--rt-violet); }
+body.page-pos-retiros .retiros-section--queue::before { background: var(--rt-green); }
+
+body.page-pos-retiros .retiros-section--queue {
+  background: linear-gradient(180deg, var(--rt-green-soft) 0%, #ffffff 90px);
+  border-color: rgba(21, 128, 61, 0.18);
+}
+
+body.page-pos-retiros .retiros-section__head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--rt-border);
+}
+
+body.page-pos-retiros .retiros-section__icon {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 1.2rem;
+}
+
+body.page-pos-retiros .retiros-section__icon--blue { background: var(--rt-blue-soft); color: var(--rt-blue-dark); }
+body.page-pos-retiros .retiros-section__icon--violet { background: #f5f3ff; color: var(--rt-violet); }
+body.page-pos-retiros .retiros-section__icon--green { background: var(--rt-green-soft); color: var(--rt-green-dark); }
+
+body.page-pos-retiros .retiros-section__title {
+  margin: 0 0 0.2rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--rt-ink);
+  letter-spacing: -0.01em;
+}
+
+body.page-pos-retiros .retiros-section__desc {
+  font-size: 0.9rem;
+  color: var(--rt-muted);
+}
+
+/* ─────────────────────────  KPIs  ───────────────────────── */
+body.page-pos-retiros .retiros-kpi {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: 16px;
+  background: var(--rt-surface);
+  border: 1px solid var(--rt-border);
+  box-shadow: var(--rt-shadow-sm);
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+body.page-pos-retiros .retiros-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+}
+
+body.page-pos-retiros .retiros-kpi--queue::before { background: var(--rt-blue); }
+body.page-pos-retiros .retiros-kpi--ready::before { background: var(--rt-green); }
+body.page-pos-retiros .retiros-kpi--wait::before { background: var(--rt-amber); }
+
+body.page-pos-retiros .retiros-kpi__icon {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 1.4rem;
+}
+
+body.page-pos-retiros .retiros-kpi--queue .retiros-kpi__icon { background: var(--rt-blue-soft); color: var(--rt-blue-dark); }
+body.page-pos-retiros .retiros-kpi--ready .retiros-kpi__icon { background: var(--rt-green-soft); color: var(--rt-green-dark); }
+body.page-pos-retiros .retiros-kpi--wait .retiros-kpi__icon { background: var(--rt-amber-soft); color: var(--rt-amber); }
+
+body.page-pos-retiros .retiros-kpi__value {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--rt-ink);
+  line-height: 1;
+}
+
+body.page-pos-retiros .retiros-kpi__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--rt-muted);
+}
+
+/* ─────────────────────────  BÚSQUEDA / ESCANEO  ───────────────────────── */
+body.page-pos-retiros .retiros-toolbar.card {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+body.page-pos-retiros .retiros-toolbar__body {
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 320px);
+  gap: 1.5rem;
+  align-items: start;
+  padding: 0;
+}
+
+@media (max-width: 860px) {
+  body.page-pos-retiros .retiros-toolbar__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+body.page-pos-retiros .retiros-field-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rt-ink-soft);
+  margin-bottom: 0.5rem;
+}
+
+body.page-pos-retiros .retiros-search-wrap {
+  position: relative;
+}
+
+body.page-pos-retiros .retiros-search-combo {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+body.page-pos-retiros .retiros-search-combo__icon {
+  position: absolute;
+  left: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--rt-blue);
+  font-size: 1.1rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+body.page-pos-retiros .retiros-search-input {
+  width: 100%;
+  min-height: 3.75rem;
+  padding-left: 3rem;
+  padding-right: 3rem;
+  border-radius: 14px;
+  border: 2px solid var(--rt-border-strong);
+  background: var(--rt-surface);
+  color: var(--rt-ink);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+body.page-pos-retiros .retiros-search-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+body.page-pos-retiros .retiros-search-input:focus {
+  outline: none;
+  border-color: var(--rt-blue);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+body.page-pos-retiros .retiros-search-clear {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  border: none;
+  background: #f1f5f9;
+  color: var(--rt-muted);
+  border-radius: 10px;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+}
+
+body.page-pos-retiros .retiros-search-clear:hover {
+  background: #e2e8f0;
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .retiros-search-hint {
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--rt-muted);
+}
+
+body.page-pos-retiros .retiros-search-hint kbd {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  background: #f1f5f9;
+  border: 1px solid var(--rt-border);
+  color: var(--rt-ink-soft);
+}
+
+body.page-pos-retiros .retiros-scan-input {
+  width: 100%;
+  min-height: 3.75rem;
+  border-radius: 14px;
+  border: 2px dashed var(--rt-border-strong);
+  background: var(--rt-surface-2);
+  color: var(--rt-ink);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  padding: 0 1rem;
+}
+
+body.page-pos-retiros .retiros-scan-input:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--rt-green);
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.15);
+}
+
+/* ── Autocompletado ── */
+body.page-pos-retiros .retiros-suggest-list {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  margin: 0;
+  padding: 0.4rem;
+  list-style: none;
+  max-height: 360px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--rt-border);
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+}
+
+body.page-pos-retiros .retiros-suggest-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+body.page-pos-retiros .retiros-suggest-item:hover,
+body.page-pos-retiros .retiros-suggest-item.is-active {
+  background: var(--rt-blue-soft);
+}
+
+body.page-pos-retiros .retiros-suggest-item__main { min-width: 0; }
+
+body.page-pos-retiros .retiros-suggest-item__folio {
+  font-family: ui-monospace, monospace;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .retiros-suggest-item__cliente {
+  font-size: 0.85rem;
+  color: var(--rt-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.page-pos-retiros .retiros-suggest-item__meta {
+  text-align: right;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--rt-muted);
+}
+
+/* ─────────────────────────  LEYENDA SEMÁFORO  ───────────────────────── */
+body.page-pos-retiros .retiros-semaforo-legend {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.15rem;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--rt-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+body.page-pos-retiros .retiros-semaforo-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+@media (max-width: 860px) {
+  body.page-pos-retiros .retiros-section__head { flex-wrap: wrap; }
+  body.page-pos-retiros .retiros-semaforo-legend { margin-left: 0; width: 100%; }
+}
+
+/* ─────────────────────────  SEMÁFORO  ───────────────────────── */
+body.page-pos-retiros .retiros-semaforo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+body.page-pos-retiros .retiros-semaforo__lights {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: #0f172a;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+body.page-pos-retiros .retiros-semaforo__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  opacity: 0.22;
+  transition: opacity 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+body.page-pos-retiros .retiros-semaforo__dot--rojo { background: #ef4444; color: #ef4444; }
+body.page-pos-retiros .retiros-semaforo__dot--ambar { background: #f59e0b; color: #f59e0b; }
+body.page-pos-retiros .retiros-semaforo__dot--verde { background: #22c55e; color: #22c55e; }
+
+body.page-pos-retiros .retiros-semaforo__dot.is-active {
+  opacity: 1;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px currentColor;
+}
+
+body.page-pos-retiros .retiros-semaforo__label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--rt-ink-soft);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+body.page-pos-retiros .retiros-semaforo--verde .retiros-semaforo__label { color: var(--rt-green-dark); }
+body.page-pos-retiros .retiros-semaforo--ambar .retiros-semaforo__label { color: #b45309; }
+body.page-pos-retiros .retiros-semaforo--rojo .retiros-semaforo__label { color: #b91c1c; }
+
+/* Banner de estado (modal) */
+body.page-pos-retiros .retiros-semaforo-banner {
+  padding: 1.1rem 1.25rem;
+  border-radius: 16px;
+  border: 2px solid transparent;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner .retiros-semaforo {
+  gap: 0.9rem;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner .retiros-semaforo__lights {
+  padding: 0.5rem 0.7rem;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner .retiros-semaforo__dot {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner__text {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: inherit;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner--verde {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #14532d;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner--ambar {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #92400e;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner--rojo {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #991b1b;
+}
+
+body.page-pos-retiros .retiros-semaforo-banner--gris {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-color: rgba(100, 116, 139, 0.4);
+  color: #334155;
+}
+
+/* ─────────────────────────  TABLA COLA  ───────────────────────── */
+body.page-pos-retiros .retiros-panel.card {
+  border: 1px solid var(--rt-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--rt-shadow-sm);
+  background: var(--rt-surface);
+}
+
+body.page-pos-retiros .retiros-table {
+  margin-bottom: 0;
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .retiros-table thead th {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rt-ink-soft);
+  background: #f1f5f9;
+  border-bottom: 2px solid var(--rt-border);
+  padding: 0.9rem 1.1rem;
+  white-space: nowrap;
+}
+
+body.page-pos-retiros .retiros-table tbody td {
+  font-size: 0.95rem;
+  vertical-align: middle;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--rt-border);
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .retiros-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+body.page-pos-retiros .retiros-table.table-hover > tbody > tr:hover > * {
+  background-color: #f8fafc;
+}
+
+body.page-pos-retiros .retiros-table tbody tr.is-hidden { display: none; }
+
+body.page-pos-retiros .retiros-table tbody tr.is-highlight > * {
+  background-color: var(--rt-blue-soft);
+  box-shadow: inset 4px 0 0 var(--rt-blue);
+}
+
+body.page-pos-retiros .retiros-folio {
+  font-size: 1.05rem;
+  color: var(--rt-blue-dark);
+}
+
+body.page-pos-retiros .retiros-cliente {
+  font-weight: 600;
+}
+
+body.page-pos-retiros .retiros-table .text-muted {
+  color: var(--rt-muted) !important;
+}
+
+body.page-pos-retiros .retiros-badge--count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.55rem;
+  background: var(--rt-blue-soft);
+  color: var(--rt-blue-dark);
+  font-size: 0.95rem;
+  font-weight: 800;
+  border-radius: 999px;
+}
+
+/* Botón entregar (fila) — táctil */
+body.page-pos-retiros .retiros-btn-entregar {
+  min-height: 2.75rem;
+  padding: 0 1.15rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 12px;
+  background: var(--rt-green);
+  border: none;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(22, 163, 74, 0.3);
+  transition: background 0.15s, transform 0.1s;
+}
+
+body.page-pos-retiros .retiros-btn-entregar:hover {
+  background: var(--rt-green-dark);
+  color: #fff;
+}
+
+body.page-pos-retiros .retiros-btn-entregar:active {
+  transform: translateY(1px);
+}
+
+body.page-pos-retiros .retiros-action-wait {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--rt-amber);
+}
+
+/* Estado vacío */
+body.page-pos-retiros .retiros-empty {
+  text-align: center;
+  padding: 3.5rem 1rem !important;
+}
+
+body.page-pos-retiros .retiros-empty__icon {
+  font-size: 3rem;
+  color: #cbd5e1;
+  margin-bottom: 0.75rem;
+}
+
+body.page-pos-retiros .retiros-empty__title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--rt-ink-soft);
+}
+
+body.page-pos-retiros .retiros-no-match {
+  padding: 1.15rem 1.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rt-muted);
+  background: var(--rt-surface-2);
+  border-top: 1px solid var(--rt-border);
+}
+
+/* ─────────────────────────  MODAL  ───────────────────────── */
+body.page-pos-retiros .retiros-modal {
+  border: none;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+}
+
+body.page-pos-retiros .retiros-modal__head {
+  padding: 1.5rem 1.75rem 1.15rem;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+body.page-pos-retiros .retiros-modal__eyebrow {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #7dd3fc;
+  margin-bottom: 0.3rem;
+}
+
+body.page-pos-retiros .retiros-modal__folio {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+body.page-pos-retiros .retiros-modal__head .btn-close {
+  filter: invert(1) grayscale(1);
+  opacity: 0.8;
+}
+
+body.page-pos-retiros .retiros-modal__body {
+  padding: 1.35rem 1.75rem 1.25rem;
+  background: var(--rt-surface);
+}
+
+body.page-pos-retiros .retiros-modal__card {
+  padding: 1.25rem 1.35rem;
+  border-radius: 16px;
+  background: var(--rt-surface-2);
+  border: 1px solid var(--rt-border);
+  margin-bottom: 1.15rem;
+}
+
+body.page-pos-retiros .retiros-modal__card-title {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--rt-ink-soft);
+}
+
+body.page-pos-retiros .retiros-modal-dl {
+  margin-bottom: 0;
+}
+
+body.page-pos-retiros .retiros-modal-dl dt {
+  font-size: 0.9rem;
+  color: var(--rt-muted);
+  font-weight: 600;
+  padding: 0.4rem 0;
+}
+
+body.page-pos-retiros .retiros-modal-dl dd {
+  font-size: 1.1rem;
+  color: var(--rt-ink);
+  font-weight: 600;
+  padding: 0.4rem 0;
+}
+
+body.page-pos-retiros .retiros-modal__hint {
+  font-size: 0.9rem;
+  color: var(--rt-muted);
+}
+
+body.page-pos-retiros .retiros-modal__foot {
+  padding: 0 1.75rem 1.5rem;
+  background: var(--rt-surface);
+}
+
+body.page-pos-retiros .retiros-modal__btn-entregar {
+  flex: 1 1 auto;
+  min-height: 3.5rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  border-radius: 14px;
+  background: var(--rt-green);
+  border: none;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35);
+}
+
+body.page-pos-retiros .retiros-modal__btn-entregar:hover:not(:disabled) {
+  background: var(--rt-green-dark);
+  color: #fff;
+}
+
+body.page-pos-retiros .retiros-modal__btn-entregar:disabled {
+  background: #cbd5e1;
+  color: #f8fafc;
+  box-shadow: none;
+}
+
+body.page-pos-retiros .retiros-modal__foot .btn-outline-secondary {
+  min-height: 3.5rem;
+  padding: 0 1.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: 14px;
+  border: 2px solid var(--rt-border-strong);
+  color: var(--rt-ink-soft);
+  background: #fff;
+}
+
+body.page-pos-retiros .retiros-modal__foot .btn-outline-secondary:hover {
+  background: var(--rt-surface-2);
+  color: var(--rt-ink);
+}
+
+/* ─────────────────────────  CHIPS DE CANAL  ───────────────────────── */
+body.page-pos-retiros .retiros-canal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+body.page-pos-retiros .retiros-canal-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+body.page-pos-retiros .retiros-canal-chip--tienda {
+  background: var(--rt-blue-soft);
+  color: var(--rt-blue-dark);
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+body.page-pos-retiros .retiros-canal-chip--bodega {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: rgba(234, 88, 12, 0.25);
+}
+
+body.page-pos-retiros .retiros-canal-chip--despacho {
+  background: #f5f3ff;
+  color: var(--rt-violet);
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+/* ─────────────────────────  RESUMEN MODAL  ───────────────────────── */
+body.page-pos-retiros .retiros-modal__card--resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  align-items: center;
+}
+
+body.page-pos-retiros .retiros-modal__resumen-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+body.page-pos-retiros .retiros-modal__resumen-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--rt-muted);
+}
+
+body.page-pos-retiros .retiros-modal__resumen-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--rt-ink);
+}
+
+/* ─────────────────────────  LÍNEAS DE ENTREGA (MODAL)  ───────────────────────── */
+body.page-pos-retiros .retiros-lineas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+body.page-pos-retiros .retiros-linea {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--rt-border);
+}
+
+body.page-pos-retiros .retiros-linea__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+body.page-pos-retiros .retiros-linea__nombre {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .retiros-linea__meta {
+  font-size: 0.82rem;
+  color: var(--rt-muted);
+}
+
+body.page-pos-retiros .retiros-linea__meta strong {
+  color: var(--rt-ink);
+}
+
+body.page-pos-retiros .retiros-linea__accion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+body.page-pos-retiros .retiros-linea__cant {
+  width: 4.5rem;
+  min-height: 2.5rem;
+  text-align: center;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 2px solid var(--rt-border-strong);
+}
+
+body.page-pos-retiros .retiros-linea__btn {
+  min-height: 2.5rem;
+  font-weight: 700;
+  border-radius: 10px;
+  background: var(--rt-green);
+  border: none;
+  color: #fff;
+  white-space: nowrap;
+}
+
+body.page-pos-retiros .retiros-linea__btn:hover {
+  background: var(--rt-green-dark);
+  color: #fff;
+}
+
+@media (max-width: 560px) {
+  body.page-pos-retiros .retiros-linea {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  body.page-pos-retiros .retiros-linea__accion {
+    justify-content: flex-end;
+  }
+}

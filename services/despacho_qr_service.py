@@ -25,14 +25,24 @@ def token_desde_qr_path(segment: str) -> str:
     return raw.replace('_', '.')
 
 
-def url_despacho_qr_corta(venta_id: int, token: str, *, base: str | None = None) -> str:
+def url_despacho_qr_corta(
+    venta_id: int,
+    token: str,
+    *,
+    canal: str | None = None,
+    base: str | None = None,
+) -> str:
     """
-    URL para imprimir en QR: sin ? ni : en query.
-    Ej: http://host/r/despacho/3136/eyJ2IjozMTM2fQ_ah4hfA_...
+    URL para imprimir en QR: sin ? ni : en path (canal opcional en query).
+    Ej: http://host/r/despacho/3136/eyJ2IjozMTM2fQ_...  ?canal=Tienda
     """
     base = (base or public_site_base()).rstrip('/')
     seg = token_para_qr_path(token)
-    return f'{base}/r/despacho/{int(venta_id)}/{seg}'
+    url = f'{base}/r/despacho/{int(venta_id)}/{seg}'
+    c = (canal or '').strip()
+    if c:
+        url = f'{url}?canal={quote(c)}'
+    return url
 
 
 def _limpiar_prefijos_lector(raw: str) -> str:

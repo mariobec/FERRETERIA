@@ -11425,26 +11425,104 @@ def stock_critico():
 @app.route('/inventario/dashboard-premium')
 @permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
 def inventario_dashboard_premium():
-    """Centro de stock: KPIs, categorías e integridad maestro/depósitos."""
-    from services.inventario_dashboard_service import collect_dashboard_premium
+    """Centro de Inteligencia de Inventario (BI): KPIs, gráficos, alertas e integridad."""
+    from services.inventario_bi_service import collect_inventario_bi_centro
 
     umbral = request.args.get('umbral', 5, type=int)
     q = (request.args.get('q') or '').strip()
     min_bodega = request.args.get('min_bodega', 1, type=int)
-    payload = collect_dashboard_premium(umbral_critico=umbral)
-    integridad = _inventario_salud_payload(q, min_bodega)
-    dash_url = url_for('inventario_dashboard_premium')
+    if 'solo_stock_explicit' in request.args:
+        solo_con_stock = (request.args.get('solo_con_stock') or '').strip() == '1'
+    else:
+        solo_con_stock = True
+    from services.inventario_catalogo_filtro_service import parse_categoria_request
+
+    cat_raw = (request.args.get('categoria') or '').strip()
+    cat_modo, cat_nombre = parse_categoria_request(cat_raw or None)
+    sub_cat_id = request.args.get('subcategoria_catalogo_id', type=int)
+    sub_legacy = (request.args.get('subcategoria') or '').strip() or None
+    filtros = {
+        'umbral': umbral,
+        'q': q,
+        'categoria': cat_nombre,
+        'categoria_modo': cat_modo,
+        'categoria_param': cat_raw or None,
+        'subcategoria_catalogo_id': sub_cat_id,
+        'subcategoria': sub_legacy if cat_modo == 'legacy' else None,
+        'marca': (request.args.get('marca') or '').strip() or None,
+        'deposito': (request.args.get('deposito') or '').strip() or None,
+        'estado': (request.args.get('estado') or '').strip() or None,
+        'solo_con_stock': solo_con_stock,
+        'periodo': (request.args.get('periodo') or '30d').strip().lower() or '30d',
+        'vista': (request.args.get('vista') or 'resumen').strip() or 'resumen',
+    }
+    filtros['_acciones_urls'] = {
+        'dashboard': url_for('inventario_dashboard_premium'),
+        'orden_compra_nueva': url_for('orden_compra_nueva'),
+        'bodega': url_for('bodega_plataforma'),
+        'productos': url_for('mostrar_productos'),
+        'pinturas_remates': url_for('inventario_pinturas_compras_remates'),
+        'stock_valorizado': url_for('inventario_stock_valorizado'),
+    }
+    informe = collect_inventario_bi_centro(filtros)
+    if filtros.get('vista') == 'alertas':
+        integridad = _inventario_salud_payload(q, min_bodega)
+    else:
+        integridad = _inventario_salud_payload_vacio(q, min_bodega)
     return render_template(
-        'stock_dashboard_premium.html',
-        dash=payload,
+        'inventario_bi_centro.html',
+        informe=informe,
         integridad=integridad,
+        filtros=filtros,
+        vista_integridad='alertas',
         urls={
             'productos': url_for('mostrar_productos'),
             'stock_critico': url_for('stock_critico', umbral=umbral),
-            'integridad': dash_url + '#integridad',
+            'stock_valorizado': url_for('inventario_stock_valorizado'),
             'enrolamiento': url_for('inventario_enrolamiento'),
+            'orden_compra_nueva': url_for('orden_compra_nueva'),
+            'bodega': url_for('bodega_plataforma'),
+            'pinturas_remates': url_for('inventario_pinturas_compras_remates'),
         },
     )
+
+
+def _inventario_salud_payload_vacio(q, min_bodega):
+    """Metadatos integridad sin escanear todo el catálogo (vistas distintas de Alertas)."""
+    q = (q or '').strip()
+    try:
+        min_bodega = max(1, int(min_bodega))
+    except (TypeError, ValueError):
+        min_bodega = 1
+
+    nom_tienda = 'Tienda'
+    nom_bodega = 'Bodega'
+    aid_t = id_almacen_tienda()
+    aid_b = id_almacen_bodega()
+    if aid_t:
+        at = db.session.get(Almacen, aid_t)
+        if at:
+            nom_tienda = ((at.nombre or at.codigo or nom_tienda).strip()) or nom_tienda
+    if aid_b:
+        ab = db.session.get(Almacen, aid_b)
+        if ab:
+            nom_bodega = ((ab.nombre or ab.codigo or nom_bodega).strip()) or nom_bodega
+
+    puede_reposicion_lista = bool(
+        aid_t and aid_b and int(aid_t) != int(aid_b) and _tablas_inventario_almacen_existen()
+    )
+    return {
+        'q': q,
+        'min_bodega': min_bodega,
+        'n_desajuste': 0,
+        'rows_des': [],
+        'puede_reposicion_lista': puede_reposicion_lista,
+        'detalle_tienda_bodega': puede_reposicion_lista,
+        'nom_tienda': nom_tienda,
+        'nom_bodega': nom_bodega,
+        'n_reposicion': 0,
+        'rows_rep': [],
+    }
 
 
 def _inventario_salud_payload(q, min_bodega):
@@ -11520,11 +11598,22 @@ def _inventario_salud_payload(q, min_bodega):
 
     batch = pq.order_by(Producto.id.asc()).limit(12000).all()
 
+    pids = [int(p.id) for p, _ in batch]
+    st_t_map: dict[int, int] = {}
+    st_b_map: dict[int, int] = {}
+    if puede_reposicion_lista and aid_t and aid_b and pids:
+        from services.stock_service import stock_almacen_por_producto_ids
+
+        st_t_map = stock_almacen_por_producto_ids(pids, int(aid_t))
+        st_b_map = stock_almacen_por_producto_ids(pids, int(aid_b))
+
     rows_des = []
     rows_rep = []
     for p, suma_dep in batch:
         suma_dep = int(suma_dep or 0)
         sm = int(p.stock or 0)
+        qt = int(st_t_map.get(int(p.id), 0)) if st_t_map else 0
+        qb = int(st_b_map.get(int(p.id), 0)) if st_b_map else 0
         if sm != suma_dep:
             fila_des = {
                 'nombre': p.nombre,
@@ -11534,23 +11623,20 @@ def _inventario_salud_payload(q, min_bodega):
                 'suma_almacenes': suma_dep,
             }
             if puede_reposicion_lista:
-                fila_des['qty_tienda'] = int(stock_producto_en_almacen(p.id, aid_t) or 0)
-                fila_des['qty_bodega'] = int(stock_producto_en_almacen(p.id, aid_b) or 0)
+                fila_des['qty_tienda'] = qt
+                fila_des['qty_bodega'] = qb
             rows_des.append(fila_des)
 
-        if puede_reposicion_lista:
-            qt = int(stock_producto_en_almacen(p.id, aid_t) or 0)
-            qb = int(stock_producto_en_almacen(p.id, aid_b) or 0)
-            if qt == 0 and qb >= min_bodega:
-                rows_rep.append(
-                    {
-                        'nombre': p.nombre,
-                        'codigo_barra': ((p.codigo_barra or '').strip()) or None,
-                        'codigo_interno': ((p.codigo_interno or '').strip()) or None,
-                        'qty_tienda': qt,
-                        'qty_bodega': qb,
-                    }
-                )
+        if puede_reposicion_lista and qt == 0 and qb >= min_bodega:
+            rows_rep.append(
+                {
+                    'nombre': p.nombre,
+                    'codigo_barra': ((p.codigo_barra or '').strip()) or None,
+                    'codigo_interno': ((p.codigo_interno or '').strip()) or None,
+                    'qty_tienda': qt,
+                    'qty_bodega': qb,
+                }
+            )
 
     rows_des.sort(key=lambda r: abs(int(r['stock_maestro']) - int(r['suma_almacenes'])), reverse=True)
     rows_rep.sort(key=lambda r: int(r['qty_bodega']), reverse=True)
@@ -11630,13 +11716,12 @@ def inventario_salud():
             headers={'Content-Disposition': 'attachment; filename=salud_inventario_reposicion.csv'},
         )
 
-    params = {}
+    params = {'vista': 'alertas'}
     if q:
         params['q'] = q
     if min_bodega != 1:
         params['min_bodega'] = min_bodega
-    dest = url_for('inventario_dashboard_premium', **params) + '#integridad'
-    return redirect(dest)
+    return redirect(url_for('inventario_dashboard_premium', **params))
 
 
 def _filtros_informe_stock_valorizado(req):
@@ -16171,6 +16256,7 @@ def punto_venta():
         render_template(
             'punto_venta.html',
             ticket_modal_impresion_url=_pos_ticket_modal_impresion_url_from_query(),
+            cot_emitir_guia=(request.args.get('cot_emitir_guia') or '').strip() == '1',
             **ctx,
         )
     )
@@ -16209,6 +16295,7 @@ def pos_command_deck():
     return render_template(
         'pos/command_deck.html',
         ticket_modal_impresion_url=_pos_ticket_modal_impresion_url_from_query(),
+        cot_emitir_guia=(request.args.get('cot_emitir_guia') or '').strip() == '1',
         **ctx,
     )
 
@@ -18107,19 +18194,6 @@ def pos_ticket_vale(venta_id):
 
     detalles_picking = buckets.get('Bodega') or []
 
-    qr_ticket_src = None
-    despacho_ticket_url = None
-    if not ticket_es_borrador and _pos_ticket_qr_despacho_empresa():
-        tok = pos_despacho_vale_token_create(venta.id)
-        if tok:
-            from services.despacho_qr_service import url_despacho_qr_corta
-
-            despacho_ticket_url = url_despacho_qr_corta(venta.id, tok)
-            try:
-                qr_ticket_src = _qr_data_uri_png(despacho_ticket_url, box_size=4, border=1)
-            except Exception:
-                qr_ticket_src = None
-
     return render_template(
         'ticket_vale.html',
         venta=venta,
@@ -18134,9 +18208,7 @@ def pos_ticket_vale(venta_id):
         etiqueta_retiro_linea=etiqueta_retiro_linea,
         ticket_line_etiqueta=ticket_line_etiqueta,
         detalles_picking=detalles_picking,
-        qr_ticket_src=qr_ticket_src,
-        despacho_ticket_url=despacho_ticket_url,
-        pos_ticket_qr_despacho=_pos_ticket_qr_despacho_empresa(),
+        pos_ticket_qr_despacho=False,
         ticket_es_borrador=ticket_es_borrador,
         pos_impresion_termica=_pos_impresion_termica_habilitada(),
         ticket_telefono=_ticket_telefono_vale_display(empresa_cfg),
@@ -18152,7 +18224,11 @@ def pos_despacho_vale_qr_short(vid, token_qr):
     if not _entrega_ticket_token_valido(vid, tok):
         flash('Código QR del vale inválido o caducado. Vuelva a imprimir el ticket.', 'warning')
         return redirect(url_for('inicio'))
-    return redirect(url_for('pos_despacho_vale', vid=vid, t=tok))
+    canal = (request.args.get('canal') or '').strip()
+    kw = {'vid': vid, 't': tok}
+    if canal:
+        kw['canal'] = canal
+    return redirect(url_for('pos_despacho_vale', **kw))
 
 
 def pos_despacho_vale_folio_qr(folio):
@@ -18210,7 +18286,19 @@ def pos_despacho_vale(vid):
 
     _asegurar_columnas_entrega_ticket()
     buckets, subtotales, orden_retiro = _ticket_agrupar_detalles_por_retiro(venta)
+    canal_filtro = (request.args.get('canal') or '').strip()
+    if canal_filtro:
+        keep = {canal_filtro}
+        if canal_filtro == 'Tienda':
+            keep.add('Despacho')
+        buckets = {k: v for k, v in buckets.items() if k in keep}
+        subtotales = {k: v for k, v in subtotales.items() if k in keep}
+        orden_retiro = [k for k in orden_retiro if k in keep]
     ver_canal_tienda, ver_canal_bodega = _despacho_visibilidad_canales(venta.id, tok)
+    if canal_filtro == 'Bodega':
+        ver_canal_tienda = False
+    elif canal_filtro == 'Tienda':
+        ver_canal_bodega = False
 
     tiene_lineas = False
     if ver_canal_tienda:
@@ -18493,6 +18581,10 @@ def finalizar_venta():
                 from services.pos_compromiso_entrega_service import persistir_ventas_a_pedido
 
                 persistir_ventas_a_pedido(venta, request.form, vendedor_actual)
+            if getattr(venta, 'cotizacion_origen_id', None):
+                from services.cotizacion_venta_service import marcar_cotizacion_convertida_al_emitir_vale
+
+                marcar_cotizacion_convertida_al_emitir_vale(venta)
         db.session.commit()
     except _GuardarVentaAbort as ab:
         db.session.rollback()
@@ -19028,8 +19120,16 @@ def _aplicar_mov_saldo_favor(cliente_id, cambio_id, tipo, monto, observacion):
     return nuevo
 
 
+def _redirect_tras_cobro_caja(**kwargs):
+    """Vuelve a la vista caja de origen (clásica o prototipo simple)."""
+    dest = (request.form.get('return_to') or request.args.get('return_to') or '').strip().lower()
+    if dest == 'prototipo':
+        return redirect(url_for('caja_prototipo', **kwargs))
+    return redirect(url_for('caja_pendientes', **kwargs))
+
+
 # CAJA vales pendientes (ruta registrada en blueprints/caja.py)
-def caja_pendientes():
+def _build_caja_pendientes_context():
     _asegurar_columnas_entrega_ticket()
     _redondear_montos_ventas_pendientes()
     db.session.rollback()
@@ -19089,7 +19189,7 @@ def caja_pendientes():
         Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles))
         .filter(
             Venta.estado == "Pendiente",
-            Venta.metodo_pago.is_(None),
+            _filtro_venta_metodo_pago_sin_asignar(),
         )
         .order_by(Venta.fecha.desc())
         .all()
@@ -19142,7 +19242,7 @@ def caja_pendientes():
     db.session.rollback()
     monto_pendiente = float(
         db.session.query(db.func.coalesce(db.func.sum(Venta.monto_total), 0))
-        .filter(Venta.estado == "Pendiente", Venta.metodo_pago.is_(None))
+        .filter(Venta.estado == "Pendiente", _filtro_venta_metodo_pago_sin_asignar())
         .scalar()
         or 0
     )
@@ -19170,8 +19270,13 @@ def caja_pendientes():
 
     bc_vales_cierre = []
     bc_tickets_cierre = []
+    bloqueo_cierre_filas = []
+    bloqueo_cierre_fuera_cola = []
     if caja_apertura:
         bc_vales_cierre, bc_tickets_cierre = _documentos_bloquean_cierre_caja(caja_apertura)
+        bloqueo_cierre_filas, bloqueo_cierre_fuera_cola = _build_bloqueo_cierre_filas(
+            caja_apertura, cola_combined
+        )
     db.session.rollback()
 
     n_sla_atencion = sum(
@@ -19189,27 +19294,67 @@ def caja_pendientes():
     n_transferencias_pendientes = contar_transferencias_pendientes(caja_id=cid)
     n_correos_transferencia = contar_correos_transferencia_bandaja()
 
+    return {
+        'tickets_emitidos': tickets_emitidos,
+        'monto_apertura': monto_apertura,
+        'monto_vendido': monto_vendido,
+        'monto_pendiente': monto_pendiente,
+        'vuelto_entregado': vuelto_entregado,
+        'vales': vales,
+        'cola_combined': cola_combined,
+        'creditos_hoy': creditos_hoy,
+        'cotizaciones_map': cotizaciones_map,
+        'planes_cuotas_credito': PLANES_CUOTA_CREDITO_OPCIONES,
+        'bloquean_cierre_total': len(bc_vales_cierre) + len(bc_tickets_cierre),
+        'bloquean_cierre_vales': bc_vales_cierre,
+        'bloquean_cierre_tickets': bc_tickets_cierre,
+        'bloqueo_cierre_filas': bloqueo_cierre_filas,
+        'bloqueo_cierre_fuera_cola': bloqueo_cierre_fuera_cola,
+        'puede_limpiar_cola_cierre': _usuario_puede_limpiar_cola_cierre(),
+        'caja_sla_config': sla_config_caja,
+        'n_sla_atencion': n_sla_atencion,
+        'n_sla_modal': n_sla_modal,
+        'pos_impresion_termica': _pos_impresion_termica_habilitada(),
+        'n_transferencias_pendientes': n_transferencias_pendientes,
+        'n_correos_transferencia': n_correos_transferencia,
+    }
+
+
+def caja_pendientes():
+    ctx = _build_caja_pendientes_context()
+    return render_template('caja_pendientes.html', **ctx)
+
+
+def caja_prototipo():
+    """Vista caja simplificada (UAT piso / adulto mayor). Apertura inline si no hay turno."""
+    caja_activa = obtener_caja_activa()
+    bloqueo_caja_anterior = None
+    caja_operativa = False
+
+    if caja_activa:
+        fecha_apertura = caja_activa.fecha_apertura.date() if caja_activa.fecha_apertura else None
+        if fecha_apertura and fecha_apertura < datetime.now().date():
+            bloqueo_caja_anterior = (
+                'cerrar' if usuario_puede_cerrar_caja() else 'esperar'
+            )
+        else:
+            caja_operativa = True
+
+    ctx = _build_caja_pendientes_context()
+    puede_abrir = usuario_tiene_permiso('caja_abrir') or usuario_tiene_permiso('gestionar_usuarios')
+    puede_cerrar = usuario_puede_cerrar_caja()
+
     return render_template(
-        'caja_pendientes.html',
-        tickets_emitidos=tickets_emitidos,
-        monto_apertura=monto_apertura,
-        monto_vendido=monto_vendido,
-        monto_pendiente=monto_pendiente,
-        vuelto_entregado=vuelto_entregado,
-        vales=vales,
-        cola_combined=cola_combined,
-        creditos_hoy=creditos_hoy,
-        cotizaciones_map=cotizaciones_map,
-        planes_cuotas_credito=PLANES_CUOTA_CREDITO_OPCIONES,
-        bloquean_cierre_total=len(bc_vales_cierre) + len(bc_tickets_cierre),
-        bloquean_cierre_vales=bc_vales_cierre,
-        bloquean_cierre_tickets=bc_tickets_cierre,
-        caja_sla_config=sla_config_caja,
-        n_sla_atencion=n_sla_atencion,
-        n_sla_modal=n_sla_modal,
-        pos_impresion_termica=_pos_impresion_termica_habilitada(),
-        n_transferencias_pendientes=n_transferencias_pendientes,
-        n_correos_transferencia=n_correos_transferencia,
+        'caja_prototipo.html',
+        **ctx,
+        caja_return_to='prototipo',
+        caja_operativa=caja_operativa,
+        caja_activa=caja_activa,
+        bloqueo_caja_anterior=bloqueo_caja_anterior,
+        puede_abrir_caja=puede_abrir,
+        puede_cerrar_caja=puede_cerrar,
+        url_abrir_caja=url_for('abrir_caja'),
+        url_caja_prototipo=url_for('caja_prototipo'),
     )
 
 
@@ -20746,17 +20891,17 @@ def procesar_cobro_caja(id):
     tipo_doc = request.form.get('tipo_documento', 'Boleta')
     if venta.estado == 'Anulada':
         flash(f"El vale #{venta.id} est├í anulado y no puede cobrarse.", "warning")
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
     if venta.estado == 'Abierta':
         if not caja_activa or (venta.caja_id and venta.caja_id != caja_activa.id):
             flash("Este borrador no corresponde a la caja abierta; no se puede cobrar desde aqu├¡.", "warning")
-            return redirect(url_for('caja_pendientes'))
+            return _redirect_tras_cobro_caja()
     elif venta.estado != 'Pendiente':
         flash(f"El documento #{venta.id} no est├í en cola de cobro.", "warning")
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
     if venta.metodo_pago is not None:
         flash(f"El vale #{venta.id} ya fue procesado anteriormente.", "info")
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
     faltantes_stock = _venta_validar_stock_tienda(venta)
     if faltantes_stock:
         flash(
@@ -20764,17 +20909,17 @@ def procesar_cobro_caja(id):
             + "; ".join(faltantes_stock[:3]),
             "warning",
         )
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
 
     try:
         monto_recibido = float(request.form.get('monto_recibido') or 0)
         usar_saldo_favor = float(request.form.get('usar_saldo_favor') or 0)
     except (TypeError, ValueError):
         flash("Monto recibido inv├ílido.", "warning")
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
     if monto_recibido < 0 or usar_saldo_favor < 0:
         flash("Los montos no pueden ser negativos.", "warning")
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
     saldo_cliente_actual = _saldo_favor_actual(venta.cliente_id) if venta.cliente_id else 0.0
     saldo_favor_usado = min(float(usar_saldo_favor or 0), saldo_cliente_actual, float(venta.monto_total or 0))
     total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
@@ -20804,14 +20949,14 @@ def procesar_cobro_caja(id):
             stock_validar_invariante_venta(venta)
         except ValueError as inv_e:
             flash(str(inv_e), 'danger')
-            return redirect(url_for('caja_pendientes'))
+            return _redirect_tras_cobro_caja()
 
         # Validaciones de pago fuera del savepoint (evita rollback/redirect dentro de transaccion_critica).
         if metodo != "Credito":
             if saldo_favor_usado > 0:
                 if not venta.cliente_id:
                     flash("Para usar saldo a favor el vale debe tener cliente identificado.", "warning")
-                    return redirect(url_for('caja_pendientes'))
+                    return _redirect_tras_cobro_caja()
                 saldo_cliente_actual = _saldo_favor_actual(venta.cliente_id)
                 saldo_favor_usado = min(saldo_favor_usado, saldo_cliente_actual, float(venta.monto_total or 0))
                 total_a_pagar = max(0.0, float(venta.monto_total or 0) - saldo_favor_usado)
@@ -20820,7 +20965,7 @@ def procesar_cobro_caja(id):
                     "El monto recibido no puede ser menor al total pendiente despu├®s de saldo a favor.",
                     "warning",
                 )
-                return redirect(url_for('caja_pendientes'))
+                return _redirect_tras_cobro_caja()
 
         estado_antes_cobro = venta.estado
         usr_cobro = (current_user.nombre or '')[:120] if current_user.is_authenticated else None
@@ -20973,7 +21118,7 @@ def procesar_cobro_caja(id):
                     }
                 )
             flash(msg_cred, "success")
-            return redirect(url_for('caja_pendientes', ultima_venta=venta.id))
+            return _redirect_tras_cobro_caja(ultima_venta=venta.id)
         else:
             msg_fin = f"┬íVenta #{venta.id} finalizada! Vuelto: ${venta.vuelto:,.0f}"
             if metodo == 'Transferencia':
@@ -21005,14 +21150,15 @@ def procesar_cobro_caja(id):
             flash(msg_fin, "success")
             if metodo == 'Transferencia':
                 return redirect(url_for('caja_transferencias', destacado=venta.id))
-            return redirect(
-                url_for(
-                    'ver_ticket_cobro',
-                    id=venta.id,
-                    vuelto=f"{float(venta.vuelto or 0):.2f}",
-                    auto_print='1',
-                )
-            )
+            ticket_kw = {
+                'id': venta.id,
+                'vuelto': f"{float(venta.vuelto or 0):.2f}",
+                'auto_print': '1',
+                'chain_retiro': '1',
+            }
+            if (request.form.get('return_to') or '').strip().lower() == 'prototipo':
+                ticket_kw['return_to'] = 'prototipo'
+            return redirect(url_for('ver_ticket_cobro', **ticket_kw))
 
     except Exception as e:  # <--- Ahora este except s├¡ tiene su try
         from core.domain.venta.exceptions import VentaDomainError
@@ -21022,12 +21168,12 @@ def procesar_cobro_caja(id):
             if _cobro_respuesta_json_solicitada():
                 return jsonify({'exito': False, 'error': str(e)}), 400
             flash(str(e), 'warning')
-            return redirect(url_for('caja_pendientes'))
+            return _redirect_tras_cobro_caja()
         app.logger.exception('procesar_cobro_caja FALLO vale #%s: %s', id, e)
         if _cobro_respuesta_json_solicitada():
             return jsonify({'exito': False, 'error': str(e)}), 500
         flash(f"Error cr├¡tico al procesar pago: {str(e)}", "danger")
-        return redirect(url_for('caja_pendientes'))
+        return _redirect_tras_cobro_caja()
 
 
 def ver_ticket_cobro(id):
@@ -21036,15 +21182,309 @@ def ver_ticket_cobro(id):
         .get_or_404(id)
     )
     if venta.estado != 'Pagado':
-        flash("El vale de retiro solo está disponible para ventas pagadas.", "warning")
+        flash("El comprobante de control solo está disponible para ventas pagadas.", "warning")
         return redirect(url_for('caja_pendientes'))
+    retiro_url = url_for('ver_ticket_retiro', id=venta.id, auto_print='1')
+    if (request.args.get('return_to') or '').strip().lower() == 'prototipo':
+        retiro_url = url_for('ver_ticket_retiro', id=venta.id, auto_print='1', return_to='prototipo')
     return render_template(
         'ticket_cobro.html',
         venta=venta,
         detalles=venta.detalles or [],
+        empresa_cfg=obtener_config_empresa(),
         cajero_nombre=(current_user.nombre or '').strip() if current_user.is_authenticated else '',
         auto_print=(request.args.get('auto_print') == '1'),
+        chain_retiro=(request.args.get('chain_retiro') == '1'),
+        retiro_ticket_url=retiro_url,
         vuelto=float((request.args.get('vuelto') or venta.vuelto or 0)),
+    )
+
+
+def _ticket_retiro_slices_para_venta(venta):
+    from services.despacho_qr_service import url_despacho_qr_corta
+    from services.ticket_retiro_service import build_slices_retiro_ticket
+
+    return build_slices_retiro_ticket(
+        venta,
+        agrupar_fn=_ticket_agrupar_detalles_por_retiro,
+        usar_bloques_fn=_ticket_usar_bloques_por_retiro,
+        token_create_fn=pos_despacho_vale_token_create,
+        url_qr_fn=url_despacho_qr_corta,
+        qr_png_fn=lambda u: _qr_data_uri_png(u, box_size=4, border=1),
+    )
+
+
+def ver_ticket_retiro(id):
+    """Ticket QR para el cliente (post-cobro). Mixto → una hoja por canal."""
+    venta = (
+        Venta.query.options(
+            joinedload(Venta.cliente),
+            joinedload(Venta.detalles).joinedload(DetalleVenta.producto),
+        )
+        .get_or_404(id)
+    )
+    if venta.estado != 'Pagado':
+        flash('El ticket QR de retiro solo se imprime después del cobro en caja.', 'warning')
+        return redirect(url_for('caja_pendientes'))
+    slices = _ticket_retiro_slices_para_venta(venta)
+    if not slices:
+        flash('No hay productos para generar ticket de retiro.', 'warning')
+        return redirect(url_for('caja_pendientes'))
+    return render_template(
+        'ticket_retiro_qr.html',
+        venta=venta,
+        slices=slices,
+        empresa_cfg=obtener_config_empresa(),
+        cajero_nombre=(current_user.nombre or '').strip() if current_user.is_authenticated else '',
+        auto_print=(request.args.get('auto_print') == '1'),
+        return_to=(request.args.get('return_to') or '').strip().lower(),
+    )
+
+
+def _pos_retiros_canales_usuario():
+    """Canales (tienda, bodega) que el usuario logueado puede entregar en /pos/retiros.
+
+    Admin ve ambos; vendedor/cajera solo tienda; bodeguero solo bodega.
+    """
+    if usuario_tiene_permiso('gestionar_usuarios'):
+        return True, True
+    ver_tienda = usuario_tiene_permiso('pos_emitir_vale') or usuario_tiene_permiso('caja_cobrar_vale')
+    ver_bodega = usuario_tiene_permiso('bodega_operador')
+    return ver_tienda, ver_bodega
+
+
+def _build_pos_retiros_cola(limit=80):
+    """Vales pagados con entrega pendiente (cola retiros POS), filtrada por canal del usuario."""
+    _asegurar_columnas_entrega_ticket()
+    from services.entrega_ticket_service import lineas_entrega_para_vale, venta_entrega_resumen
+
+    ver_tienda, ver_bodega = _pos_retiros_canales_usuario()
+    q = (
+        Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles))
+        .filter(Venta.estado == 'Pagado')
+        .filter(
+            db.or_(
+                Venta.entrega_ticket_estado.is_(None),
+                Venta.entrega_ticket_estado != 'CERRADO',
+            )
+        )
+        .order_by(Venta.fecha.desc())
+        .limit(int(limit))
+    )
+    filas = []
+    for v in q.all():
+        lineas = lineas_entrega_para_vale(
+            v,
+            retiro_por_linea=_pos_retiro_por_linea_empresa(),
+            ver_tienda=ver_tienda,
+            ver_bodega=ver_bodega,
+        )
+        res = venta_entrega_resumen(lineas)
+        # Ocultar vales sin líneas del canal del usuario (p. ej. solo-bodega al vendedor)
+        # y los ya completos para su canal.
+        if res.get('completa'):
+            continue
+        if not lineas:
+            continue
+        from services.transferencia_caja_service import es_transferencia_pendiente_confirmacion
+
+        pend_tienda = sum(
+            1 for ln in lineas
+            if int(ln.get('pendiente') or 0) > 0 and (ln.get('canal') or '').strip().lower() != 'bodega'
+        )
+        pend_bodega = sum(
+            1 for ln in lineas
+            if int(ln.get('pendiente') or 0) > 0 and (ln.get('canal') or '').strip().lower() == 'bodega'
+        )
+        canales = []
+        if pend_tienda:
+            canales.append('Tienda')
+        if pend_bodega:
+            canales.append('Bodega')
+        filas.append(
+            {
+                'venta': v,
+                'id': v.id,
+                'folio': f'VL{int(v.id):06d}',
+                'cliente': (v.cliente.nombre if v.cliente else '—'),
+                'hora': v.fecha.strftime('%H:%M') if v.fecha else '—',
+                'fecha': v.fecha.strftime('%d/%m/%Y') if v.fecha else '—',
+                'monto': float(v.monto_total or 0),
+                'estado_entrega': (getattr(v, 'entrega_ticket_estado', None) or 'PENDIENTE').strip(),
+                'transferencia_pendiente': es_transferencia_pendiente_confirmacion(v),
+                'lineas_pendientes': res.get('lineas_pendientes') or 0,
+                'pend_tienda': pend_tienda,
+                'pend_bodega': pend_bodega,
+                'es_mixto': bool(pend_tienda and pend_bodega),
+                'canales': canales,
+            }
+        )
+    return filas
+
+
+def pos_retiros():
+    """Cola de entregas post-cobro — pantalla operativa vendedora."""
+    filas = _build_pos_retiros_cola()
+    return render_template(
+        'pos_retiros.html',
+        cola_retiros=filas,
+        url_punto_venta=url_for('punto_venta'),
+        empresa_cfg=obtener_config_empresa(),
+    )
+
+
+def _puntaje_sugerencia_retiros(q_raw: str, row: dict) -> int:
+    """Ranking simple para buscador inteligente (folio, id, cliente)."""
+    q = (q_raw or '').strip()
+    if not q:
+        return 0
+    q_lower = q.lower()
+    q_digits = re.sub(r'\D', '', q)
+    vid = None
+    try:
+        from services.entrega_ticket_service import parse_folio_vale
+
+        vid = parse_folio_vale(q)
+    except Exception:
+        vid = None
+
+    rid = int(row.get('id') or 0)
+    folio = (row.get('folio') or f'VL{rid:06d}').lower()
+    cliente = (row.get('cliente') or '').lower()
+
+    if vid and rid == int(vid):
+        return 100
+    if q_lower == folio or q_lower == f'vl{rid}':
+        return 95
+    if q_digits and str(rid) == q_digits:
+        return 90
+    if q_digits and folio.replace('vl', '').startswith(q_digits):
+        return 85
+    if q_lower in cliente:
+        return 75
+    tokens = [t for t in re.split(r'\s+', q_lower) if len(t) >= 2]
+    if tokens and all(t in cliente for t in tokens):
+        return 65
+    if q_digits and str(rid).startswith(q_digits):
+        return 55
+    return 0
+
+
+def api_pos_retiros_sugerencias():
+    """JSON: sugerencias typeahead para cola de retiros (cliente, folio, id)."""
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 2:
+        return jsonify(ok=True, sugerencias=[])
+
+    filas = _build_pos_retiros_cola(limit=120)
+    out = []
+    for row in filas:
+        score = _puntaje_sugerencia_retiros(q, row)
+        if score <= 0:
+            continue
+        out.append(
+            {
+                'venta_id': row['id'],
+                'folio': row.get('folio') or f"VL{int(row['id']):06d}",
+                'cliente': row.get('cliente') or '—',
+                'hora': row.get('hora') or '—',
+                'fecha': row.get('fecha') or '—',
+                'monto': float(row.get('monto') or 0),
+                'lineas_pendientes': int(row.get('lineas_pendientes') or 0),
+                'transferencia_pendiente': bool(row.get('transferencia_pendiente')),
+                'estado_entrega': row.get('estado_entrega') or 'PENDIENTE',
+                'score': score,
+            }
+        )
+    out.sort(key=lambda x: (-int(x['score']), -int(x['venta_id'])))
+    return jsonify(ok=True, sugerencias=out[:15], total=len(out))
+
+
+def api_pos_retiros_buscar():
+    """JSON: lookup vale por escaneo (VL, QR path o folio)."""
+    from services.despacho_qr_service import resolver_url_despacho_desde_escaneo
+    from services.entrega_ticket_service import lineas_entrega_para_vale, parse_folio_vale, venta_entrega_resumen
+
+    raw = (request.args.get('q') or '').strip()
+    if not raw and request.is_json:
+        data = request.get_json(silent=True) or {}
+        raw = (data.get('q') or '').strip()
+    if not raw:
+        return jsonify(ok=False, mensaje='Ingrese código de barras o QR.'), 400
+
+    vid = None
+    dest = resolver_url_despacho_desde_escaneo(raw)
+    if dest:
+        m = re.search(r'/r/despacho/(\d+)/', dest)
+        if m:
+            vid = int(m.group(1))
+    if vid is None:
+        vid = parse_folio_vale(raw)
+
+    if not vid:
+        return jsonify(ok=False, mensaje='No se reconoció el ticket. Use VL###### o el QR de retiro.'), 404
+
+    venta = (
+        Venta.query.options(joinedload(Venta.cliente), joinedload(Venta.detalles))
+        .filter_by(id=int(vid))
+        .first()
+    )
+    if not venta:
+        return jsonify(ok=False, mensaje=f'Vale #{vid} no encontrado.'), 404
+
+    st = (venta.estado or '').strip()
+    ver_tienda, ver_bodega = _pos_retiros_canales_usuario()
+    lineas = lineas_entrega_para_vale(
+        venta,
+        retiro_por_linea=_pos_retiro_por_linea_empresa(),
+        ver_tienda=ver_tienda,
+        ver_bodega=ver_bodega,
+    )
+    res = venta_entrega_resumen(lineas)
+    # Todas las líneas (cualquier canal) para detectar mercadería en un canal que el usuario no atiende.
+    lineas_all = lineas_entrega_para_vale(
+        venta,
+        retiro_por_linea=_pos_retiro_por_linea_empresa(),
+        ver_tienda=True,
+        ver_bodega=True,
+    )
+    res_all = venta_entrega_resumen(lineas_all)
+    pend_otro_canal = (res_all.get('lineas_pendientes') or 0) - (res.get('lineas_pendientes') or 0)
+    from services.transferencia_caja_service import es_transferencia_pendiente_confirmacion
+
+    tp = es_transferencia_pendiente_confirmacion(venta)
+    puede_entregar = st == 'Pagado' and not res.get('completa') and bool(lineas) and not tp
+    solo_otro_canal = st == 'Pagado' and not tp and not lineas and pend_otro_canal > 0
+
+    if st == 'Pendiente':
+        mensaje = 'Pendiente de cobro en caja.'
+    elif tp:
+        mensaje = 'Transferencia sin confirmar en caja.'
+    elif solo_otro_canal:
+        mensaje = 'Este vale se retira en bodega. Diríjase a bodega para la entrega.'
+    elif res.get('completa'):
+        mensaje = 'Ya entregado por completo (su canal).'
+    elif st == 'Pagado':
+        mensaje = 'Listo para entregar.'
+    else:
+        mensaje = f'Estado: {st}'
+
+    return jsonify(
+        ok=True,
+        venta_id=venta.id,
+        estado_venta=st,
+        estado_entrega=(getattr(venta, 'entrega_ticket_estado', None) or ('PENDIENTE' if st == 'Pagado' else '—')),
+        pagado=(st == 'Pagado'),
+        entrega_completa=bool(res.get('completa')),
+        transferencia_pendiente=tp,
+        puede_entregar=puede_entregar,
+        solo_otro_canal=solo_otro_canal,
+        pend_otro_canal=int(max(0, pend_otro_canal)),
+        cliente=(venta.cliente.nombre if venta.cliente else ''),
+        monto=float(venta.monto_total or 0),
+        lineas_pendientes=res.get('lineas_pendientes') or 0,
+        lineas=lineas,
+        mensaje=mensaje,
     )
 
 def _buscar_productos_json(
@@ -21392,6 +21832,9 @@ def abrir_caja():
     caja_activa = obtener_caja_activa()
     if caja_activa:
         flash(f"Ya existe una caja abierta (N°{caja_activa.id}). Debe cerrarla antes de abrir otra.", "info")
+        nxt = (request.args.get('next') or request.form.get('next') or '').strip()
+        if nxt.startswith('/') and not nxt.startswith('//'):
+            return redirect(nxt)
         return redirect(_pos_url_destino())
 
     if request.method == 'POST':
@@ -21548,10 +21991,14 @@ def limpiar_cola_cierre_caja():
     def _redir_tras_limpiar():
         if return_to == 'pendientes':
             return redirect(url_for('caja_pendientes'))
+        if return_to == 'prototipo':
+            return redirect(url_for('caja_prototipo'))
+        if return_to == 'cerrar':
+            return redirect(url_for('cerrar_caja'))
         return redirect(url_for('cerrar_caja'))
 
-    if not usuario_tiene_permiso('gestionar_usuarios'):
-        flash('Solo administración puede limpiar la cola de cierre.', 'danger')
+    if not _usuario_puede_limpiar_cola_cierre():
+        flash('No tiene permiso para limpiar la cola de cierre (requiere anular vale o administración).', 'danger')
         return _redir_tras_limpiar() if request.method == 'POST' else redirect(url_for('cerrar_caja'))
 
     caja = obtener_caja_activa()
@@ -21681,8 +22128,25 @@ def _venta_cuenta_en_cuadre_caja(venta):
     return (getattr(venta, 'estado', None) or '').strip() == 'Pagado'
 
 
+def _filtro_venta_metodo_pago_sin_asignar():
+    """Pendiente sin cobrar: NULL o cadena vacía (legacy)."""
+    return or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == '')
+
+
+def _venta_es_borrador_pos_vacio(venta):
+    """Borrador POS Abierta sin total cobrable — no debe bloquear cierre."""
+    if (getattr(venta, 'estado', None) or '').strip() != 'Abierta':
+        return False
+    try:
+        if _venta_count_detalles(venta.id) <= 0:
+            return True
+    except Exception:
+        pass
+    return float(_monto_cobro_venta_ui(venta) or 0) <= 0
+
+
 def _documentos_bloquean_cierre_caja(caja):
-    """Vales pendientes sin método de pago y ventas POS en estado Abierta de esta caja (bloquean cerrar_caja)."""
+    """Vales pendientes sin método de pago y borradores POS Abierta de esta caja (bloquean cerrar_caja)."""
     if not caja:
         return [], []
     vales = (
@@ -21690,7 +22154,7 @@ def _documentos_bloquean_cierre_caja(caja):
         .filter(
             Venta.caja_id == caja.id,
             Venta.estado == "Pendiente",
-            or_(Venta.metodo_pago.is_(None), Venta.metodo_pago == ""),
+            _filtro_venta_metodo_pago_sin_asignar(),
         )
         .order_by(Venta.fecha.asc(), Venta.id.asc())
         .all()
@@ -21704,7 +22168,36 @@ def _documentos_bloquean_cierre_caja(caja):
         .order_by(Venta.fecha.asc(), Venta.id.asc())
         .all()
     )
+    tickets = [t for t in tickets if not _venta_es_borrador_pos_vacio(t)]
     return vales, tickets
+
+
+def _build_bloqueo_cierre_filas(caja, cola_combined=None):
+    """
+    Lista enriquecida de documentos que bloquean cierre de esta caja.
+    `en_cola`: True si ya aparece en la cola de cobro visible.
+    """
+    vales, tickets = _documentos_bloquean_cierre_caja(caja)
+    cola_ids = {v.id for v in (cola_combined or [])}
+    filas = []
+    for v in list(vales) + list(tickets):
+        st = (v.estado or '').strip()
+        filas.append({
+            'venta': v,
+            'id': v.id,
+            'tipo': 'borrador' if st == 'Abierta' else 'vale',
+            'tipo_label': 'Borrador POS' if st == 'Abierta' else 'Vale pendiente',
+            'estado': st,
+            'monto': float(_monto_cobro_venta_ui(v) or 0),
+            'hora': v.fecha.strftime('%H:%M') if v.fecha else '—',
+            'en_cola': v.id in cola_ids,
+        })
+    fuera_cola = [f for f in filas if not f['en_cola']]
+    return filas, fuera_cola
+
+
+def _usuario_puede_limpiar_cola_cierre():
+    return usuario_tiene_permiso('gestionar_usuarios') or usuario_tiene_permiso('anular_vale_caja')
 
 
 def _calcular_contexto_turno_caja(caja, *, fin_turno=None):
@@ -21823,6 +22316,10 @@ def cerrar_caja():
         return _redirigir_home_erp()
 
     vales_pendientes_cierre, tickets_abiertos_cierre = _documentos_bloquean_cierre_caja(caja)
+    ctx_cola = _build_caja_pendientes_context()
+    bloqueo_cierre_filas, bloqueo_cierre_fuera_cola = _build_bloqueo_cierre_filas(
+        caja, ctx_cola.get('cola_combined')
+    )
 
     from services.cierre_caja_config_service import es_cierre_a_ciegas, obtener_modo_cierre_caja
 
@@ -21834,6 +22331,10 @@ def cerrar_caja():
             caja=caja,
             vales_pendientes_cierre=vales_pendientes_cierre,
             tickets_abiertos_cierre=tickets_abiertos_cierre,
+            bloqueo_cierre_filas=bloqueo_cierre_filas,
+            bloqueo_cierre_fuera_cola=bloqueo_cierre_fuera_cola,
+            puede_limpiar_cola_cierre=_usuario_puede_limpiar_cola_cierre(),
+            url_caja_prototipo=url_for('caja_prototipo'),
             punto_venta_label=f'Caja #{caja.id}',
             umbral_diferencia=int(round(float((os.getenv('CIERRE_DIFERENCIA_UMBRAL') or '2000').strip() or '2000'))),
             modo_cierre=modo_cierre,
@@ -22526,9 +23027,7 @@ def _home_por_perfil(usuario):
             return url_for('abrir_caja', next=_pos_url_destino(usuario))
         return _pos_url_destino(usuario)
     if _hub_usuario_tiene_permiso(usuario, 'caja_cobrar_vale', 'caja_abrir'):
-        if not obtener_caja_activa() and _hub_usuario_tiene_permiso(usuario, 'caja_abrir'):
-            return url_for('abrir_caja')
-        return url_for('caja_pendientes')
+        return url_for('caja_prototipo')
     return url_for('erp_hub')
 
 
@@ -23606,7 +24105,7 @@ def c360_oferta_publica_pdf(token):
         cot_totales=_presentacion_totales_cotizacion(cot),
         subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
         cot_lineas=cot_lineas,
-        cot_paginas=_paginas_pdf_cotizacion(cot_lineas),
+        cot_paginas=_paginas_pdf_cotizacion(cot_lineas, lineas_p1=16, lineas_sig=28),
     )
 
 
@@ -25805,6 +26304,55 @@ def orden_compra_editar(oid):
         estados=_OC_ESTADOS_VALIDOS,
         total_estimado=total_estimado,
         hoy=datetime.now().strftime('%Y-%m-%d'),
+    )
+
+
+@app.route('/compras/ordenes/<int:oid>/pdf')
+@login_required
+def orden_compra_pdf(oid):
+    """Renderiza la orden de compra en HTML imprimible (mismo flujo que cotización PDF)."""
+    if not _tablas_orden_compra_existen():
+        flash('Ejecute la migración sql/2026_05_03_ordenes_compra.sql', 'warning')
+        return redirect(url_for('inicio'))
+    from services.orden_compra_pdf_service import (
+        lineas_presentacion_oc,
+        paginas_pdf_lineas,
+        presentacion_totales_oc,
+    )
+
+    oc = (
+        OrdenCompra.query.options(
+            joinedload(OrdenCompra.proveedor),
+            joinedload(OrdenCompra.detalles).joinedload(DetalleOrdenCompra.producto),
+        ).get_or_404(oid)
+    )
+    try:
+        db.session.expire(oc)
+        db.session.refresh(oc)
+    except Exception:
+        pass
+    empresa = obtener_config_empresa()
+
+    logo_b64 = None
+    try:
+        logo_path = os.path.join(app.root_path, 'static', 'img', 'cliente-logo-light.png')
+        if os.path.isfile(logo_path):
+            with open(logo_path, 'rb') as fimg:
+                logo_b64 = base64.b64encode(fimg.read()).decode()
+    except Exception:
+        logo_b64 = None
+
+    auto_print = (request.args.get('auto') or '1') == '1'
+    oc_lineas = lineas_presentacion_oc(oc)
+    return render_template(
+        'orden_compra_pdf.html',
+        orden_compra=oc,
+        empresa=empresa,
+        logo_cliente_b64=logo_b64,
+        auto_print=auto_print,
+        oc_totales=presentacion_totales_oc(oc),
+        oc_lineas=oc_lineas,
+        oc_paginas=paginas_pdf_lineas(oc_lineas, lineas_p1=16, lineas_sig=28),
     )
 
 
@@ -30349,7 +30897,7 @@ def cotizacion_pdf(cot_id):
         cot_totales=_presentacion_totales_cotizacion(cot),
         subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
         cot_lineas=cot_lineas,
-        cot_paginas=_paginas_pdf_cotizacion(cot_lineas),
+        cot_paginas=_paginas_pdf_cotizacion(cot_lineas, lineas_p1=16, lineas_sig=28),
     )
 
 
@@ -30370,12 +30918,64 @@ def cotizacion_whatsapp(cot_id):
     return redirect(url)
 
 
+def _cotizacion_payload_legacy_desde_cot(cot):
+    """Payload mínimo para POST form legacy (todas las líneas con SKU, sin a pedido)."""
+    lineas = []
+    for d in cot.detalles or []:
+        if not d.producto_id:
+            continue
+        lineas.append({
+            'detalle_id': d.id,
+            'accion': 'incluir',
+            'cantidad': float(d.cantidad or 1),
+            'precio_unitario': float(d.precio_unitario or 0),
+            'descuento': float(d.descuento or 0),
+            'a_pedido': False,
+        })
+    return {
+        'modo': 'pos',
+        'modo_proyecto': False,
+        'confirmacion_cliente': True,
+        'lineas': lineas,
+    }
+
+
+@app.route('/api/cotizaciones/<int:cot_id>/conversion-preview')
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_api_conversion_preview(cot_id):
+    from services.cotizacion_venta_service import preview_conversion
+
+    data = preview_conversion(cot_id)
+    if not data.get('ok'):
+        return jsonify(data), 400 if data.get('error') else 404
+    return jsonify(data)
+
+
+@app.route('/api/cotizaciones/<int:cot_id>/convertir', methods=['POST'])
+@login_required
+@permisos_required('pos_emitir_vale')
+def cotizacion_api_convertir(cot_id):
+    from services.cotizacion_venta_service import convertir_cotizacion_a_venta
+
+    caja = obtener_caja_activa()
+    if not caja:
+        return jsonify(ok=False, error='No hay caja abierta.'), 400
+    payload = request.get_json(silent=True) or {}
+    vendedor = _nombre_usuario_pos_actual()
+    result = convertir_cotizacion_a_venta(cot_id, payload, caja=caja, vendedor=vendedor)
+    if not result.get('ok'):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
 @app.route('/cotizaciones/<int:cot_id>/convertir', methods=['POST'])
 @login_required
 @permisos_required('pos_emitir_vale')
 def cotizacion_convertir_venta(cot_id):
-    """Convierte una cotizacion en una venta abierta (vale en POS)."""
-    from datetime import datetime
+    """Convierte cotización en venta abierta (legacy form → asistente servicio)."""
+    from services.cotizacion_venta_service import convertir_cotizacion_a_venta
+
     cot = Cotizacion.query.get_or_404(cot_id)
     if cot.estado == 'Convertida' and cot.venta_id:
         flash(f"Esta cotizacion ya fue convertida en la venta #{cot.venta_id}.", "info")
@@ -30386,112 +30986,31 @@ def cotizacion_convertir_venta(cot_id):
         flash("No hay caja abierta. Abre la caja antes de convertir la cotizacion.", "warning")
         return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
 
-    # Resolver cliente maestro desde la cotizacion. Si la cotizacion tiene snapshot
-    # de cliente pero no cliente_id, lo enlazamos/creamos para que el POS cargue
-    # automaticamente los datos del vale.
-    cliente_origen = Cliente.query.get(cot.cliente_id) if cot.cliente_id else None
-    if not cliente_origen and cot.cliente_rut:
-        variantes = _rut_variantes_busqueda(cot.cliente_rut)
-        cliente_origen = Cliente.query.filter(Cliente.rut.in_(variantes)).first()
-        if not cliente_origen and cot.cliente_nombre:
-            rut_norm = _rut_sin_formato(cot.cliente_rut)
-            cliente_origen = Cliente(
-                rut=(cot.cliente_rut or rut_norm)[:12],
-                nombre=(cot.cliente_nombre or rut_norm)[:100],
-                giro=(cot.cliente_giro or None) and cot.cliente_giro[:100],
-                direccion=(cot.cliente_direccion or None) and cot.cliente_direccion[:200],
-                telefono=(cot.cliente_telefono or None) and cot.cliente_telefono[:20],
-                correo=(cot.cliente_correo or None) and cot.cliente_correo[:100],
-                comuna=(cot.cliente_comuna or None) and cot.cliente_comuna[:80],
-                ciudad=(cot.cliente_ciudad or None) and cot.cliente_ciudad[:80],
-                saldo_deudor=0.0,
-                limite_credito=0.0,
-                estado_credito='Activo',
-            )
-            db.session.add(cliente_origen)
-            db.session.flush()
-        if cliente_origen:
-            cot.cliente_id = cliente_origen.id
+    payload = _cotizacion_payload_legacy_desde_cot(cot)
+    if not payload['lineas']:
+        flash(
+            "La cotización no tiene líneas con producto vinculado. Use el asistente o edite la cotización.",
+            "warning",
+        )
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
 
-    if cliente_origen:
-        # Completar campos faltantes del maestro con el snapshot de la cotizacion.
-        if not cliente_origen.giro and cot.cliente_giro:
-            cliente_origen.giro = cot.cliente_giro[:100]
-        if not cliente_origen.direccion and cot.cliente_direccion:
-            cliente_origen.direccion = cot.cliente_direccion[:200]
-        if not cliente_origen.telefono and cot.cliente_telefono:
-            cliente_origen.telefono = cot.cliente_telefono[:20]
-        if not cliente_origen.correo and cot.cliente_correo:
-            cliente_origen.correo = cot.cliente_correo[:100]
-        if not cliente_origen.comuna and cot.cliente_comuna:
-            cliente_origen.comuna = cot.cliente_comuna[:80]
-        if not cliente_origen.ciudad and cot.cliente_ciudad:
-            cliente_origen.ciudad = cot.cliente_ciudad[:80]
-
-    vendedor_actual = _nombre_usuario_pos_actual()
-    venta = Venta(
-        usuario=vendedor_actual,
-        estado="Abierta",
-        monto_total=0,
-        caja_id=caja.id,
-        fecha=db.func.current_timestamp(),
+    result = convertir_cotizacion_a_venta(
+        cot_id,
+        payload,
+        caja=caja,
+        vendedor=_nombre_usuario_pos_actual(),
     )
-    if cliente_origen:
-        venta.cliente_id = cliente_origen.id
-    venta.cotizacion_origen_id = cot.id
-    db.session.add(venta)
-    db.session.flush()
+    if not result.get('ok'):
+        errs = result.get('errors') or [result.get('error') or 'No se pudo convertir.']
+        flash(errs[0], "warning")
+        return redirect(url_for('cotizacion_detalle', cot_id=cot.id))
 
-    productos_no_encontrados = []
-    faltantes_stock = []
-    for d in cot.detalles:
-        if not d.producto_id:
-            productos_no_encontrados.append(d.nombre)
-            continue
-        prod = Producto.query.get(d.producto_id)
-        if prod:
-            consumo = int(round((d.cantidad or 0) * _factor_venta_a_stock(prod))) or 1
-            disp = stock_disponible_venta_tienda(prod)
-            if disp < consumo:
-                faltantes_stock.append(f"{prod.nombre} (hay {disp}, requiere {consumo})")
-        det = DetalleVenta(
-            id_venta=venta.id,
-            id_producto=d.producto_id,
-            cantidad=int(round(d.cantidad or 0)) or 1,
-            precio_unitario=float(d.precio_unitario or 0),
-            descuento=float(d.descuento or 0),
-            subtotal=float(d.subtotal or 0),
-        )
-        db.session.add(det)
-
-    venta.recalcular_total() if hasattr(venta, 'recalcular_total') else None
-    cot.estado = 'Convertida'
-    cot.venta_id = venta.id
-    cot.fecha_estado = datetime.utcnow()
-    try:
-        if _asegurar_tabla_c360_proactiva_ofertas():
-            off = C360ProactivaOferta.query.filter_by(cotizacion_id=cot.id).first()
-            if off:
-                off.venta_id = venta.id
-                off.convertida_at = datetime.utcnow()
-    except Exception:
-        app.logger.exception('C360: marca conversion oferta proactiva cot_id=%s', cot.id)
-    db.session.commit()
-
-    if productos_no_encontrados:
-        flash(
-            f"Cotizacion convertida en venta. Productos sin SKU vinculado (revisar manualmente): {', '.join(productos_no_encontrados[:5])}",
-            "warning",
-        )
-    elif faltantes_stock:
-        flash(
-            "Cotizacion convertida, pero no se puede emitir el vale hasta resolver stock: "
-            + "; ".join(faltantes_stock[:3]),
-            "warning",
-        )
-    else:
-        flash(f"Cotizacion {cot.numero} convertida en venta abierta. Continua en el POS.", "success")
-    return redirect(url_for('punto_venta'))
+    flash(
+        f"Cotización {result.get('cotizacion_numero') or cot.numero} lista en POS. "
+        "Pulse F8 para imprimir el ticket de pago.",
+        "success",
+    )
+    return redirect(result.get('redirect') or url_for('punto_venta', cot_emitir_guia=1))
 
 
 @app.route('/api/cotizaciones/buscar_productos')

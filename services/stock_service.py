@@ -292,6 +292,28 @@ def stock_disponible_bodega(producto):
     return int(producto.stock or 0)
 
 
+def stock_almacen_por_producto_ids(ids, id_almacen):
+    """Stock en un almacén para muchos productos (1 query)."""
+    import app as m
+
+    StockPorAlmacen = m.StockPorAlmacen
+    ids = [int(x) for x in ids if x is not None]
+    if not ids or not id_almacen:
+        return {}
+    rows = (
+        m.db.session.query(StockPorAlmacen.id_producto, StockPorAlmacen.cantidad)
+        .filter(
+            StockPorAlmacen.id_almacen == int(id_almacen),
+            StockPorAlmacen.id_producto.in_(ids),
+        )
+        .all()
+    )
+    out = {int(pid): int(cant or 0) for pid, cant in rows}
+    for pid in ids:
+        out.setdefault(int(pid), 0)
+    return out
+
+
 def stock_tienda_por_producto_ids(ids):
     import app as m
 

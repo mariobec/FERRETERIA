@@ -1,0 +1,10 @@
+{# Proveedor compacto — páginas 2+ del PDF OC #}
+{% set prov = orden_compra.proveedor %}
+<div class="oc-proveedor-mini">
+  <span class="oc-proveedor-mini__label">Proveedor</span>
+  <span class="oc-proveedor-mini__nombre">{{ prov.nombre if prov else '—' }}</span>
+  {% if prov and prov.rut %}
+  <span class="oc-proveedor-mini__sep">·</span>
+  <span class="oc-proveedor-mini__rut">RUT {{ prov.rut }}</span>
+  {% endif %}
+</div>

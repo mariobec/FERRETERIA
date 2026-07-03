@@ -1,0 +1,459 @@
+{% extends 'base.html' %}
+{% block body_class %}erp-ops-space page-inventario-stock-valorizado page-inventario-pinturas-stock{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-stock-valorizado.css') }}?v=sv-3">
+<style>
+  /* KPIs e insights pinturas — texto oscuro legible sobre fondos claros */
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-kpi {
+    background: #fff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 12px;
+    padding: 14px 16px;
+    height: 100%;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-kpi--warn {
+    border-color: #fbbf24 !important;
+    background: #fffbeb !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-kpi__lbl {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b !important;
+    font-weight: 700;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-kpi__val {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-kpi__sub {
+    font-size: 0.78rem;
+    color: #475569 !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight {
+    border-radius: 10px;
+    padding: 12px 14px;
+    border: 1px solid #e2e8f0;
+    background: #fff !important;
+    height: 100%;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight--warn {
+    border-color: #fbbf24 !important;
+    background: #fffbeb !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight--tip {
+    border-color: #93c5fd !important;
+    background: #eff6ff !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight--ok {
+    border-color: #86efac !important;
+    background: #f0fdf4 !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight--info {
+    border-color: #cbd5e1 !important;
+    background: #f8fafc !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight__tit {
+    font-weight: 800;
+    font-size: 0.82rem;
+    margin-bottom: 4px;
+    color: #0f172a !important;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight__txt {
+    font-size: 0.82rem;
+    color: #1e293b !important;
+    margin: 0;
+    line-height: 1.45;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-insight__tit .text-warning {
+    color: #d97706 !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-chart-card .card-body {
+    background: #fff !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-chart-wrap {
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px;
+    position: relative;
+    height: 280px;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .ps-chart-card {
+    min-height: 320px;
+  }
+  /* Tablas tablas/detalle sin sv-table-hud */
+  body.erp-ops-space.page-inventario-pinturas-stock .sv-panel-card .table > :not(caption) > * > * {
+    color: #0f172a !important;
+    background-color: #fff !important;
+    border-color: #e2e8f0 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    font-size: 0.86rem !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .sv-panel-card .table thead th,
+  body.erp-ops-space.page-inventario-pinturas-stock .sv-panel-card .table thead.table-light th {
+    background: #334155 !important;
+    color: #f8fafc !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.68rem !important;
+    border-color: #1e293b !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .sv-panel-card .table tbody tr:nth-child(even) > * {
+    background-color: #f8fafc !important;
+  }
+  body.erp-ops-space.page-inventario-pinturas-stock .sv-panel-card .table-hover > tbody > tr:hover > * {
+    background-color: #ecfdf5 !important;
+    color: #0f172a !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set tot = informe.totales %}
+{% set meta = informe.meta %}
+{% set charts = informe.charts %}
+<div class="container-fluid px-0 sv-informe">
+  <header class="sv-hdr mb-3">
+    <div class="sv-hdr__main">
+      <div class="sv-hdr__eyebrow">Inventario · pinturas</div>
+      <h1 class="sv-hdr__title"><i class="fas fa-fill-drip me-2"></i>Stock pinturas — informe visual</h1>
+      <p class="sv-hdr__meta mb-0">
+        Vista inteligente por <strong>categoría</strong>, <strong>marca</strong> y <strong>tono/color</strong>.
+        Unidades en <strong>{{ meta.nom_tienda }}</strong> vs <strong>{{ meta.nom_bodega }}</strong>.
+        Generado {{ meta.generado }}.
+      </p>
+    </div>
+    <div class="sv-hdr__actions d-flex flex-wrap gap-2">
+      {# Informe inteligente (Streamlit) oculto: requiere servicio externo en :8501 #}
+      <a href="{{ url_for('mostrar_productos', categoria=filtros.categoria or 'Pinturas', solo_enrolados=1) }}" class="btn btn-sm sv-btn-ghost">Catálogo</a>
+      <a href="{{ url_for('inventario_pinturas_compras_remates') }}" class="btn btn-sm sv-btn-ghost">Compras / remates</a>
+      <a href="{{ url_for('inventario_stock_valorizado', categoria='Pinturas') }}" class="btn btn-sm sv-btn-primary">Stock valorizado</a>
+    </div>
+  </header>
+
+  <div class="card card-ds sv-filter-card mb-3">
+    <div class="card-body py-3">
+      <form method="GET" class="row g-2 align-items-end">
+        <input type="hidden" name="vista" value="{{ vista or 'dashboard' }}">
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-0">Buscar</label>
+          <input type="search" name="q" value="{{ filtros.q or '' }}" class="form-control form-control-sm" placeholder="Nombre o código">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-0">Categoría</label>
+          <select name="categoria" class="form-select form-select-sm">
+            <option value="">Todas pinturas</option>
+            {% for c in informe.categorias_opts or [] %}
+            <option value="{{ c }}" {% if filtros.categoria == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-0">Marca</label>
+          <select name="marca" class="form-select form-select-sm">
+            <option value="">Todas</option>
+            {% for m in informe.marcas_opts or [] %}
+            <option value="{{ m }}" {% if filtros.marca == m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-0">Tono / color</label>
+          <select name="tono_color" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            {% for t in informe.tonos_opts or [] %}
+            <option value="{{ t }}" {% if filtros.tono_color == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-0">Stock</label>
+          <select name="solo_con_stock" class="form-select form-select-sm">
+            <option value="1" {% if filtros.solo_con_stock %}selected{% endif %}>Solo con stock</option>
+            <option value="0" {% if not filtros.solo_con_stock %}selected{% endif %}>Incluir ceros</option>
+          </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+          <button type="submit" class="btn btn-sm sv-btn-primary flex-grow-1">Aplicar</button>
+          <a href="{{ url_for('inventario_pinturas_stock') }}" class="btn btn-sm sv-btn-ghost">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="ps-kpi"><div class="ps-kpi__lbl">Unidades totales</div><div class="ps-kpi__val">{{ meta.fmt_stock }}</div><div class="ps-kpi__sub">{{ tot.skus }} SKU pintura</div></div></div>
+    <div class="col-md-3"><div class="ps-kpi"><div class="ps-kpi__lbl">En tienda</div><div class="ps-kpi__val">{{ "{:,.0f}".format(tot.stock_tienda).replace(",", ".") }}</div><div class="ps-kpi__sub">{{ tot.pct_tienda }}% del total</div></div></div>
+    <div class="col-md-3"><div class="ps-kpi ps-kpi--warn"><div class="ps-kpi__lbl">En bodega</div><div class="ps-kpi__val">{{ "{:,.0f}".format(tot.stock_bodega).replace(",", ".") }}</div><div class="ps-kpi__sub">{{ tot.pct_bodega }}% del total</div></div></div>
+    <div class="col-md-3"><div class="ps-kpi"><div class="ps-kpi__lbl">Mercadería (costo)</div><div class="ps-kpi__val">{{ meta.fmt_mercaderia }}</div><div class="ps-kpi__sub">Capital POS {{ meta.fmt_capital }}</div></div></div>
+  </div>
+
+  {% if informe.insights %}
+  <div class="row g-2 mb-3">
+    {% for ins in informe.insights %}
+    <div class="col-md-4">
+      <div class="ps-insight ps-insight--{{ ins.tipo }}">
+        <div class="ps-insight__tit"><i class="fas fa-lightbulb me-1 text-warning"></i>{{ ins.titulo }}</div>
+        <p class="ps-insight__txt">{{ ins.texto }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <ul class="nav nav-tabs sv-tabs mb-3">
+    {% for tab_id, tab_label in [('dashboard','Gráficos'), ('tablas','Tablas'), ('detalle','Detalle SKU')] %}
+    <li class="nav-item">
+      <a class="nav-link{% if vista == tab_id %} active{% endif %}"
+         href="{{ url_for('inventario_pinturas_stock', vista=tab_id, q=filtros.q or None, categoria=filtros.categoria or None, marca=filtros.marca or None, tono_color=filtros.tono_color or None, solo_con_stock='1' if filtros.solo_con_stock else '0') }}">{{ tab_label }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if vista == 'dashboard' %}
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card ps-chart-card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-chart-pie me-2 text-warning"></i>Stock por categoría (unidades)</div>
+        <div class="card-body"><div class="ps-chart-wrap"><canvas id="chartCatPie"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card ps-chart-card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-chart-bar me-2 text-primary"></i>Mercadería por categoría ($ costo)</div>
+        <div class="card-body"><div class="ps-chart-wrap"><canvas id="chartCatBar"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card ps-chart-card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-chart-bar me-2 text-success"></i>Stock por marca</div>
+        <div class="card-body"><div class="ps-chart-wrap"><canvas id="chartMarcaBar"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card ps-chart-card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-chart-pie me-2 text-danger"></i>Participación por marca</div>
+        <div class="card-body"><div class="ps-chart-wrap"><canvas id="chartMarcaPie"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card ps-chart-card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-palette me-2 text-info"></i>Stock por tono / color</div>
+        <div class="card-body"><div class="ps-chart-wrap"><canvas id="chartTonoPie"></canvas></div></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-ds sv-panel-card ps-chart-card h-100">
+        <div class="card-header fw-bold"><i class="fas fa-warehouse me-2 text-secondary"></i>Tienda vs bodega — top marcas</div>
+        <div class="card-body"><div class="ps-chart-wrap"><canvas id="chartMarcaStack"></canvas></div></div>
+      </div>
+    </div>
+  </div>
+  {% elif vista == 'tablas' %}
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card card-ds sv-panel-card">
+        <div class="card-header fw-bold">Por categoría</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr><th>Categoría</th><th class="text-end">U.</th><th class="text-end">$ costo</th></tr></thead>
+            <tbody>
+              {% for r in informe.por_categoria %}
+              <tr><td>{{ r.categoria }}</td><td class="text-end fw-semibold">{{ "{:,.0f}".format(r.stock_total).replace(",", ".") }}</td><td class="text-end">{{ r.mercaderia_fmt }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-ds sv-panel-card">
+        <div class="card-header fw-bold">Por marca</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr><th>Marca</th><th class="text-end">U.</th><th class="text-end">Tienda</th><th class="text-end">Bodega</th></tr></thead>
+            <tbody>
+              {% for r in informe.por_marca %}
+              <tr><td>{{ r.marca }}</td><td class="text-end fw-semibold">{{ r.stock_total }}</td><td class="text-end">{{ r.stock_tienda }}</td><td class="text-end">{{ r.stock_bodega }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-ds sv-panel-card">
+        <div class="card-header fw-bold">Por tono / color</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light"><tr><th>Tono</th><th class="text-end">U.</th><th class="text-end">SKU</th></tr></thead>
+            <tbody>
+              {% for r in informe.por_tono %}
+              <tr><td>{{ r.tono_color }}</td><td class="text-end fw-semibold">{{ r.stock_total }}</td><td class="text-end">{{ r.skus }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card card-ds sv-panel-card">
+    <div class="card-header fw-bold">Top SKU con stock ({{ informe.detalle|length }} de {{ tot.skus }})</div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Código</th><th>Artículo</th><th>Categoría</th><th>Marca</th><th>Tono</th>
+            <th class="text-end">T</th><th class="text-end">B</th><th class="text-end">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in informe.detalle %}
+          <tr>
+            <td class="small font-monospace">{{ r.codigo }}</td>
+            <td>{{ r.nombre[:55] }}{% if r.nombre|length > 55 %}…{% endif %}</td>
+            <td class="small">{{ r.categoria }}</td>
+            <td class="small">{{ r.marca }}</td>
+            <td class="small">{{ r.tono_color }}</td>
+            <td class="text-end">{{ r.stock_tienda }}</td>
+            <td class="text-end">{{ r.stock_bodega }}</td>
+            <td class="text-end fw-bold">{{ r.stock_total }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if vista == 'dashboard' %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script id="psChartsData" type="application/json">{{ informe.charts | tojson }}</script>
+<script id="psMetaData" type="application/json">{{ {'nom_tienda': informe.meta.nom_tienda, 'nom_bodega': informe.meta.nom_bodega} | tojson }}</script>
+<script>
+(function () {
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.color = '#475569';
+    Chart.defaults.borderColor = '#e2e8f0';
+  }
+  var charts = JSON.parse(document.getElementById('psChartsData').textContent || '{}');
+  var meta = JSON.parse(document.getElementById('psMetaData').textContent || '{}');
+  var fmtN = function (v) { return new Intl.NumberFormat('es-CL').format(v || 0); };
+  var fmtClp = function (v) {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+  };
+
+  /* Ejes y leyendas legibles sobre fondo blanco del panel */
+  var chartText = '#0f172a';
+  var chartMuted = '#475569';
+  var chartGrid = '#e2e8f0';
+  var scaleDefaults = {
+    ticks: { color: chartMuted, font: { size: 11, weight: '500' } },
+    grid: { color: chartGrid, lineWidth: 1 },
+    border: { color: chartGrid }
+  };
+  var legendDefaults = {
+    labels: { color: chartText, boxWidth: 12, font: { size: 11, weight: '600' }, padding: 10 }
+  };
+
+  function pie(id, pack) {
+    var el = document.getElementById(id);
+    if (!el || !pack || !pack.labels) return;
+    new Chart(el, {
+      type: 'pie',
+      data: {
+        labels: pack.labels,
+        datasets: [{ data: pack.values, backgroundColor: pack.colors, borderWidth: 1, borderColor: '#fff' }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: legendDefaults.labels },
+          tooltip: { callbacks: { label: function (ctx) { return ctx.label + ': ' + fmtN(ctx.raw) + ' u'; } } }
+        }
+      }
+    });
+  }
+
+  function bar(id, pack, money) {
+    var el = document.getElementById(id);
+    if (!el || !pack || !pack.labels) return;
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: pack.labels,
+        datasets: [{
+          label: money ? 'Mercadería' : 'Unidades',
+          data: pack.values,
+          backgroundColor: pack.colors,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: pack.labels.length > 8 ? 'y' : 'x',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return money ? fmtClp(ctx.raw) : fmtN(ctx.raw) + ' u';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: chartMuted, font: { size: 10 }, maxRotation: 45 }, grid: { color: chartGrid } },
+          y: { beginAtZero: true, ticks: { color: chartMuted, font: { size: 10 } }, grid: { color: chartGrid } }
+        }
+      }
+    });
+  }
+
+  function stacked(id, pack) {
+    var el = document.getElementById(id);
+    if (!el || !pack || !pack.labels) return;
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: pack.labels,
+        datasets: [
+          { label: meta.nom_tienda || 'Tienda', data: pack.tienda, backgroundColor: '#2563eb', borderRadius: 4 },
+          { label: meta.nom_bodega || 'Bodega', data: pack.bodega, backgroundColor: '#f59e0b', borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+          x: { stacked: true, beginAtZero: true, ...scaleDefaults },
+          y: { stacked: true, ticks: { color: chartText, font: { size: 11, weight: '600' } }, grid: { display: false } }
+        },
+        plugins: { legend: { position: 'bottom', labels: legendDefaults.labels } }
+      }
+    });
+  }
+
+  pie('chartCatPie', charts.categoria_pie);
+  bar('chartCatBar', charts.categoria_bar_merc, true);
+  bar('chartMarcaBar', charts.marca_bar, false);
+  pie('chartMarcaPie', charts.marca_pie);
+  pie('chartTonoPie', charts.tono_pie);
+  stacked('chartMarcaStack', charts.marca_stacked);
+})();
+</script>
+{% endif %}
+{% endblock %}

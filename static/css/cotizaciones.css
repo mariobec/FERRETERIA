@@ -2307,3 +2307,444 @@ body.erp-ops-space.page-cotizaciones-form #busqClientesResultados .list-group-it
   font-weight: 700 !important;
 }
 
+/* Asistente conversión cotización → POS (legibilidad piso) */
+body.erp-ops-space.page-cotizaciones #modalCotConversion .modal-content {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-radius: 16px !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2) !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-header {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  padding: 1rem 1.25rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-header .modal-title {
+  color: #ffffff !important;
+  font-size: 1.1rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-subtitulo {
+  color: #e2e8f0 !important;
+  font-size: 0.875rem !important;
+  margin-top: 0.25rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-body {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  padding: 1rem 1.25rem 0.5rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-loading {
+  color: #475569 !important;
+  font-weight: 500 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-cliente {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  padding: 0.65rem 0.85rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-cliente-label {
+  display: block;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569 !important;
+  margin-bottom: 0.2rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-cliente-nombre {
+  color: #0f172a !important;
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-label {
+  color: #1e293b !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table-wrap {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table {
+  margin-bottom: 0 !important;
+  font-size: 0.9rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table thead th {
+  background: #334155 !important;
+  color: #f8fafc !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  border: none !important;
+  padding: 0.55rem 0.65rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table > :not(caption) > * > * {
+  padding: 0.55rem 0.65rem !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  vertical-align: middle !important;
+  box-shadow: none !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table tbody tr.cot-conv-row:nth-child(odd) > * {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table tbody tr.cot-conv-row:nth-child(even) > * {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table tbody tr.cot-conv-row--pedido > * {
+  background-color: #fffbeb !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-table tbody tr.cot-conv-row--alerta > * {
+  border-left: 3px solid #dc2626 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-articulo-nombre {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  font-size: 0.875rem !important;
+  line-height: 1.3 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-stock {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+  font-size: 0.8125rem !important;
+  font-variant-numeric: tabular-nums;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-input {
+  color: #0f172a !important;
+  background: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+  font-weight: 600 !important;
+  min-width: 4.5rem;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-tag {
+  display: inline-block;
+  margin-top: 0.2rem;
+  margin-right: 0.25rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-tag--pedido {
+  background: #b45309 !important;
+  color: #ffffff !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-tag--danger {
+  background: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-acciones {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-btn-quitar {
+  color: #ffffff !important;
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
+  font-weight: 700 !important;
+  min-width: 2rem;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-btn-pedido {
+  color: #78350f !important;
+  background: #fef3c7 !important;
+  border: 1px solid #f59e0b !important;
+  font-weight: 700 !important;
+  min-width: 2rem;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-totales {
+  background: #eff6ff !important;
+  border: 1px solid #93c5fd !important;
+  border-radius: 10px !important;
+  padding: 0.65rem 0.85rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-total-row {
+  color: #1e293b !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  padding: 0.15rem 0;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-total-row strong {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-total-row--venta strong {
+  color: #1d4ed8 !important;
+  font-size: 1.15rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-alert {
+  color: #78350f !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-footer {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+  padding: 0.85rem 1.25rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-btn-cancel {
+  color: #334155 !important;
+  background: #ffffff !important;
+  border: 1px solid #94a3b8 !important;
+  font-weight: 600 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-btn-confirm {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+body.erp-ops-space.page-cotizaciones #modalCotConversion .cot-conv-btn-confirm:disabled {
+  background: #94a3b8 !important;
+  border-color: #94a3b8 !important;
+  color: #f8fafc !important;
+}
+
+/* ── Listado cotizaciones: legibilidad piso (contraste + filas marcadas) ── */
+body.erp-ops-space.page-cotizaciones .cot-lista-card {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table {
+  font-size: 0.9375rem;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table thead th {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+  padding: 0.65rem 0.85rem !important;
+  border-bottom: 2px solid #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table > :not(caption) > * > * {
+  padding: 0.7rem 0.85rem !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  vertical-align: middle !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row:nth-child(odd) > * {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row:nth-child(even) > * {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row {
+  border-left: 4px solid transparent;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row--vigente {
+  border-left-color: #16a34a;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row--aceptada {
+  border-left-color: #2563eb;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row--vencida {
+  border-left-color: #d97706;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row--convertida {
+  border-left-color: #0891b2;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row--rechazada {
+  border-left-color: #dc2626;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-table.table-hover > tbody > tr.cot-lista-row:hover > * {
+  background-color: #fef9c3 !important;
+  color: #0f172a !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-num strong {
+  color: #0f172a !important;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-fecha,
+body.erp-ops-space.page-cotizaciones .cot-lista-vence {
+  color: #1e293b !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-cliente-nombre {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+  font-size: 0.9375rem !important;
+  line-height: 1.35;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-cliente-meta {
+  color: #334155 !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  margin-top: 0.15rem;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-total {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+  font-variant-numeric: tabular-nums;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill {
+  display: inline-block;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill--xs {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.4rem;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill--vigente {
+  background: #15803d !important;
+  color: #ffffff !important;
+  border-color: #166534 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill--vencida {
+  background: #b45309 !important;
+  color: #ffffff !important;
+  border-color: #92400e !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill--aceptada {
+  background: #1d4ed8 !important;
+  color: #ffffff !important;
+  border-color: #1e40af !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill--rechazada {
+  background: #b91c1c !important;
+  color: #ffffff !important;
+  border-color: #991b1b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-estado-pill--convertida {
+  background: #0e7490 !important;
+  color: #ffffff !important;
+  border-color: #155e75 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-acciones {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-btn-ver {
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+  border: 1px solid #93c5fd !important;
+  font-weight: 600 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-btn-ver:hover {
+  color: #ffffff !important;
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-btn-editar {
+  color: #b45309 !important;
+  background: #fffbeb !important;
+  border: 1px solid #fcd34d !important;
+  font-weight: 600 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-btn-editar:hover {
+  color: #78350f !important;
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-empty {
+  color: #475569 !important;
+  font-size: 0.9375rem !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-page-header .small.text-muted {
+  color: #475569 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-lista-kpi .badge {
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
+}
+
+@media (max-width: 767.98px) {
+  body.erp-ops-space.page-cotizaciones .cot-lista-table {
+    font-size: 0.875rem;
+  }
+  body.erp-ops-space.page-cotizaciones .cot-lista-table tbody tr.cot-lista-row {
+    border-left-width: 3px;
+  }
+}
+

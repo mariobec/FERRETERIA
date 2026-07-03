@@ -1,0 +1,302 @@
+{% extends 'base.html' %}
+{% block body_class %}sidebar-focus-mode{% endblock %}
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <h3 class="page-title"><i class="fas fa-palette text-warning me-2"></i>Marcas y tonos · pinturas</h3>
+      <p class="page-subtitle mb-0">
+        Maestro para el catálogo de productos e informes de stock/compras. Al guardar un producto con marca o tono,
+        se registra aquí automáticamente. Desactivar oculta la opción en selectores (los SKU ya cargados conservan el texto).
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <form method="POST" action="{{ url_for('admin_catalogo_pinturas') }}" class="d-inline">
+        <input type="hidden" name="action" value="sembrar_productos">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Importar desde productos</button>
+      </form>
+      <a href="{{ url_for('mostrar_productos', categoria='Pinturas') }}" class="btn btn-outline-primary btn-sm">Catálogo productos</a>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4 border-info">
+    <div class="card-header fw-bold">
+      <i class="fas fa-cloud-download-alt text-info me-2"></i>Importar colores · Sodimac muestras de pintura
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-3">
+        Descarga el catálogo público de
+        <a href="https://www.sodimac.cl/sodimac-cl/seleccion/muestras-de-pintura" target="_blank" rel="noopener">muestras Ceresita/Kolor</a>
+        (~200 colores únicos) y registra marcas y tonos en este maestro. Tarda unos 10 segundos.
+        El hex es aproximado según familia de color; opcionalmente puede leer el código del fabricante en cada ficha (más lento).
+      </p>
+      <form method="POST" class="d-flex flex-wrap align-items-center gap-3"
+            onsubmit="return confirm('¿Importar colores desde Sodimac? Puede tardar unos segundos.');">
+        <input type="hidden" name="action" value="importar_sodimac_muestras">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" name="detalle_pdp" value="1" id="chkSodimacPdp">
+          <label class="form-check-label small" for="chkSodimacPdp">
+            Incluir código color proveedor (visita cada ficha · ~2 min)
+          </label>
+        </div>
+        <button type="submit" class="btn btn-info btn-sm">
+          <i class="fas fa-download me-1"></i>Importar desde Sodimac
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-4 border-warning">
+    <div class="card-header fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-magic text-warning me-2"></i>Asignación inteligente de tono (descripción → maestro)</span>
+      <form method="GET" class="d-flex align-items-center gap-2 mb-0">
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" name="solo_sin_tono" value="1" id="soloSinTono"
+                 {% if solo_sin_tono %}checked{% endif %} onchange="this.form.submit()">
+          <label class="form-check-label small" for="soloSinTono">Solo SKU sin tono</label>
+        </div>
+      </form>
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-3">
+        Analiza el <strong>nombre del producto</strong> (ej. «Látex blanco mate 1 gal», «Esmalte azul marino»)
+        y propone el tono del maestro. Al aplicar, actualiza <code>productos.tono_color</code> y registra el tono si falta.
+      </p>
+      <form method="POST" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="action" value="inferir_tono_form">
+        <div class="col-md-9">
+          <label class="form-label small fw-semibold">Probar descripción de color</label>
+          <input type="text" name="descripcion_color" id="inpDescColor" class="form-control form-control-sm"
+                 placeholder="Ej. Pintura látex esmalte AZUL MARINO 3.785 L Tricolor">
+        </div>
+        <div class="col-md-3">
+          <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-1" id="btnInferirTono">Detectar tono</button>
+          <span class="small text-muted" id="inferirTonoHint"></span>
+        </div>
+      </form>
+
+      {% set propuestas = asignacion_preview.propuestas or [] %}
+      {% if propuestas %}
+      <form method="POST" id="formAplicarTonos" onsubmit="return confirm('¿Aplicar tono sugerido a los productos seleccionados?');">
+        <input type="hidden" name="action" value="aplicar_tonos_inteligente">
+        <input type="hidden" name="solo_sin_tono" value="{{ '1' if solo_sin_tono else '0' }}">
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <button type="submit" class="btn btn-warning btn-sm">
+            <i class="fas fa-check-double me-1"></i>Aplicar seleccionados ({{ propuestas|length }})
+          </button>
+          <span class="small text-muted align-self-center">
+            {{ asignacion_preview.total }} sugerencias · {{ asignacion_preview.escaneados }} SKU escaneados
+          </span>
+        </div>
+        <div class="table-responsive" style="max-height: 340px; overflow-y: auto;">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th><input type="checkbox" id="chkAllTonos" checked title="Seleccionar todos"></th>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Tono actual</th>
+                <th>Tono sugerido</th>
+                <th class="text-end">Conf.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pr in propuestas %}
+              <tr>
+                <td><input type="checkbox" class="form-check-input chk-tono-row" name="producto_ids" value="{{ pr.id }}" checked></td>
+                <td class="small font-monospace">{{ pr.codigo }}</td>
+                <td class="small" title="{{ pr.nombre }}">{{ pr.nombre[:55] }}{% if pr.nombre|length > 55 %}…{% endif %}</td>
+                <td class="small text-muted">{{ pr.tono_actual }}</td>
+                <td class="small fw-semibold">
+                  {% if pr.hex_color %}
+                  <span class="rounded border d-inline-block align-middle me-1" style="width:12px;height:12px;background:{{ pr.hex_color }};"></span>
+                  {% endif %}
+                  {{ pr.tono_sugerido }}
+                </td>
+                <td class="text-end small">{{ (pr.confianza * 100)|int }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+      {% else %}
+      <div class="alert alert-success mb-0 py-2 small">
+        {% if solo_sin_tono %}
+        No hay productos pintura sin tono con color detectable en la descripción, o ya están completos.
+        {% else %}
+        No se encontraron cambios sugeridos con los criterios actuales.
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Nueva marca</div>
+        <div class="card-body">
+          <form method="POST" class="row g-2 align-items-end">
+            <input type="hidden" name="action" value="crear_marca">
+            <div class="col-md-8">
+              <label class="form-label small fw-semibold">Nombre</label>
+              <input type="text" name="nombre" class="form-control" maxlength="80" required placeholder="Ej. Tricolor">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold">Orden</label>
+              <input type="number" name="orden" class="form-control" value="0">
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-ds-primary btn-sm w-100">Agregar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="card card-ds mt-3">
+        <div class="card-header fw-bold">Marcas registradas</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Ord</th><th>Marca</th><th>SKU</th><th>Activa</th><th class="text-end">Acciones</th></tr>
+            </thead>
+            <tbody>
+              {% for m in marcas %}
+              <tr>
+                <form method="POST" id="fm{{ m.id }}">
+                  <input type="hidden" name="action" value="editar_marca">
+                  <input type="hidden" name="id" value="{{ m.id }}">
+                </form>
+                <td><input type="number" name="orden" class="form-control form-control-sm" value="{{ m.orden }}" form="fm{{ m.id }}"></td>
+                <td><input type="text" name="nombre" class="form-control form-control-sm" value="{{ m.nombre }}" maxlength="80" required form="fm{{ m.id }}"></td>
+                <td class="small text-muted">{{ uso_marcas.get(m.id, 0) }}</td>
+                <td><input type="checkbox" class="form-check-input" name="activo" value="1" form="fm{{ m.id }}" {% if m.activo %}checked{% endif %}></td>
+                <td class="text-end text-nowrap">
+                  <button type="submit" class="btn btn-outline-primary btn-sm" form="fm{{ m.id }}">Guardar</button>
+                  <form method="POST" class="d-inline">
+                    <input type="hidden" name="action" value="toggle_marca">
+                    <input type="hidden" name="id" value="{{ m.id }}">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Desact.' if m.activo else 'Activar' }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted py-3">Sin marcas. Agregue una o importe desde productos.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card card-ds">
+        <div class="card-header fw-bold">Nuevo tono / color</div>
+        <div class="card-body">
+          <form method="POST" class="row g-2 align-items-end">
+            <input type="hidden" name="action" value="crear_tono">
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">Nombre</label>
+              <input type="text" name="nombre" class="form-control" maxlength="80" required placeholder="Ej. Verde Oliva">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold">Hex</label>
+              <input type="text" name="hex_color" class="form-control" maxlength="7" placeholder="#556B2F" title="Opcional, para gráficos">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold">Orden</label>
+              <input type="number" name="orden" class="form-control" value="0">
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-ds-primary btn-sm w-100">Agregar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="card card-ds mt-3">
+        <div class="card-header fw-bold">Tonos / colores</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Ord</th><th>Tono</th><th>Color</th><th>SKU</th><th>Activo</th><th class="text-end">Acciones</th></tr>
+            </thead>
+            <tbody>
+              {% for t in tonos %}
+              <tr>
+                <form method="POST" id="ft{{ t.id }}">
+                  <input type="hidden" name="action" value="editar_tono">
+                  <input type="hidden" name="id" value="{{ t.id }}">
+                </form>
+                <td><input type="number" name="orden" class="form-control form-control-sm" value="{{ t.orden }}" form="ft{{ t.id }}"></td>
+                <td><input type="text" name="nombre" class="form-control form-control-sm" value="{{ t.nombre }}" maxlength="80" required form="ft{{ t.id }}"></td>
+                <td>
+                  <div class="d-flex align-items-center gap-1">
+                    <span class="rounded border" style="width:1.25rem;height:1.25rem;background:{{ t.hex_color or '#e2e8f0' }};"></span>
+                    <input type="text" name="hex_color" class="form-control form-control-sm" value="{{ t.hex_color or '' }}" maxlength="7" placeholder="#..." form="ft{{ t.id }}">
+                  </div>
+                </td>
+                <td class="small text-muted">{{ uso_tonos.get(t.id, 0) }}</td>
+                <td><input type="checkbox" class="form-check-input" name="activo" value="1" form="ft{{ t.id }}" {% if t.activo %}checked{% endif %}></td>
+                <td class="text-end text-nowrap">
+                  <button type="submit" class="btn btn-outline-primary btn-sm" form="ft{{ t.id }}">Guardar</button>
+                  <form method="POST" class="d-inline">
+                    <input type="hidden" name="action" value="toggle_tono">
+                    <input type="hidden" name="id" value="{{ t.id }}">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">{{ 'Desact.' if t.activo else 'Activar' }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-center text-muted py-3">Sin tonos. Se siembran 8 colores base al crear el maestro.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var btn = document.getElementById('btnInferirTono');
+  var inp = document.getElementById('inpDescColor');
+  var hint = document.getElementById('inferirTonoHint');
+  var chkAll = document.getElementById('chkAllTonos');
+  if (chkAll) {
+    chkAll.addEventListener('change', function () {
+      document.querySelectorAll('.chk-tono-row').forEach(function (c) { c.checked = chkAll.checked; });
+    });
+  }
+  if (!btn || !inp) return;
+  btn.addEventListener('click', function () {
+    var q = (inp.value || '').trim();
+    if (!q) { hint.textContent = 'Escriba una descripción.'; return; }
+    hint.textContent = 'Analizando…';
+    fetch('{{ url_for("api_catalogo_pinturas_inferir_tono") }}?q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok || !data.tono_sugerido) {
+          hint.textContent = 'Sin match reconocible.';
+          return;
+        }
+        hint.innerHTML = '<strong>' + data.tono_sugerido + '</strong> (' + Math.round((data.confianza || 0) * 100) + '%)';
+        var nomInp = document.querySelector('input[name="nombre"][formaction], form input[name="nombre"]');
+        var formNuevo = document.querySelector('form input[name="action"][value="crear_tono"]');
+        if (formNuevo) {
+          var f = formNuevo.closest('form');
+          if (f) {
+            var n = f.querySelector('input[name="nombre"]');
+            var hx = f.querySelector('input[name="hex_color"]');
+            if (n && !n.value) n.value = data.tono_sugerido;
+            if (hx && data.hex_color && !hx.value) hx.value = data.hex_color;
+          }
+        }
+      })
+      .catch(function () { hint.textContent = 'Error al inferir.'; });
+  });
+})();
+</script>
+{% endblock %}

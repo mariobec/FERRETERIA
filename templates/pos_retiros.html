@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block body_class %}page-pos-retiros retiros-theme-mostrador{% endblock %}
+
+{% macro retiros_semaforo(tipo, label) %}
+<div class="retiros-semaforo retiros-semaforo--{{ tipo }}" role="status" aria-label="{{ label }}">
+  <div class="retiros-semaforo__lights" aria-hidden="true">
+    <span class="retiros-semaforo__dot retiros-semaforo__dot--rojo{% if tipo == 'rojo' %} is-active{% endif %}"></span>
+    <span class="retiros-semaforo__dot retiros-semaforo__dot--ambar{% if tipo == 'ambar' %} is-active{% endif %}"></span>
+    <span class="retiros-semaforo__dot retiros-semaforo__dot--verde{% if tipo == 'verde' %} is-active{% endif %}"></span>
+  </div>
+  <span class="retiros-semaforo__label">{{ label }}</span>
+</div>
+{% endmacro %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-retiros.css') }}?v=pos-retiros-mostrador-2">
+{% endblock %}
+
+{% block content %}
+{% set n_cola = cola_retiros|default([])|length %}
+{% set n_transf = cola_retiros|selectattr('transferencia_pendiente')|list|length %}
+<div class="retiros-shell retiros-hud" id="posRetirosRoot">
+
+  <header class="retiros-hdr" role="banner">
+    <div class="retiros-hdr__main">
+      <span class="retiros-hdr__eyebrow"><i class="fas fa-box-open" aria-hidden="true"></i> POS · Entregas</span>
+      <h1 class="retiros-hdr__title">Retiros pendientes</h1>
+      <p class="retiros-hdr__meta mb-0">
+        {{ empresa_cfg.nombre_comercial|default('Ferretería') }}
+        · Operadora <strong>{{ current_user.nombre }}</strong>
+        · Ticket QR post-cobro
+      </p>
+    </div>
+    <div class="retiros-hdr__stat" aria-live="polite">
+      <span class="retiros-hdr__stat-label">En cola</span>
+      <span class="retiros-hdr__stat-value" id="retirosStatCola">{{ n_cola }}</span>
+    </div>
+    <nav class="retiros-hdr__nav" aria-label="Accesos">
+      <a href="{{ url_punto_venta }}" class="retiros-nav-link retiros-nav-link--primary">
+        <i class="fas fa-cash-register" aria-hidden="true"></i> Punto de venta
+      </a>
+      <a href="{{ url_for('caja_pendientes') }}" class="retiros-nav-link">
+        <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i> Caja
+      </a>
+    </nav>
+  </header>
+
+  <section class="retiros-section retiros-section--kpi" aria-labelledby="retirosSecKpiTitle">
+    <header class="retiros-section__head">
+      <span class="retiros-section__icon retiros-section__icon--blue"><i class="fas fa-chart-simple"></i></span>
+      <div>
+        <h2 class="retiros-section__title" id="retirosSecKpiTitle">Resumen operativo</h2>
+        <p class="retiros-section__desc mb-0">Indicadores en tiempo real de la cola de entrega.</p>
+      </div>
+    </header>
+    <div class="row g-3 retiros-kpis">
+      <div class="col-sm-4">
+        <article class="retiros-kpi retiros-kpi--queue">
+          <div class="retiros-kpi__icon"><i class="fas fa-truck-loading"></i></div>
+          <div>
+            <div class="retiros-kpi__value" id="retirosKpiCola">{{ n_cola }}</div>
+            <p class="retiros-kpi__label mb-0">Vales por entregar</p>
+          </div>
+        </article>
+      </div>
+      <div class="col-sm-4">
+        <article class="retiros-kpi retiros-kpi--ready">
+          <div class="retiros-kpi__icon"><i class="fas fa-qrcode"></i></div>
+          <div>
+            <div class="retiros-kpi__value">{{ n_cola - n_transf }}</div>
+            <p class="retiros-kpi__label mb-0">Listos para escanear</p>
+          </div>
+        </article>
+      </div>
+      <div class="col-sm-4">
+        <article class="retiros-kpi retiros-kpi--wait">
+          <div class="retiros-kpi__icon"><i class="fas fa-university"></i></div>
+          <div>
+            <div class="retiros-kpi__value">{{ n_transf }}</div>
+            <p class="retiros-kpi__label mb-0">Transferencia sin confirmar</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="retiros-section retiros-section--search" aria-labelledby="retirosSecSearchTitle">
+    <header class="retiros-section__head">
+      <span class="retiros-section__icon retiros-section__icon--violet"><i class="fas fa-magnifying-glass"></i></span>
+      <div>
+        <h2 class="retiros-section__title" id="retirosSecSearchTitle">Búsqueda y escaneo</h2>
+        <p class="retiros-section__desc mb-0">Localice un ticket por cliente, folio VL o pistola QR.</p>
+      </div>
+    </header>
+    <div class="retiros-toolbar retiros-card card shadow-sm border-0" aria-label="Buscador y escaneo">
+      <div class="card-body retiros-toolbar__body">
+        <div class="retiros-search-wrap">
+          <label for="retirosSmartSearch" class="form-label retiros-field-label">
+            Buscador inteligente
+          </label>
+          <div class="retiros-search-combo">
+            <span class="retiros-search-combo__icon" aria-hidden="true"><i class="fas fa-search"></i></span>
+            <input type="search" id="retirosSmartSearch" class="form-control retiros-search-input"
+                   placeholder="Cliente, vale #3400, VL003400 o escanee QR…"
+                   autocomplete="off" spellcheck="false"
+                   aria-autocomplete="list" aria-controls="retirosSuggestList" aria-expanded="false">
+            <button type="button" class="btn btn-outline-secondary retiros-search-clear d-none" id="retirosSearchClear" title="Limpiar">
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+          <ul id="retirosSuggestList" class="retiros-suggest-list d-none" role="listbox" aria-label="Sugerencias"></ul>
+          <p class="retiros-search-hint mb-0">
+            Escriba al menos 2 caracteres o pulse <kbd>Enter</kbd> con código VL / QR para abrir el vale.
+          </p>
+        </div>
+        <div class="retiros-scan-wrap">
+          <label for="posRetirosWedge" class="form-label retiros-field-label">
+            Escaneo rápido
+          </label>
+          <input type="text" id="posRetirosWedge" class="form-control font-monospace retiros-scan-input"
+                 placeholder="Pistola QR / VL######" autocomplete="off">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="posRetirosConfig"
+       data-buscar-url="{{ url_for('api_pos_retiros_buscar') }}"
+       data-sugerencias-url="{{ url_for('api_pos_retiros_sugerencias') }}"
+       data-entrega-url-template="{{ url_for('api_registrar_entrega_ticket', vid=0) }}"
+       hidden></div>
+
+  <section class="retiros-section retiros-section--queue" aria-labelledby="retirosSecQueueTitle">
+    <header class="retiros-section__head">
+      <span class="retiros-section__icon retiros-section__icon--green"><i class="fas fa-list-check"></i></span>
+      <div>
+        <h2 class="retiros-section__title" id="retirosSecQueueTitle">Cola de entrega</h2>
+        <p class="retiros-section__desc mb-0" id="retirosFilterHint">
+          Mostrando {{ n_cola }} vale{{ 's' if n_cola != 1 else '' }} pagado{{ 's' if n_cola != 1 else '' }} con mercadería pendiente.
+        </p>
+      </div>
+      <div class="retiros-semaforo-legend" aria-hidden="true">
+        <span class="retiros-semaforo-legend__item"><span class="retiros-semaforo__dot retiros-semaforo__dot--rojo is-active"></span> Cobro</span>
+        <span class="retiros-semaforo-legend__item"><span class="retiros-semaforo__dot retiros-semaforo__dot--ambar is-active"></span> Caja</span>
+        <span class="retiros-semaforo-legend__item"><span class="retiros-semaforo__dot retiros-semaforo__dot--verde is-active"></span> Entrega</span>
+      </div>
+    </header>
+    <div class="retiros-panel retiros-card card shadow-sm border-0" aria-label="Tabla cola de retiros">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle retiros-table mb-0" id="retirosTable">
+          <thead>
+            <tr>
+              <th scope="col">Vale</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">Cobro</th>
+              <th scope="col" class="text-end">Total</th>
+              <th scope="col" class="text-center">Pend.</th>
+              <th scope="col">Estado</th>
+              <th scope="col" class="text-end">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="posRetirosQueue">
+            {% for row in cola_retiros %}
+            <tr class="pos-retiros-row"
+                data-venta-id="{{ row.id }}"
+                data-folio="{{ row.folio }}"
+                data-cliente="{{ row.cliente|lower }}"
+                data-search="{{ row.id }} {{ row.folio|lower }} {{ row.cliente|lower }}">
+              <td>
+                <span class="retiros-folio font-monospace fw-semibold">{{ row.folio }}</span>
+                <span class="d-block small text-muted">#{{ row.id }}</span>
+              </td>
+              <td class="retiros-cliente">{{ row.cliente }}</td>
+              <td>
+                <span class="d-block">{{ row.fecha }}</span>
+                <span class="small text-muted"><i class="far fa-clock me-1"></i>{{ row.hora }}</span>
+              </td>
+              <td class="text-end fw-semibold">$ {{ "{:,.0f}".format(row.monto).replace(",", ".") }}</td>
+              <td class="text-center">
+                <span class="badge retiros-badge retiros-badge--count">{{ row.lineas_pendientes }}</span>
+              </td>
+              <td>
+                {% if row.transferencia_pendiente %}
+                {{ retiros_semaforo('ambar', 'Espera caja') }}
+                {% else %}
+                {{ retiros_semaforo('verde', row.estado_entrega|default('PENDIENTE', true)) }}
+                {% endif %}
+                {% if row.es_mixto %}
+                <div class="retiros-canal-chips mt-2">
+                  <span class="retiros-canal-chip retiros-canal-chip--tienda"><i class="fas fa-store me-1"></i>Tienda {{ row.pend_tienda }}</span>
+                  <span class="retiros-canal-chip retiros-canal-chip--bodega"><i class="fas fa-warehouse me-1"></i>Bodega {{ row.pend_bodega }}</span>
+                </div>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if row.transferencia_pendiente %}
+                <span class="retiros-action-wait"><i class="fas fa-hourglass-half me-1"></i>Esperar caja</span>
+                {% else %}
+                <button type="button" class="btn btn-sm btn-success retiros-btn-entregar" data-venta-id="{{ row.id }}">
+                  <i class="fas fa-hand-holding-box me-1"></i>Entregar
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr id="retirosEmptyRow">
+              <td colspan="7" class="retiros-empty">
+                <div class="retiros-empty__icon"><i class="fas fa-inbox"></i></div>
+                <p class="retiros-empty__title mb-1">Sin retiros pendientes</p>
+                <p class="retiros-empty__text small text-muted mb-0">Los tickets QR aparecerán aquí después del cobro en caja.</p>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div id="retirosNoMatch" class="retiros-no-match d-none">
+        <i class="fas fa-filter me-2"></i>Ningún vale coincide con la búsqueda.
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal fade" id="modalPosRetiroScan" tabindex="-1" aria-labelledby="modalPosRetiroTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content retiros-modal border-0 shadow-lg">
+      <div class="modal-header retiros-modal__head border-0">
+        <div class="retiros-modal__id">
+          <span class="retiros-modal__eyebrow" id="modalPosRetiroTitle">Ticket de retiro</span>
+          <p class="retiros-modal__folio font-monospace mb-0" id="posRetiroModalFolio">—</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body retiros-modal__body pt-0">
+        <div id="posRetiroModalEstado" class="retiros-semaforo-banner mb-3" role="status" aria-live="polite">—</div>
+
+        <div class="retiros-modal__card retiros-modal__card--resumen">
+          <div class="retiros-modal__resumen-item">
+            <span class="retiros-modal__resumen-label">Cliente</span>
+            <span class="retiros-modal__resumen-value" id="posRetiroModalCliente">—</span>
+          </div>
+          <div class="retiros-modal__resumen-item">
+            <span class="retiros-modal__resumen-label">Total pagado</span>
+            <span class="retiros-modal__resumen-value">$ <span id="posRetiroModalMonto">0</span></span>
+          </div>
+          <div class="retiros-modal__resumen-item">
+            <span class="retiros-modal__resumen-label">Líneas pend.</span>
+            <span class="retiros-badge retiros-badge--count" id="posRetiroModalLineas">0</span>
+          </div>
+        </div>
+
+        <div class="retiros-modal__card">
+          <h3 class="retiros-modal__card-title"><i class="fas fa-boxes-stacked me-2"></i>Productos por entregar</h3>
+          <div id="posRetiroModalLineasList" class="retiros-lineas">
+            <p class="retiros-lineas__empty text-muted small mb-0">Sin líneas para entregar en su canal.</p>
+          </div>
+        </div>
+
+        <p id="posRetiroModalMsg" class="retiros-modal__hint mb-0"></p>
+        <span id="posRetiroModalValeId" class="visually-hidden">—</span>
+      </div>
+      <div class="modal-footer retiros-modal__foot border-0 flex-wrap gap-2">
+        <button type="button" class="btn btn-success retiros-modal__btn-entregar" id="posRetiroBtnEntregar" disabled>
+          <i class="fas fa-hand-holding-box me-2"></i>Entregar todo
+        </button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pos-retiros.js') }}?v=pos-retiros-mostrador-2"></script>
+{% endblock %}

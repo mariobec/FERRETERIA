@@ -15,6 +15,7 @@ a = Analysis(
         ('C:\\ERP FERRETERIA\\PROYECTO FERRETERIA\\sistema_ventas_limpio\\data\\proveedores_config.json', 'data'),
         ('C:\\ERP FERRETERIA\\PROYECTO FERRETERIA\\sistema_ventas_limpio\\data\\cross_sell_associations.json', 'data'),
         ('C:\\ERP FERRETERIA\\PROYECTO FERRETERIA\\sistema_ventas_limpio\\data\\pintura_cartilla_sd.json', 'data'),
+        ('C:\\ERP FERRETERIA\\PROYECTO FERRETERIA\\sistema_ventas_limpio\\data\\zebra_etiqueta_config.json', 'data'),
         ('C:\\ERP FERRETERIA\\PROYECTO FERRETERIA\\sistema_ventas_limpio\\INSTALACION\\paquete\\04_SCRIPTS_OPERACION\\crear_usuario_test_piso.py', 'scripts'),
         ('C:\\ERP FERRETERIA\\PROYECTO FERRETERIA\\sistema_ventas_limpio\\scripts\\__init__.py', 'scripts')
     ],

@@ -123,18 +123,6 @@ def construir_contexto_vale_impresion(venta, *, empresa_cfg: dict | None = None)
 
     ctx['folio_barcode'] = f'VL{int(venta.id):06d}'
     ctx['qr_url'] = None
-    if not ctx['es_borrador']:
-        try:
-            from app import _pos_ticket_qr_despacho_empresa, pos_despacho_vale_token_create
-
-            if _pos_ticket_qr_despacho_empresa():
-                tok = pos_despacho_vale_token_create(venta.id)
-                if tok:
-                    from services.despacho_qr_service import url_despacho_qr_corta
-
-                    ctx['qr_url'] = url_despacho_qr_corta(venta.id, tok)
-        except Exception:
-            pass
 
     cot_id = getattr(venta, 'cotizacion_origen_id', None)
     if cot_id:

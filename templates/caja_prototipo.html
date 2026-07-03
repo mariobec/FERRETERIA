@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+{% block body_class %}page-caja-prototipo caja-kiosk-proto enrol-theme-claro{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-prototipo.css') }}?v=caja-proto-cierre-20260703">
+{% endblock %}
+
+{% block content %}
+{% set vuelto_ultima = (request.args.get('vuelto') or '0')|replace(',', '.')|float %}
+{% set n_cola = cola_combined|default([])|length %}
+{% set operativa = caja_operativa|default(false) %}
+{% set hay_turno = caja_activa is defined and caja_activa %}
+{% set puede_cerrar = puede_cerrar_caja|default(false) %}
+<div class="caja-proto-shell">
+
+    <header class="caja-proto-hdr">
+        <div class="caja-proto-hdr__brand">
+            <span class="caja-proto-ico caja-proto-ico--hdr" aria-hidden="true"><i class="fas fa-cash-register"></i></span>
+            <div class="caja-proto-hdr__brand-text">
+                <div class="caja-proto-hdr__eyebrow"><i class="fas fa-store" aria-hidden="true"></i> Ferretería · Caja</div>
+                <h1 class="caja-proto-hdr__title">{% if operativa %}Pantalla de cobro{% else %}Abrir caja del día{% endif %}</h1>
+                <p class="caja-proto-hdr__meta">
+                    Operadora: <strong>{{ current_user.nombre }}</strong>
+                    {% if hay_turno %}
+                    · Caja N° <strong>{{ caja_activa.id }}</strong>
+                    {% if operativa %}(turno activo){% else %}(requiere cierre){% endif %}
+                    {% else %}
+                    · <strong>Sin turno abierto</strong>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        <div class="caja-proto-hdr__clock" aria-live="polite">
+            <span class="caja-proto-ico caja-proto-ico--clock" aria-hidden="true"><i class="fas fa-clock"></i></span>
+            <span class="caja-proto-hdr__clock-label">{% if operativa %}Turno activo{% else %}Hoy{% endif %}</span>
+            <time id="cajaProtoHora" class="caja-proto-hdr__time">--:--:--</time>
+            <span id="cajaProtoFecha" class="caja-proto-hdr__date"></span>
+        </div>
+        <nav class="caja-proto-actions" aria-label="Accesos secundarios">
+            {% if hay_turno and puede_cerrar %}
+            <a href="{{ url_for('cerrar_caja') }}" class="caja-proto-link caja-proto-link--cerrar" title="Terminar turno y cuadrar caja">
+                <i class="fas fa-door-closed" aria-hidden="true"></i> Cerrar caja
+            </a>
+            {% endif %}
+            {% if operativa %}
+            <a href="{{ url_for('caja_pendientes') }}" class="caja-proto-link caja-proto-link--subtle" title="Panel completo con más opciones">
+                <i class="fas fa-table-columns" aria-hidden="true"></i> Panel completo
+            </a>
+            {% endif %}
+        </nav>
+    </header>
+
+    {% if not operativa %}
+    <section class="caja-proto-apertura" aria-labelledby="cajaProtoAperturaTitle">
+        {% if bloqueo_caja_anterior == 'cerrar' and caja_activa %}
+        <div class="caja-proto-apertura__panel caja-proto-apertura__panel--warn">
+            <span class="caja-proto-ico caja-proto-ico--apertura-warn" aria-hidden="true"><i class="fas fa-calendar-xmark"></i></span>
+            <div>
+                <h2 id="cajaProtoAperturaTitle" class="caja-proto-apertura__title">Debe cerrar la caja del día anterior</h2>
+                <p class="caja-proto-apertura__text">
+                    La caja N° <strong>{{ caja_activa.id }}</strong> quedó abierta desde
+                    <strong>{{ caja_activa.fecha_apertura.strftime('%d/%m/%Y') if caja_activa.fecha_apertura else '—' }}</strong>.
+                    Ciérrela antes de cobrar hoy.
+                </p>
+                <a href="{{ url_for('cerrar_caja') }}" class="caja-proto-btn-cerrar caja-proto-btn-cerrar--inline">
+                    <span class="caja-proto-ico caja-proto-ico--cerrar" aria-hidden="true"><i class="fas fa-door-closed"></i></span>
+                    <span class="caja-proto-btn-cerrar__text">
+                        <span class="caja-proto-btn-cerrar__title">Cerrar caja del día anterior</span>
+                        <span class="caja-proto-btn-cerrar__hint">Cuadrar y terminar turno N° {{ caja_activa.id }}</span>
+                    </span>
+                    <i class="fas fa-chevron-right caja-proto-btn-cerrar__arrow" aria-hidden="true"></i>
+                </a>
+            </div>
+        </div>
+        {% elif bloqueo_caja_anterior == 'esperar' and caja_activa %}
+        <div class="caja-proto-apertura__panel caja-proto-apertura__panel--warn">
+            <span class="caja-proto-ico caja-proto-ico--apertura-warn" aria-hidden="true"><i class="fas fa-user-clock"></i></span>
+            <div>
+                <h2 id="cajaProtoAperturaTitle" class="caja-proto-apertura__title">Espere a un encargado</h2>
+                <p class="caja-proto-apertura__text">
+                    Hay una caja abierta desde el <strong>{{ caja_activa.fecha_apertura.strftime('%d/%m/%Y') if caja_activa.fecha_apertura else '—' }}</strong>.
+                    Un supervisor debe cerrarla antes de que pueda cobrar.
+                </p>
+            </div>
+        </div>
+        {% elif puede_abrir_caja|default(false) %}
+        <div class="caja-proto-apertura__panel">
+            <span class="caja-proto-ico caja-proto-ico--apertura" aria-hidden="true"><i class="fas fa-door-open"></i></span>
+            <div class="caja-proto-apertura__body">
+                <h2 id="cajaProtoAperturaTitle" class="caja-proto-apertura__title">Paso 1 — Abrir caja</h2>
+                <p class="caja-proto-apertura__text">
+                    Cuente el <strong>efectivo en la gaveta</strong> (sencillo) e ingrese el monto.
+                    Después podrá escanear tickets y cobrar.
+                </p>
+                <form action="{{ url_abrir_caja }}" method="post" class="caja-proto-apertura__form">
+                    <input type="hidden" name="next" value="{{ url_caja_prototipo }}">
+                    <label for="monto_inicial" class="caja-proto-apertura__label">Dinero en caja al iniciar (pesos chilenos)</label>
+                    <div class="caja-proto-apertura__input-wrap">
+                        <span class="caja-proto-apertura__prefix" aria-hidden="true">$</span>
+                        <input type="text" inputmode="decimal" autocomplete="off" class="form-control"
+                               id="monto_inicial" name="monto_inicial"
+                               placeholder="Ejemplo: 100000 o 100.000" required autofocus>
+                    </div>
+                    <p class="caja-proto-apertura__hint"><i class="fas fa-info-circle me-1" aria-hidden="true"></i>Puede usar punto como separador de miles.</p>
+                    <button type="submit" class="btn caja-proto-btn-abrir w-100">
+                        <i class="fas fa-play-circle me-2" aria-hidden="true"></i>Abrir caja y comenzar turno
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="caja-proto-apertura__panel caja-proto-apertura__panel--warn">
+            <span class="caja-proto-ico caja-proto-ico--apertura-warn" aria-hidden="true"><i class="fas fa-user-shield"></i></span>
+            <div>
+                <h2 id="cajaProtoAperturaTitle" class="caja-proto-apertura__title">Caja cerrada</h2>
+                <p class="caja-proto-apertura__text">Pida a un encargado que abra la caja para comenzar a cobrar.</p>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+    {% else %}
+
+    {% if bloquean_cierre_total|default(0) > 0 %}
+    {% include 'caja/includes/caja_bloqueo_cierre_panel.html' %}
+    {% endif %}
+
+    {% if request.args.get('ultima_venta') and vuelto_ultima > 0 %}
+    <div class="caja-proto-vuelto" role="alert">
+        <div class="caja-proto-vuelto__inner">
+            <span class="caja-proto-ico caja-proto-ico--vuelto" aria-hidden="true"><i class="fas fa-coins"></i></span>
+            <div>
+                <div class="caja-proto-vuelto__label">Entregar vuelto al cliente</div>
+                <div class="caja-proto-vuelto__monto">$ {{ "{:,.0f}".format(vuelto_ultima).replace(",", ".") }}</div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-warning fw-bold px-4" data-bs-toggle="modal" data-bs-target="#modalVueltoAlto">
+            <i class="fas fa-hand-holding-dollar me-2" aria-hidden="true"></i>Ver vuelto
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="caja-proto-kpis">
+        <article class="caja-proto-kpi caja-proto-kpi--pendiente">
+            <span class="caja-proto-kpi__icon caja-proto-ico caja-proto-ico--pendiente" aria-hidden="true" title="Dinero pendiente"><i class="fas fa-hand-holding-dollar"></i></span>
+            <p class="caja-proto-kpi__label">Dinero por cobrar</p>
+            <div class="caja-proto-kpi__value">$ {{ "{:,.0f}".format(monto_pendiente).replace(",", ".") }}</div>
+            <p class="caja-proto-kpi__hint"><i class="fas fa-receipt me-1" aria-hidden="true"></i>{{ n_cola }} vale{{ 's' if n_cola != 1 else '' }} en espera</p>
+        </article>
+        <article class="caja-proto-kpi caja-proto-kpi--cobrado">
+            <span class="caja-proto-kpi__icon caja-proto-ico caja-proto-ico--cobrado" aria-hidden="true" title="Cobrado hoy"><i class="fas fa-sack-dollar"></i></span>
+            <p class="caja-proto-kpi__label">Cobrado hoy</p>
+            <div class="caja-proto-kpi__value">$ {{ "{:,.0f}".format(monto_vendido).replace(",", ".") }}</div>
+            <p class="caja-proto-kpi__hint"><i class="fas fa-circle-check me-1" aria-hidden="true"></i>{{ tickets_emitidos }} documento{{ 's' if tickets_emitidos != 1 else '' }} pagados</p>
+        </article>
+    </div>
+
+    <section class="caja-proto-scan" aria-label="Paso 1 — escanear ticket">
+        <span class="caja-proto-scan__step" aria-hidden="true">1</span>
+        <div class="caja-proto-scan__visual">
+            <span class="caja-proto-ico caja-proto-ico--scan" aria-hidden="true"><i class="fas fa-barcode"></i></span>
+        </div>
+        <label for="cajaBarcodeWedge">Pase el ticket por la pistola lectora</label>
+        <input type="text" id="cajaBarcodeWedge" class="form-control"
+               placeholder="O escriba el número del vale y pulse Enter"
+               autocomplete="off" inputmode="numeric"
+               aria-describedby="cajaProtoScanHint">
+        <p id="cajaProtoScanHint" class="hint mb-0"><i class="fas fa-hand-pointer me-1" aria-hidden="true"></i>Se abrirá sola la ventana para cobrar.</p>
+    </section>
+    <div id="caja-folio-config" data-buscar-url="{{ url_for('api_caja_vale_por_folio') }}" hidden></div>
+
+    <div id="cajaSlaBannerWrap" class="{% if n_sla_atencion|default(0) == 0 %} d-none{% endif %}">
+        <div id="cajaSlaBanner" class="caja-proto-sla{% if n_sla_modal|default(0) > 0 %} caja-proto-sla--critical{% endif %}" role="status" aria-live="polite">
+            <i class="fas fa-bell me-2" aria-hidden="true"></i>
+            {% if n_sla_modal|default(0) > 0 %}
+                {% if n_sla_modal == 1 %}Atención: 1 vale lleva más de 15 minutos sin cobrar.{% else %}Atención: {{ n_sla_modal }} vales llevan más de 15 minutos sin cobrar.{% endif %}
+            {% elif n_sla_atencion|default(0) > 0 %}
+                {% if n_sla_atencion == 1 %}Hay 1 vale con más de 10 minutos en cola.{% else %}Hay {{ n_sla_atencion }} vales con más de 10 minutos en cola.{% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <section class="caja-proto-cola" aria-label="Paso 2 — cobrar vales">
+        <div class="caja-proto-cola__head">
+            <div>
+                <h2 class="caja-proto-cola__title">
+                    <span class="caja-proto-cola__title-text">
+                        <span class="caja-proto-ico caja-proto-ico--cola" aria-hidden="true"><i class="fas fa-users"></i></span>
+                        <span class="caja-proto-cola__count" aria-label="{{ n_cola }} en cola">{{ n_cola }}</span>
+                        Clientes en espera de pago
+                    </span>
+                </h2>
+                <p class="caja-proto-cola__subtitle"><i class="fas fa-hand-pointer me-1" aria-hidden="true"></i>Toque el botón naranja <strong>COBRAR</strong> del cliente que paga.</p>
+            </div>
+        </div>
+
+        <div class="caja-proto-queue">
+            {% for v in cola_combined %}
+            <article id="cajaRowVale{{ v.id }}"
+                     class="caja-proto-vale-card{% if not v.cola_es_borrador and v.sla_tier|default(0) >= 1 %} caja-row-sla-{{ v.sla_css }}{% endif %}"
+                     data-caja-sla-pendiente="{{ '1' if not v.cola_es_borrador else '0' }}">
+                <div class="caja-proto-vale-card__receipt">
+                    <span class="caja-proto-ico caja-proto-ico--vale" aria-hidden="true"><i class="fas fa-file-invoice-dollar"></i></span>
+                </div>
+                <div class="caja-proto-vale-card__info">
+                    <div class="caja-proto-vale-card__vale">Vale #{{ v.id }}</div>
+                    <span class="caja-proto-vale-card__label">Hora</span>
+                    <span class="caja-proto-vale-card__hora">
+                        <i class="far fa-clock me-1" aria-hidden="true"></i>{{ v.fecha.strftime('%H:%M') }}
+                        {% if not v.cola_es_borrador %}
+                        <span id="cajaSlaBadge{{ v.id }}" class="caja-proto-badge caja-proto-badge--sla{% if v.sla_tier|default(0) < 1 %} d-none{% endif %}">{{ v.sla_label }}</span>
+                        {% endif %}
+                    </span>
+                    <span class="caja-proto-vale-card__label">Total a pagar</span>
+                    <span class="caja-proto-vale-card__monto">$ {{ "{:,.0f}".format(v.monto_cobro_ui).replace(",", ".") }}</span>
+                    {% if v.es_pedido_web %}
+                    <div class="caja-proto-vale-card__badges">
+                        <span class="caja-proto-badge caja-proto-badge--web"><i class="fas fa-globe me-1" aria-hidden="true"></i>Pedido web</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="caja-proto-vale-card__action">
+                    {% if (v.monto_cobro_ui or 0) <= 0 and v.cola_es_borrador %}
+                    <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-secondary caja-proto-btn-pos"><i class="fas fa-cash-register me-2" aria-hidden="true"></i>Completar en POS</a>
+                    {% elif v.stock_cobrable and (v.monto_cobro_ui or 0) > 0 %}
+                    <button type="button" class="btn caja-proto-btn-cobrar" data-bs-toggle="modal" data-bs-target="#modalCobro{{ v.id }}" aria-label="Cobrar vale número {{ v.id }}">
+                        <i class="fas fa-hand-holding-dollar" aria-hidden="true"></i> COBRAR
+                    </button>
+                    {% else %}
+                    <span class="caja-proto-badge-stock" title="{{ v.stock_alerta }}"><i class="fas fa-box-open me-1" aria-hidden="true"></i>Sin stock en tienda</span>
+                    {% endif %}
+                </div>
+            </article>
+            {% else %}
+            <div class="caja-proto-empty">
+                <div class="caja-proto-empty__icon" aria-hidden="true"><i class="fas fa-face-smile-beam"></i></div>
+                <p class="caja-proto-empty__title">Cola vacía — todo al día</p>
+                <p class="caja-proto-empty__text">Cuando llegue un cliente, escanee su ticket o aparezca aquí para cobrar.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if operativa and hay_turno and puede_cerrar %}
+    <section class="caja-proto-cierre" aria-label="Fin del turno">
+        <p class="caja-proto-cierre__eyebrow"><i class="fas fa-moon me-1" aria-hidden="true"></i>Fin del turno</p>
+        <a href="{{ url_for('cerrar_caja') }}" class="caja-proto-btn-cerrar">
+            <span class="caja-proto-ico caja-proto-ico--cerrar" aria-hidden="true"><i class="fas fa-door-closed"></i></span>
+            <span class="caja-proto-btn-cerrar__text">
+                <span class="caja-proto-btn-cerrar__title">Cerrar caja del día</span>
+                <span class="caja-proto-btn-cerrar__hint">Cuente la gaveta y termine el turno N° {{ caja_activa.id }}</span>
+            </span>
+            <i class="fas fa-chevron-right caja-proto-btn-cerrar__arrow" aria-hidden="true"></i>
+        </a>
+    </section>
+    {% endif %}
+
+    {% include 'caja/includes/caja_modales_cola_cobro.html' %}
+    {% endif %}
+</div>
+
+{% if operativa %}
+<div class="modal fade caja-proto-welcome" id="modalCajaProtoWelcome" tabindex="-1" aria-labelledby="modalCajaProtoWelcomeTitle" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCajaProtoWelcomeTitle"><i class="fas fa-hand-sparkles me-2" aria-hidden="true"></i>Bienvenida — pantalla de caja</h5>
+            </div>
+            <div class="modal-body">
+                <p class="caja-proto-welcome__lead">Pantalla simple: letras grandes, iconos claros y pocos pasos.</p>
+                <ol class="caja-proto-welcome__steps">
+                    <li>
+                        <span class="caja-proto-welcome__ico caja-proto-welcome__ico--scan" aria-hidden="true"><i class="fas fa-barcode"></i></span>
+                        <span>Pase el <strong>ticket</strong> por la pistola, o toque <strong>COBRAR</strong> en la fila del cliente.</span>
+                    </li>
+                    <li>
+                        <span class="caja-proto-welcome__ico caja-proto-welcome__ico--pay" aria-hidden="true"><i class="fas fa-money-bill-wave"></i></span>
+                        <span>Confirme el monto y cómo paga el cliente (efectivo, tarjeta, etc.).</span>
+                    </li>
+                    <li>
+                        <span class="caja-proto-welcome__ico caja-proto-welcome__ico--change" aria-hidden="true"><i class="fas fa-coins"></i></span>
+                        <span>Si hay vuelto, la pantalla se lo mostrará en grande antes de seguir.</span>
+                    </li>
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success w-100" id="cajaProtoWelcomeOk"><i class="fas fa-play me-2" aria-hidden="true"></i>Entendido — comenzar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if operativa and request.args.get('ultima_venta') and vuelto_ultima > 0 %}
+<div class="modal fade" id="modalVueltoAlto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title fw-bold text-dark fs-4"><i class="fas fa-hand-holding-dollar me-2"></i>Vuelto para el cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <span class="caja-proto-ico caja-proto-ico--vuelto d-inline-flex mb-3" aria-hidden="true"><i class="fas fa-coins"></i></span>
+                <p class="text-muted mb-2 fs-5">Vale #{{ request.args.get('ultima_venta') }}</p>
+                <div class="display-4 fw-bold text-warning">$ {{ "{:,.0f}".format(vuelto_ultima).replace(",", ".") }}</div>
+                <p class="fs-6 text-muted mt-3 mb-0">Cuente el dinero y entregue este monto al cliente.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-dark w-100 fw-bold" data-bs-dismiss="modal">LISTO — ENTREGUÉ EL VUELTO</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if operativa %}
+<script id="caja-sla-config" type="application/json">
+{"pollUrl": {{ url_for('api_caja_vales_pendientes_sla')|tojson }}, "anularMinutos": {{ caja_sla_config.anular_minutos }}}
+</script>
+<script src="{{ url_for('static', filename='js/caja-cobro-ui.js') }}?v=caja-cobro-ui-2"></script>
+<script src="{{ url_for('static', filename='js/caja-folio-escaneo.js') }}?v=caja-folio-1"></script>
+<script src="{{ url_for('static', filename='js/caja-prototipo.js') }}?v=caja-proto-apertura-20260702"></script>
+{% if request.args.get('ultima_venta') and vuelto_ultima > 0 %}
+<script>
+  window.addEventListener('load', function () {
+    var el = document.getElementById('modalVueltoAlto');
+    if (!el || typeof bootstrap === 'undefined') return;
+    bootstrap.Modal.getOrCreateInstance(el).show();
+  });
+</script>
+{% endif %}
+{% else %}
+<script src="{{ url_for('static', filename='js/caja-prototipo.js') }}?v=caja-proto-apertura-20260702"></script>
+{% endif %}
+{% endblock %}

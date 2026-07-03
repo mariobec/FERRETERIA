@@ -9,6 +9,12 @@ def _wrap_caja_vale(fn):
     return login_required(m.caja_requerida(m.permisos_required('caja_cobrar_vale')(fn)))
 
 
+def _wrap_caja_prototipo(fn):
+    """Prototipo caja: permiso cobrar, pero permite ver pantalla sin caja abierta (formulario inline)."""
+    m = app_module()
+    return login_required(m.permisos_required('caja_cobrar_vale')(fn))
+
+
 def _wrap_saldos_favor(fn):
     m = app_module()
     return login_required(m.permisos_required('caja_cobrar_vale', 'gestionar_usuarios')(fn))
@@ -32,6 +38,7 @@ def _wrap_anular_vale(fn):
 def register_caja_routes(app):
     m = app_module()
     app.add_url_rule('/caja/vales_pendientes', 'caja_pendientes', _wrap_caja_vale(m.caja_pendientes), methods=['GET'])
+    app.add_url_rule('/caja/prototipo', 'caja_prototipo', _wrap_caja_prototipo(m.caja_prototipo), methods=['GET'])
     app.add_url_rule(
         '/caja/transferencias',
         'caja_transferencias',
@@ -156,7 +163,7 @@ def register_caja_routes(app):
     app.add_url_rule(
         '/caja/limpiar_cola_cierre',
         'limpiar_cola_cierre_caja',
-        login_required(m.permisos_required('gestionar_usuarios')(m.limpiar_cola_cierre_caja)),
+        login_required(m.permisos_required('gestionar_usuarios', 'anular_vale_caja')(m.limpiar_cola_cierre_caja)),
         methods=['POST'],
     )
     app.add_url_rule(
@@ -169,6 +176,12 @@ def register_caja_routes(app):
         '/caja/vale_retiro/<int:id>',
         'ver_ticket_cobro',
         _wrap_caja_vale(m.ver_ticket_cobro),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/caja/ticket_retiro/<int:id>',
+        'ver_ticket_retiro',
+        _wrap_caja_vale(m.ver_ticket_retiro),
         methods=['GET'],
     )
     app.add_url_rule(

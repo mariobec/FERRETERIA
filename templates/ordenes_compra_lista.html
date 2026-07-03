@@ -1,158 +1,602 @@
 {% extends 'base.html' %}
 
+
+
 {% block extra_css %}
+
 <style>
-  .oc-row-alerta td {
-    background-color: #fff8e1 !important;
+
+  .oc-row-alerta > td {
+
+    background-color: #fffbeb !important;
+
   }
-  .oc-row-alerta:hover td {
-    background-color: #ffefc2 !important;
+
+  .oc-row-alerta:hover > td {
+
+    background-color: #fef3c7 !important;
+
   }
+
+  .oc-lista-table {
+
+    table-layout: fixed;
+
+    width: 100%;
+
+  }
+
+  .oc-lista-table th,
+
+  .oc-lista-table td {
+
+    vertical-align: middle;
+
+    padding-top: 0.55rem;
+
+    padding-bottom: 0.55rem;
+
+  }
+
+  .oc-lista-table .col-id { width: 44px; }
+
+  .oc-lista-table .col-numero { width: 13%; }
+
+  .oc-lista-table .col-proveedor { width: 24%; }
+
+  .oc-lista-table .col-emision { width: 88px; }
+
+  .oc-lista-table .col-estado { width: 118px; }
+
+  .oc-lista-table .col-total { width: 96px; }
+
+  .oc-lista-table .col-acciones { width: 132px; }
+
+  .oc-numero {
+
+    font-family: ui-monospace, Consolas, monospace;
+
+    font-size: 0.8rem;
+
+    font-weight: 600;
+
+    word-break: break-all;
+
+    line-height: 1.2;
+
+  }
+
+  .oc-proveedor-nombre {
+
+    font-weight: 500;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+    font-size: 0.875rem;
+
+  }
+
+  .oc-estado-cell {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.35rem;
+
+    flex-wrap: nowrap;
+
+  }
+
+  .oc-estado-cell .badge {
+
+    font-size: 0.68rem;
+
+    font-weight: 600;
+
+    white-space: nowrap;
+
+  }
+
+  .oc-alerta-dot {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    width: 1.35rem;
+
+    height: 1.35rem;
+
+    border-radius: 50%;
+
+    background: #fef3c7;
+
+    color: #b45309;
+
+    font-size: 0.65rem;
+
+    flex-shrink: 0;
+
+  }
+
+  .oc-acciones {
+
+    display: flex;
+
+    justify-content: flex-end;
+
+    align-items: center;
+
+    gap: 0.25rem;
+
+    flex-wrap: nowrap;
+
+  }
+
+  .oc-acciones .btn {
+
+    padding: 0.2rem 0.45rem;
+
+    line-height: 1.2;
+
+  }
+
+  .oc-acciones .btn-oc-abrir {
+
+    font-size: 0.75rem;
+
+    font-weight: 600;
+
+    min-width: 4.5rem;
+
+  }
+
+  .oc-acciones .btn-oc-pdf {
+
+    min-width: 2rem;
+
+  }
+
+  .oc-seg-row > td {
+
+    padding: 0 !important;
+
+    border-top: 0 !important;
+
+    background: #f1f5f9 !important;
+
+  }
+
+  .oc-row-alerta + .oc-seg-row > td {
+
+    background: #fff7ed !important;
+
+  }
+
+  .oc-seg-panel {
+
+    display: grid;
+
+    grid-template-columns: auto 1fr minmax(120px, 180px) auto;
+
+    gap: 0.5rem;
+
+    align-items: center;
+
+    padding: 0.5rem 0.75rem 0.6rem;
+
+    border-top: 1px dashed #cbd5e1;
+
+  }
+
+  .oc-seg-panel__label {
+
+    font-size: 0.7rem;
+
+    font-weight: 700;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.04em;
+
+    color: #64748b;
+
+    white-space: nowrap;
+
+  }
+
+  .oc-seg-panel__label i {
+
+    color: #16a34a;
+
+  }
+
+  @media (max-width: 991.98px) {
+
+    .oc-lista-table { table-layout: auto; }
+
+    .oc-seg-panel {
+
+      grid-template-columns: 1fr;
+
+    }
+
+  }
+
 </style>
+
 {% endblock %}
+
+
 
 {% block content %}
+
 <div class="container-fluid px-0">
+
   <div class="page-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+
     <div>
+
       <h3 class="page-title"><i class="fas fa-file-contract text-primary me-2"></i>Órdenes de compra</h3>
+
       <p class="page-subtitle mb-0">Busque por OC, proveedor o <strong>producto</strong> (nombre, código barra o interno).</p>
+
     </div>
+
     <div class="d-flex gap-2">
+
       <a href="{{ url_for('orden_compra_nueva') }}" class="btn btn-ds-primary btn-sm">Nueva OC</a>
+
       <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm">Recepciones</a>
+
     </div>
+
   </div>
+
+
 
   <div class="card card-ds">
+
     <div class="card-header bg-white border-bottom">
+
       <form method="get" action="{{ url_for('lista_ordenes_compra') }}" class="row g-2 align-items-end" id="formFiltroOC">
+
         <div class="col-md-4">
+
           <label class="form-label fw-semibold mb-1"><i class="fas fa-search me-1 text-muted"></i>Buscar</label>
+
           <input type="text" name="q" class="form-control form-control-sm"
+
                  placeholder="Nº OC, proveedor, producto o código…"
+
                  value="{{ q or '' }}" autocomplete="off">
+
         </div>
+
         <div class="col-md-2">
+
           <label class="form-label fw-semibold mb-1">
+
             Sin seguimiento
+
             <span class="kpi-help" data-bs-toggle="tooltip" title="Muestra OCs cuyo último seguimiento es anterior al rango, o que aún no tienen seguimiento.">?</span>
+
           </label>
+
           <select name="sin_seg_dias" class="form-select form-select-sm">
+
             <option value="0" {% if (sin_seg_dias or 0) == 0 %}selected{% endif %}>Todas</option>
+
             <option value="2" {% if (sin_seg_dias or 0) == 2 %}selected{% endif %}>2 días</option>
+
             <option value="3" {% if (sin_seg_dias or 0) == 3 %}selected{% endif %}>3 días</option>
+
             <option value="5" {% if (sin_seg_dias or 0) == 5 %}selected{% endif %}>5 días</option>
+
             <option value="7" {% if (sin_seg_dias or 0) == 7 %}selected{% endif %}>7 días</option>
+
           </select>
+
         </div>
+
         <div class="col-md-2">
+
           <label class="form-label fw-semibold mb-1">
+
             Alcance
+
             <span class="kpi-help" data-bs-toggle="tooltip" title="Puedes limitar el filtro solo a OCs en curso (Borrador, Enviada, Parcial).">?</span>
+
           </label>
+
           <select name="solo_pendientes" class="form-select form-select-sm">
+
             <option value="1" {% if solo_pendientes %}selected{% endif %}>Pendientes</option>
+
             <option value="0" {% if not solo_pendientes %}selected{% endif %}>Todos</option>
+
           </select>
+
         </div>
+
         <div class="col-md-4 d-flex gap-2 align-items-end">
+
           <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-search me-1"></i>Buscar</button>
+
           <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+
           {% if usuario_tiene_permiso('gestionar_usuarios') %}
+
           <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="btnEliminarTest"
+
                   data-url="{{ url_for('ordenes_compra_eliminar_test') }}"
+
                   title="Elimina OCs con prefijo TEST-, CAS-OC-, QA- o proveedor TEST">
+
             <i class="fas fa-trash me-1"></i>Borrar TEST
+
           </button>
+
           {% endif %}
+
         </div>
+
       </form>
+
     </div>
+
     <div class="card-body p-0 table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
+
+      <table class="table table-sm table-hover mb-0 oc-lista-table">
+
         <thead class="table-light">
+
           <tr>
-            <th>#</th>
-            <th>Número</th>
-            <th>Proveedor</th>
-            <th>Emisión</th>
-            <th>Estado</th>
-            <th class="text-end">Total estimado</th>
-            <th></th>
+
+            <th class="col-id text-muted">#</th>
+
+            <th class="col-numero">Número</th>
+
+            <th class="col-proveedor">Proveedor</th>
+
+            <th class="col-emision">Emisión</th>
+
+            <th class="col-estado">Estado</th>
+
+            <th class="col-total text-end text-nowrap">Total est.</th>
+
+            <th class="col-acciones text-end text-nowrap">Acciones</th>
+
           </tr>
+
         </thead>
+
         <tbody>
+
           {% for o in ordenes %}
-          <tr class="{% if oc_alerta_ids is defined and o.id in oc_alerta_ids %}oc-row-alerta{% endif %}">
-            <td>{{ o.id }}</td>
-            <td class="fw-semibold">{{ o.numero }}</td>
-            <td>{{ o.proveedor.nombre if o.proveedor else '—' }}</td>
-            <td>{{ o.fecha_emision.strftime('%Y-%m-%d') if o.fecha_emision else '—' }}</td>
+
+          {% set es_alerta = oc_alerta_ids is defined and o.id in oc_alerta_ids %}
+
+          {% set es_pendiente = o.estado in ('Borrador', 'Enviada', 'Parcial') %}
+
+          {% set estado_badge = {
+
+            'Borrador': 'bg-secondary',
+
+            'Enviada': 'bg-primary',
+
+            'Parcial': 'bg-warning text-dark',
+
+            'Cerrada': 'bg-success',
+
+            'Anulada': 'bg-danger',
+
+          } %}
+
+          <tr class="{% if es_alerta %}oc-row-alerta{% endif %}">
+
+            <td class="text-muted small">{{ o.id }}</td>
+
+            <td><span class="oc-numero" title="{{ o.numero }}">{{ o.numero }}</span></td>
+
+            <td><div class="oc-proveedor-nombre" title="{{ o.proveedor.nombre if o.proveedor else '' }}">{{ o.proveedor.nombre if o.proveedor else '—' }}</div></td>
+
+            <td class="text-nowrap small text-muted">{{ o.fecha_emision.strftime('%d-%m-%Y') if o.fecha_emision else '—' }}</td>
+
             <td>
-              <span class="badge bg-secondary">{{ o.estado }}</span>
-              {% if oc_alerta_ids is defined and o.id in oc_alerta_ids %}
-              <span class="badge text-bg-warning ms-1">Sin seguimiento</span>
-              {% endif %}
+
+              <div class="oc-estado-cell">
+
+                <span class="badge {{ estado_badge.get(o.estado, 'bg-secondary') }}">{{ o.estado }}</span>
+
+                {% if es_alerta %}
+
+                <span class="oc-alerta-dot" title="Sin seguimiento reciente"><i class="fas fa-bell"></i></span>
+
+                {% endif %}
+
+              </div>
+
             </td>
-            <td class="text-end">${{ "{:,.0f}".format(o.total_estimado or 0).replace(",", ".") }}</td>
+
+            <td class="text-end fw-semibold text-nowrap small">${{ "{:,.0f}".format(o.total_estimado or 0).replace(",", ".") }}</td>
+
             <td class="text-end">
-              <form method="post" action="{{ url_for('orden_compra_seguimiento_rapido', oid=o.id) }}" class="d-inline-flex align-items-center gap-1 me-1">
-                <input type="hidden" name="sin_seg_dias" value="{{ sin_seg_dias or 0 }}">
-                <input type="hidden" name="solo_pendientes" value="{{ 1 if solo_pendientes else 0 }}">
-                <input type="hidden" name="q" value="{{ q or '' }}">
-                <select name="seguimiento_estado" class="form-select form-select-sm" style="max-width:180px;">
-                  <option value="Pendiente respuesta proveedor">Pendiente respuesta</option>
-                  <option value="Proveedor confirma recepcion">Confirma recepción</option>
-                  <option value="Proveedor confirma despacho">Confirma despacho</option>
-                </select>
-                <input type="text" name="seguimiento_nota" class="form-control form-control-sm" placeholder="Nota" style="max-width:130px;">
-                <button type="submit" class="btn btn-sm btn-outline-success" title="Registra un hito rápido y lo agrega a la trazabilidad de la OC.">Seguimiento</button>
-              </form>
-              <a href="{{ url_for('orden_compra_editar', oid=o.id) }}" class="btn btn-sm btn-outline-primary">Abrir</a>
+
+              <div class="oc-acciones">
+
+                {% if es_pendiente %}
+
+                <button type="button" class="btn btn-outline-success btn-sm py-0 px-1"
+
+                        data-bs-toggle="collapse" data-bs-target="#ocSeg{{ o.id }}"
+
+                        aria-expanded="{% if es_alerta %}true{% else %}false{% endif %}"
+
+                        title="Seguimiento proveedor">
+
+                  <i class="fas fa-route"></i>
+
+                </button>
+
+                {% endif %}
+
+                <a href="{{ url_for('orden_compra_editar', oid=o.id) }}" class="btn btn-outline-primary btn-sm btn-oc-abrir" title="Abrir orden">
+
+                  Abrir
+
+                </a>
+
+                <a href="{{ url_for('orden_compra_pdf', oid=o.id) }}" target="_blank" class="btn btn-outline-secondary btn-sm btn-oc-pdf" title="PDF">
+
+                  <i class="fas fa-file-pdf"></i>
+
+                </a>
+
+              </div>
+
             </td>
+
           </tr>
+
+          {% if es_pendiente %}
+
+          <tr class="oc-seg-row{% if es_alerta %} oc-seg-row--alerta{% endif %}">
+
+            <td colspan="7" class="p-0">
+
+              <div class="collapse{% if es_alerta %} show{% endif %}" id="ocSeg{{ o.id }}">
+
+                <form method="post" action="{{ url_for('orden_compra_seguimiento_rapido', oid=o.id) }}" class="oc-seg-panel">
+
+                  <input type="hidden" name="sin_seg_dias" value="{{ sin_seg_dias or 0 }}">
+
+                  <input type="hidden" name="solo_pendientes" value="{{ 1 if solo_pendientes else 0 }}">
+
+                  <input type="hidden" name="q" value="{{ q or '' }}">
+
+                  <span class="oc-seg-panel__label"><i class="fas fa-route me-1"></i>Seguimiento</span>
+
+                  <select name="seguimiento_estado" class="form-select form-select-sm" aria-label="Estado de seguimiento">
+
+                    <option value="Pendiente respuesta proveedor">Pendiente respuesta proveedor</option>
+
+                    <option value="Proveedor confirma recepcion">Proveedor confirma recepción</option>
+
+                    <option value="Proveedor confirma despacho">Proveedor confirma despacho</option>
+
+                  </select>
+
+                  <input type="text" name="seguimiento_nota" class="form-control form-control-sm" placeholder="Nota opcional" aria-label="Nota de seguimiento">
+
+                  <button type="submit" class="btn btn-sm btn-success text-nowrap">
+
+                    <i class="fas fa-check me-1"></i>Registrar
+
+                  </button>
+
+                </form>
+
+              </div>
+
+            </td>
+
+          </tr>
+
+          {% endif %}
+
           {% else %}
+
           <tr><td colspan="7" class="text-muted text-center py-4">Sin órdenes. Cree la primera.</td></tr>
+
           {% endfor %}
+
         </tbody>
+
       </table>
+
     </div>
+
   </div>
+
 </div>
+
 {% endblock %}
 
+
+
 {% block extra_js %}
+
 <script>
+
 (function () {
+
   var btn = document.getElementById('btnEliminarTest');
+
   if (!btn) return;
+
   btn.addEventListener('click', function () {
+
     if (!confirm('¿Eliminar TODAS las OCs con prefijo TEST-, CAS-OC-, QA- o proveedor TEST?\nEsta acción no se puede deshacer.')) return;
+
     btn.disabled = true;
+
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Eliminando…';
+
     fetch(btn.dataset.url, {
+
       method: 'POST',
+
       credentials: 'same-origin',
+
       headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+
     })
+
       .then(function (r) { return r.json(); })
+
       .then(function (j) {
+
         if (j.ok) {
+
           alert(j.mensaje);
+
           window.location.reload();
+
         } else {
+
           alert('Error: ' + (j.mensaje || 'No se pudo eliminar.'));
+
           btn.disabled = false;
+
           btn.innerHTML = '<i class="fas fa-trash me-1"></i>Borrar TEST';
+
         }
+
       })
+
       .catch(function (e) {
+
         alert('Error de red: ' + (e && e.message ? e.message : e));
+
         btn.disabled = false;
+
         btn.innerHTML = '<i class="fas fa-trash me-1"></i>Borrar TEST';
+
       });
+
   });
+
 })();
+
 </script>
+
 {% endblock %}
+

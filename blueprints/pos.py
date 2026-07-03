@@ -110,6 +110,24 @@ def register_pos_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/pos/retiros',
+        'pos_retiros',
+        _wrap_pos_emitir_caja(m.pos_retiros),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/retiros/sugerencias',
+        'api_pos_retiros_sugerencias',
+        _wrap_pos_api_emitir(m.api_pos_retiros_sugerencias),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/pos/retiros/buscar',
+        'api_pos_retiros_buscar',
+        _wrap_pos_api_emitir(m.api_pos_retiros_buscar),
+        methods=['GET', 'POST'],
+    )
+    app.add_url_rule(
         '/pos/despacho/vale/<int:vid>',
         'pos_despacho_vale',
         _wrap_pos_despacho_vale(m.pos_despacho_vale),

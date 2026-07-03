@@ -1,0 +1,217 @@
+/* Recepción — workflow OC + stock + precios SD */
+.rcv-workflow { --rcv-accent: #0d6efd; --rcv-ok: #198754; --rcv-warn: #fd7e14; }
+.rcv-row-oc-completo { opacity: 0.55; }
+
+.rcv-steps {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.rcv-step {
+  flex: 1;
+  min-width: 140px;
+  padding: .65rem 1rem;
+  border-radius: .5rem;
+  border: 1px solid #dee2e6;
+  background: #f8f9fa;
+  font-size: .8rem;
+  color: #6c757d;
+}
+.rcv-step.active {
+  border-color: var(--rcv-accent);
+  background: #e7f1ff;
+  color: #084298;
+  font-weight: 600;
+}
+.rcv-step.done {
+  border-color: var(--rcv-ok);
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.rcv-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+.rcv-kpi {
+  border: 1px solid #e9ecef;
+  border-radius: .5rem;
+  padding: .85rem 1rem;
+  background: #fff;
+}
+.rcv-kpi-label {
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6c757d;
+  margin-bottom: .2rem;
+}
+.rcv-kpi-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #212529;
+}
+
+.rcv-section {
+  border: 1px solid #dee2e6;
+  border-radius: .65rem;
+  background: #fff;
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+.rcv-section-head {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .85rem 1.15rem;
+  background: linear-gradient(180deg, #f8f9fa 0%, #fff 100%);
+  border-bottom: 1px solid #e9ecef;
+}
+.rcv-section-num {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--rcv-accent);
+  color: #fff;
+  font-size: .85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rcv-section-title {
+  font-weight: 700;
+  font-size: .95rem;
+  margin: 0;
+}
+.rcv-section-body { padding: 1rem 1.15rem; }
+
+.rcv-formula {
+  background: #f0f7ff;
+  border: 1px solid #b6d4fe;
+  border-radius: .5rem;
+  padding: .75rem 1rem;
+  font-size: .82rem;
+  color: #084298;
+}
+
+.rcv-table-wrap { max-height: 420px; overflow: auto; }
+.rcv-table-wrap table { font-size: .85rem; margin: 0; }
+.rcv-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f1f3f5;
+}
+
+.rcv-dest-toggle .btn { font-size: .72rem; padding: .2rem .45rem; }
+.rcv-dest-toggle .btn-check:checked + .btn-outline-warning {
+  background: #fd7e14;
+  border-color: #fd7e14;
+  color: #fff;
+}
+.rcv-dest-toggle .btn-check:checked + .btn-outline-secondary {
+  background: #6c757d;
+  border-color: #6c757d;
+  color: #fff;
+}
+
+.rcv-row-cargado { background: #f8fff9 !important; }
+.rcv-row-generico { background: #fffbeb !important; }
+.rcv-row-generico .rcv-gen-vincular .wf-cod-factura {
+  min-width: 7rem;
+  font-size: 0.8rem;
+}
+.rcv-row-generico .btn-wf-vincular-generico {
+  font-weight: 600;
+}
+.rcv-gen-vincular .wf-auto-hint {
+  line-height: 1.35;
+  min-height: 1.2em;
+}
+.rcv-row-split-error { background: #fff5f5 !important; outline: 2px solid #dc2626; outline-offset: -2px; }
+
+.rcv-advanced {
+  border: 1px dashed #ced4da;
+  border-radius: .5rem;
+  padding: .5rem 1rem;
+  margin-bottom: 1rem;
+}
+.rcv-advanced summary {
+  cursor: pointer;
+  font-size: .85rem;
+  color: #6c757d;
+  font-weight: 600;
+}
+
+.rcv-cam-preview-wrap {
+  background: #111;
+  border-radius: .5rem;
+  overflow: hidden;
+  max-height: 420px;
+  position: relative;
+  min-height: 240px;
+}
+.rcv-cam-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+  color: #adb5bd;
+  font-size: .9rem;
+  pointer-events: none;
+  z-index: 2;
+}
+.rcv-cam-preview-wrap.rcv-cam-live .rcv-cam-status {
+  display: none;
+}
+.rcv-cam-video {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  display: block;
+}
+.rcv-cam-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.rcv-cam-thumb {
+  position: relative;
+  width: 88px;
+  height: 110px;
+  border: 1px solid #dee2e6;
+  border-radius: .35rem;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+.rcv-cam-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rcv-cam-thumb-n {
+  position: absolute;
+  bottom: 2px;
+  left: 4px;
+  font-size: .65rem;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.rcv-cam-thumb-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  line-height: 1;
+  padding: 0 5px;
+  font-size: .75rem;
+}

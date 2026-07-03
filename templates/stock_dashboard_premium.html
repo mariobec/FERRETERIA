@@ -3,9 +3,14 @@
 
 {% block extra_css %}
 <style>
-  body.page-inventario-dashboard-premium .app-main {
+  body.page-inventario-dashboard-premium {
+    background: #020617 !important;
+  }
+  body.page-inventario-dashboard-premium .app-main,
+  body.page-inventario-dashboard-premium .app-main .container-fluid {
     padding: 0 !important;
     overflow-x: hidden;
+    background: transparent !important;
   }
   .premium-stock-shell {
     min-height: calc(100vh - 90px);
@@ -100,7 +105,7 @@
   }
   .metric-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
     margin-bottom: 18px;
   }

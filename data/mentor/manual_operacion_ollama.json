@@ -1,0 +1,966 @@
+{
+  "version": "2026-06-06b",
+  "producto": "LhexIA ERP · Ferretería Santo Domingo",
+  "idioma": "es-CL",
+  "invariantes": [
+    {
+      "id": "inv_financiera",
+      "texto": "El POS jamás recauda dinero real. Todo cobro (efectivo, tarjeta, crédito) se cierra únicamente en la estación de Caja."
+    },
+    {
+      "id": "inv_stock_tienda",
+      "texto": "El POS descuenta stock solo del almacén marcado como Tienda / Mostrador. Bodega es reserva interna."
+    },
+    {
+      "id": "inv_codigo_pistola",
+      "texto": "La pistola alimenta codigo_barra. Vincular en enrolamiento crea alias; no pisa el código maestro del producto."
+    }
+  ],
+  "rutas": {
+    "login": "/login",
+    "inicio": "/",
+    "pos": "/punto_venta",
+    "caja_vales": "/caja/vales_pendientes",
+    "abrir_caja": "/abrir_caja",
+    "cerrar_caja": "/cerrar_caja",
+    "movimiento_caja": "/movimiento_caja",
+    "caja_cambios": "/caja/cambios",
+    "enrolamiento": "/inventario/enrolamiento",
+    "enrolamiento_tablet": "/inventario/enrolamiento/tablet",
+    "enrolador_qr": "/bodega/enrolador",
+    "salud_inventario": "/inventario/salud",
+    "recepciones": "/recepciones",
+    "kardex": "/kardex",
+    "academy": "/academy",
+    "ecommerce_pedidos": "/ecommerce/pedidos",
+    "tienda_web": "/tienda/ferreteria-santo-domingo"
+  },
+  "modulos": [
+    {
+      "id": "pos",
+      "nombre": "Punto de venta (mostrador)",
+      "rol": "vendedor",
+      "ruta": "/punto_venta",
+      "procedimientos": [
+        {
+          "id": "pos_emitir_vale",
+          "titulo": "Emitir vale pendiente de cobro",
+          "pasos": [
+            "Abrir caja del turno (si no está abierta, el sistema redirige a Abrir caja).",
+            "Ir a Punto de venta (/punto_venta).",
+            "F2 o clic en buscador; escanear código o escribir nombre parcial.",
+            "Elegir filtro Operativo (vendible hoy), Tienda (stock mostrador) o Catálogo (todo con precio).",
+            "Revisar semáforo: verde = OK, amarillo = confirmar, rojo = no prometer entrega inmediata.",
+            "Agregar líneas con cantidad correcta y unidad de medida.",
+            "Identificar cliente o usar cliente final del sistema.",
+            "Pulsar Emitir vale (F8). El vale queda Pendiente — NO cobrar en POS.",
+            "Entregar ticket al cliente para fila de caja."
+          ],
+          "errores_comunes": [
+            "Cobrar en POS: incorrecto; usar Caja → Vales pendientes.",
+            "Ignorar semáforo rojo: genera reclamos.",
+            "Producto sin precio POS (precio_venta_sd): no es vendible hasta corregir en maestro o enrolador."
+          ]
+        },
+        {
+          "id": "pos_buscar_filtros",
+          "titulo": "Usar filtros de búsqueda POS",
+          "pasos": [
+            "Operativo: productos vendibles hoy (stock tienda + precio POS).",
+            "Tienda: solo SKU con stock en almacén mostrador.",
+            "Catálogo: maestro completo con precio, aunque no haya stock."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "caja",
+      "nombre": "Caja registradora",
+      "rol": "cajero",
+      "ruta": "/caja/vales_pendientes",
+      "procedimientos": [
+        {
+          "id": "caja_abrir",
+          "titulo": "Abrir caja (inicio de turno)",
+          "pasos": [
+            "Menú Caja → Abrir caja (/abrir_caja).",
+            "Contar físicamente billetes y monedas del fondo (sencillo).",
+            "Ingresar saldo inicial en CLP.",
+            "Confirmar Iniciar jornada.",
+            "Verificar que POS y Vales pendientes queden habilitados."
+          ]
+        },
+        {
+          "id": "caja_cobrar_vale",
+          "titulo": "Cobrar vale emitido en POS",
+          "pasos": [
+            "Ir a Vales pendientes (/caja/vales_pendientes).",
+            "Escanear código del vale (VL######) o buscar por folio.",
+            "Verificar ítems, totales e IVA incluido.",
+            "Elegir medio de pago: efectivo, tarjeta, transferencia o crédito (si aplica).",
+            "Confirmar cobro; el vale pasa a Pagado.",
+            "Entregar comprobante al cliente."
+          ]
+        },
+        {
+          "id": "caja_cobrar_web",
+          "titulo": "Cobrar pedido web (Maylén / tienda online)",
+          "pasos": [
+            "Pedido PED-WEB###### puede estar Pagado (Webpay) o Pendiente (pagar en tienda).",
+            "Si Pendiente: cobrar en caja como vale normal.",
+            "Si Pagado Webpay: aparece en bandeja e-commerce (/ecommerce/pedidos) para preparación.",
+            "Bodega prepara; cliente retira con QR."
+          ]
+        },
+        {
+          "id": "caja_movimiento",
+          "titulo": "Movimiento extraordinario de caja",
+          "pasos": [
+            "Caja → Movimientos (/movimiento_caja).",
+            "Elegir Ingreso o Egreso.",
+            "Concepto claro y verificable.",
+            "En Egreso: responsable del retiro es obligatorio.",
+            "Guardar y verificar en historial del turno."
+          ]
+        },
+        {
+          "id": "caja_cerrar",
+          "titulo": "Cerrar caja — arqueo ciego",
+          "pasos": [
+            "Resolver vales pendientes o documentar excepción.",
+            "Separar efectivo, vouchers y otros medios.",
+            "Caja → Cerrar caja (/cerrar_caja).",
+            "Ingresar montos declarados sin ver teórico primero.",
+            "Si hay descuadre: observación obligatoria y escalar.",
+            "Confirmar cierre según política de la tienda."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bodega",
+      "nombre": "Bodega e inventario",
+      "rol": "bodeguero",
+      "ruta": "/inventario/enrolamiento",
+      "procedimientos": [
+        {
+          "id": "enrol_sesion",
+          "titulo": "Enrolamiento — sesión y escaneo",
+          "pasos": [
+            "Ir a Enrolamiento inventario (/inventario/enrolamiento).",
+            "Elegir almacén de la toma (Tienda = venta POS; Bodega = reserva).",
+            "Pulsar Nueva sesión.",
+            "Pistoleá código; Enter envía automático.",
+            "Caso A reconocido: revisar ficha y pulsar Sumar para confirmar cantidad.",
+            "Caso B código nuevo: buscar en maestro y Vincular (crea alias).",
+            "Caso C no está en maestro: Alta manual con nombre y precio venta."
+          ]
+        },
+        {
+          "id": "enrol_tablet",
+          "titulo": "Enrolador en tablet + pistola BCST",
+          "pasos": [
+            "Tablet y PC servidor en la misma WiFi.",
+            "Abrir http://IP_SERVIDOR:5000/login e iniciar sesión.",
+            "Ir a /inventario/enrolamiento/tablet o escanear QR en /bodega/enrolador.",
+            "Agregar a pantalla de inicio (acceso directo, sin APK).",
+            "Emparejar pistola Bluetooth en modo teclado (HID).",
+            "Tocar recuadro de escaneo visible en tablet y pistoleá."
+          ]
+        },
+        {
+          "id": "salud_inventario",
+          "titulo": "Salud del inventario",
+          "pasos": [
+            "Ir a Inventario → Salud (/inventario/salud).",
+            "Revisar desajuste maestro vs suma depósitos.",
+            "Segunda tabla: tienda en cero y bodega con stock → candidatos a traslado.",
+            "Exportar CSV si hace falta trabajar en Excel.",
+            "Corregir con traslado, ajuste autorizado o nuevo conteo."
+          ]
+        },
+        {
+          "id": "recepcion_pistola",
+          "titulo": "Recepción — pistola sin duplicar stock",
+          "pasos": [
+            "Abrir recepción Pendiente o Incompleta.",
+            "En líneas registradas usar botón Pistola por producto.",
+            "Pistoleá código en modal — NO suma stock extra, solo guarda codigo_barra.",
+            "Si hay código provisional INT-..., puede reemplazarse pistoleando el real."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ecommerce",
+      "nombre": "Tienda online y pedidos web",
+      "rol": "bodega|caja",
+      "ruta": "/ecommerce/pedidos",
+      "procedimientos": [
+        {
+          "id": "ecom_bandeja",
+          "titulo": "Bandeja pedidos web Maylén",
+          "pasos": [
+            "Menú E-commerce → Pedidos web (/ecommerce/pedidos).",
+            "Filtrar Pagado + pendiente preparación.",
+            "Preparar ítems; marcar listo para retiro.",
+            "Cliente retira con QR; caja ya cobró o Webpay pagó automático."
+          ]
+        }
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "id": "faq_001",
+      "intencion": "aprender",
+      "modulo": "pos",
+      "rol": ["vendedor", "cajero"],
+      "pregunta": "¿Cómo emitir un vale en el POS?",
+      "variantes": ["emitir vale", "vender sin cobrar", "mandar a caja", "F8 vale", "vale pendiente"],
+      "respuesta": "En Punto de venta agregá productos, revisá semáforos y precio POS, identificá cliente y pulsá Emitir vale (F8). El vale queda Pendiente para cobro en caja. Nunca cobres en el POS.",
+      "pasos": ["Abrir /punto_venta", "Buscar o escanear producto (F2)", "Revisar semáforo y precio SD", "Emitir vale F8", "Cliente va a caja con el ticket"],
+      "ruta": "/punto_venta",
+      "mentor_launch": "/punto_venta?mentor_open=1&academy_guide=academy:manual_v2:seccion_a_pos_semaforos"
+    },
+    {
+      "id": "faq_002",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Puedo cobrar en el punto de venta?",
+      "variantes": ["cobrar en pos", "recaudar mostrador", "efectivo pos"],
+      "respuesta": "No. Invariante financiera: el POS solo emite vales pendientes. Todo cobro real se hace en Caja → Vales pendientes.",
+      "pasos": ["Emitir vale en POS", "Derivar cliente a caja", "Cajero cobra en /caja/vales_pendientes"],
+      "ruta": "/caja/vales_pendientes"
+    },
+    {
+      "id": "faq_003",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Qué significan los semáforos de stock en el POS?",
+      "variantes": ["semáforo verde", "semáforo rojo", "semáforo amarillo", "stock operativo"],
+      "respuesta": "Verde: stock suficiente en tienda — entrega inmediata OK. Amarillo: stock bajo o parcial — confirmá con el cliente. Rojo/sin stock: no prometas entrega inmediata; ofrecé pedido o alternativa.",
+      "pasos": ["Filtro Operativo muestra semáforo", "Verde = vendible hoy", "Rojo = no prometer"],
+      "ruta": "/punto_venta"
+    },
+    {
+      "id": "faq_004",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cuál filtro de búsqueda uso: Operativo, Tienda o Catálogo?",
+      "variantes": ["filtro operativo", "filtro tienda", "filtro catalogo", "buscar producto pos"],
+      "respuesta": "Operativo = lo vendible hoy (stock tienda + precio POS). Tienda = solo con stock en mostrador. Catálogo = todo el maestro con precio aunque no haya stock. Para vender rápido usá Operativo.",
+      "pasos": ["F2 foco búsqueda", "Elegir filtro en barra", "Operativo para venta del día"],
+      "ruta": "/punto_venta"
+    },
+    {
+      "id": "faq_005",
+      "intencion": "soporte",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "El POS dice sin precio o no deja vender un producto",
+      "variantes": ["sin precio pos", "precio venta sd", "producto no vendible"],
+      "respuesta": "El POS usa precio_venta_sd (precio POS Santo Domingo). Si falta o stock tienda es cero, no es vendible. Corregí en enrolador o maestro de productos: asignar precio SD y stock en almacén Tienda.",
+      "pasos": ["Ver pill Vendible en POS en enrolador", "Sumar stock en Tienda", "Asignar precio_venta_sd"],
+      "ruta": "/inventario/enrolamiento"
+    },
+    {
+      "id": "faq_006",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo abro la caja al iniciar el turno?",
+      "variantes": ["abrir caja", "inicio turno", "saldo inicial", "fondo caja"],
+      "respuesta": "Menú Caja → Abrir caja. Contá el efectivo físico en gaveta, ingresá el monto en CLP y confirmá Iniciar jornada. Sin caja abierta el POS puede bloquearse.",
+      "pasos": ["/abrir_caja", "Contar gaveta", "Ingresar saldo inicial", "Iniciar jornada"],
+      "ruta": "/abrir_caja",
+      "mentor_launch": "/abrir_caja?mentor_open=1"
+    },
+    {
+      "id": "faq_007",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo cobro un vale del vendedor?",
+      "variantes": ["cobrar vale", "vales pendientes", "VL", "escanear vale caja"],
+      "respuesta": "Ir a Vales pendientes, escanear código VL###### o buscar folio, verificar total y elegir medio de pago. Confirmar cobro — pasa a Pagado.",
+      "pasos": ["/caja/vales_pendientes", "Escanear vale", "Medio de pago", "Confirmar"],
+      "ruta": "/caja/vales_pendientes",
+      "mentor_launch": "/caja/vales_pendientes?mentor_open=1"
+    },
+    {
+      "id": "faq_008",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo cierro la caja con arqueo ciego?",
+      "variantes": ["cerrar caja", "arqueo ciego", "PLAT", "descuadre caja"],
+      "respuesta": "Resolvé vales pendientes, separá medios de pago, andá a Cerrar caja. Declarás montos sin ver el teórico primero. Si hay diferencia, observación obligatoria y escalá a supervisor.",
+      "pasos": ["/cerrar_caja", "Declarar efectivo y vouchers", "Revisar diferencia", "Confirmar cierre"],
+      "ruta": "/cerrar_caja"
+    },
+    {
+      "id": "faq_009",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo registro un retiro de efectivo de caja?",
+      "variantes": ["movimiento caja", "egreso caja", "retiro efectivo", "ingreso caja"],
+      "respuesta": "Caja → Movimientos. Elegí Ingreso o Egreso, concepto claro, monto en CLP. En Egreso el responsable del retiro es obligatorio. No uses esto para anular vales.",
+      "pasos": ["/movimiento_caja", "Ingreso o Egreso", "Concepto + monto", "Responsable si egreso"],
+      "ruta": "/movimiento_caja"
+    },
+    {
+      "id": "faq_010",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo hago una devolución o cambio?",
+      "variantes": ["devolucion", "cambio producto", "nota credito caja"],
+      "respuesta": "Usá el módulo Caja → Cambios y devoluciones (/caja/cambios). Seguí el flujo autorizado por supervisión. No anules vales con movimientos de caja.",
+      "pasos": ["/caja/cambios", "Identificar venta original", "Flujo devolución autorizado"],
+      "ruta": "/caja/cambios"
+    },
+    {
+      "id": "faq_011",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Qué es el Caso A, B y C en enrolamiento?",
+      "variantes": ["caso a b c", "codigo nuevo", "vincular codigo", "alta manual enrol"],
+      "respuesta": "Caso A: código reconocido (maestro o alias) — revisá y Sumá cantidad. Caso B: código nuevo — buscá producto y Vinculá (alias, no pisa maestro). Caso C: no está en maestro — Alta manual con nombre y precio.",
+      "pasos": ["Nueva sesión + almacén", "Escanear", "A=Sumar, B=Vincular, C=Alta manual"],
+      "ruta": "/inventario/enrolamiento"
+    },
+    {
+      "id": "faq_012",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo uso el enrolador en tablet con pistola?",
+      "variantes": ["tablet bodega", "pistola BCST", "QR enrolador", "wifi enrolamiento"],
+      "respuesta": "Misma WiFi que el servidor. Login en http://IP:5000, luego /inventario/enrolamiento/tablet o QR en /bodega/enrolador. Emparejá pistola Bluetooth HID, tocá campo de escaneo y pistoleá.",
+      "pasos": ["Login LAN", "Tablet mode o QR", "Bluetooth pistola", "Nueva sesión y escanear"],
+      "ruta": "/bodega/enrolador"
+    },
+    {
+      "id": "faq_013",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿En qué almacén sumo stock para que venda el POS?",
+      "variantes": ["almacen tienda", "stock mostrador", "bodega vs tienda"],
+      "respuesta": "El POS descuenta solo almacén Tienda / Mostrador. Stock en Bodega no vende en caja hasta traslado Bodega → Tienda (modo avanzado en enrolador o plataforma bodega).",
+      "pasos": ["Sesión enrolador en Tienda", "O traslado Bodega→Tienda", "Ver pill Vendible en POS"],
+      "ruta": "/inventario/enrolamiento"
+    },
+    {
+      "id": "faq_014",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo reviso desajustes de inventario?",
+      "variantes": ["salud inventario", "maestro vs depositos", "desajuste stock"],
+      "respuesta": "Inventario → Salud del inventario. Compara stock maestro vs suma depósitos. Segunda tabla lista SKU con tienda en cero y bodega con stock para traslado.",
+      "pasos": ["/inventario/salud", "Filtrar o exportar CSV", "Traslado o ajuste autorizado"],
+      "ruta": "/inventario/salud"
+    },
+    {
+      "id": "faq_015",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Pistola en recepción suma stock dos veces?",
+      "variantes": ["recepcion pistola", "codigo recepcion", "INT provisional"],
+      "respuesta": "No. Si la mercadería ya ingresó por línea de recepción, el botón Pistola solo guarda codigo_barra (y genera interno si falta). No duplica kardex.",
+      "pasos": ["Recepción pendiente", "Líneas → Pistola", "Escanear sin re-ingresar cantidad"],
+      "ruta": "/recepciones"
+    },
+    {
+      "id": "faq_016",
+      "modulo": "ecommerce",
+      "rol": ["cajero", "bodeguero"],
+      "pregunta": "¿Cómo atiendo un pedido de la tienda online Maylén?",
+      "variantes": ["pedido web", "PED-WEB", "maylen", "tienda online cobro"],
+      "respuesta": "Pagar en tienda: vale PED-WEB Pendiente → cobrar en caja. Webpay: ya Pagado → bandeja /ecommerce/pedidos para preparar. Retiro con QR tras preparación.",
+      "pasos": ["Identificar PED-WEB", "Cobrar si Pendiente", "Bandeja e-commerce si Pagado", "Preparar y retiro"],
+      "ruta": "/ecommerce/pedidos"
+    },
+    {
+      "id": "faq_017",
+      "modulo": "general",
+      "rol": ["vendedor", "cajero", "bodeguero"],
+      "pregunta": "¿Dónde está la capacitación paso a paso?",
+      "variantes": ["manual", "academy", "mentor", "capacitacion", "ayuda erp"],
+      "respuesta": "Menú Capacitación LhexIA → /academy. Tres rutas por rol. En POS y caja usá el botón violeta Mentor para guías en pantalla. Preguntale al Mentor Coach en Academy con lenguaje natural.",
+      "pasos": ["/academy", "Elegir ruta por rol", "Guía interactiva o Mentor en piso"],
+      "ruta": "/academy"
+    },
+    {
+      "id": "faq_018",
+      "modulo": "general",
+      "rol": ["vendedor", "cajero", "bodeguero"],
+      "pregunta": "No veo un menú o pantalla — ¿qué hago?",
+      "variantes": ["sin permiso", "no aparece menu", "acceso denegado"],
+      "respuesta": "Cada pantalla requiere permiso RBAC. Pedí al administrador revisar Mantenedores → Roles y permisos. Permisos clave: pos_emitir_vale, caja_cobrar_vale, enrolamiento_inventario, bodega_operador.",
+      "pasos": ["Confirmar login correcto", "Solicitar permiso al admin", "Cerrar sesión y re-entrar"],
+      "ruta": "/login"
+    },
+    {
+      "id": "faq_019",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "Atajos de teclado esenciales en POS",
+      "variantes": ["F2 F8", "atajos pos", "teclado pos"],
+      "respuesta": "F2 = foco búsqueda/escáner. F8 = emitir vale pendiente. Esc = cerrar modal. El Mentor violeta lista atajos según pantalla.",
+      "pasos": ["F2 buscar", "F8 emitir vale", "Esc cancelar"],
+      "ruta": "/punto_venta"
+    },
+    {
+      "id": "faq_020",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Qué hago si la caja del día anterior quedó abierta?",
+      "variantes": ["caja dia anterior", "caja no cerrada", "bloqueo pos caja"],
+      "respuesta": "Un supervisor o cajero autorizado debe cerrar la caja anterior antes de abrir turno nuevo. El Mentor en /cerrar_caja guía el arqueo. No abras dos turnos en la misma estación.",
+      "pasos": ["Identificar caja abierta", "Cerrar con arqueo", "Abrir caja nuevo turno"],
+      "ruta": "/cerrar_caja"
+    },
+    {
+      "id": "faq_021",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "Vinculé un código — ¿por qué no cambió el código maestro?",
+      "variantes": ["alias codigo", "vincular no pisa", "codigo barras duplicado"],
+      "respuesta": "Es correcto: vincular crea alias de escaneo (como POS). El codigo_barra maestro no se sobrescribe. Re-escaneá y debe resolver Caso A por alias.",
+      "pasos": ["Vincular en Caso B", "Re-escaneaar", "Caso A con alias activo"],
+      "ruta": "/inventario/enrolamiento"
+    },
+    {
+      "id": "faq_022",
+      "modulo": "inventario",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Dónde veo el historial de movimientos de un producto?",
+      "variantes": ["kardex", "trazabilidad stock", "movimientos inventario"],
+      "respuesta": "Menú Inventario → Kardex (/kardex). Filtrá por producto, fecha o tipo de movimiento. Cada Sumar en enrolador y cada venta registran kardex.",
+      "pasos": ["/kardex", "Buscar producto", "Revisar entradas/salidas"],
+      "ruta": "/kardex"
+    },
+    {
+      "id": "faq_023",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cómo escaneo con pistola en el POS?",
+      "variantes": ["pistola pos", "codigo barras pos", "escaner pos"],
+      "respuesta": "El foco debe estar en el buscador (F2). Pistoleá — la pistola en modo teclado escribe el código y envía Enter. El producto se agrega si está vendible.",
+      "pasos": ["F2 foco", "Pistoleá", "Enter automático", "Revisar línea"],
+      "ruta": "/punto_venta"
+    },
+    {
+      "id": "faq_024",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo cobro con tarjeta un pedido Webpay?",
+      "variantes": ["webpay", "tarjeta online", "pedido pagado web"],
+      "respuesta": "Si el cliente pagó Webpay en tienda online, la venta ya está Pagada. No cobres de nuevo en caja. Prepará desde bandeja e-commerce. Si quedó Pendiente (pagar en tienda), cobrá como vale normal.",
+      "pasos": ["Ver estado PED-WEB", "Pagado Webpay → preparar", "Pendiente → cobrar caja"],
+      "ruta": "/ecommerce/pedidos"
+    },
+    {
+      "id": "faq_025",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "Producto inactivo — ¿por qué aparece en enrolador?",
+      "variantes": ["producto inactivo", "no vende pos inactivo"],
+      "respuesta": "El enrolador puede resolver códigos de productos inactivos con advertencia. No aparecen en POS hasta reactivarlos en maestro de productos.",
+      "pasos": ["Ver aviso INACTIVO en ficha", "Reactivar en Productos si corresponde"],
+      "ruta": "/inventario/enrolamiento"
+    },
+    {
+      "id": "faq_026",
+      "intencion": "aprender",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cómo vender en el POS paso a paso?",
+      "variantes": [
+        "enseñame a vender en el pos",
+        "enseñame a vender",
+        "aprender a vender en pos",
+        "cómo vender en punto de venta",
+        "como vender en el pos",
+        "primera venta pos",
+        "flujo de venta pos",
+        "hola maylen enseñame a vender",
+        "vender en mostrador"
+      ],
+      "respuesta": "En el POS armás la venta y emitís un vale pendiente; el cobro real es solo en Caja. Buscá productos (F2 o pistola), revisá semáforo y precio POS, agregá líneas al ticket, identificá cliente si aplica y pulsá Emitir vale (F8). Entregá el ticket al cliente para que pague en caja.",
+      "pasos": [
+        "Abrir /punto_venta",
+        "F2 o escanear — filtro Operativo",
+        "Agregar productos al ticket",
+        "Revisar semáforo verde/amarillo/rojo",
+        "Emitir vale F8 (no cobrar en POS)",
+        "Cliente va a Caja con el ticket"
+      ],
+      "ruta": "/punto_venta",
+      "mentor_launch": "/punto_venta?mentor_open=1&academy_guide=academy:manual_v2:seccion_a_pos_semaforos"
+    },
+    {
+      "id": "faq_027",
+      "intencion": "aprender",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo trabajar en caja paso a paso?",
+      "variantes": [
+        "enseñame caja",
+        "aprender caja",
+        "cómo usar la caja",
+        "primer turno caja",
+        "flujo del cajero"
+      ],
+      "respuesta": "En caja tu trabajo principal es cobrar los vales que trae el vendedor desde el POS. Abrís turno con el fondo inicial, cobrás en Vales pendientes y registrás retiros o ingresos si el supervisor lo pide. El POS nunca cobra — solo emite vales.",
+      "pasos": [
+        "/abrir_caja — ingresar saldo inicial del fondo",
+        "/caja/vales_pendientes — escanear y cobrar vales VL",
+        "/movimiento_caja — egresos o ingresos si aplica"
+      ],
+      "ruta": "/abrir_caja",
+      "mentor_launch": "/abrir_caja?mentor_open=1&academy_guide=academy:manual_v2:seccion_d_apertura_caja"
+    },
+    {
+      "id": "faq_028",
+      "intencion": "aprender",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo usar el enrolador de bodega paso a paso?",
+      "variantes": [
+        "enseñame enrolador",
+        "aprender enrolamiento",
+        "cómo enrolar productos",
+        "tablet bodega paso a paso",
+        "primera toma inventario"
+      ],
+      "respuesta": "En enrolamiento escaneás o buscás productos, elegís almacén (Tienda o Bodega), resolvés Caso A/B/C y confirmás Sumar para registrar stock con kardex. En tablet usás la misma lógica con interfaz táctil.",
+      "pasos": [
+        "/inventario/enrolamiento — elegir sesión y almacén",
+        "Escanear código o buscar maestro",
+        "Resolver Caso A (existe), B (vincular) o C (crear)",
+        "Confirmar Sumar — actualiza stock y kardex"
+      ],
+      "ruta": "/inventario/enrolamiento",
+      "mentor_launch": "/inventario/enrolamiento?mentor_open=1&academy_guide=academy:manual_v2:seccion_c_telemetria_v3"
+    },
+    {
+      "id": "faq_029",
+      "intencion": "aprender",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo cobrar un vale paso a paso?",
+      "variantes": [
+        "enseñame a cobrar un vale",
+        "enseñame cobrar vale",
+        "aprender a cobrar vales",
+        "cómo cobro en vales pendientes",
+        "primer cobro caja",
+        "flujo cobro vale VL"
+      ],
+      "respuesta": "En Caja → Vales pendientes escaneás el código VL del ticket del vendedor, verificás ítems y total, elegís medio de pago (efectivo, tarjeta, transferencia o crédito si el cliente tiene cupo) y confirmás. El vale pasa a Pagado — no cobres en el POS.",
+      "pasos": [
+        "Ir a /caja/vales_pendientes",
+        "Escanear VL###### o buscar folio",
+        "Verificar ítems, IVA incluido y total",
+        "Elegir medio de pago",
+        "Confirmar cobro — estado Pagado"
+      ],
+      "ruta": "/caja/vales_pendientes",
+      "mentor_launch": "/caja/vales_pendientes?mentor_open=1&academy_guide=academy:manual_v2:seccion_f_cobro_vales"
+    },
+    {
+      "id": "faq_030",
+      "intencion": "aprender",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cómo leer los semáforos del POS paso a paso?",
+      "variantes": [
+        "enseñame los semáforos",
+        "enseñame semáforo pos",
+        "aprender semáforos stock",
+        "qué significa verde amarillo rojo pos",
+        "cómo usar semáforo operativo"
+      ],
+      "respuesta": "Con filtro Operativo cada producto muestra semáforo según stock en Tienda. Verde = entrega inmediata OK. Amarillo = stock bajo — confirmá con el cliente. Rojo = sin stock en mostrador — no prometas entrega hoy; ofrecé alternativa o pedido.",
+      "pasos": [
+        "Abrir /punto_venta — filtro Operativo",
+        "Verde: agregar sin reserva",
+        "Amarillo: avisar al cliente",
+        "Rojo: no prometer entrega inmediata"
+      ],
+      "ruta": "/punto_venta",
+      "mentor_launch": "/punto_venta?mentor_open=1&academy_guide=academy:manual_v2:seccion_a_pos_semaforos"
+    },
+    {
+      "id": "faq_031",
+      "intencion": "aprender",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cómo buscar productos en el POS paso a paso?",
+      "variantes": [
+        "enseñame a buscar productos",
+        "enseñame buscar en pos",
+        "aprender filtros pos",
+        "cómo encuentro un producto",
+        "buscar sku pos",
+        "filtro operativo tienda catalogo"
+      ],
+      "respuesta": "Pulsá F2 para foco en buscador, escaneá con pistola o escribí nombre parcial. Elegí filtro: Operativo (vendible hoy), Tienda (stock mostrador) o Catálogo (maestro con precio). Para venta rápida usá Operativo.",
+      "pasos": [
+        "F2 — foco búsqueda",
+        "Escanear o escribir texto parcial",
+        "Elegir filtro Operativo / Tienda / Catálogo",
+        "Clic en fila para agregar al ticket"
+      ],
+      "ruta": "/punto_venta",
+      "mentor_launch": "/punto_venta?mentor_open=1&academy_guide=academy:manual_v2:seccion_a_pos_semaforos"
+    },
+    {
+      "id": "faq_032",
+      "intencion": "aprender",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo hacer una devolución o cambio paso a paso?",
+      "variantes": [
+        "enseñame devolución",
+        "enseñame cambio producto",
+        "aprender devoluciones caja",
+        "cómo devolver mercadería",
+        "nota de crédito paso a paso"
+      ],
+      "respuesta": "Las devoluciones y cambios se gestionan en Caja → Cambios y devoluciones, con autorización de supervisión. Identificá la venta original, seguí el flujo del módulo y no uses movimientos de caja para anular vales.",
+      "pasos": [
+        "Ir a /caja/cambios",
+        "Identificar venta o vale original",
+        "Seguir flujo autorizado por supervisión",
+        "Entregar comprobante al cliente"
+      ],
+      "ruta": "/caja/cambios"
+    },
+    {
+      "id": "faq_033",
+      "intencion": "aprender",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo revisar salud del inventario paso a paso?",
+      "variantes": [
+        "enseñame salud inventario",
+        "aprender desajustes stock",
+        "cómo ver salud inventario",
+        "revisar maestro vs depositos",
+        "tienda cero bodega stock"
+      ],
+      "respuesta": "En Inventario → Salud comparás stock maestro vs suma de almacenes. La segunda tabla lista SKU con tienda en cero y bodega con stock — candidatos a traslado. Exportá CSV si necesitás trabajar en Excel.",
+      "pasos": [
+        "Abrir /inventario/salud",
+        "Revisar desajuste maestro vs depósitos",
+        "Segunda tabla: tienda 0 + bodega > 0",
+        "Traslado Bodega→Tienda o ajuste autorizado"
+      ],
+      "ruta": "/inventario/salud",
+      "mentor_launch": "/inventario/salud?mentor_open=1&academy_guide=academy:manual_v2:seccion_h_salud_inventario"
+    },
+    {
+      "id": "faq_034",
+      "intencion": "aprender",
+      "modulo": "ecommerce",
+      "rol": ["bodeguero", "cajero"],
+      "pregunta": "¿Cómo preparar un pedido web paso a paso?",
+      "variantes": [
+        "enseñame pedidos web",
+        "enseñame bandeja ecommerce",
+        "aprender pedido maylen",
+        "cómo preparar PED-WEB",
+        "flujo tienda online erp"
+      ],
+      "respuesta": "En E-commerce → Pedidos web filtrá Pagado pendiente de preparación. Prepará ítems en bodega, marcá listo para retiro. Si el pedido quedó Pendiente (pagar en tienda), primero cobrá en caja como vale normal.",
+      "pasos": [
+        "Ir a /ecommerce/pedidos",
+        "Filtrar Pagado + pendiente preparación",
+        "Preparar ítems en bodega",
+        "Marcar listo — retiro con QR"
+      ],
+      "ruta": "/ecommerce/pedidos"
+    },
+    {
+      "id": "faq_035",
+      "intencion": "aprender",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo trasladar stock de bodega a tienda paso a paso?",
+      "variantes": [
+        "enseñame traslado",
+        "aprender traslado bodega tienda",
+        "cómo mover stock a mostrador",
+        "bodega a tienda paso a paso",
+        "pasar mercadería a tienda"
+      ],
+      "respuesta": "El POS solo vende stock en almacén Tienda. En enrolador (modo avanzado con permiso) elegí producto, cantidad, origen Bodega y destino Tienda, o usá el preset Bodega→Tienda. Ejecutá traslado — queda registrado en kardex.",
+      "pasos": [
+        "Abrir /inventario/enrolamiento",
+        "Activar modo avanzado si tienes permiso",
+        "Origen: Bodega — Destino: Tienda",
+        "Cantidad y Ejecutar traslado",
+        "Verificar pill Vendible en POS"
+      ],
+      "ruta": "/inventario/enrolamiento",
+      "mentor_launch": "/inventario/enrolamiento?mentor_open=1&academy_guide=academy:manual_v2:seccion_c_telemetria_v3"
+    },
+    {
+      "id": "faq_036",
+      "intencion": "aprender",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo resolver Caso A, B y C en enrolamiento paso a paso?",
+      "variantes": [
+        "enseñame caso a b c",
+        "enseñame vincular codigo",
+        "aprender casos enrolamiento",
+        "codigo nuevo que hago",
+        "alta manual producto enrolador"
+      ],
+      "respuesta": "Tras escanear: Caso A = código reconocido — revisá ficha y Sumá cantidad. Caso B = código nuevo — buscá producto en maestro y Vinculá (alias, no pisa código maestro). Caso C = no existe — Alta manual con nombre y precio venta.",
+      "pasos": [
+        "Nueva sesión + elegir almacén Tienda o Bodega",
+        "Escanear código — leer caso A/B/C",
+        "A: Sumar cantidad confirmada",
+        "B: Buscar maestro → Vincular",
+        "C: Alta manual → luego Sumar"
+      ],
+      "ruta": "/inventario/enrolamiento",
+      "mentor_launch": "/inventario/enrolamiento?mentor_open=1&academy_guide=academy:manual_v2:seccion_c_telemetria_v3"
+    },
+    {
+      "id": "faq_037",
+      "intencion": "aprender",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo cerrar caja con arqueo ciego paso a paso?",
+      "variantes": [
+        "enseñame cerrar caja",
+        "aprender arqueo ciego",
+        "cómo cierro turno caja",
+        "fin de turno cajero",
+        "arqueo paso a paso"
+      ],
+      "respuesta": "Antes de cerrar resolvé vales pendientes. Separá efectivo, vouchers y otros medios. En Cerrar caja declarás montos sin ver el teórico primero (arqueo ciego). Si hay descuadre, observación obligatoria y escalá a supervisor.",
+      "pasos": [
+        "Resolver vales pendientes o documentar excepción",
+        "Separar efectivo y vouchers físicos",
+        "Ir a /cerrar_caja",
+        "Declarar montos — arqueo ciego",
+        "Observación si hay diferencia — confirmar cierre"
+      ],
+      "ruta": "/cerrar_caja",
+      "mentor_launch": "/cerrar_caja?mentor_open=1&academy_guide=academy:manual_v2:seccion_b_arqueo_ciego_plat11"
+    },
+    {
+      "id": "faq_038",
+      "intencion": "aprender",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo cobrar a crédito en caja paso a paso?",
+      "variantes": [
+        "enseñame crédito caja",
+        "aprender vender a crédito",
+        "cómo cobro con crédito tienda",
+        "cliente con cupo crédito",
+        "cuotas crédito caja"
+      ],
+      "respuesta": "Al cobrar un vale en Vales pendientes, elegí medio Crédito tienda si el cliente tiene cupo habilitado. Podés definir plan de cuotas con fechas. El abono posterior se registra en Módulo Créditos.",
+      "pasos": [
+        "Cobrar vale en /caja/vales_pendientes",
+        "Verificar cliente con cupo crédito",
+        "Medio de pago: Crédito tienda (cartera)",
+        "Elegir plan de cuotas si aplica",
+        "Abonos posteriores en /creditos"
+      ],
+      "ruta": "/caja/vales_pendientes"
+    },
+    {
+      "id": "faq_039",
+      "intencion": "aprender",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cómo usar la pistola en el POS paso a paso?",
+      "variantes": [
+        "enseñame pistola pos",
+        "aprender escanear pos",
+        "cómo escaneo en mostrador",
+        "pistola codigo barras paso a paso",
+        "configurar escaner pos"
+      ],
+      "respuesta": "La pistola debe estar en modo teclado (HID). En POS pulsá F2 para foco en buscador, pistoleá el código — escribe y envía Enter solo. Si el producto es vendible (Operativo + precio POS + stock tienda), se agrega al ticket.",
+      "pasos": [
+        "F2 — foco en buscador POS",
+        "Pistola modo teclado HID",
+        "Pistoleá código — Enter automático",
+        "Revisar línea y semáforo",
+        "Repetir o F8 emitir vale"
+      ],
+      "ruta": "/punto_venta",
+      "mentor_launch": "/punto_venta?mentor_open=1&academy_guide=academy:manual_v2:seccion_a_pos_semaforos"
+    },
+    {
+      "id": "faq_040",
+      "intencion": "aprender",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo usar la pistola en recepción paso a paso?",
+      "variantes": [
+        "enseñame pistola recepcion",
+        "aprender codigo recepcion",
+        "cómo pistoleo en recepción",
+        "vincular codigo recepcion compra"
+      ],
+      "respuesta": "En recepción de compra, si la mercadería ya ingresó por línea, el botón Pistola solo guarda codigo_barra — no suma stock extra ni duplica kardex. Útil para reemplazar código provisional INT-... por el real.",
+      "pasos": [
+        "Abrir recepción Pendiente o Incompleta en /recepciones",
+        "En línea registrada → botón Pistola",
+        "Escanear código real en modal",
+        "Confirmar — solo actualiza codigo_barra"
+      ],
+      "ruta": "/recepciones"
+    },
+    {
+      "id": "faq_041",
+      "intencion": "soporte",
+      "modulo": "caja",
+      "rol": ["cajero", "vendedor"],
+      "pregunta": "El vale no aparece en Vales pendientes",
+      "variantes": [
+        "no encuentro el vale",
+        "vale no aparece caja",
+        "busco VL y no sale",
+        "vale perdido caja",
+        "no veo vale pendiente"
+      ],
+      "respuesta": "Verificá que el vendedor emitió vale con F8 (estado Pendiente, no borrador POS). Revisá folio VL exacto. Si ya fue cobrado, no aparece en pendientes. Si es pedido web, buscá PED-WEB en bandeja e-commerce.",
+      "pasos": [
+        "Confirmar que POS emitió F8 (no solo borrador)",
+        "Escanear VL###### completo",
+        "Verificar si ya está Pagado",
+        "Pedido web → /ecommerce/pedidos"
+      ],
+      "ruta": "/caja/vales_pendientes"
+    },
+    {
+      "id": "faq_042",
+      "intencion": "soporte",
+      "modulo": "caja",
+      "rol": ["cajero", "vendedor"],
+      "pregunta": "¿Cómo anulo un vale pendiente?",
+      "variantes": [
+        "anular vale",
+        "cancelar vale pendiente",
+        "borrar vale sin cobrar",
+        "vale equivocado anular",
+        "no quiero cobrar ese vale"
+      ],
+      "respuesta": "Desde Vales pendientes, con permiso anular_vale_caja, podés anular vales Pendiente o borradores POS abiertos. Indicá motivo. Si el vale tenía despacho bodega, se requiere permiso adicional. No uses movimientos de caja para anular.",
+      "pasos": [
+        "Ir a /caja/vales_pendientes",
+        "Seleccionar vale Pendiente",
+        "Anular con motivo (permiso requerido)",
+        "Verificar que desaparece de cola"
+      ],
+      "ruta": "/caja/vales_pendientes"
+    },
+    {
+      "id": "faq_043",
+      "intencion": "soporte",
+      "modulo": "caja",
+      "rol": ["cajero", "vendedor"],
+      "pregunta": "El POS me manda a abrir caja y no puedo vender",
+      "variantes": [
+        "pos bloqueado caja",
+        "redirige abrir caja",
+        "no puedo entrar pos sin caja",
+        "caja cerrada pos",
+        "abrir caja para vender"
+      ],
+      "respuesta": "El POS requiere caja abierta en el turno. Un cajero debe ir a Abrir caja, contar fondo inicial e iniciar jornada. Si quedó caja del día anterior abierta, un supervisor debe cerrarla antes de abrir turno nuevo.",
+      "pasos": [
+        "Verificar si hay caja abierta de ayer → /cerrar_caja",
+        "Ir a /abrir_caja — saldo inicial",
+        "Iniciar jornada",
+        "Reintentar /punto_venta"
+      ],
+      "ruta": "/abrir_caja",
+      "mentor_launch": "/abrir_caja?mentor_open=1&academy_guide=academy:manual_v2:seccion_d_apertura_caja"
+    },
+    {
+      "id": "faq_044",
+      "intencion": "onboarding",
+      "modulo": "caja",
+      "rol": ["cajero"],
+      "pregunta": "¿Cómo me capacito como cajero?",
+      "variantes": [
+        "como me convierto en cajero",
+        "cómo me convierto en cajero",
+        "aprender a ser cajero",
+        "donde aprendo a ser cajero",
+        "soy nuevo cajero",
+        "empiezo como cajero",
+        "ruta capacitacion cajero",
+        "como me capacito como cajero"
+      ],
+      "respuesta": "Entrá a LhexIA Academy → ruta Cajero (/academy#academy-caja). Ahí tenés guías paso a paso: abrir turno, cobrar vales del POS y movimientos de caja. En piso usá el botón violeta Mentor en Abrir caja y Vales pendientes.",
+      "pasos": [
+        "Ir a /academy — elegir ruta Cajero",
+        "Primero: abrir turno en /abrir_caja",
+        "Después: cobrar vales en /caja/vales_pendientes",
+        "Mentor violeta en pantalla para guía en vivo"
+      ],
+      "ruta": "/academy",
+      "mentor_launch": "/academy#academy-caja"
+    },
+    {
+      "id": "faq_045",
+      "intencion": "onboarding",
+      "modulo": "pos",
+      "rol": ["vendedor"],
+      "pregunta": "¿Cómo me capacito como vendedor en el POS?",
+      "variantes": [
+        "como me convierto en vendedor",
+        "cómo me convierto en vendedor",
+        "aprender a ser vendedor",
+        "donde aprendo a vender",
+        "soy nuevo vendedor",
+        "empiezo en mostrador",
+        "ruta capacitacion vendedor"
+      ],
+      "respuesta": "En LhexIA Academy → ruta Vendedor (/academy#academy-pos) aprendés a buscar productos, leer semáforos y emitir vales sin cobrar. En piso abrí /punto_venta y usá el Mentor violeta para practicar con F2 y F8.",
+      "pasos": [
+        "Ir a /academy — elegir ruta Vendedor",
+        "Practicar búsqueda y semáforos en /punto_venta",
+        "Emitir vale F8 — cliente va a caja",
+        "Mentor violeta en POS para guía en vivo"
+      ],
+      "ruta": "/academy",
+      "mentor_launch": "/academy#academy-pos"
+    },
+    {
+      "id": "faq_046",
+      "intencion": "onboarding",
+      "modulo": "bodega",
+      "rol": ["bodeguero"],
+      "pregunta": "¿Cómo me capacito como bodeguero?",
+      "variantes": [
+        "como me convierto en bodeguero",
+        "cómo me convierto en bodeguero",
+        "aprender a ser bodeguero",
+        "donde aprendo bodega",
+        "soy nuevo bodeguero",
+        "empiezo en bodega",
+        "ruta capacitacion bodega"
+      ],
+      "respuesta": "En LhexIA Academy → ruta Bodeguero (/academy#academy-bodega) tenés enrolamiento, tablet con pistola y salud de inventario. En piso andá a /inventario/enrolamiento o escaneá el QR del enrolador.",
+      "pasos": [
+        "Ir a /academy — elegir ruta Bodeguero",
+        "Enrolamiento: Caso A/B/C en /inventario/enrolamiento",
+        "Tablet: /inventario/enrolamiento/tablet o QR /bodega/enrolador",
+        "Mentor violeta en enrolador para guía en vivo"
+      ],
+      "ruta": "/academy",
+      "mentor_launch": "/academy#academy-bodega"
+    }
+  ]
+}

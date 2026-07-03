@@ -1,7 +1,28 @@
 {% extends 'base.html' %}
 {% block body_class %}erp-ops-space page-inventario-stock-valorizado{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-stock-valorizado.css') }}?v=sv-3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-stock-valorizado.css') }}?v=sv-5">
+<style>
+  /* Crítico: legible aunque falte el CSS externo en exe/cache */
+  body.page-inventario-stock-valorizado .sv-kpi__lbl { color: #475569 !important; font-weight: 700 !important; }
+  body.page-inventario-stock-valorizado .sv-kpi__val { color: #0f172a !important; font-weight: 800 !important; }
+  body.page-inventario-stock-valorizado .sv-kpi__sub { color: #475569 !important; }
+  body.page-inventario-stock-valorizado .sv-table-hud .table tbody td,
+  body.page-inventario-stock-valorizado .sv-table-hud .table tbody th { color: #0f172a !important; }
+  body.page-inventario-stock-valorizado .sv-table-hud .table > :not(caption) > * > * {
+    color: #0f172a !important; background-color: #f8fafc !important; border-color: #e2e8f0 !important;
+  }
+  body.page-inventario-stock-valorizado .sv-table-hud .table thead th {
+    background: #334155 !important; color: #fff !important;
+  }
+  body.page-inventario-stock-valorizado .sv-filter-card .form-label { color: #334155 !important; }
+  body.page-inventario-stock-valorizado .sv-filter-card .sv-btn-primary {
+    background: #2563eb !important; color: #fff !important; border-color: #2563eb !important;
+  }
+  body.page-inventario-stock-valorizado .sv-filter-card .sv-btn-ghost {
+    background: #f1f5f9 !important; color: #334155 !important; border-color: #94a3b8 !important;
+  }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -19,8 +40,8 @@
       </p>
     </div>
     <div class="sv-hdr__actions d-flex flex-wrap gap-2">
-      <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm sv-btn-ghost">Catálogo</a>
-      <a href="{{ url_for('inventario_dashboard_premium') }}#integridad" class="btn btn-sm sv-btn-ghost">Integridad</a>
+      <a href="{{ url_for('mostrar_productos') }}" class="btn btn-sm sv-btn-ghost">Productos y stock</a>
+      <a href="{{ url_for('inventario_dashboard_premium') }}" class="btn btn-sm sv-btn-ghost">Centro de stock</a>
       <a href="{{ url_for('inventario_stock_valorizado_exportar', **request.args) }}" class="btn btn-sm sv-btn-primary">
         <i class="fas fa-file-excel me-1"></i>Excel
       </a>

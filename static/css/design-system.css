@@ -3246,6 +3246,186 @@ body.erp-ops-space.page-inventario-salud .salud-empty-hint strong {
     color: #0f172a !important;
 }
 
+/* ── Stock valorizado: paneles claros (anula tablas HUD oscuras de erp-ops-space) ── */
+body.erp-ops-space.page-inventario-stock-valorizado .sv-informe,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-informe .sv-kpi,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-informe .sv-kpi * {
+    color: #0f172a;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-kpi {
+    background: #fff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-kpi--warn {
+    background: #fffbeb !important;
+    border-color: #f59e0b !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-kpi__lbl {
+    color: #475569 !important;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-kpi__val {
+    color: #0f172a !important;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-kpi__sub {
+    color: #475569 !important;
+    font-size: 0.78rem;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-panel-card {
+    background: #fff !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card .card-body,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-panel-card > .card-body {
+    color: #0f172a !important;
+    background: #fff !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card .form-label {
+    color: #334155 !important;
+    font-weight: 600;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card .form-control,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card .form-select {
+    color: #0f172a !important;
+    background: #fff !important;
+    border-color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card .sv-btn-primary {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+    font-weight: 600;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-filter-card .sv-btn-ghost {
+    background: #f1f5f9 !important;
+    border: 1px solid #94a3b8 !important;
+    color: #334155 !important;
+    font-weight: 600;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-panel-card > .card-header {
+    background: #334155 !important;
+    color: #f8fafc !important;
+    border-bottom: 1px solid #1e293b !important;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-tabs .nav-link {
+    color: #475569 !important;
+    font-weight: 600;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-tabs .nav-link.active {
+    color: #0f172a !important;
+    background: #fff !important;
+    border-color: #94a3b8 #94a3b8 #fff !important;
+    font-weight: 700;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table > :not(caption) > * > * {
+    color: #0f172a !important;
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    font-size: 0.86rem !important;
+    box-shadow: none !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table tbody td,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table tbody th {
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table tbody tr:nth-child(even) > * {
+    background-color: #f1f5f9 !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table thead th,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table thead.table-light th {
+    background: #334155 !important;
+    background-color: #334155 !important;
+    color: #f8fafc !important;
+    font-weight: 700;
+    border-color: #1e293b !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table-hover > tbody > tr:hover > *,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .table tbody tr.sv-drill:hover > * {
+    background-color: #ecfdf5 !important;
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .text-muted {
+    color: #64748b !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .fw-semibold {
+    color: #0f172a !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-table-hud .text-warning-emphasis {
+    color: #b45309 !important;
+    font-weight: 700;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+    color: #f8fafc !important;
+    border: 1px solid #475569;
+    border-radius: 12px;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr__title,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr__meta,
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr__meta strong {
+    color: #f8fafc !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr__eyebrow {
+    color: #cbd5e1 !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr__actions .sv-btn-ghost {
+    color: #f8fafc !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-hdr__actions .sv-btn-primary {
+    background: #ea580c !important;
+    border-color: #ea580c !important;
+    color: #fff !important;
+}
+
+body.erp-ops-space.page-inventario-stock-valorizado .sv-informe > .small.text-muted {
+    color: #64748b !important;
+}
+
 @media (max-width: 991.98px) {
     body.erp-ops-space.page-inventario-salud .salud-hdr-premium {
         flex-direction: column;

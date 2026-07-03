@@ -67,3 +67,22 @@ liz/
 
 # LhexIA Core HQ — repo Git independiente (confidencialidad plataforma SaaS)
 lhexia-core-hq/
+
+# ── Datos operativos / cargas runtime (no versionar) ──
+datos_rcv/
+static/uploads/
+
+# ── Staging de transporte y artefactos de build/instalador (pesados) ──
+respaldos/
+instalador_intranet/
+build/pyinstaller_centro_control/
+
+# ── Material pesado (docs binarios grandes): versionar aparte si se requiere ──
+docs/Entrenamiento/
+docs/Maestro Materiales/
+
+# ── Temporales / diagnósticos sueltos en raíz ──
+_tmp_*.txt
+_patch_stock_cat.py
+demo_endpoints.txt
+scripts/_extract_*.txt

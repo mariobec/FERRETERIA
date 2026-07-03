@@ -151,7 +151,12 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
     out += _line('')
     out += _align(1)
     out += _bold(True)
-    out += _line(f'VALE N {venta_id}')
+    out += _line('VALE INTERNO')
+    out += _bold(False)
+    out += _line('NO ES BOLETA')
+    out += _line('Presente en caja para pagar')
+    out += _bold(True)
+    out += _line(f'N {venta_id}')
     out += _bold(False)
     out += _line(ctx.get('fecha_fmt') or '')
     out += _line(f"Turno: {ctx.get('prioridad') or '-'} · {ctx.get('vendedor') or '-'}")
@@ -246,6 +251,8 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
         out += _line('EMITA EL VALE DESDE POS')
     else:
         out += _line('*** PENDIENTE DE COBRO EN CAJA ***')
+        out += _line('Ticket retiro con QR')
+        out += _line('se imprime tras el cobro')
     out += _bold(False)
     out += _align(0)
 

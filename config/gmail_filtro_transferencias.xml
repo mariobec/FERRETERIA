@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns='http://www.w3.org/2005/Atom' xmlns:apps='http://schemas.google.com/apps/2006'>
+	<title>Mail Filters — LhexIA Transferencias banco</title>
+	<id>tag:mail.google.com,2008:filters:lhexia-trf-sd</id>
+	<updated>2026-06-08T00:00:00Z</updated>
+	<author>
+		<name>Ferretería Santo Domingo</name>
+		<email>ferreteria426@gmail.com</email>
+	</author>
+	<!-- Filtro 1: remitentes banco Chile -->
+	<entry>
+		<category term='filter'></category>
+		<title>TRF — Remitente banco</title>
+		<apps:property name='from' value='bci.cl OR santander.cl OR bancoestado.cl OR bancochile.cl OR itau.cl OR scotiabank.cl OR security.cl OR bice.cl OR coopeuch.cl OR tenpo.cl OR mercadopago.cl'/>
+		<apps:property name='hasTheWord' value='transferencia OR abono OR depósito OR deposito OR "pago recibido" OR "ingreso de fondos"'/>
+		<apps:property name='doesNotHaveTheWord' value='DTE OR factura electrónica OR sii.cl OR siidte'/>
+		<apps:property name='label' value='Transferencias-Banco'/>
+		<apps:property name='shouldArchive' value='false'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_s'/>
+	</entry>
+	<!-- Filtro 2: palabras clave en asunto (sin adjunto XML DTE) -->
+	<entry>
+		<category term='filter'></category>
+		<title>TRF — Asunto transferencia</title>
+		<apps:property name='hasTheWord' value='("transferencia bancaria" OR "transferencia electr" OR "abono en cuenta" OR "aviso de transferencia") -filename:xml -DTE -sii.cl'/>
+		<apps:property name='label' value='Transferencias-Banco'/>
+		<apps:property name='shouldArchive' value='false'/>
+		<apps:property name='sizeOperator' value='s_sl'/>
+		<apps:property name='sizeUnit' value='s_s'/>
+	</entry>
+</feed>

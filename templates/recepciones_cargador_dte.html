@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-0" style="max-width: 720px;">
+  <div class="page-header mb-3">
+    <div>
+      <h3 class="page-title"><i class="fas fa-envelope-open-text text-primary me-2"></i>Cargador histórico DTE (correo)</h3>
+      <p class="page-subtitle">Importa facturas XML de Gmail al ERP por mes o año completo. Solo RUT <strong>8054120-1</strong> entra como recepción documental.</p>
+    </div>
+    <a href="{{ url_for('recepciones_visor') }}" class="btn btn-outline-secondary btn-sm">Visor facturas</a>
+  </div>
+
+  <div class="alert alert-info small">
+    <i class="fas fa-info-circle me-1"></i>
+    Requiere <code>.env.local</code> con IMAP (ferreteria426@gmail.com). Procesa del <strong>1 al último día</strong> del mes (más antiguos primero).
+    Omite avisos <code>siidte@sii.cl</code>. No mueve stock.
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body">
+      <form id="formCargadorDte">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Año</label>
+            <select class="form-select" id="cargadorAnio" name="anio">
+              {% for y in [anio_actual, anio_actual - 1, anio_actual - 2, anio_actual - 3] %}
+              <option value="{{ y }}" {% if y == anio_actual %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Mes</label>
+            <select class="form-select" id="cargadorMes" name="mes">
+              <option value="0">Todo el año</option>
+              {% for m, nom in [(1,'Enero'),(2,'Febrero'),(3,'Marzo'),(4,'Abril'),(5,'Mayo'),(6,'Junio'),(7,'Julio'),(8,'Agosto'),(9,'Septiembre'),(10,'Octubre'),(11,'Noviembre'),(12,'Diciembre')] %}
+              <option value="{{ m }}">{{ nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Límite correos / corrida</label>
+            <input type="number" class="form-control" id="cargadorLimite" value="500" min="10" max="2000">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Offset (lotes)</label>
+            <input type="number" class="form-control" id="cargadorOffset" value="0" min="0" title="Salta N correos ya revisados del periodo">
+            <div class="form-text">0 = desde el 1° del mes. Tras cada corrida use «Continuar».</div>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="cargadorSoloEtiquetar">
+              <label class="form-check-label" for="cargadorSoloEtiquetar">Solo etiquetar Gmail (no importar al ERP)</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="cargadorDryRun">
+              <label class="form-check-label" for="cargadorDryRun">Simular (dry-run)</label>
+            </div>
+          </div>
+          <div class="col-12 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary fw-bold" id="btnCargadorEjecutar">
+              <i class="fas fa-play me-1"></i>Ejecutar carga
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btnCargadorContinuar" style="display:none;">
+              <i class="fas fa-forward me-1"></i>Continuar siguiente lote
+            </button>
+            <button type="button" class="btn btn-outline-success" id="btnCargador2026">
+              <i class="fas fa-calendar me-1"></i>Cargar todo 2026 (lotes)
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card card-ds">
+    <div class="card-header bg-white fw-bold">Resultado</div>
+    <div class="card-body">
+      <div id="cargadorStatus" class="small text-muted">Listo.</div>
+      <pre id="cargadorLog" class="small bg-light border rounded p-2 mt-2 mb-0" style="max-height: 280px; overflow: auto; display: none;"></pre>
+    </div>
+  </div>
+
+  <div class="card card-ds mt-3 border-danger border-opacity-25">
+    <div class="card-body">
+      <h6 class="fw-bold text-danger"><i class="fas fa-broom me-1"></i>Limpiar antes de cargar</h6>
+      <p class="small text-muted mb-2">
+        Borra cabeceras RCV del año elegido que no tienen ítems (las 750 sin productos).
+        Luego el cargador DTE las crea de nuevo con líneas del XML.
+      </p>
+      <button type="button" class="btn btn-outline-danger btn-sm" id="btnCargadorLimpiar">
+        <i class="fas fa-trash-alt me-1"></i>Limpiar RCV sin ítems (año seleccionado)
+      </button>
+      <span id="cargadorLimpiarInfo" class="small text-muted ms-2"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var url = '{{ url_for("api_recepciones_cargador_dte_ejecutar") }}';
+  var urlLimpiar = '{{ url_for("api_limpiar_recepciones_documentales") }}';
+
+  function parseJsonResponse(r) {
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (ct.indexOf('application/json') === -1) {
+      if (r.status === 404) {
+        throw new Error('Ruta no encontrada (404). Reinicie Flask: python app.py');
+      }
+      throw new Error('Respuesta no JSON (HTTP ' + r.status + '). Reinicie sesión o Flask.');
+    }
+    return r.json();
+  }
+
+  function payloadBase() {
+    var mes = parseInt(document.getElementById('cargadorMes').value, 10);
+    return {
+      anio: parseInt(document.getElementById('cargadorAnio').value, 10),
+      mes: mes > 0 ? mes : null,
+      limite: parseInt(document.getElementById('cargadorLimite').value, 10) || 500,
+      offset: parseInt(document.getElementById('cargadorOffset').value, 10) || 0,
+      solo_etiquetar: document.getElementById('cargadorSoloEtiquetar').checked,
+      dry_run: document.getElementById('cargadorDryRun').checked
+    };
+  }
+
+  function actualizarContinuar(stats) {
+    var btn = document.getElementById('btnCargadorContinuar');
+    if (!btn || !stats) return;
+    var pend = stats.correos_pendientes || 0;
+    if (pend > 0 && stats.offset_siguiente != null) {
+      btn.style.display = '';
+      btn.textContent = 'Continuar lote (offset ' + stats.offset_siguiente + ', quedan ~' + pend + ')';
+      document.getElementById('cargadorOffset').value = String(stats.offset_siguiente);
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  function ejecutar(payload) {
+    var btn = document.getElementById('btnCargadorEjecutar');
+    btn.disabled = true;
+    document.getElementById('cargadorStatus').innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Conectando Gmail… puede tardar varios minutos.';
+    document.getElementById('cargadorLog').style.display = 'none';
+    return fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(parseJsonResponse)
+      .then(function (j) {
+        btn.disabled = false;
+        if (!j.ok) throw new Error(j.mensaje || 'Error');
+        document.getElementById('cargadorStatus').innerHTML = '<span class="text-success fw-semibold">' + j.mensaje + '</span>';
+        document.getElementById('cargadorLog').style.display = 'block';
+        document.getElementById('cargadorLog').textContent = JSON.stringify(j.stats || j, null, 2);
+        actualizarContinuar(j.stats);
+        return j;
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        document.getElementById('cargadorStatus').innerHTML = '<span class="text-danger">' + e.message + '</span>';
+      });
+  }
+  document.getElementById('formCargadorDte').addEventListener('submit', function (e) {
+    e.preventDefault();
+    ejecutar(payloadBase());
+  });
+  document.getElementById('btnCargadorContinuar').addEventListener('click', function () {
+    ejecutar(payloadBase());
+  });
+  document.getElementById('btnCargador2026').addEventListener('click', function () {
+    if (!confirm('¿Cargar correos DTE del año 2026 en lotes de 500? Use «Continuar» hasta pendientes = 0.')) return;
+    document.getElementById('cargadorAnio').value = '2026';
+    document.getElementById('cargadorMes').value = '0';
+    document.getElementById('cargadorOffset').value = '0';
+    ejecutar({ anio: 2026, mes: null, limite: 500, offset: 0, solo_etiquetar: false, dry_run: false });
+  });
+
+  function previewLimpiar() {
+    var anio = parseInt(document.getElementById('cargadorAnio').value, 10) || 2026;
+    fetch(urlLimpiar, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ anio: anio, origen: 'rcv_sii', solo_sin_lineas: true, dry_run: true })
+    })
+      .then(parseJsonResponse)
+      .then(function (j) {
+        var el = document.getElementById('cargadorLimpiarInfo');
+        if (j.ok) el.textContent = (j.candidatas || 0) + ' candidata(s) RCV vacías';
+        else el.textContent = j.mensaje || 'Error';
+      })
+      .catch(function (e) {
+        document.getElementById('cargadorLimpiarInfo').textContent = e.message;
+      });
+  }
+  document.getElementById('cargadorAnio').addEventListener('change', previewLimpiar);
+  previewLimpiar();
+
+  document.getElementById('btnCargadorLimpiar').addEventListener('click', function () {
+    var anio = parseInt(document.getElementById('cargadorAnio').value, 10) || 2026;
+    if (!confirm('¿Eliminar recepciones RCV ' + anio + ' sin ítems?')) return;
+    var btn = document.getElementById('btnCargadorLimpiar');
+    btn.disabled = true;
+    fetch(urlLimpiar, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ anio: anio, origen: 'rcv_sii', solo_sin_lineas: true, dry_run: false })
+    })
+      .then(parseJsonResponse)
+      .then(function (j) {
+        btn.disabled = false;
+        document.getElementById('cargadorLimpiarInfo').textContent = j.ok ? j.mensaje : (j.mensaje || 'Error');
+        previewLimpiar();
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        document.getElementById('cargadorLimpiarInfo').textContent = e.message;
+      });
+  });
+})();
+</script>
+{% endblock %}

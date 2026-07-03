@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>OrdenCompra_{{ orden_compra.numero }}</title>
+  <style>
+    @page { size: letter; margin: 10mm 12mm 12mm 12mm; }
+    @media print {
+      html, body { margin: 0 !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .print-page { page-break-after: always; }
+      .print-page:last-child { page-break-after: auto; }
+      table.lineas thead { display: table-header-group; }
+      .totales, .footer-doc { page-break-inside: avoid; break-inside: avoid; }
+      table.lineas tbody tr { page-break-inside: avoid; break-inside: avoid; }
+      .doc-header { padding: 8px 0 10px; }
+      .seccion { padding: 8px 0; }
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1f2937; margin: 0; padding: 0; font-size: 11px; }
+    .doc-header { display: table; width: 100%; padding: 14px 0 12px; border-bottom: 2px solid #f37021; }
+    .doc-header .col-l, .doc-header .col-r { display: table-cell; vertical-align: top; }
+    .doc-header .col-r { text-align: right; width: 42%; }
+    .doc-header--continuacion { padding: 10px 0 8px; }
+    .doc-header--continuacion .doc-title { font-size: 16px; }
+    .doc-header__logo-sm { max-height: 42px; max-width: 120px; margin-bottom: 4px; }
+    .doc-header__empresa-sm { font-size: 11px; font-weight: 700; color: #111827; }
+    .doc-continuacion-label {
+      font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #b45309; margin-bottom: 2px;
+    }
+    .cot-membrete__logo { max-height: 64px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 6px; }
+    .cot-membrete__marca { font-size: 14px; font-weight: 800; color: #111827; line-height: 1.25; }
+    .cot-membrete__razon { font-size: 11px; font-weight: 700; color: #1f2937; margin-top: 3px; }
+    .cot-membrete__giro { font-size: 10px; color: #4b5563; margin-top: 2px; font-style: italic; }
+    .cot-membrete__dir, .cot-membrete__contacto { color: #6b7280; font-size: 10px; line-height: 1.4; margin-top: 1px; }
+    .doc-title { font-size: 20px; font-weight: 800; color: #111827; letter-spacing: 0.05em; margin: 0; }
+    .doc-num { font-size: 15px; font-weight: 700; color: #f37021; margin-top: 2px; }
+    .doc-meta { color: #6b7280; font-size: 10px; margin-top: 4px; line-height: 1.4; }
+    .doc-hoja-label { color: #b45309; font-weight: 700; font-size: 10px; }
+    .badge-estado { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: 700; color: #fff; margin-top: 3px; }
+    .badge-borrador { background: #64748b; }
+    .badge-enviada { background: #2563eb; }
+    .badge-parcial { background: #f59e0b; color: #1f2937; }
+    .badge-cerrada { background: #16a34a; }
+    .badge-anulada { background: #dc2626; }
+
+    .seccion { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+    .seccion h6 { color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; font-size: 9px; margin: 0 0 5px 0; font-weight: 700; }
+    .cot-cliente-ficha__grid { display: table; width: 100%; }
+    .cot-cliente-ficha__col { display: table-cell; vertical-align: top; width: 58%; }
+    .cot-cliente-ficha__col--contacto { width: 42%; padding-left: 12px; }
+    .cot-cliente-ficha__row { display: table; width: 100%; margin-bottom: 3px; }
+    .cot-cliente-ficha__label {
+      display: table-cell; width: 72px; padding-right: 8px; vertical-align: top;
+      font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;
+    }
+    .cot-cliente-ficha__value {
+      display: table-cell; vertical-align: top; font-size: 10px; color: #111827; line-height: 1.35;
+    }
+    .cot-cliente-ficha__value--nombre { font-weight: 700; font-size: 11px; }
+    .cot-cliente-ficha__value--email { word-break: break-all; }
+
+    .oc-proveedor-mini {
+      font-size: 10px; color: #111827; line-height: 1.4;
+    }
+    .oc-proveedor-mini__label {
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: #64748b; margin-right: 6px;
+    }
+    .oc-proveedor-mini__nombre { font-weight: 700; }
+    .oc-proveedor-mini__sep { color: #94a3b8; margin: 0 4px; }
+    .oc-proveedor-mini__rut { color: #475569; }
+
+    table.lineas { width: 100%; border-collapse: collapse; margin-top: 4px; table-layout: fixed; }
+    table.lineas col.c-col-num { width: 3%; }
+    table.lineas col.c-col-codigo { width: 11%; }
+    table.lineas col.c-col-art { width: 31%; }
+    table.lineas col.c-col-cant { width: 7%; }
+    table.lineas col.c-col-pu { width: 12%; }
+    table.lineas col.c-col-desc { width: 8%; }
+    table.lineas col.c-col-tot { width: 12%; }
+    table.lineas thead th {
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      color: #f8fafc; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 7px 6px; border-bottom: none; text-align: left; font-weight: 700;
+    }
+    table.lineas thead th.text-end { text-align: right; }
+    table.lineas thead th .th-sub { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.75; font-size: 7px; }
+    table.lineas tbody td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; line-height: 1.3; }
+    table.lineas tbody tr:nth-child(even) td { background: #f8fafc; }
+    table.lineas .text-end { text-align: right; }
+    table.lineas .linea-num { color: #94a3b8; font-size: 9px; font-weight: 700; text-align: center; }
+    table.lineas .linea-articulo__cod {
+      font-family: ui-monospace, Consolas, monospace; font-size: 8px; font-weight: 700;
+      color: #475569; letter-spacing: 0.02em; margin-bottom: 2px; word-break: break-all;
+    }
+    table.lineas .linea-articulo__cod--ref { color: #b45309; }
+    table.lineas .linea-articulo__nom { font-weight: 600; color: #111827; word-break: break-word; font-size: 10px; }
+    table.lineas .linea-money { font-variant-numeric: tabular-nums; font-size: 10px; white-space: nowrap; }
+    table.lineas .linea-money--total { font-weight: 800; color: #0f172a; }
+    table.lineas .linea-dash { color: #cbd5e1; }
+
+    .totales { display: table; width: 100%; margin-top: 8px; }
+    .totales .col-l, .totales .col-r { display: table-cell; vertical-align: top; }
+    .totales .col-r { width: 45%; }
+    .notas { color: #4b5563; font-size: 10px; line-height: 1.45; }
+    .totales-card { background: #fff8ef; border: 1px solid #ffe4c4; border-radius: 8px; padding: 10px 12px; }
+    .totales-row { display: table; width: 100%; padding: 2px 0; }
+    .totales-row .lab, .totales-row .val { display: table-cell; vertical-align: baseline; }
+    .totales-row .val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .totales-row.total { font-size: 14px; font-weight: 800; color: #b45309; border-top: 2px dashed #ffb87a; margin-top: 5px; padding-top: 6px; }
+    .totales-row.sep { border-top: 1px solid #ffe4c4; margin-top: 3px; padding-top: 5px; }
+    .totales-row.hint { font-size: 9px; color: #78716c; font-weight: 500; }
+    .totales-iva-nota { font-size: 8px; color: #78716c; margin-top: 6px; line-height: 1.35; }
+
+    .footer-doc { margin-top: 14px; padding-top: 10px; border-top: 1px dashed #e5e7eb; text-align: center; color: #6b7280; font-size: 9px; }
+    .footer-doc strong { color: #f37021; }
+
+    .pdf-toolbar {
+      position: sticky; top: 0; z-index: 10;
+      background: #1f2937; color: #fff; padding: 10px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+    .pdf-toolbar .info { font-size: 13px; }
+    .pdf-toolbar strong { color: #fbbf24; }
+    .pdf-toolbar .actions { display: flex; gap: 8px; }
+    .pdf-toolbar .btn {
+      background: #f37021; color: #fff; border: 0; border-radius: 6px;
+      padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none;
+    }
+    .pdf-toolbar .btn:hover { background: #ea580c; }
+    .pdf-toolbar .btn.secondary { background: transparent; border: 1px solid #94a3b8; color: #cbd5e1; }
+    .pdf-toolbar .hint {
+      font-size: 11px; color: #cbd5e1; margin-top: 4px; line-height: 1.35; max-width: 520px;
+    }
+    .pdf-toolbar .hint strong { color: #fbbf24; font-weight: 600; }
+    .doc-wrapper { max-width: 760px; margin: 18px auto; background: #fff; padding: 24px 32px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border-radius: 8px; }
+    @media print {
+      body { background: #fff; font-size: 10px; }
+      .doc-wrapper { box-shadow: none; padding: 0; margin: 0; max-width: none; border-radius: 0; }
+      table.lineas tbody td { padding: 5px 5px; }
+    }
+  </style>
+</head>
+<body style="background: #f3f4f6;">
+  <div class="pdf-toolbar no-print">
+    <div class="info">
+      Vista previa de la orden de compra. Presiona <strong>"Descargar PDF"</strong> y elige <strong>"Guardar como PDF"</strong> como destino.
+      {% if oc_paginas|length > 1 %}
+      <span class="ms-2">({{ oc_paginas|length }} páginas)</span>
+      {% endif %}
+      <div class="hint">
+        Si los márgenes se ven raros en Chrome: use <strong>Márgenes → Ninguno</strong> (o Predeterminado)
+        y <strong>desmarque «Encabezado y pie de página»</strong>. Eso es configuración del navegador, no de Windows ni del ERP.
+      </div>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" onclick="window.print()">Descargar PDF</button>
+      <button type="button" class="btn secondary" onclick="window.close()">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="doc-wrapper">
+  {% for pagina in oc_paginas %}
+  <section class="print-page">
+
+    {% include 'compras/includes/oc_pdf_header_principal.html' %}
+
+    <div class="seccion">
+      <h6>Proveedor</h6>
+      {% if pagina.es_primera %}
+      {% include 'compras/includes/oc_proveedor_block.html' %}
+      {% else %}
+      {% include 'compras/includes/oc_proveedor_block_compact.html' %}
+      {% endif %}
+    </div>
+
+    <div class="seccion">
+      <h6>{% if pagina.es_primera %}Detalle{% else %}Detalle (continúa){% endif %}</h6>
+      <table class="lineas">
+        <colgroup>
+          <col class="c-col-num">
+          <col class="c-col-codigo">
+          <col class="c-col-art">
+          <col class="c-col-cant">
+          <col class="c-col-pu">
+          <col class="c-col-desc">
+          <col class="c-col-tot">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Código</th>
+            <th>Artículo</th>
+            <th class="text-end">Cant.</th>
+            <th class="text-end">P. unit.<br><span class="th-sub">neto</span></th>
+            <th class="text-end">Dto.</th>
+            <th class="text-end">Total<br><span class="th-sub">neto</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ln in pagina.lineas %}
+          {% set d = ln.det %}
+          <tr>
+            <td class="linea-num">{{ ln.indice }}</td>
+            <td>
+              <div class="linea-articulo__cod{% if ln.codigo_es_ref %} linea-articulo__cod--ref{% endif %}">{{ ln.codigo_impresion }}</div>
+            </td>
+            <td>
+              <div class="linea-articulo__nom">{{ ln.nombre }}</div>
+            </td>
+            <td class="text-end linea-money">{{ '%g' % (d.cantidad or 0) }}</td>
+            <td class="text-end linea-money">${{ '{:,.0f}'.format(d.precio_unitario or 0).replace(',', '.') }}</td>
+            <td class="text-end linea-money"><span class="linea-dash">-</span></td>
+            <td class="text-end linea-money linea-money--total">${{ '{:,.0f}'.format(ln.subtotal).replace(',', '.') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pagina.es_ultima %}
+    <div class="totales">
+      <div class="col-l">
+        {% if orden_compra.observacion %}
+        <h6 style="color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;margin:10px 0 5px 0;">Observaciones</h6>
+        <div class="notas">{{ orden_compra.observacion }}</div>
+        {% endif %}
+      </div>
+      <div class="col-r">
+        <div class="totales-card">
+          {% set t = oc_totales %}
+          <div class="totales-row"><span class="lab">Suma líneas (neto){% if t.n_lineas %} · {{ t.n_lineas }} líneas{% endif %}</span><span class="val">${{ '{:,.0f}'.format(t.suma_lineas or 0).replace(',', '.') }}</span></div>
+          <div class="totales-row sep"><span class="lab">Monto neto</span><span class="val">${{ '{:,.0f}'.format(t.neto or 0).replace(',', '.') }}</span></div>
+          <div class="totales-row"><span class="lab">IVA 19%</span><span class="val">${{ '{:,.0f}'.format(t.iva or 0).replace(',', '.') }}</span></div>
+          <div class="totales-row hint"><span class="lab">Neto + IVA</span><span class="val">${{ '{:,.0f}'.format(t.total or 0).replace(',', '.') }}</span></div>
+          <div class="totales-row total"><span class="lab">TOTAL ESTIMADO</span><span class="val">${{ '{:,.0f}'.format(t.total or 0).replace(',', '.') }}</span></div>
+          <p class="totales-iva-nota">Precios unitarios sin IVA. Al neto se suma IVA 19%.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-doc">
+      Orden de compra generada con <strong>LhexIA ERP</strong> · www.lhexia.cl
+    </div>
+    {% endif %}
+
+  </section>
+  {% endfor %}
+  </div>
+
+  {% if auto_print %}
+  <script>
+    window.addEventListener('load', function () {
+      var imgs = Array.from(document.images || []);
+      var pendientes = imgs.filter(function (im) { return !im.complete; });
+      function lanzar() { setTimeout(function () { window.print(); }, 250); }
+      if (pendientes.length === 0) { lanzar(); return; }
+      var restantes = pendientes.length;
+      pendientes.forEach(function (im) {
+        im.addEventListener('load', function () { if (--restantes <= 0) lanzar(); });
+        im.addEventListener('error', function () { if (--restantes <= 0) lanzar(); });
+      });
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

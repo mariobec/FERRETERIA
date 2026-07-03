@@ -1,0 +1,9 @@
+{# Cliente compacto — páginas 2+ del PDF cotización #}
+<div class="cot-cliente-mini">
+  <span class="cot-cliente-mini__label">Cliente</span>
+  <span class="cot-cliente-mini__nombre">{{ cotizacion.cliente_nombre or '—' }}</span>
+  {% if cotizacion.cliente_rut %}
+  <span class="cot-cliente-mini__sep">·</span>
+  <span class="cot-cliente-mini__rut">RUT {{ cotizacion.cliente_rut }}</span>
+  {% endif %}
+</div>

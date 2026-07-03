@@ -45,10 +45,51 @@ def _verificar_no_es_produccion():
 
 _verificar_no_es_produccion()
 
+from tests.sql_test_helpers import sa_text_in
+
 import app as m
 
 db = m.db
 QA_USER = 'QA_TEST'
+
+
+# ── Blindaje de config empresa ──────────────────────────────────────
+@pytest.fixture(scope='session', autouse=True)
+def _preservar_empresa_config():
+    """Respalda data/empresa_config.json y lo restaura al cerrar la sesion.
+
+    Varios tests escriben la config real compartida via guardar_config_empresa()
+    (p.ej. cierre_caja_modo, razon_social='QA', modulos en 0). Sin este blindaje,
+    correr la suite deja el config dev contaminado con valores QA. Se respaldan
+    los bytes crudos para preservar formato/encoding exactos.
+    """
+    try:
+        ruta = m._ruta_config_empresa()
+    except Exception:
+        ruta = None
+    respaldo = None
+    if ruta and os.path.exists(ruta):
+        try:
+            with open(ruta, 'rb') as fh:
+                respaldo = fh.read()
+        except Exception:
+            respaldo = None
+    try:
+        yield
+    finally:
+        if ruta and respaldo is not None:
+            try:
+                with open(ruta, 'wb') as fh:
+                    fh.write(respaldo)
+            except Exception:
+                pass
+        # Invalida la cache en memoria para que la proxima lectura tome el archivo restaurado.
+        try:
+            m._CONFIG_EMPRESA_CACHE = None
+            m._CONFIG_EMPRESA_CACHE_AT = 0.0
+        except Exception:
+            pass
+
 
 # ── Datos semilla ───────────────────────────────────────────────────
 PRODUCTOS_TEST = [
@@ -93,39 +134,39 @@ def _borrar_cliente_test(sa_text):
         ct = tuple(cli_ids)
         for dep in ('cliente_prediccion_log', 'c360_llamadas_snapshot_dia', 'c360_proactiva_ofertas'):
             try:
-                db.session.execute(sa_text(
-                    f"DELETE FROM {dep} WHERE cliente_id IN :c"), {'c': ct})
+                db.session.execute(sa_text_in(
+                    f"DELETE FROM {dep} WHERE cliente_id IN :c", "c"), {'c': list(ct)})
             except Exception:
                 db.session.rollback()
         vids_cli = [r[0] for r in db.session.execute(
-            sa_text("SELECT id FROM ventas WHERE cliente_id IN :c"), {'c': ct}).fetchall()]
+            sa_text_in("SELECT id FROM ventas WHERE cliente_id IN :c", "c"), {'c': list(ct)}).fetchall()]
         if vids_cli:
-            vt = tuple(vids_cli)
+            vt = list(vids_cli)
             for tbl in ('ventas_cuotas_credito', 'ventas_a_pedido', 'detalle_ventas', 'movimientos_inventario'):
                 try:
                     col = 'venta_id' if tbl in ('ventas_cuotas_credito', 'ventas_a_pedido') else \
                           'id_venta' if tbl == 'detalle_ventas' else 'referencia_id'
-                    db.session.execute(sa_text(
-                        f"DELETE FROM {tbl} WHERE {col} IN :v"), {'v': vt})
+                    db.session.execute(sa_text_in(
+                        f"DELETE FROM {tbl} WHERE {col} IN :v", "v"), {'v': vt})
                 except Exception:
                     db.session.rollback()
             try:
-                db.session.execute(sa_text(
-                    "DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': vt})
+                db.session.execute(sa_text_in(
+                    "DELETE FROM agente_ejecuciones WHERE venta_id IN :v", "v"), {'v': vt})
             except Exception:
                 db.session.rollback()
             try:
-                db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
+                db.session.execute(sa_text_in("DELETE FROM ventas WHERE id IN :v", "v"), {'v': vt})
             except Exception:
                 db.session.rollback()
         for dep in ('abonos_credito', 'saldo_favor_movimientos'):
             try:
-                db.session.execute(sa_text(
-                    f"DELETE FROM {dep} WHERE cliente_id IN :c"), {'c': ct})
+                db.session.execute(sa_text_in(
+                    f"DELETE FROM {dep} WHERE cliente_id IN :c", "c"), {'c': list(ct)})
             except Exception:
                 db.session.rollback()
         try:
-            db.session.execute(sa_text("DELETE FROM clientes WHERE id IN :c"), {'c': ct})
+            db.session.execute(sa_text_in("DELETE FROM clientes WHERE id IN :c", "c"), {'c': list(ct)})
             db.session.commit()
         except Exception:
             db.session.rollback()
@@ -138,11 +179,12 @@ def _borrar_agente_ejecuciones_por_ventas_qa(sa_text, usuarios: tuple[str, ...])
     """FK agente_ejecuciones.venta_id — antes de DELETE ventas."""
     try:
         db.session.execute(
-            sa_text(
+            sa_text_in(
                 "DELETE FROM agente_ejecuciones WHERE venta_id IN ("
-                "SELECT id FROM ventas WHERE usuario IN :u)"
+                "SELECT id FROM ventas WHERE usuario IN :u)",
+                "u",
             ),
-            {'u': usuarios},
+            {'u': list(usuarios)},
         )
     except Exception:
         db.session.rollback()
@@ -166,78 +208,100 @@ def _limpiar_datos_qa():
         _usuarios_qa = (QA_USER, QA_CAS_USER)
         _borrar_agente_ejecuciones_por_ventas_qa(sa_text, _usuarios_qa)
         vids = [r[0] for r in db.session.execute(
-            sa_text("SELECT id FROM ventas WHERE usuario IN :u"),
-            {'u': _usuarios_qa}).fetchall()]
+            sa_text_in("SELECT id FROM ventas WHERE usuario IN :u", "u"),
+            {'u': list(_usuarios_qa)}).fetchall()]
         if vids:
-            vt = tuple(vids)
-            db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': vt})
+            vt = list(vids)
+            db.session.execute(sa_text_in("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v", "v"), {'v': vt})
             try:
-                db.session.execute(sa_text("DELETE FROM ventas_a_pedido WHERE venta_id IN :v"), {'v': vt})
+                db.session.execute(sa_text_in("DELETE FROM ventas_a_pedido WHERE venta_id IN :v", "v"), {'v': vt})
             except Exception:
                 db.session.rollback()
-            db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': vt})
+            db.session.execute(sa_text_in("DELETE FROM detalle_ventas WHERE id_venta IN :v", "v"), {'v': vt})
             db.session.execute(sa_text("DELETE FROM movimiento_caja WHERE concepto LIKE :p"), {'p': '%QA test%'})
-            db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': vt})
+            db.session.execute(sa_text_in("DELETE FROM ventas WHERE id IN :v", "v"), {'v': vt})
 
         pids = [r[0] for r in db.session.execute(
             sa_text("SELECT id FROM productos WHERE codigo_barra LIKE 'TEST-%' OR codigo_barra LIKE '99988877760%'")
         ).fetchall()]
         if pids:
-            pt = tuple(pids)
+            pt = list(pids)
             dv_vids = [r[0] for r in db.session.execute(
-                sa_text("SELECT DISTINCT id_venta FROM detalle_ventas WHERE id_producto IN :p"), {'p': pt}).fetchall()]
+                sa_text_in("SELECT DISTINCT id_venta FROM detalle_ventas WHERE id_producto IN :p", "p"),
+                {'p': pt}).fetchall()]
             if dv_vids:
-                dvt = tuple(dv_vids)
-                db.session.execute(sa_text("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v"), {'v': dvt})
+                dvt = list(dv_vids)
+                db.session.execute(sa_text_in("DELETE FROM ventas_cuotas_credito WHERE venta_id IN :v", "v"), {'v': dvt})
                 try:
-                    db.session.execute(sa_text("DELETE FROM ventas_a_pedido WHERE venta_id IN :v"), {'v': dvt})
+                    db.session.execute(sa_text_in("DELETE FROM ventas_a_pedido WHERE venta_id IN :v", "v"), {'v': dvt})
                 except Exception:
                     db.session.rollback()
-                db.session.execute(sa_text("DELETE FROM detalle_ventas WHERE id_venta IN :v"), {'v': dvt})
+                db.session.execute(sa_text_in("DELETE FROM detalle_ventas WHERE id_venta IN :v", "v"), {'v': dvt})
                 db.session.execute(
-                    sa_text("DELETE FROM agente_ejecuciones WHERE venta_id IN :v"), {'v': dvt})
-                db.session.execute(sa_text("DELETE FROM ventas WHERE id IN :v"), {'v': dvt})
-            db.session.execute(sa_text("DELETE FROM movimientos_inventario WHERE id_producto IN :p"), {'p': pt})
+                    sa_text_in("DELETE FROM agente_ejecuciones WHERE venta_id IN :v", "v"), {'v': dvt})
+                db.session.execute(sa_text_in("DELETE FROM ventas WHERE id IN :v", "v"), {'v': dvt})
+            db.session.execute(sa_text_in("DELETE FROM movimientos_inventario WHERE id_producto IN :p", "p"), {'p': pt})
             try:
                 db.session.execute(
-                    sa_text("DELETE FROM bitacora_piloto_mostrador WHERE producto_id IN :p"),
+                    sa_text_in("DELETE FROM bitacora_piloto_mostrador WHERE producto_id IN :p", "p"),
                     {'p': pt},
                 )
             except Exception:
                 db.session.rollback()
             try:
                 db.session.execute(
-                    sa_text("DELETE FROM bitacora_precios_venta WHERE producto_id IN :p"),
+                    sa_text_in("DELETE FROM bitacora_precios_venta WHERE producto_id IN :p", "p"),
                     {'p': pt},
                 )
             except Exception:
                 db.session.rollback()
-            db.session.execute(sa_text("DELETE FROM stock_por_almacen WHERE id_producto IN :p"), {'p': pt})
-            db.session.execute(sa_text("DELETE FROM detalle_recepcion WHERE producto_id IN :p"), {'p': pt})
-            db.session.execute(sa_text("DELETE FROM detalle_orden_compra WHERE producto_id IN :p"), {'p': pt})
+            db.session.execute(sa_text_in("DELETE FROM stock_por_almacen WHERE id_producto IN :p", "p"), {'p': pt})
+            db.session.execute(sa_text_in("DELETE FROM detalle_recepcion WHERE producto_id IN :p", "p"), {'p': pt})
+            db.session.execute(sa_text_in("DELETE FROM detalle_orden_compra WHERE producto_id IN :p", "p"), {'p': pt})
             try:
                 db.session.execute(
-                    sa_text("DELETE FROM producto_codigo_proveedor WHERE producto_id IN :p"),
+                    sa_text_in("DELETE FROM producto_codigo_proveedor WHERE producto_id IN :p", "p"),
                     {'p': pt},
                 )
             except Exception:
                 db.session.rollback()
             try:
                 db.session.execute(
-                    sa_text("DELETE FROM producto_codigo_escaneo WHERE producto_id IN :p"),
+                    sa_text_in("DELETE FROM producto_codigo_escaneo WHERE producto_id IN :p", "p"),
                     {'p': pt},
                 )
             except Exception:
                 db.session.rollback()
-            db.session.execute(sa_text("DELETE FROM productos WHERE id IN :p"), {'p': pt})
+            db.session.execute(sa_text_in("DELETE FROM productos WHERE id IN :p", "p"), {'p': pt})
 
         prvs = [r[0] for r in db.session.execute(
             sa_text("SELECT id FROM proveedores WHERE nombre LIKE 'TEST %'")).fetchall()]
         if prvs:
-            pt2 = tuple(prvs)
-            db.session.execute(sa_text("DELETE FROM recepciones_compra WHERE proveedor_id IN :i"), {'i': pt2})
-            db.session.execute(sa_text("DELETE FROM ordenes_compra WHERE proveedor_id IN :i"), {'i': pt2})
-            db.session.execute(sa_text("DELETE FROM proveedores WHERE id IN :i"), {'i': pt2})
+            pt2 = list(prvs)
+            recv_ids = [r[0] for r in db.session.execute(
+                sa_text_in("SELECT id FROM recepciones_compra WHERE proveedor_id IN :i", "i"),
+                {'i': pt2}).fetchall()]
+            if recv_ids:
+                try:
+                    db.session.execute(
+                        sa_text_in("DELETE FROM detalle_recepcion WHERE recepcion_id IN :r", "r"),
+                        {'r': list(recv_ids)},
+                    )
+                except Exception:
+                    db.session.rollback()
+            try:
+                db.session.execute(
+                    sa_text_in("DELETE FROM recepciones_compra WHERE proveedor_id IN :i", "i"), {'i': pt2})
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(sa_text_in("DELETE FROM ordenes_compra WHERE proveedor_id IN :i", "i"), {'i': pt2})
+            except Exception:
+                db.session.rollback()
+            try:
+                db.session.execute(sa_text_in("DELETE FROM proveedores WHERE id IN :i", "i"), {'i': pt2})
+            except Exception:
+                db.session.rollback()
 
         _borrar_cliente_test(sa_text)
 

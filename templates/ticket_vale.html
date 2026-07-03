@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% if ticket_es_borrador %}BORRADOR POS — Vale N°{% else %}Vale N°{% endif %} {{ venta.id }}</title>
+    <title>{% if ticket_es_borrador %}BORRADOR — Vale interno N°{% else %}Vale interno N°{% endif %} {{ venta.id }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
     <style>
@@ -151,6 +151,25 @@
             background: #fef2f2;
             border-radius: 4px;
         }
+        .ticket .doc-type {
+            text-align: center;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 800;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            margin: 4px 0 2px;
+            color: var(--vale-ink);
+        }
+        .ticket .no-boleta {
+            text-align: center;
+            font-size: 9px;
+            font-weight: 700;
+            line-height: 1.35;
+            margin: 4px 0 8px;
+            padding: 4px 6px;
+            border: 1px dashed #64748b;
+            color: #475569;
+        }
         .ticket-sep {
             margin: 8px 0 6px;
             font-size: 10px;
@@ -235,7 +254,7 @@
 
     <p class="vale-vista-previa-leyenda no-print">
         Lo que ves abajo es la <strong>misma composición</strong> que se envía a la impresora térmica.
-        Vale N° <strong>{{ venta.id }}</strong> · Total <strong>${{ total_fmt }}</strong>
+        Vale interno N° <strong>{{ venta.id }}</strong> · Total <strong>${{ total_fmt }}</strong>
         {% if ticket_es_borrador %}· <strong>Borrador POS</strong> (aún no emitido a cobro){% endif %}
         · <kbd>Ctrl+P</kbd> o <strong>Imprimir</strong>
     </p>
@@ -245,6 +264,8 @@
             <div class="ticket" id="valeTicketAnim">
                 <div class="header">
                     <h2>✔ {{ empresa_nom }}</h2>
+                    <p class="doc-type">VALE INTERNO</p>
+                    <p class="no-boleta">NO ES BOLETA — documento interno. Presente en caja para pagar.</p>
                     {% if ticket_direccion %}
                     <p class="ticket-empresa-meta">{{ ticket_direccion }}</p>
                     {% endif %}
@@ -253,7 +274,7 @@
                     {% endif %}
                 </div>
                 <div class="info">
-                    <p><strong>VALE N° {{ venta.id }}</strong></p>
+                    <p><strong>VALE INTERNO N° {{ venta.id }}</strong></p>
                     <p>{{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
                     <p>Turno: {{ venta.prioridad }} · {{ venta.usuario }}</p>
                     {% if cotizacion_origen %}
@@ -352,16 +373,7 @@
                 <div class="pendiente" style="background:#fff7ed;color:#9a3412;border:1px dashed #fdba74;">*** BORRADOR POS — EMITA EL VALE DESDE EL PUNTO DE VENTA ***</div>
                 {% else %}
                 <div class="pendiente">*** PENDIENTE DE COBRO EN CAJA ***</div>
-                {% endif %}
-                {% if pos_ticket_qr_despacho and qr_ticket_src %}
-                <div class="ticket-qr-footer">
-                  <div class="ticket-sep">ESCANEO BODEGA</div>
-                  <img src="{{ qr_ticket_src }}" width="148" height="148" alt="Código QR despacho bodega">
-                  <div class="ticket-qr-caption">QR retiro · escanear tras cobrar en caja</div>
-                  {% if despacho_ticket_url %}
-                  <div class="ticket-qr-caption font-monospace" style="font-size:9px;word-break:break-all">{{ despacho_ticket_url }}</div>
-                  {% endif %}
-                </div>
+                <p class="center no-boleta" style="font-size:9px;margin-top:8px;">Tras el cobro recibirá un <strong>ticket de retiro</strong> con QR. Este vale interno queda en caja.</p>
                 {% endif %}
             </div>
         </section>

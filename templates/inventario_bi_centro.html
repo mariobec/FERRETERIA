@@ -1,0 +1,773 @@
+{% extends 'base.html' %}
+{% block body_class %}erp-ops-space page-inventario-bi-centro bi-centro-fullscreen{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-stock-valorizado.css') }}?v=sv-5">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario-bi-centro.css') }}?v=bi-13">
+{% endblock %}
+
+{% block content %}
+{% set k = informe.kpis %}
+{% set meta = informe.meta %}
+{% set vista = filtros.vista or 'resumen' %}
+{% set kc = informe.kpi_cards %}
+{% set salud = informe.salud_inventario %}
+
+{% macro bi_kpi_card(card) %}
+<div class="bi-kpi bi-kpi--{{ card.tier }} bi-kpi--{{ card.estado }}"{% if card.tooltip_title %} title="{{ card.tooltip_title }}"{% endif %}>
+  {% if card.tier == 'hero' %}<div class="bi-kpi__icon"><i class="fas {{ card.icon }}"></i></div>{% endif %}
+  <div class="bi-kpi__body">
+    <div class="bi-kpi__lbl">
+      {{ card.label }}
+      {% if card.tooltip_title %}<span class="bi-kpi__tip" aria-label="Ayuda"><i class="fas fa-circle-question"></i></span>{% endif %}
+    </div>
+    <div class="bi-kpi__val{% if card.tier == 'hero' and card.id in ['valor_inventario','capital_inmovilizado'] %} bi-kpi__val--money{% endif %}">{{ card.valor }}</div>
+    {% if card.tendencia %}
+    <div class="bi-kpi__trend-line bi-kpi__trend--{{ card.tendencia.dir }}">
+      {% if card.tendencia.dir == 'up' %}▲{% else %}▼{% endif %} {{ card.tendencia.pct }}% {{ card.tendencia.label }}
+    </div>
+    {% endif %}
+    {% if card.meta_objetivo %}
+    <div class="bi-kpi__meta">
+      {{ card.meta_objetivo.label }}
+      {% if card.meta_objetivo.cumple %}<span class="bi-kpi__meta-ok">✔ Sobre objetivo</span>{% else %}<span class="bi-kpi__meta-warn">⚠ Bajo objetivo</span>{% endif %}
+    </div>
+    {% endif %}
+    {% for ctx in card.contexto %}
+    <div class="bi-kpi__hint">{{ ctx }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro bi_tab_url(tab_id) -%}
+{{ url_for('inventario_dashboard_premium', vista=tab_id, q=filtros.q or None, categoria=filtros.categoria_param or None, subcategoria=filtros.subcategoria or None, subcategoria_catalogo_id=filtros.subcategoria_catalogo_id or None, marca=filtros.marca or None, deposito=filtros.deposito or None, estado=filtros.estado or None, umbral=filtros.umbral, periodo=filtros.periodo or '30d', solo_stock_explicit='1', solo_con_stock='1' if filtros.solo_con_stock else '0') }}
+{%- endmacro %}
+<div class="container-fluid px-0 bi-shell">
+  <header class="bi-hdr">
+    <div>
+      <div class="bi-hdr__badge"><span class="bi-live-dot"></span> Inventario · inteligencia · en vivo</div>
+      <h1 class="bi-hdr__title"><i class="fas fa-chart-line me-2"></i>Centro de stock</h1>
+      <p class="bi-hdr__meta mb-0">
+        ¿Dónde está el dinero? ¿Qué comprar hoy? · {{ meta.nom_tienda }} / {{ meta.nom_bodega }} · {{ meta.generado }}
+        · <span class="bi-hdr__chip">Período: {{ meta.periodo_label }}</span>
+        {% if meta.solo_con_stock %}
+        · <span class="bi-hdr__chip">Mostrando {{ "{:,}".format(meta.sku_en_vista).replace(",", ".") }} SKU con stock</span>
+        {% if meta.sku_catalogo_activos and meta.sku_en_vista < meta.sku_catalogo_activos %}
+        <span class="bi-hdr__chip bi-hdr__chip--muted">de {{ "{:,}".format(meta.sku_catalogo_activos).replace(",", ".") }} activos</span>
+        {% endif %}
+        {% else %}
+        · <span class="bi-hdr__chip">Catálogo completo ({{ "{:,}".format(meta.sku_en_vista).replace(",", ".") }} SKU)</span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <a href="{{ url_for('erp_hub') }}" class="btn btn-sm btn-outline-light"><i class="fas fa-th-large me-1"></i>Módulos</a>
+      <a href="{{ urls.stock_valorizado }}" class="btn btn-sm btn-outline-light">Stock valorizado</a>
+      <a href="{{ urls.enrolamiento }}" class="btn btn-sm btn-warning">Enrolamiento</a>
+      <a href="{{ urls.productos }}" class="btn btn-sm btn-outline-light">Catálogo</a>
+    </div>
+  </header>
+
+  <div class="bi-layout">
+    <aside class="bi-filters-col">
+      <div class="bi-filter-panel">
+        <div class="bi-filter-panel__head"><i class="fas fa-sliders"></i> Filtros globales</div>
+        <form method="GET" action="{{ url_for('inventario_dashboard_premium') }}" class="bi-filter-form">
+          <input type="hidden" name="vista" value="{{ vista }}">
+          <input type="hidden" name="solo_stock_explicit" value="1">
+          <div class="bi-filter-group">
+            <div class="bi-filter-field">
+              <label class="form-label"><i class="fas fa-search bi-filter-ico"></i> Buscar</label>
+              <input type="search" name="q" value="{{ filtros.q or '' }}" class="form-control form-control-sm bi-filter-input" placeholder="Nombre o código">
+            </div>
+            <div class="bi-filter-field">
+              <label class="form-label"><i class="fas fa-layer-group bi-filter-ico"></i> Categoría</label>
+              <select name="categoria" id="biCatFiltro" class="form-select form-select-sm bi-filter-input">
+                <option value="">Todas</option>
+                {% if informe.opts.categorias_catalogo %}
+                <optgroup label="Catálogo oficial">
+                  {% for c in informe.opts.categorias_catalogo %}
+                  <option value="{{ c.nombre }}" {% if filtros.categoria_modo == 'catalog' and filtros.categoria == c.nombre %}selected{% endif %}>{{ c.nombre }}{% if c.sku_count %} ({{ "{:,}".format(c.sku_count).replace(",", ".") }}){% endif %}</option>
+                  {% endfor %}
+                </optgroup>
+                {% endif %}
+                {% if informe.opts.legacy_categorias %}
+                <optgroup label="Legacy (sin catálogo)">
+                  {% for c in informe.opts.legacy_categorias %}
+                  <option value="legacy:{{ c }}" {% if filtros.categoria_modo == 'legacy' and filtros.categoria == c %}selected{% endif %}>{{ c }}</option>
+                  {% endfor %}
+                </optgroup>
+                {% endif %}
+              </select>
+            </div>
+            <div class="bi-filter-field" id="biSubCatalogoWrap">
+              <label class="form-label"><i class="fas fa-tags bi-filter-ico"></i> Subcategoría</label>
+              <select name="subcategoria_catalogo_id" id="biSubCatalogo" class="form-select form-select-sm bi-filter-input">
+                <option value="">Todas</option>
+                {% for s in informe.opts.subcategorias_catalogo or [] %}
+                <option value="{{ s.id }}" {% if filtros.subcategoria_catalogo_id == s.id %}selected{% endif %}>{{ s.etiqueta }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="bi-filter-field d-none" id="biSubLegacyWrap">
+              <label class="form-label"><i class="fas fa-tags bi-filter-ico"></i> Subcategoría legacy</label>
+              <select name="subcategoria" id="biSubLegacy" class="form-select form-select-sm bi-filter-input">
+                <option value="">Todas</option>
+                {% for s in informe.opts.legacy_subcategorias or [] %}
+                <option value="{{ s }}" {% if filtros.subcategoria == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="bi-filter-field">
+              <label class="form-label"><i class="fas fa-copyright bi-filter-ico"></i> Marca</label>
+              <select name="marca" class="form-select form-select-sm bi-filter-input">
+                <option value="">Todas</option>
+                {% for m in informe.opts.marcas or [] %}
+                <option value="{{ m }}" {% if filtros.marca == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="bi-filter-field">
+              <label class="form-label"><i class="fas fa-warehouse bi-filter-ico"></i> Depósito</label>
+              <select name="deposito" class="form-select form-select-sm bi-filter-input">
+                <option value="">Todos</option>
+                <option value="tienda" {% if filtros.deposito == 'tienda' %}selected{% endif %}>{{ meta.nom_tienda }}</option>
+                <option value="bodega" {% if filtros.deposito == 'bodega' %}selected{% endif %}>{{ meta.nom_bodega }}</option>
+              </select>
+            </div>
+            <div class="bi-filter-field">
+              <label class="form-label"><i class="fas fa-traffic-light bi-filter-ico"></i> Estado</label>
+              <select name="estado" class="form-select form-select-sm bi-filter-input">
+                <option value="">Todos</option>
+                <option value="ok" {% if filtros.estado == 'ok' %}selected{% endif %}>Con stock OK</option>
+                <option value="critico" {% if filtros.estado == 'critico' %}selected{% endif %}>Crítico</option>
+                <option value="sin_stock" {% if filtros.estado == 'sin_stock' %}selected{% endif %}>Sin stock tienda</option>
+                <option value="sobrestock" {% if filtros.estado == 'sobrestock' %}selected{% endif %}>Sobrestock</option>
+              </select>
+            </div>
+            <div class="bi-filter-field bi-filter-field--inline">
+              <label class="form-label"><i class="fas fa-clock bi-filter-ico"></i> Período ventas</label>
+              <select name="periodo" class="form-select form-select-sm bi-filter-input">
+                {% for pval, plbl in [('7d','7 días'), ('30d','30 días'), ('90d','90 días'), ('yoy','vs año anterior')] %}
+                <option value="{{ pval }}" {% if (filtros.periodo or '30d') == pval %}selected{% endif %}>{{ plbl }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="bi-filter-field bi-filter-field--inline">
+              <label class="form-label"><i class="fas fa-bolt bi-filter-ico"></i> Umbral crítico</label>
+              <input type="number" name="umbral" value="{{ filtros.umbral or 5 }}" min="1" max="50" class="form-control form-control-sm bi-filter-input">
+            </div>
+          </div>
+          <div class="bi-filter-toggle mb-2">
+            <label class="bi-switch" for="biSoloStock">
+              <input type="checkbox" name="solo_con_stock" value="1" id="biSoloStock" {% if filtros.solo_con_stock %}checked{% endif %}>
+              <span class="bi-switch__track"></span>
+              <span class="bi-switch__lbl">Solo productos con stock</span>
+            </label>
+            <p class="bi-filter-hint mb-0">Recomendado: acelera la carga y enfoca el análisis operativo.</p>
+          </div>
+          <button type="submit" class="btn btn-sm w-100 mb-1 bi-btn-apply"><i class="fas fa-filter me-1"></i>Aplicar filtros</button>
+          <a href="{{ url_for('inventario_dashboard_premium') }}" class="btn btn-outline-secondary btn-sm w-100 bi-btn-clear">Limpiar todo</a>
+        </form>
+      </div>
+    </aside>
+
+    <div class="bi-main-col">
+      {% if filtros.q or filtros.categoria or filtros.subcategoria or filtros.subcategoria_catalogo_id or filtros.marca or filtros.deposito or filtros.estado %}
+      <div class="bi-active-filters mb-2">
+        <span class="bi-active-filters__lbl">Filtros activos</span>
+        {% if filtros.q %}<span class="bi-filter-chip"><i class="fas fa-search"></i> {{ filtros.q }}</span>{% endif %}
+        {% if filtros.categoria %}
+        <span class="bi-filter-chip"><i class="fas fa-layer-group"></i>{% if filtros.categoria_modo == 'legacy' %} Legacy:{% endif %} {{ filtros.categoria }}</span>
+        {% endif %}
+        {% if filtros.subcategoria_catalogo_id %}
+          {% for s in informe.opts.subcategorias_catalogo or [] %}
+            {% if s.id == filtros.subcategoria_catalogo_id %}<span class="bi-filter-chip"><i class="fas fa-tags"></i> {{ s.etiqueta }}</span>{% endif %}
+          {% endfor %}
+        {% elif filtros.subcategoria %}
+        <span class="bi-filter-chip"><i class="fas fa-tags"></i> {{ filtros.subcategoria }}</span>
+        {% endif %}
+        {% if filtros.marca %}<span class="bi-filter-chip"><i class="fas fa-copyright"></i> {{ filtros.marca }}</span>{% endif %}
+        {% if filtros.deposito %}<span class="bi-filter-chip"><i class="fas fa-warehouse"></i> {{ filtros.deposito }}</span>{% endif %}
+        {% if filtros.estado %}<span class="bi-filter-chip"><i class="fas fa-traffic-light"></i> {{ filtros.estado }}</span>{% endif %}
+      </div>
+      {% endif %}
+
+      {# Estado general del inventario #}
+      {% if salud %}
+      <section class="bi-salud mb-3 bi-salud--{{ salud.nivel }}">
+        <div class="bi-salud__head">
+          <div class="bi-salud__title"><i class="fas fa-heart-pulse me-1"></i> Estado general del inventario</div>
+          <div class="bi-salud__score">
+            <span class="bi-salud__nivel">Salud: {{ salud.nivel_label }}</span>
+            <span class="bi-salud__bar" aria-hidden="true">
+              {% for i in range(5) %}
+              <span class="bi-salud__dot{% if i < (salud.score // 20) %} is-on{% endif %}"></span>
+              {% endfor %}
+            </span>
+          </div>
+        </div>
+        <div class="bi-salud__body">
+          <div class="bi-salud__col">
+            <div class="bi-salud__lbl">Fortalezas</div>
+            {% for f in salud.fortalezas %}
+            <div class="bi-salud__item bi-salud__item--ok">✔ {{ f }}</div>
+            {% else %}
+            <div class="bi-salud__item bi-salud__item--muted">Sin fortalezas destacadas</div>
+            {% endfor %}
+          </div>
+          <div class="bi-salud__col">
+            <div class="bi-salud__lbl">Debilidades</div>
+            {% for d in salud.debilidades %}
+            <div class="bi-salud__item bi-salud__item--warn">⚠ {{ d }}</div>
+            {% else %}
+            <div class="bi-salud__item bi-salud__item--muted">Sin alertas críticas</div>
+            {% endfor %}
+          </div>
+          <div class="bi-salud__col bi-salud__col--pri">
+            <div class="bi-salud__lbl">Prioridad del día</div>
+            {% for p in salud.prioridades %}
+            <div class="bi-salud__pri bi-salud__pri--{{ p.tipo }}">{{ p.label }}</div>
+            {% else %}
+            <div class="bi-salud__item bi-salud__item--muted">Operación estable</div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
+      {# KPIs hero — 4 preguntas clave #}
+      <div class="bi-kpi-hero mb-3">
+        {{ bi_kpi_card(kc.valor_inventario) }}
+        {{ bi_kpi_card(kc.capital_inmovilizado) }}
+        {{ bi_kpi_card(kc.nivel_servicio) }}
+        {{ bi_kpi_card(kc.sin_stock) }}
+      </div>
+
+      {# KPIs secundarios #}
+      <div class="bi-kpi-strip mb-3">
+        {{ bi_kpi_card(kc.sku_vista) }}
+        {{ bi_kpi_card(kc.cobertura) }}
+        {{ bi_kpi_card(kc.rotacion) }}
+        {{ bi_kpi_card(kc.reposicion) }}
+      </div>
+
+      {% if informe.recomendaciones %}
+      <section class="bi-insights-rail mb-3">
+        <div class="bi-insights-rail__title"><i class="fas fa-wand-magic-sparkles text-warning me-1"></i> Recomendaciones</div>
+        <div class="bi-insights-rail__scroll">
+          {% for rec in informe.recomendaciones %}
+          <article class="bi-insight bi-insight--{{ rec.tipo }}">
+            <div class="bi-insight__icon">{% if rec.tipo == 'danger' %}🔴{% elif rec.tipo == 'warn' %}🟡{% elif rec.tipo == 'ok' %}🟢{% else %}🔵{% endif %}</div>
+            <div>
+              <div class="bi-insight__tit">{{ rec.titulo }}</div>
+              <p class="bi-insight__txt">{{ rec.texto }}</p>
+              {% if rec.accion %}
+              <p class="bi-insight__accion"><i class="fas fa-bolt me-1"></i>{{ rec.accion }}</p>
+              {% endif %}
+              {% if rec.impacto_texto or rec.fmt_impacto %}
+              <p class="bi-insight__impacto">
+                <strong>Impacto:</strong>
+                {{ rec.impacto_texto }}
+                {% if rec.fmt_impacto and rec.impacto_texto %} · {% endif %}
+                {% if rec.fmt_impacto %}{{ rec.fmt_impacto }}{% endif %}
+              </p>
+              {% endif %}
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% elif informe.insights %}
+      <section class="bi-insights-rail mb-3">
+        <div class="bi-insights-rail__title"><i class="fas fa-lightbulb text-warning me-1"></i> Insights automáticos</div>
+        <div class="bi-insights-rail__scroll">
+          {% for ins in informe.insights %}
+          <article class="bi-insight bi-insight--{{ ins.tipo }}">
+            <div class="bi-insight__icon">{% if ins.tipo == 'danger' %}🔴{% elif ins.tipo == 'warn' %}🟡{% elif ins.tipo == 'ok' %}🟢{% else %}🔵{% endif %}</div>
+            <div>
+              <div class="bi-insight__tit">{{ ins.titulo }}</div>
+              <p class="bi-insight__txt">{{ ins.texto }}</p>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <nav class="bi-tab-pills mb-3" aria-label="Vistas del centro de stock">
+        {% for tab_id, tab_label, tab_icon in [
+          ('resumen','Resumen','fa-chart-pie'),
+          ('categorias','Categorías','fa-layer-group'),
+          ('alertas','Alertas','fa-bell'),
+          ('rankings','Rankings','fa-trophy'),
+          ('acciones','Acciones','fa-bolt')
+        ] %}
+        <a class="bi-tab-pill{% if vista == tab_id %} is-active{% endif %}"
+           href="{{ bi_tab_url(tab_id) }}">
+          <i class="fas {{ tab_icon }}"></i> {{ tab_label }}
+          {% if tab_id == 'acciones' and informe.acciones %}
+          {% set acc_total = informe.acciones|sum(attribute='count') %}
+          {% if acc_total %}<span class="bi-tab-pill__count">{{ acc_total }}</span>{% endif %}
+          {% endif %}
+        </a>
+        {% endfor %}
+      </nav>
+
+      {% if vista == 'resumen' %}
+      <div class="bi-chart-grid mb-3">
+        <div class="card bi-panel-card bi-panel-card--accent bi-panel-card--hdr-blue bi-chart-cell bi-chart-cell--8">
+          <div class="card-header"><span class="bi-panel-card__badge bg-primary">1</span> ¿Dónde está el dinero?
+            {% set vcb = informe.charts.valor_categoria_bar %}
+            {% if vcb.drill == 'subcategoria' %}
+            <span class="bi-hdr-sub">— top subcategorías en {{ vcb.parent }}</span>
+            {% else %}
+            <span class="bi-hdr-sub">— mercadería por categoría</span>
+            {% endif %}
+          </div>
+          <div class="card-body"><div class="bi-chart-wrap bi-chart-wrap--tall"><canvas id="chartValorCat"></canvas></div></div>
+        </div>
+        <div class="card bi-panel-card bi-panel-card--accent bi-panel-card--hdr-amber bi-chart-cell bi-chart-cell--4">
+          <div class="card-header"><span class="bi-panel-card__badge bg-warning text-dark">2</span> Estado del stock <span class="bi-hdr-sub">— tienda</span></div>
+          <div class="card-body"><div class="bi-chart-wrap"><canvas id="chartEstado"></canvas></div></div>
+        </div>
+        <div class="card bi-panel-card bi-panel-card--hdr-red bi-chart-cell bi-chart-cell--6">
+          <div class="card-header"><span class="bi-panel-card__badge bg-danger">3</span> Capital inmovilizado <span class="bi-hdr-sub">— top SKU ($)</span></div>
+          <div class="card-body"><div class="bi-chart-wrap bi-chart-wrap--tall"><canvas id="chartInmov"></canvas></div></div>
+        </div>
+        <div class="card bi-panel-card bi-panel-card--hdr-orange bi-chart-cell bi-chart-cell--6">
+          <div class="card-header"><span class="bi-panel-card__badge bg-warning text-dark">4</span> Riesgo de quiebre <span class="bi-hdr-sub">— $ venta perdida</span></div>
+          <div class="card-body"><div class="bi-chart-wrap bi-chart-wrap--tall"><canvas id="chartRiesgo"></canvas></div></div>
+        </div>
+        <div class="card bi-panel-card bi-panel-card--hdr-slate bi-chart-cell bi-chart-cell--4">
+          <div class="card-header"><i class="fas fa-warehouse me-1"></i> Valor por depósito</div>
+          <div class="card-body py-3">
+            {% set dep = informe.charts.deposito_resumen %}
+            {% for i in range(dep.labels|length) %}
+            <div class="bi-dep-mini">
+              <span class="bi-dep-mini__lbl">{{ dep.labels[i] }}</span>
+              <span class="bi-dep-mini__val">{{ dep.fmt_values[i] if dep.fmt_values else ('$' ~ "{:,.0f}".format(dep.values[i]).replace(",", ".")) }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card bi-panel-card bi-panel-card--hdr-slate bi-chart-cell bi-chart-cell--8">
+          <div class="card-header"><i class="fas fa-filter me-1"></i> Embudo reposición <span class="bi-hdr-sub">— SKU + $ mercadería</span></div>
+          <div class="card-body py-3 bi-funnel-body">
+            {% set max_f = informe.funnel[0].value if informe.funnel else 1 %}
+            {% for step in informe.funnel %}
+            <div class="bi-funnel-step">
+              <span class="bi-funnel-lbl">{{ step.label }}</span>
+              <div class="bi-funnel-bar"><div class="bi-funnel-fill" style="width:{{ (step.value / max_f * 100) if max_f else 0 }}%"></div></div>
+              <span class="bi-funnel-val">{{ "{:,}".format(step.value).replace(",", ".") }} · {{ step.fmt_monto }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card bi-panel-card bi-panel-card--hdr-red bi-chart-cell bi-chart-cell--12">
+          <div class="card-header"><span class="bi-panel-card__badge bg-danger">5</span> Problemas por categoría <span class="bi-hdr-sub">— OK / crítico / sin stock</span></div>
+          <div class="card-body"><div class="bi-chart-wrap"><canvas id="chartStacked"></canvas></div></div>
+        </div>
+      </div>
+
+      <div class="card bi-panel-card bi-table-hud">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="fas fa-table me-1"></i> Tabla inteligente (top {{ informe.tabla|length }})</span>
+          <a href="{{ urls.stock_valorizado }}" class="btn btn-sm btn-outline-primary">Ver valorizado completo</a>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead><tr>
+              <th>SKU</th><th>Descripción</th><th class="text-end">T</th><th class="text-end">B</th>
+              <th class="text-end">Cob.</th><th class="text-end">Vta {{ meta.periodo_label }}</th><th class="text-end">$ costo</th><th>Estado</th>
+            </tr></thead>
+            <tbody>
+              {% for r in informe.tabla %}
+              <tr>
+                <td class="small font-monospace">{{ r.codigo }}</td>
+                <td><a href="{{ urls.productos }}?q={{ r.codigo|urlencode }}" class="text-decoration-none">{{ r.nombre[:50] }}{% if r.nombre|length > 50 %}…{% endif %}</a></td>
+                <td class="text-end">{{ r.stock_tienda }}</td>
+                <td class="text-end">{{ r.stock_bodega }}</td>
+                <td class="text-end">{% if r.cobertura %}{{ r.cobertura }}d{% else %}—{% endif %}</td>
+                <td class="text-end">{{ "%.0f"|format(r.ventas_30) }}</td>
+                <td class="text-end">{{ r.mercaderia_fmt }}</td>
+                <td><span class="bi-estado bi-estado--{{ r.estado }}">{{ r.estado|replace('_',' ') }}</span></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center text-muted py-4">Sin filas con los filtros actuales.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {% elif vista == 'categorias' %}
+      <div class="card bi-panel-card bi-table-hud">
+        <div class="card-header">Ranking por categoría</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead><tr>
+              <th>Categoría</th><th class="text-end">SKU</th><th class="text-end">OK</th><th class="text-end">Crítico</th>
+              <th class="text-end">Sin stock</th><th class="text-end">Sobre</th><th class="text-end">Mercadería</th><th class="text-end">Vta 30d</th>
+            </tr></thead>
+            <tbody>
+              {% for r in informe.por_categoria %}
+              <tr>
+                <td class="fw-semibold">{{ r.categoria }}</td>
+                <td class="text-end">{{ r.skus }}</td>
+                <td class="text-end text-success">{{ r.ok }}</td>
+                <td class="text-end text-warning">{{ r.critico }}</td>
+                <td class="text-end text-danger">{{ r.sin_stock }}</td>
+                <td class="text-end">{{ r.sobrestock }}</td>
+                <td class="text-end">${{ "{:,.0f}".format(r.mercaderia_total).replace(",", ".") }}</td>
+                <td class="text-end">{{ "%.0f"|format(r.ventas_30) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {% elif vista == 'alertas' %}
+      <div class="bi-integridad-wrap">
+        {% include 'inventario/includes/integridad_stock_panel.html' with context %}
+      </div>
+
+      {% elif vista == 'rankings' %}
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card bi-panel-card bi-table-hud">
+            <div class="card-header">Más vendidos ({{ meta.periodo_label }})</div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead><tr><th>Producto</th><th class="text-end">Vta</th><th class="text-end">Stock T</th><th class="text-end">$ costo</th></tr></thead>
+                <tbody>
+                  {% for r in informe.rankings.mas_vendidos %}
+                  <tr><td class="small">{{ r.nombre[:45] }}</td><td class="text-end fw-bold">{{ "%.0f"|format(r.ventas_30) }}</td><td class="text-end">{{ r.stock_tienda }}</td><td class="text-end">${{ "{:,.0f}".format(r.mercaderia).replace(",", ".") }}</td></tr>
+                  {% else %}<tr><td colspan="4" class="text-muted text-center py-3">Sin ventas en el período.</td></tr>{% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card bi-panel-card bi-table-hud">
+            <div class="card-header">Sin movimiento 90d (con stock)</div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead><tr><th>Producto</th><th class="text-end">$ mercadería</th></tr></thead>
+                <tbody>
+                  {% for r in informe.rankings.sin_movimiento %}
+                  <tr><td class="small">{{ r.nombre[:45] }}</td><td class="text-end">${{ "{:,.0f}".format(r.mercaderia).replace(",", ".") }}</td></tr>
+                  {% else %}<tr><td colspan="2" class="text-muted text-center py-3">Ninguno con stock y sin venta.</td></tr>{% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="card bi-panel-card bi-table-hud">
+            <div class="card-header">Críticos y sin stock (prioridad compra)</div>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead><tr><th>Código</th><th>Producto</th><th class="text-end">T</th><th class="text-end">Cob.</th><th class="text-end">$ costo</th><th>Estado</th></tr></thead>
+                <tbody>
+                  {% for r in informe.rankings.criticos %}
+                  <tr>
+                    <td class="font-monospace small">{{ r.codigo }}</td>
+                    <td>{{ r.nombre[:50] }}</td>
+                    <td class="text-end">{{ r.stock_tienda }}</td>
+                    <td class="text-end">{% if r.cobertura %}{{ r.cobertura }}d{% else %}—{% endif %}</td>
+                    <td class="text-end">${{ "{:,.0f}".format(r.mercaderia).replace(",", ".") }}</td>
+                    <td><span class="bi-estado bi-estado--{{ r.estado }}">{{ r.estado|replace('_',' ') }}</span></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% elif vista == 'acciones' %}
+      <div class="bi-acciones-intro mb-3">
+        <div class="bi-acciones-intro__icon"><i class="fas fa-bolt"></i></div>
+        <div>
+          <div class="bi-acciones-intro__title">Tareas pendientes</div>
+          <p class="bi-acciones-intro__txt mb-0">Acciones sugeridas según stock, ventas del período <strong>{{ meta.periodo_label }}</strong> y capital comprometido.</p>
+        </div>
+      </div>
+      <div class="bi-acciones-grid mb-3">
+        {% for bloque in informe.acciones %}
+        <article class="card bi-panel-card bi-accion-card bi-accion-card--{{ bloque.tipo }}">
+          <div class="card-header bi-accion-card__header">
+            <div class="bi-accion-card__title">
+              <span class="bi-accion-card__icon"><i class="fas {{ bloque.icon }}"></i></span>
+              <span>{{ bloque.titulo }}</span>
+            </div>
+            <span class="bi-accion-card__count">{{ bloque.count }} SKU</span>
+          </div>
+          <div class="card-body bi-accion-card__body">
+            <p class="bi-accion-card__desc">{{ bloque.descripcion }}</p>
+            {% if bloque.fmt_monto %}
+            <div class="bi-accion-card__impact">
+              <span class="bi-accion-card__impact-lbl">Impacto estimado</span>
+              <span class="bi-accion-card__impact-val">{{ bloque.fmt_monto }}</span>
+            </div>
+            {% endif %}
+            {% if bloque.filas %}
+            <ul class="bi-accion-list list-unstyled mb-0">
+              {% for it in bloque.filas[:5] %}
+              <li class="bi-accion-list__item">
+                <span class="bi-accion-list__name" title="{{ it.nombre }}">{{ it.nombre[:40] }}{% if it.nombre|length > 40 %}…{% endif %}</span>
+                <span class="bi-accion-list__meta">
+                  <span class="bi-accion-list__qty">{{ it.cantidad or it.stock_bodega }} u</span>
+                  <span class="bi-accion-list__money">{{ it.fmt_monto }}</span>
+                </span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="bi-accion-empty">
+              <i class="fas fa-circle-check"></i>
+              <span>Sin tareas pendientes en este bloque.</span>
+            </div>
+            {% endif %}
+            <div class="bi-accion-card__footer">
+              <a href="{{ bloque.ver_url }}" class="bi-accion-btn bi-accion-btn--ghost"><i class="fas fa-list me-1"></i>Ver productos</a>
+              {% if bloque.count %}
+              <a href="{{ bloque.ejecutar_url }}" class="bi-accion-btn bi-accion-btn--primary bi-accion-btn--{{ bloque.tipo }}"><i class="fas fa-play me-1"></i>{{ bloque.ejecutar_label }}</a>
+              {% else %}
+              <button type="button" class="bi-accion-btn bi-accion-btn--primary" disabled>{{ bloque.ejecutar_label }}</button>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script id="biCatalogoTree" type="application/json">{{ (informe.opts.catalogo_tree or {}) | tojson }}</script>
+<script id="biLegacySubsMap" type="application/json">{{ (informe.opts.legacy_subs_map or {}) | tojson }}</script>
+<script>
+(function () {
+  var catEl = document.getElementById('biCatFiltro');
+  var subCatEl = document.getElementById('biSubCatalogo');
+  var subLegEl = document.getElementById('biSubLegacy');
+  var wrapCat = document.getElementById('biSubCatalogoWrap');
+  var wrapLeg = document.getElementById('biSubLegacyWrap');
+  var form = document.querySelector('.bi-filter-form');
+  if (!catEl || !subCatEl || !subLegEl) return;
+
+  var tree = {};
+  var legacyMap = {};
+  try { tree = JSON.parse(document.getElementById('biCatalogoTree').textContent || '{}'); } catch (e) {}
+  try { legacyMap = JSON.parse(document.getElementById('biLegacySubsMap').textContent || '{}'); } catch (e) {}
+
+  function isLegacy(val) { return !!val && val.indexOf('legacy:') === 0; }
+  function legacyName(val) { return isLegacy(val) ? val.slice(7) : ''; }
+
+  function fillSelect(el, items, valueKey, labelKey, selected) {
+    var html = '<option value="">Todas</option>';
+    (items || []).forEach(function (it) {
+      var v = String(it[valueKey]);
+      var sel = String(selected || '') === v ? ' selected' : '';
+      html += '<option value="' + v.replace(/"/g, '&quot;') + '"' + sel + '>' + it[labelKey] + '</option>';
+    });
+    el.innerHTML = html;
+  }
+
+  function fillLegacySubs(catName, selected) {
+    var subs = legacyMap[catName] || [];
+    var html = '<option value="">Todas</option>';
+    subs.forEach(function (s) {
+      var sel = selected === s ? ' selected' : '';
+      html += '<option value="' + String(s).replace(/"/g, '&quot;') + '"' + sel + '>' + s + '</option>';
+    });
+    subLegEl.innerHTML = html;
+  }
+
+  function syncSubPanels(resetSubs) {
+    var val = catEl.value || '';
+    var legacy = isLegacy(val);
+    if (legacy) {
+      wrapCat.classList.add('d-none');
+      wrapLeg.classList.remove('d-none');
+      subCatEl.disabled = true;
+      subLegEl.disabled = !val;
+      if (resetSubs) fillLegacySubs(legacyName(val), '');
+      else fillLegacySubs(legacyName(val), subLegEl.value);
+    } else if (val) {
+      wrapCat.classList.remove('d-none');
+      wrapLeg.classList.add('d-none');
+      subCatEl.disabled = false;
+      subLegEl.disabled = true;
+      if (resetSubs) fillSelect(subCatEl, tree[val] || [], 'id', 'etiqueta', '');
+      else fillSelect(subCatEl, tree[val] || [], 'id', 'etiqueta', subCatEl.value);
+    } else {
+      wrapCat.classList.remove('d-none');
+      wrapLeg.classList.add('d-none');
+      subCatEl.disabled = true;
+      subLegEl.disabled = true;
+      if (resetSubs) {
+        subCatEl.innerHTML = '<option value="">Todas</option>';
+        subLegEl.innerHTML = '<option value="">Todas</option>';
+      }
+    }
+  }
+
+  catEl.addEventListener('change', function () { syncSubPanels(true); });
+  syncSubPanels(false);
+
+  if (form) {
+    form.addEventListener('submit', function () {
+      if (isLegacy(catEl.value)) {
+        subCatEl.disabled = true;
+        subLegEl.disabled = false;
+      } else {
+        subLegEl.disabled = true;
+        subCatEl.disabled = !catEl.value;
+      }
+    });
+  }
+})();
+</script>
+{% set vista_tab = filtros.vista or 'resumen' %}
+{% if vista_tab == 'resumen' %}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script id="biChartsData" type="application/json">{{ informe.charts | tojson }}</script>
+<script id="biMetaData" type="application/json">{{ {'nom_tienda': informe.meta.nom_tienda, 'nom_bodega': informe.meta.nom_bodega} | tojson }}</script>
+<script>
+(function () {
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.color = '#475569';
+  Chart.defaults.borderColor = '#e2e8f0';
+  Chart.defaults.animation = { duration: 700, easing: 'easeOutQuart' };
+  Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 23, 42, 0.92)';
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.cornerRadius = 8;
+  var charts = JSON.parse(document.getElementById('biChartsData').textContent || '{}');
+  var fmtN = function (v) { return new Intl.NumberFormat('es-CL').format(v || 0); };
+  var fmtClp = function (v) {
+    return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v || 0);
+  };
+  var scale = { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#e2e8f0' } };
+  var leg = { labels: { color: '#0f172a', boxWidth: 12, font: { size: 11, weight: '600' } } };
+
+  function pie(id, pack, money) {
+    var el = document.getElementById(id);
+    if (!el || !pack || !pack.labels) return;
+    new Chart(el, {
+      type: 'doughnut',
+      data: { labels: pack.labels, datasets: [{ data: pack.values, backgroundColor: pack.colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '62%',
+        plugins: {
+          legend: { position: 'right', labels: leg.labels },
+          tooltip: { callbacks: { label: function (c) { return c.label + ': ' + (money ? fmtClp(c.raw) : fmtN(c.raw)); } } }
+        }
+      }
+    });
+  }
+
+  function barH(id, pack, money) {
+    var el = document.getElementById(id);
+    if (!el || !pack) return;
+    new Chart(el, {
+      type: 'bar',
+      data: { labels: pack.labels, datasets: [{ data: pack.values, backgroundColor: pack.colors, borderRadius: 6, borderSkipped: false }] },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        scales: { x: scale, y: scale },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return money ? fmtClp(c.raw) : fmtN(c.raw); } } } }
+      }
+    });
+  }
+
+  function stacked(id, pack) {
+    var el = document.getElementById(id);
+    if (!el || !pack) return;
+    new Chart(el, {
+      type: 'bar',
+      data: {
+        labels: pack.labels,
+        datasets: [
+          { label: 'OK', data: pack.ok, backgroundColor: '#16a34a', stack: 's' },
+          { label: 'Crítico', data: pack.critico, backgroundColor: '#f59e0b', stack: 's' },
+          { label: 'Sin stock', data: pack.sin_stock, backgroundColor: '#dc2626', stack: 's' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, ticks: scale.ticks, grid: scale.grid },
+          y: { stacked: true, ticks: scale.ticks, grid: scale.grid }
+        },
+        plugins: { legend: { position: 'top', labels: leg.labels } }
+      }
+    });
+  }
+
+  function scatter(id, pack) {
+    var el = document.getElementById(id);
+    if (!el || !pack || !pack.points || !pack.points.length) return;
+    new Chart(el, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Categorías',
+          data: pack.points.map(function (p) { return { x: p.x, y: p.y, label: p.label }; }),
+          backgroundColor: 'rgba(37, 99, 235, 0.65)',
+          pointRadius: 8,
+          pointHoverRadius: 10
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: {
+            title: { display: true, text: 'Valor mercadería ($)', color: '#334155' },
+            ticks: scale.ticks, grid: scale.grid
+          },
+          y: {
+            title: { display: true, text: 'Unidades vendidas 30d', color: '#334155' },
+            ticks: scale.ticks, grid: scale.grid
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (c) {
+                var p = pack.points[c.dataIndex];
+                return (p && p.label ? p.label + ' — ' : '') + fmtClp(c.raw.x) + ' · ' + fmtN(c.raw.y) + ' u';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function initCharts() {
+    try { barH('chartValorCat', charts.valor_categoria_bar, true); } catch (e) { console.error('chartValorCat', e); }
+    try { pie('chartEstado', charts.estado_pie, false); } catch (e) { console.error('chartEstado', e); }
+    try { barH('chartInmov', charts.inmovilizado_top, true); } catch (e) { console.error('chartInmov', e); }
+    try { barH('chartRiesgo', charts.riesgo_quiebre, true); } catch (e) { console.error('chartRiesgo', e); }
+    try { stacked('chartStacked', charts.stacked_categoria); } catch (e) { console.error('chartStacked', e); }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCharts);
+  } else {
+    initCharts();
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

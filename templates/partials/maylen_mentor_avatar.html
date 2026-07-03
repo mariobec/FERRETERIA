@@ -1,0 +1,22 @@
+{# Maylén — Mentor Academy. Tamaños: header (mano afuera) | portrait | md | sm | fab #}
+{% set _sz = maylen_size|default('md') %}
+<div class="maylen-mentor-avatar maylen-mentor-avatar--{{ _sz }}{% if maylen_live %} maylen-mentor-avatar--live{% endif %}{% if maylen_extra_class %} {{ maylen_extra_class }}{% endif %}{% if maylen_live %} maylen-avatar-live maylen-avatar-live--academy{% endif %}"
+     {% if maylen_live %}data-maylen-live="1"{% endif %}
+     {% if maylen_decorative %} aria-hidden="true"{% endif %}>
+  {% if maylen_live and _sz == 'header' %}
+  <span class="maylen-mentor-avatar__ring" aria-hidden="true"></span>
+  {% endif %}
+  {% if maylen_live %}
+  <span class="maylen-mentor-glow" aria-hidden="true"></span>
+  {% endif %}
+  <img src="{{ url_for('static', filename='img/maylen_avatar_cutout.png') }}?v=7"
+       alt="{{ maylen_alt|default('Maylén — Profesora LhexIA Academy') }}"
+       class="maylen-mentor-avatar__photo{% if maylen_live %} maylen-mentor-avatar__photo--live{% endif %}"
+       loading="eager" decoding="async">
+  {% if maylen_live and _sz != 'header' %}
+  <span class="maylen-wave-emoji maylen-wave-emoji--academy" aria-hidden="true">👋</span>
+  {% endif %}
+  {% if maylen_show_badge %}
+  <span class="maylen-mentor-avatar__badge" title="Profesora ERP"><i class="fas fa-glasses"></i></span>
+  {% endif %}
+</div>

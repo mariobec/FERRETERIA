@@ -309,6 +309,9 @@
             <a href="{{ url_for('movimiento_caja') }}" class="caja-nav-dock__link">
                 <i class="fas fa-exchange-alt" aria-hidden="true"></i><span>Movimientos</span>
             </a>
+            <a href="{{ url_for('caja_prototipo') }}" class="caja-nav-dock__link caja-nav-dock__link--accent-sky" title="Vista simple — prueba en piso">
+                <i class="fas fa-desktop" aria-hidden="true"></i><span>Vista simple</span>
+            </a>
         </nav>
         <div class="caja-hdr-premium__clock" aria-live="polite">
             <span class="caja-hdr-premium__clock-label">Turno activo</span>
@@ -474,7 +477,7 @@
     <div class="card card-ds" style="background-color: rgba(15, 23, 42, 0.55) !important; border-color: rgba(255, 255, 255, 0.08) !important;">
         <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2" style="background: #22252a !important; color: #ffffff !important;">
             <h6 class="mb-0 fw-bold" style="color: #ffffff !important;"><i class="fas fa-list me-2 caja-card-icon" style="color: #4ade80 !important; opacity: 1 !important;"></i>Cola de cobro</h6>
-            {% if usuario_tiene_permiso('gestionar_usuarios') and bloquean_cierre_total %}
+            {% if puede_limpiar_cola_cierre|default(false) and bloquean_cierre_total %}
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="badge rounded-pill caja-cola-info-badge" style="color: #ffffff !important; background-color: rgba(251, 146, 60, 0.12) !important; border: 1px solid rgba(251, 146, 60, 0.65) !important; opacity: 1 !important; filter: none !important;">{{ bloquean_cierre_total }} bloquean cierre · esta caja</span>
                 <form method="post" action="{{ url_for('limpiar_cola_cierre_caja') }}" class="mb-0 d-inline"

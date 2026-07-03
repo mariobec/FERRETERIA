@@ -576,9 +576,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
         <i class="fas fa-file-circle-plus" aria-hidden="true"></i><span>Nueva venta</span>
       </button>
       <a href="{{ url_for('caja_pendientes') }}" class="pos-nav-dock__link pos-nav-dock__link--primary" title="Ir a caja"><i class="fas fa-cash-register" aria-hidden="true"></i><span>Caja</span></a>
-      {% if usuario_tiene_permiso('revision_precios') %}
-      <a href="{{ url_for('precios_piloto') }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-amber" title="Cargar precio venta SD (piloto)"><i class="fas fa-barcode" aria-hidden="true"></i><span>Precios</span></a>
-      {% endif %}
+      <a href="{{ url_for('pos_retiros') }}" class="pos-nav-dock__link pos-nav-dock__link--accent-amber" title="Entrega de mercadería pagada"><i class="fas fa-box-open" aria-hidden="true"></i><span>Retiros</span></a>
       {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'pos-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-sky" title="TV cliente"><i class="fas fa-tv" aria-hidden="true"></i><span>TV</span></a>
@@ -622,11 +620,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
       <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-success btn-sm">
         <i class="fas fa-file-invoice-dollar me-1"></i> Caja
       </a>
-      {% if usuario_tiene_permiso('revision_precios') %}
-      <a href="{{ url_for('precios_piloto') }}" target="_blank" rel="noopener" class="btn btn-outline-warning btn-sm" title="Cargar precio venta SD (piloto)">
-        <i class="fas fa-barcode me-1"></i> Precios
+      <a href="{{ url_for('pos_retiros') }}" class="btn btn-outline-primary btn-sm" title="Entrega de mercadería pagada">
+        <i class="fas fa-box-open me-1"></i> Retiros
       </a>
-      {% endif %}
       {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy POS' %}{% include 'partials/help_screen_link.html' %}
     </div>
   </div>
@@ -641,6 +637,32 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
     <a href="{{ url_for('cotizacion_detalle', cot_id=cotizacion_origen.id) }}" class="btn btn-sm btn-outline-warning">
       <i class="fas fa-arrow-up-right-from-square me-1"></i>Ver cotización
     </a>
+  </div>
+  {% endif %}
+
+  {% if cot_emitir_guia and cotizacion_origen %}
+  <div class="modal fade" id="modalCotEmitirGuia" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-primary text-white border-0">
+          <h5 class="modal-title fw-bold"><i class="fas fa-print me-2"></i>Imprimir ticket de pago</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body py-4">
+          <p class="mb-2">La cotización <strong>{{ cotizacion_origen.numero }}</strong> ya está en el carrito.</p>
+          <ol class="mb-3 ps-3">
+            <li class="mb-1">Revise cliente y retiro (Tienda / Bodega / Despacho).</li>
+            <li class="mb-1">Pulse <kbd>F8</kbd> o el botón <strong>Emitir vale</strong>.</li>
+            <li>Entregue ese ticket al cliente para que pague en caja.</li>
+          </ol>
+          <div class="d-grid">
+            <button type="button" class="btn btn-success btn-lg" id="cotGuiaBtnEmitir">
+              <i class="fas fa-file-invoice-dollar me-2"></i>Emitir vale ahora <span class="badge bg-light text-dark ms-1">F8</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   {% endif %}
 
@@ -1504,4 +1526,23 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 })();
 </script>
+{% if cot_emitir_guia and cotizacion_origen %}
+<script>
+(function () {
+  var el = document.getElementById('modalCotEmitirGuia');
+  if (!el || typeof bootstrap === 'undefined') return;
+  var m = bootstrap.Modal.getOrCreateInstance(el);
+  m.show();
+  var btn = document.getElementById('cotGuiaBtnEmitir');
+  if (btn) {
+    btn.addEventListener('click', function () {
+      m.hide();
+      var emit = document.getElementById('emitirValeBtn');
+      if (emit) emit.focus();
+      else if (typeof emitirValePos === 'function') emitirValePos();
+    });
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

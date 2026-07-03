@@ -1,4 +1,4 @@
-edición y el b"""Lhexia Guardián v3 — dashboard multiperfil + KPIs + feed + acciones."""
+"""Lhexia Guardián v3 — dashboard multiperfil + KPIs + feed + acciones."""
 from __future__ import annotations
 
 import os

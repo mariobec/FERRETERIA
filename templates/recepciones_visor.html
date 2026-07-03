@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/recepcion-workflow.css') }}?v=6">
+<style>
+  .visor-layout { display: grid; grid-template-columns: 1fr min(420px, 38vw); gap: 1rem; align-items: start; }
+  @media (max-width: 992px) { .visor-layout { grid-template-columns: 1fr; } }
+  .visor-row-active { background: #e8f5e9 !important; cursor: pointer; }
+  .visor-panel { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+  .visor-panel .card-ds { border-left: 4px solid var(--bs-success); }
+  #visorDetalleCuerpo .table { font-size: .82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <div class="page-header mb-2">
+    <div>
+      <h3 class="page-title"><i class="fas fa-file-invoice text-success me-2"></i>Visor de facturas compra</h3>
+      <p class="page-subtitle">Revise documentos, líneas y origen (correo DTE, RCV, manual) antes de cargar stock.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="{{ url_for('lista_recepciones') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-list me-1"></i>Listado</a>
+      <a href="{{ url_for('recepciones_cargador_dte') }}" class="btn btn-outline-primary btn-sm"><i class="fas fa-envelope-open-text me-1"></i>Cargador DTE</a>
+      <button type="button" class="btn btn-outline-danger btn-sm" id="btnVisorLimpiarRcv" title="Elimina cabeceras RCV sin ítems">
+        <i class="fas fa-broom me-1"></i>Limpiar RCV vacías
+      </button>
+      <a href="{{ url_for('nueva_recepcion') }}" class="btn btn-ds-primary btn-sm"><i class="fas fa-plus me-1"></i>Nueva</a>
+    </div>
+  </div>
+
+  <div class="card card-ds mb-3">
+    <div class="card-body py-3">
+      <form method="get" action="{{ url_for('recepciones_visor') }}" id="form-visor-filtros">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3 col-lg-2">
+            <label class="form-label small fw-bold mb-1">Nº factura / folio</label>
+            <input type="search" name="folio" class="form-control form-control-sm" value="{{ filtros.folio or '' }}" placeholder="4949757">
+          </div>
+          <div class="col-md-4 col-lg-3">
+            <label class="form-label small fw-bold mb-1">Producto</label>
+            <input type="search" name="producto" class="form-control form-control-sm" value="{{ filtros.producto or '' }}" placeholder="Código o nombre SKU">
+          </div>
+          <div class="col-md-2 col-lg-2">
+            <label class="form-label small fw-bold mb-1">Desde</label>
+            <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ filtros.fecha_desde or '' }}">
+          </div>
+          <div class="col-md-2 col-lg-2">
+            <label class="form-label small fw-bold mb-1">Hasta</label>
+            <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ filtros.fecha_hasta or '' }}">
+          </div>
+          <div class="col-md-2 col-lg-1">
+            <label class="form-label small fw-bold mb-1">Año</label>
+            <select name="anio" class="form-select form-select-sm">
+              <option value="">—</option>
+              {% for y in [2026, 2025, 2024, 2023] %}
+              <option value="{{ y }}" {% if filtros.anio == y %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2 col-lg-1">
+            <label class="form-label small fw-bold mb-1">Mes</label>
+            <select name="mes" class="form-select form-select-sm">
+              <option value="">—</option>
+              {% for m, nom in [(1,'Ene'),(2,'Feb'),(3,'Mar'),(4,'Abr'),(5,'May'),(6,'Jun'),(7,'Jul'),(8,'Ago'),(9,'Sep'),(10,'Oct'),(11,'Nov'),(12,'Dic')] %}
+              <option value="{{ m }}" {% if filtros.mes == m %}selected{% endif %}>{{ nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2 col-lg-2">
+            <label class="form-label small fw-bold mb-1">Origen</label>
+            <select name="origen" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="dte_correo" {% if filtros.origen == 'dte_correo' %}selected{% endif %}>Correo DTE</option>
+              <option value="rcv_sii" {% if filtros.origen == 'rcv_sii' %}selected{% endif %}>RCV SII</option>
+            </select>
+          </div>
+          <div class="col-md-2 col-lg-2">
+            <label class="form-label small fw-bold mb-1">Estado</label>
+            <select name="estado" class="form-select form-select-sm">
+              <option value="">Activos</option>
+              <option value="{{ estado_pendiente_items }}" {% if filtros.estado == estado_pendiente_items %}selected{% endif %}>Pendiente ítems</option>
+              <option value="Incompleta" {% if filtros.estado == 'Incompleta' %}selected{% endif %}>Incompleta</option>
+              <option value="Finalizada" {% if filtros.estado == 'Finalizada' %}selected{% endif %}>Finalizada</option>
+              <option value="__todos__" {% if filtros.estado == '__todos__' %}selected{% endif %}>Todos</option>
+            </select>
+          </div>
+          <div class="col-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search me-1"></i>Buscar</button>
+            <a href="{{ url_for('recepciones_visor') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="visor-layout">
+    <div class="card card-ds">
+      <div class="card-header bg-white fw-bold">
+        Facturas
+        {% if pagination %}<span class="text-muted small ms-2">{{ pagination.total }} registro(s)</span>{% endif %}
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0 align-middle" id="tablaVisor">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Documento</th>
+              <th>Proveedor</th>
+              <th class="text-center">Líneas</th>
+              <th class="text-end">Total</th>
+              <th>Estado</th>
+              <th>Origen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in recepciones %}
+            <tr class="visor-row" data-rid="{{ r.id }}" tabindex="0">
+              <td class="small text-nowrap">
+                {% if r.fecha_documento %}{{ r.fecha_documento.strftime('%d-%m-%Y') }}
+                {% elif r.fecha_recepcion %}{{ r.fecha_recepcion.strftime('%d-%m-%Y') }}
+                {% else %}—{% endif %}
+              </td>
+              <td class="small"><span class="badge bg-secondary">{{ r.documento_tipo }}</span> {{ r.documento_numero }}</td>
+              <td class="small">{{ r.proveedor.nombre if r.proveedor else (r.razon_social_doc or '—') }}</td>
+              <td class="text-center">{% set n_ld = r.lineas_documento|length %}{% set n_det = r.detalles|length %}{{ n_ld if n_ld > n_det else n_det }}</td>
+              <td class="text-end small">{% if r.monto_total %}${{ '{:,.0f}'.format(r.monto_total).replace(',', '.') }}{% else %}—{% endif %}</td>
+              <td><span class="badge bg-light text-dark border">{{ r.estado }}</span></td>
+              <td class="small">
+                {% if r.origen_importacion == 'dte_correo' %}<span class="badge bg-info text-dark">DTE mail</span>
+                {% elif r.origen_importacion == 'rcv_sii' %}<span class="badge bg-light border">RCV</span>
+                {% else %}<span class="text-muted">Manual</span>{% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted py-4">Sin resultados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if pagination and pagination.pages > 1 %}
+      <div class="card-footer bg-white d-flex justify-content-between small">
+        {% if pagination.has_prev %}
+        <a href="{{ url_for('recepciones_visor', page=pagination.prev_num, folio=filtros.folio or none, producto=filtros.producto or none, fecha_desde=filtros.fecha_desde or none, fecha_hasta=filtros.fecha_hasta or none, anio=filtros.anio or none, mes=filtros.mes or none, origen=filtros.origen or none, estado=filtros.estado or none) }}">Anterior</a>
+        {% else %}<span></span>{% endif %}
+        <span>Pág. {{ pagination.page }}/{{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+        <a href="{{ url_for('recepciones_visor', page=pagination.next_num, folio=filtros.folio or none, producto=filtros.producto or none, fecha_desde=filtros.fecha_desde or none, fecha_hasta=filtros.fecha_hasta or none, anio=filtros.anio or none, mes=filtros.mes or none, origen=filtros.origen or none, estado=filtros.estado or none) }}">Siguiente</a>
+        {% else %}<span></span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="visor-panel">
+      <div class="card card-ds" id="visorPanel">
+        <div class="card-header bg-white fw-bold"><i class="fas fa-receipt me-1"></i>Detalle</div>
+        <div class="card-body" id="visorDetalleCuerpo">
+          <p class="text-muted small mb-0">Seleccione una fila para ver líneas, montos y enlaces.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var fmt = function (n) {
+    return '$' + Math.round(n).toLocaleString('es-CL');
+  };
+  function renderDetalle(d) {
+    var html = '<div class="mb-2">' +
+      '<div class="fw-bold">' + (d.documento_tipo || '') + ' ' + (d.documento_numero || '') + '</div>' +
+      '<div class="small text-muted">' + (d.proveedor || '') + '</div>' +
+      '<div class="small">Estado: <strong>' + d.estado + '</strong> · Origen: ' + (d.origen || 'manual') + '</div>' +
+      '<div class="small">Neto: ' + fmt(d.monto_neto || 0) + ' · Total: ' + fmt(d.monto_total || 0) + '</div>' +
+      (d.oc_numero ? '<div class="small">OC: ' + d.oc_numero + '</div>' : '') +
+      '</div>';
+    html += '<div class="d-flex flex-wrap gap-2 mb-2">' +
+      '<a class="btn btn-sm btn-primary" href="' + d.url_detalle + '"><i class="fas fa-dolly me-1"></i>Recepción</a>';
+    if (d.url_documento) {
+      html += '<a class="btn btn-sm btn-outline-primary" href="' + d.url_documento + '" target="_blank"><i class="fas fa-file-pdf me-1"></i>Adjunto</a>';
+    }
+    html += '</div>';
+    if (!d.lineas || !d.lineas.length) {
+      html += '<p class="small text-warning">' + (d.hint_lineas || 'Sin líneas registradas (documental o pendiente paso 2).') + '</p>';
+    } else {
+      var titulo = d.fuente_lineas === 'xml'
+        ? '<div class="small text-muted mb-1">Ítems del XML (factura proveedor)</div>'
+        : '';
+      html += titulo + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr>' +
+        '<th>Producto</th><th class="text-end">Cant.</th><th class="text-end">P. unit.</th><th class="text-end">Total</th></tr></thead><tbody>';
+      d.lineas.forEach(function (ln) {
+        var skuBadge = ln.tiene_sku === false
+          ? ' <span class="badge bg-warning text-dark">sin SKU</span>' : '';
+        html += '<tr><td class="small">' +
+          (ln.codigo ? '<code>' + ln.codigo + '</code> ' : '') +
+          ln.nombre + skuBadge + '</td>' +
+          '<td class="text-end">' + ln.cantidad_documento + '</td>' +
+          '<td class="text-end">' + fmt(ln.costo_unitario) + '</td>' +
+          '<td class="text-end">' + fmt(ln.total_linea || 0) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    document.getElementById('visorDetalleCuerpo').innerHTML = html;
+  }
+  function cargar(rid) {
+    document.getElementById('visorDetalleCuerpo').innerHTML = '<p class="small text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Cargando…</p>';
+    fetch('/api/recepciones/' + rid + '/visor', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok) throw new Error(j.mensaje || 'Error');
+        renderDetalle(j.recepcion);
+      })
+      .catch(function (e) {
+        document.getElementById('visorDetalleCuerpo').innerHTML = '<p class="text-danger small">' + e.message + '</p>';
+      });
+  }
+  document.querySelectorAll('.visor-row').forEach(function (tr) {
+    tr.addEventListener('click', function () {
+      document.querySelectorAll('.visor-row').forEach(function (x) { x.classList.remove('visor-row-active'); });
+      tr.classList.add('visor-row-active');
+      cargar(tr.getAttribute('data-rid'));
+    });
+  });
+
+  var btnLimpiar = document.getElementById('btnVisorLimpiarRcv');
+  if (btnLimpiar) {
+    var urlLimpiarVisor = '{{ url_for("api_limpiar_recepciones_documentales") }}';
+    btnLimpiar.addEventListener('click', function () {
+      var anioEl = document.querySelector('#form-visor-filtros select[name=anio]');
+      var anio = anioEl && anioEl.value ? parseInt(anioEl.value, 10) : 2026;
+      if (!confirm(
+        '¿Eliminar recepciones RCV de ' + anio + ' sin ítems?\n\n' +
+        'Quedan listas para reimportar desde Cargador DTE.'
+      )) return;
+      btnLimpiar.disabled = true;
+      fetch(urlLimpiarVisor, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ anio: anio, origen: 'rcv_sii', solo_sin_lineas: true, dry_run: false })
+      })
+        .then(function (r) {
+          var ct = (r.headers.get('content-type') || '').toLowerCase();
+          if (ct.indexOf('application/json') === -1) {
+            throw new Error('Reinicie Flask (python app.py) e intente de nuevo.');
+          }
+          return r.json();
+        })
+        .then(function (j) {
+          btnLimpiar.disabled = false;
+          alert(j.ok ? j.mensaje : (j.mensaje || 'Error'));
+          if (j.ok && j.eliminadas > 0) window.location.reload();
+        })
+        .catch(function (e) {
+          btnLimpiar.disabled = false;
+          alert(e.message);
+        });
+    });
+  }
+})();
+</script>
+{% endblock %}

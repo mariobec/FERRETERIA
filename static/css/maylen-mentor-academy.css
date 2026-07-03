@@ -1,0 +1,249 @@
+/* Maylén — Mentor Academy (animación principal vía JS rAF) */
+.maylen-mentor-avatar {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.maylen-mentor-avatar__photo {
+  display: block;
+  object-fit: contain;
+  object-position: center bottom;
+  background: transparent;
+  filter: drop-shadow(0 6px 14px rgba(15, 23, 42, 0.2));
+  transform-origin: center bottom;
+  will-change: transform;
+}
+/* Barra IA: cuerpo en círculo, mano del cutout afuera */
+.maylen-mentor-avatar--header {
+  width: 120px;
+  height: 96px;
+  overflow: visible;
+  margin-right: 0.25rem;
+  flex-shrink: 0;
+}
+.maylen-mentor-avatar--header .maylen-mentor-avatar__ring {
+  position: absolute;
+  bottom: 2px;
+  left: 42%;
+  transform: translateX(-50%);
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  background: linear-gradient(165deg, #a8b8a4 0%, #5a6b58 100%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  z-index: 0;
+}
+.maylen-mentor-avatar--header .maylen-mentor-avatar__photo {
+  position: relative;
+  z-index: 2;
+  height: 132px;
+  width: auto;
+  max-width: 120px;
+  object-position: left bottom;
+  margin-left: -4px;
+  margin-bottom: -10px;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.35));
+}
+.maylen-mentor-avatar--header .maylen-mentor-glow {
+  inset: -4px -16px 0 -8px;
+  border-radius: 50%;
+}
+.maylen-mentor-avatar--portrait {
+  width: 128px;
+  height: 168px;
+}
+.maylen-mentor-avatar--portrait .maylen-mentor-avatar__photo {
+  width: auto;
+  height: 100%;
+  max-width: 128px;
+}
+.maylen-mentor-avatar--md {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #8b9a88 0%, #5a6b58 100%);
+  overflow: hidden;
+  align-items: center;
+}
+.maylen-mentor-avatar--md .maylen-mentor-avatar__photo {
+  width: 100%;
+  height: 100%;
+  object-position: center 85%;
+  filter: none;
+}
+.maylen-mentor-avatar--sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #8b9a88 0%, #5a6b58 100%);
+  overflow: hidden;
+}
+.maylen-mentor-avatar--sm .maylen-mentor-avatar__photo {
+  width: 100%;
+  height: 100%;
+  object-position: center 85%;
+  filter: none;
+}
+.maylen-mentor-avatar--fab {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #8b9a88 0%, #5a6b58 100%);
+  overflow: hidden;
+}
+.maylen-mentor-avatar--fab .maylen-mentor-avatar__photo {
+  width: 100%;
+  height: 100%;
+  object-position: center 88%;
+  filter: none;
+}
+.maylen-mentor-glow {
+  position: absolute;
+  inset: -6px -10px 8px;
+  border-radius: 22px;
+  background: radial-gradient(circle at 50% 40%, rgba(124, 58, 237, 0.4), transparent 68%);
+  animation: maylenAcademyGlow 3.2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.maylen-mentor-avatar__photo--live {
+  position: relative;
+  z-index: 1;
+}
+.maylen-wave-emoji--academy {
+  position: absolute;
+  z-index: 3;
+  right: -2px;
+  top: 4px;
+  font-size: 1.65rem;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
+  transform-origin: 70% 85%;
+  will-change: transform, opacity;
+}
+.maylen-mentor-avatar__badge {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  z-index: 4;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 0.62rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+.maylen-academy-bubble {
+  position: absolute;
+  top: -8px;
+  right: calc(100% + 10px);
+  max-width: 11rem;
+  padding: 0.45rem 0.65rem;
+  background: #fff;
+  border: 2px solid #c4b5fd;
+  border-radius: 14px 14px 4px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #5b21b6;
+  line-height: 1.35;
+  box-shadow: 0 8px 20px rgba(91, 33, 182, 0.15);
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+  z-index: 5;
+}
+.maylen-academy-bubble.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@media (max-width: 768px) {
+  .maylen-academy-bubble {
+    position: static;
+    max-width: none;
+    margin-bottom: 0.5rem;
+    border-radius: 12px;
+    transform: none;
+  }
+}
+.maylen-mentor-portrait-card {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem 0.65rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(196, 181, 253, 0.85);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(91, 33, 182, 0.14);
+}
+.maylen-mentor-portrait-card__name {
+  font-weight: 800;
+  font-size: 1rem;
+  color: #0f172a;
+}
+.maylen-mentor-portrait-card__role {
+  font-size: 0.78rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.maylen-mentor-portrait-card__role i { color: #7c3aed; }
+@keyframes maylenAcademyGlow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+.lhexia-academy-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1.25rem 1.75rem;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .lhexia-academy-hero-grid { grid-template-columns: 1fr; }
+  .lhexia-academy-hero-maylen { order: -1; display: flex; justify-content: center; }
+}
+.lhexia-mentor-sidebar__head--maylen {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.lhexia-mentor-fab--maylen {
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+}
+.lhexia-academy-coach__avatar.maylen-mentor-avatar--portrait {
+  width: 110px;
+  height: 136px;
+}
+.lhexia-academy-coach__avatar.maylen-mentor-avatar--portrait .maylen-mentor-avatar__photo {
+  max-width: 110px;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-hub-hero {
+  background: linear-gradient(135deg, #ffffff, #f0fdf4 40%, #fff7ed 70%, #f5f3ff);
+  background-size: 240% 240%;
+  animation: academyHeroBg 16s ease infinite;
+}
+@keyframes academyHeroBg {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-camino {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lhexia-academy-hub-page--claro .lhexia-academy-camino:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+}

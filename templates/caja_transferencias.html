@@ -1,0 +1,860 @@
+{% extends 'base.html' %}
+{% block body_class %}page-caja-transferencias enrol-theme-claro{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Tema claro — misma paleta que enrolamiento de productos */
+  body.page-caja-transferencias.enrol-theme-claro {
+    background: #eef2f7 !important;
+    color: #1e293b;
+  }
+  body.page-caja-transferencias.enrol-theme-claro .app-main {
+    background: transparent !important;
+  }
+  .enrol-shell { max-width: 1100px; margin: 0 auto; }
+  .enrol-text-muted { color: #64748b !important; }
+  .enrol-head-card {
+    border: 1px solid #dbe3ee;
+    border-left: 4px solid #1e5631;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+  }
+  .enrol-head-card .enrol-page-title {
+    color: #0f172a;
+    font-size: 1.35rem;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+  .enrol-head-card .enrol-page-title i { color: #f37021; }
+  .enrol-title-note { color: #64748b; margin-bottom: 0; font-size: 0.95rem; }
+  .enrol-top-actions .btn { border-radius: 10px; font-weight: 600; }
+  .trf-queue-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+  }
+  .trf-queue-head {
+    background: linear-gradient(135deg, #e8f4fc 0%, #ecfdf5 100%);
+    border-bottom: 2px solid #b8d4e8;
+    padding: 14px 18px;
+    color: #0f172a;
+    font-weight: 700;
+  }
+  .trf-badge-pend {
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    color: #92400e;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .trf-table { margin-bottom: 0; color: #1e293b; }
+  .trf-table thead th {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+    padding: 0.75rem 1rem;
+  }
+  .trf-table tbody td {
+    border-color: #e2e8f0;
+    vertical-align: middle;
+    padding: 0.85rem 1rem;
+    color: #334155;
+  }
+  .trf-table tbody tr { transition: background 0.12s; }
+  .trf-table tbody tr:hover { background: #eff6ff; }
+  .trf-table tbody tr.trf-row-destacado {
+    background: #fffbeb;
+    box-shadow: inset 3px 0 0 #f59e0b;
+  }
+  .trf-correo-ordenante { font-weight: 600; color: #0f172a; font-size: 0.88rem; }
+  .trf-vale-id { color: #0f172a; font-weight: 700; }
+  .trf-vale-folio {
+    color: #0369a1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+  }
+  .trf-monto { color: #0f172a; font-weight: 700; }
+  .trf-ref {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    color: #334155;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.85rem;
+  }
+  .trf-empty {
+    color: #64748b;
+    padding: 3rem 1rem;
+  }
+  .trf-empty i { color: #1e5631; opacity: 0.85; }
+  .trf-btn-confirm {
+    background: #1e5631;
+    border-color: #1e5631;
+    color: #fff;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  .trf-btn-confirm:hover {
+    background: #164a28;
+    border-color: #164a28;
+    color: #fff;
+  }
+  .trf-btn-ticket,
+  .trf-btn-revert {
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .trf-btn-revert {
+    border-color: #fca5a5;
+    color: #b91c1c;
+  }
+  .trf-btn-revert:hover {
+    background: #fef2f2;
+    border-color: #f87171;
+    color: #991b1b;
+  }
+  .trf-alert-caja {
+    border-radius: 12px;
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+    padding: 12px 14px;
+  }
+  .trf-foot-note {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 12px 14px;
+    color: #475569;
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+  .trf-foot-note i { color: #f37021; }
+  .trf-correo-strip {
+    background: linear-gradient(135deg, #fff7ed 0%, #ecfdf5 100%);
+    border: 2px solid #fcd34d;
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .trf-correo-from { font-size: 0.82rem; color: #64748b; }
+  .trf-correo-subject { font-weight: 600; color: #0f172a; }
+  .trf-match-badge {
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    color: #166534;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+  }
+  .trf-vale-correo-hint {
+    font-size: 0.78rem;
+    color: #166534;
+    margin-top: 0.25rem;
+  }
+  /* Modal detalle — tema claro forzado (legible sobre erp-ops-space oscuro) */
+  #modalDetalleCorreoTrf .modal-content {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #dbe3ee !important;
+  }
+  #modalDetalleCorreoTrf .modal-header {
+    border-bottom: 1px solid #e2e8f0 !important;
+    background: linear-gradient(135deg, #fff7ed 0%, #ecfdf5 100%) !important;
+  }
+  #modalDetalleCorreoTrf .modal-title,
+  #modalDetalleCorreoTrf .modal-body,
+  #modalDetalleCorreoTrf .modal-footer {
+    color: #0f172a !important;
+  }
+  #modalDetalleCorreoTrf .modal-body .text-muted,
+  #modalDetalleCorreoTrf .modal-body .trf-det-label {
+    color: #475569 !important;
+  }
+  #modalDetalleCorreoTrf .modal-body .fw-semibold,
+  #modalDetalleCorreoTrf .modal-body .fw-bold,
+  #modalDetalleCorreoTrf .modal-body .trf-det-value {
+    color: #0f172a !important;
+  }
+  #modalDetalleCorreoTrf #trfDetExtracto {
+    background: #f8fafc !important;
+    color: #334155 !important;
+    border-color: #e2e8f0 !important;
+  }
+  .trf-modal-monto-hero {
+    text-align: center;
+    padding: 1.1rem 1rem 1rem;
+    margin: -0.25rem 0 1rem;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fffbeb 0%, #ecfdf5 100%);
+    border: 2px solid #fcd34d;
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.15);
+  }
+  .trf-modal-monto-hero__label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #92400e !important;
+    margin-bottom: 0.35rem;
+  }
+  .trf-modal-monto-hero__valor {
+    font-size: clamp(2rem, 6vw, 2.75rem);
+    font-weight: 900;
+    line-height: 1.05;
+    color: #0f172a !important;
+    letter-spacing: -0.02em;
+  }
+  .trf-modal-monto-hero__valor--sin-dato {
+    color: #b45309 !important;
+    font-size: 1.35rem;
+  }
+  .trf-modal-monto-hero__hint {
+    font-size: 0.78rem;
+    color: #64748b !important;
+    margin-top: 0.35rem;
+    margin-bottom: 0;
+  }
+</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-trf-bell.css') }}?v=1">
+{% endblock %}
+
+{% block content %}
+{% include 'caja/includes/caja_trf_bell.html' %}
+<div class="container-fluid py-3 enrol-shell">
+  <div class="enrol-head-card mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+      <div>
+        <h1 class="h4 mb-1 enrol-page-title">
+          <i class="fas fa-university me-2"></i>Transferencias por confirmar
+        </h1>
+        <p class="enrol-title-note">
+          Vales cobrados con transferencia bancaria. Los avisos del banco llegan al buzón configurado (IMAP);
+          sincronice, revise monto y ordenante, y confirme el abono antes de autorizar entrega.
+        </p>
+      </div>
+      <div class="d-flex flex-wrap gap-2 enrol-top-actions">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btnVerHistorialTrf">
+          <i class="fas fa-history me-1"></i> Ver historial
+        </button>
+        <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-file-invoice-dollar me-1"></i> Vales pendientes
+        </a>
+        <a href="{{ url_for('punto_venta') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-cash-register me-1"></i> POS
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% if not caja %}
+  <div class="trf-alert-caja mb-3">
+    <i class="fas fa-exclamation-triangle me-1"></i>
+    No hay caja abierta. Abra caja para operar transferencias del turno.
+  </div>
+  {% endif %}
+
+  <div class="trf-correo-strip mb-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div>
+      <div class="fw-bold"><i class="fas fa-envelope me-2" style="color:#f37021;"></i>Buzón avisos bancarios</div>
+      <div class="small enrol-text-muted">
+        {% if imap_configurado %}
+        Lectura IMAP del correo de la ferretería (<code>.env.local</code> · carpeta transferencias).
+        {% else %}
+        Configure <code>IMAP_USER</code> e <code>IMAP_PASSWORD</code> en <code>.env.local</code> para recibir avisos del banco.
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 enrol-top-actions">
+      <button type="button" class="btn btn-sm trf-btn-confirm" id="btnSyncCorreoTrf" {% if not imap_configurado %}disabled{% endif %}>
+        <i class="fas fa-sync-alt me-1"></i> Sincronizar avisos banco
+      </button>
+    </div>
+  </div>
+  <div id="syncCorreoStatus" class="small enrol-text-muted mb-3 d-none"></div>
+
+  <div class="trf-queue-card mb-3">
+    <div class="trf-queue-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-inbox me-2" style="color:#f37021;"></i>Avisos transferencia en correo</span>
+      <span class="trf-badge-pend">{{ total_correos }} en bandeja</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table trf-table align-middle">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>De / asunto banco</th>
+            <th class="text-end">Monto</th>
+            <th>Referencia</th>
+            <th>Match vale</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in correos %}
+          <tr id="row-correo-{{ c.id }}" class="{% if correo_destacado == c.id %}trf-row-destacado{% endif %}">
+            <td>{{ c.fecha_correo.strftime('%d-%m-%Y %H:%M') if c.fecha_correo else '—' }}</td>
+            <td>
+              <div class="trf-correo-ordenante">{{ c.nombre_ordenante or '—' }}</div>
+              {% if c.rut_ordenante %}<div class="trf-correo-from">RUT {{ c.rut_ordenante }}</div>{% endif %}
+              <div class="trf-correo-from">{{ c.remitente or '' }}</div>
+              <div class="trf-correo-subject small">{{ c.asunto or '—' }}</div>
+            </td>
+            <td class="text-end trf-monto">
+              {% if c.monto %}$ {{ "{:,.0f}".format(c.monto).replace(",", ".") }}{% else %}—{% endif %}
+            </td>
+            <td>
+              {% if c.referencia %}<span class="trf-ref">{{ c.referencia }}</span>{% else %}<span class="enrol-text-muted small">—</span>{% endif %}
+            </td>
+            <td>
+              {% if c.venta_id_sugerida %}
+              <span class="trf-match-badge">Vale #{{ c.venta_id_sugerida }}</span>
+              {% else %}
+              <span class="enrol-text-muted small">Sin match automático</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <div class="d-flex flex-wrap gap-1 justify-content-end">
+                <button type="button" class="btn btn-outline-primary btn-sm btn-ver-detalle-correo"
+                        data-cid="{{ c.id }}"
+                        data-url="{{ url_for('api_caja_transferencia_correo_detalle', cid=c.id) }}">
+                  <i class="fas fa-search-dollar me-1"></i> Revisar
+                </button>
+                {% if c.venta_id_sugerida %}
+                <form method="post" action="{{ url_for('api_caja_transferencia_confirmar_correo', cid=c.id) }}" class="d-inline"
+                      onsubmit="return confirm('¿Confirma abono con este aviso de correo del banco?');">
+                  <input type="hidden" name="venta_id" value="{{ c.venta_id_sugerida }}">
+                  <button type="submit" class="btn btn-sm trf-btn-confirm">
+                    <i class="fas fa-check me-1"></i> Confirmar con correo
+                  </button>
+                </form>
+                {% endif %}
+                <button type="button" class="btn btn-outline-secondary btn-sm btn-descartar-correo"
+                        data-cid="{{ c.id }}"
+                        data-url="{{ url_for('api_caja_transferencia_descartar_correo', cid=c.id) }}">
+                  Descartar
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center trf-empty py-4">
+              <i class="fas fa-envelope-open fa-2x mb-2 d-block"></i>
+              Sin avisos en bandeja. Pulse <strong>Sincronizar correo</strong> para traer transferencias del buzón.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="trf-queue-card mb-3">
+    <div class="trf-queue-head d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span><i class="fas fa-list-check me-2" style="color:#1e5631;"></i>Cola de confirmación</span>
+      <span class="trf-badge-pend">{{ total }} pendiente(s)</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table trf-table align-middle">
+        <thead>
+          <tr>
+            <th>Vale</th>
+            <th>Fecha cobro</th>
+            <th>Cliente</th>
+            <th class="text-end">Monto</th>
+            <th>Referencia</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in ventas %}
+          <tr class="{% if destacado == v.id %}trf-row-destacado{% endif %}" id="row-vale-{{ v.id }}">
+            <td>
+              <div class="trf-vale-id">#{{ v.id }}</div>
+              <div class="small trf-vale-folio">VL{{ '%06d'|format(v.id) }}</div>
+              {% set cr = correo_por_venta.get(v.id) %}
+              {% if cr %}
+              <div class="trf-vale-correo-hint"><i class="fas fa-envelope me-1"></i>Correo banco detectado{% if cr.monto %} · ${{ "{:,.0f}".format(cr.monto).replace(",", ".") }}{% endif %}</div>
+              {% endif %}
+            </td>
+            <td>{{ v.fecha.strftime('%d-%m-%Y %H:%M') if v.fecha else '—' }}</td>
+            <td>{{ v.cliente.nombre if v.cliente else 'Cliente final' }}</td>
+            <td class="text-end trf-monto">$ {{ "{:,.0f}".format(v.monto_total or 0).replace(",", ".") }}</td>
+            <td>
+              {% if v.transferencia_referencia %}
+              <span class="trf-ref">{{ v.transferencia_referencia }}</span>
+              {% else %}
+              <span class="enrol-text-muted small">Sin referencia</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <div class="d-flex flex-wrap gap-1 justify-content-end">
+                <a href="{{ url_for('ver_ticket_cobro', id=v.id) }}" class="btn btn-outline-secondary btn-sm trf-btn-ticket" target="_blank" rel="noopener">
+                  Ticket
+                </a>
+                <form method="post" action="{{ url_for('api_caja_transferencia_confirmar', vid=v.id) }}" class="d-inline"
+                      onsubmit="return confirm('¿Confirma que el abono por transferencia ya está en el banco? Se habilitará la entrega.');">
+                  <button type="submit" class="btn btn-sm trf-btn-confirm">
+                    <i class="fas fa-check me-1"></i> Confirmar abono
+                  </button>
+                </form>
+                <button type="button" class="btn btn-outline-danger btn-sm trf-btn-revert btn-rechazar-trf"
+                        data-vid="{{ v.id }}"
+                        data-url="{{ url_for('api_caja_transferencia_rechazar', vid=v.id) }}">
+                  Revertir cobro
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center trf-empty">
+              <i class="fas fa-check-circle fa-2x mb-2 d-block"></i>
+              No hay transferencias pendientes de confirmación.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="trf-foot-note mb-0">
+    <i class="fas fa-info-circle me-1"></i>
+    El vale queda <strong>Pagado</strong> en caja, pero la entrega QR/mostrador se bloquea hasta confirmar el abono bancario.
+    «Revertir cobro» devuelve el vale a cola de cobro y repone stock tienda.
+  </p>
+</div>
+
+<div class="modal fade" id="modalDetalleCorreoTrf" tabindex="-1" aria-labelledby="modalDetalleCorreoTrfLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="modalDetalleCorreoTrfLabel" style="color:#0f172a !important;">
+          <i class="fas fa-university me-2 text-warning"></i> Aviso transferencia bancaria
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="trf-modal-monto-hero">
+          <div class="trf-modal-monto-hero__label">Monto recibido — validación principal</div>
+          <div class="trf-modal-monto-hero__valor" id="trfDetMonto">—</div>
+          <p class="trf-modal-monto-hero__hint mb-0" id="trfDetMontoHint">Compare este monto con el vale cobrado por transferencia.</p>
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <div class="small trf-det-label text-uppercase fw-semibold">Fecha aviso</div>
+            <div class="fw-semibold trf-det-value" id="trfDetFecha">—</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="small trf-det-label text-uppercase fw-semibold">N° transacción</div>
+            <div class="fw-semibold trf-det-value" id="trfDetReferencia">—</div>
+            <div class="small" id="trfDetMatch"></div>
+          </div>
+          <div class="col-sm-6">
+            <div class="small trf-det-label text-uppercase fw-semibold">Ordenante</div>
+            <div class="fw-semibold trf-det-value" id="trfDetOrdenante">—</div>
+            <div class="small trf-det-label" id="trfDetRut"></div>
+          </div>
+          <div class="col-sm-6">
+            <div class="small trf-det-label text-uppercase fw-semibold">Remitente / asunto</div>
+            <div id="trfDetRemitente" class="small trf-det-value">—</div>
+          </div>
+        </div>
+        <div>
+          <div class="small trf-det-label text-uppercase fw-semibold mb-1">Extracto del correo</div>
+          <pre class="bg-light border rounded p-3 small mb-0" id="trfDetExtracto" style="white-space: pre-wrap; max-height: 220px; overflow-y: auto;">—</pre>
+        </div>
+      </div>
+      <div class="modal-footer flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <form method="post" action="" class="d-none" id="trfDetConfirmForm"
+              onsubmit="return confirm('¿Confirma abono con este aviso del banco?');">
+          <input type="hidden" name="venta_id" id="trfDetConfirmVentaId" value="">
+          <button type="submit" class="btn trf-btn-confirm">
+            <i class="fas fa-check me-1"></i> Confirmar abono
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  function fmtMonto(n) {
+    if (n == null || isNaN(n)) return '—';
+    return '$ ' + Number(n).toLocaleString('es-CL');
+  }
+
+  function fmtFecha(iso) {
+    if (!iso) return '—';
+    return iso.replace('T', ' ').slice(0, 16);
+  }
+
+  var modalEl = document.getElementById('modalDetalleCorreoTrf');
+  var modalBs = modalEl && window.bootstrap ? new bootstrap.Modal(modalEl) : null;
+
+  function fillDetalleModal(d) {
+    var montoEl = document.getElementById('trfDetMonto');
+    var montoHint = document.getElementById('trfDetMontoHint');
+    var fechaEl = document.getElementById('trfDetFecha');
+    var ordEl = document.getElementById('trfDetOrdenante');
+    var rutEl = document.getElementById('trfDetRut');
+    var refEl = document.getElementById('trfDetReferencia');
+    var matchEl = document.getElementById('trfDetMatch');
+    var remEl = document.getElementById('trfDetRemitente');
+    var extEl = document.getElementById('trfDetExtracto');
+    var confForm = document.getElementById('trfDetConfirmForm');
+    var confVenta = document.getElementById('trfDetConfirmVentaId');
+    var tieneMonto = d.monto != null && !isNaN(d.monto);
+    if (montoEl) {
+      montoEl.textContent = tieneMonto ? fmtMonto(d.monto) : 'Monto no detectado';
+      montoEl.classList.toggle('trf-modal-monto-hero__valor--sin-dato', !tieneMonto);
+    }
+    if (montoHint) {
+      montoHint.textContent = tieneMonto
+        ? 'Compare este monto con el vale cobrado por transferencia.'
+        : 'Revise el extracto del correo o confirme manualmente en el banco.';
+    }
+    if (fechaEl) fechaEl.textContent = fmtFecha(d.fecha_correo);
+    if (ordEl) ordEl.textContent = d.nombre_ordenante || 'No identificado';
+    if (rutEl) rutEl.textContent = d.rut_ordenante ? ('RUT ' + d.rut_ordenante) : '';
+    if (refEl) refEl.textContent = d.referencia || 'Sin referencia';
+    if (matchEl) {
+      matchEl.textContent = d.venta_id_sugerida
+        ? ('Match automático con vale #' + d.venta_id_sugerida)
+        : 'Sin match automático con vale';
+      matchEl.className = d.venta_id_sugerida ? 'small text-success fw-semibold' : 'small text-muted';
+    }
+    if (remEl) {
+      remEl.textContent = [(d.remitente || ''), (d.asunto || '')].filter(Boolean).join(' · ') || '—';
+    }
+    if (extEl) extEl.textContent = d.extracto || 'Sin extracto disponible.';
+    if (confForm && confVenta) {
+      if (d.venta_id_sugerida) {
+        confForm.action = '{{ url_for("api_caja_transferencia_confirmar_correo", cid=0) }}'.replace('/0/', '/' + d.id + '/');
+        confVenta.value = String(d.venta_id_sugerida);
+        confForm.classList.remove('d-none');
+      } else {
+        confForm.classList.add('d-none');
+      }
+    }
+  }
+
+  function abrirDetalleCorreo(btn) {
+    var url = btn.getAttribute('data-url');
+    if (!url) return;
+    btn.disabled = true;
+    fetch(url, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled = false;
+        if (!d || !d.ok) {
+          alert((d && d.error) || 'No se pudo cargar el aviso.');
+          return;
+        }
+        fillDetalleModal(d);
+        if (modalBs) modalBs.show();
+      })
+      .catch(function () {
+        btn.disabled = false;
+        alert('Error de red al cargar detalle.');
+      });
+  }
+
+  document.querySelectorAll('.btn-ver-detalle-correo').forEach(function (btn) {
+    btn.addEventListener('click', function () { abrirDetalleCorreo(btn); });
+  });
+
+  var correoDestacado = {{ correo_destacado or 'null' }};
+  if (correoDestacado) {
+    var row = document.getElementById('row-correo-' + correoDestacado);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      var btnAuto = row.querySelector('.btn-ver-detalle-correo');
+      if (btnAuto) setTimeout(function () { abrirDetalleCorreo(btnAuto); }, 350);
+    }
+  }
+
+  var valeDestacado = {{ destacado or 'null' }};
+  if (valeDestacado) {
+    var rowV = document.getElementById('row-vale-' + valeDestacado);
+    if (rowV) rowV.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  var btnSync = document.getElementById('btnSyncCorreoTrf');
+  var syncStatus = document.getElementById('syncCorreoStatus');
+  if (btnSync) {
+    btnSync.addEventListener('click', function () {
+      btnSync.disabled = true;
+      if (syncStatus) {
+        syncStatus.classList.remove('d-none');
+        syncStatus.textContent = 'Sincronizando correo…';
+      }
+      fetch('{{ url_for("api_caja_transferencia_sincronizar_correo") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ limite: 120 })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (res.j && res.j.ok) {
+            window.location.reload();
+            return;
+          }
+          if (syncStatus) syncStatus.textContent = (res.j && (res.j.error || res.j.mensaje)) || 'Error al sincronizar.';
+          btnSync.disabled = false;
+        })
+        .catch(function () {
+          if (syncStatus) syncStatus.textContent = 'Error de red al sincronizar correo.';
+          btnSync.disabled = false;
+        });
+    });
+  }
+
+  document.querySelectorAll('.btn-descartar-correo').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!confirm('¿Descartar este aviso de correo?')) return;
+      var url = btn.getAttribute('data-url');
+      btn.disabled = true;
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: '{}'
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (res.j && res.j.ok) {
+            window.location.reload();
+            return;
+          }
+          alert((res.j && res.j.error) || 'No se pudo descartar.');
+          btn.disabled = false;
+        })
+        .catch(function () {
+          alert('Error de red.');
+          btn.disabled = false;
+        });
+    });
+  });
+
+  document.querySelectorAll('.btn-rechazar-trf').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var vid = btn.getAttribute('data-vid');
+      var url = btn.getAttribute('data-url');
+      var motivo = window.prompt('Motivo de reversión (transferencia no recibida):', 'Transferencia no recibida en banco');
+      if (motivo === null) return;
+      btn.disabled = true;
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ motivo: motivo })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (res.j && res.j.ok) {
+            window.location.href = '{{ url_for("caja_pendientes") }}';
+            return;
+          }
+          alert((res.j && (res.j.error || res.j.mensaje)) || 'No se pudo revertir.');
+          btn.disabled = false;
+        })
+        .catch(function () {
+          alert('Error de red al revertir.');
+          btn.disabled = false;
+        });
+    });
+  });
+})();
+</script>
+<script>
+  window.cajaTrfBellOnConfirm = function () { window.location.reload(); };
+</script>
+<script src="{{ url_for('static', filename='js/caja-trf-bell.js') }}?v=2"></script>
+
+<!-- ── Modal Historial Transferencias ──────────────────────────────── -->
+<div class="modal fade" id="modalHistorialTrf" tabindex="-1" aria-labelledby="modalHistorialTrfLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content" style="background:#fff;color:#0f172a;">
+      <div class="modal-header" style="background:linear-gradient(135deg,#fff7ed 0%,#ecfdf5 100%);border-bottom:1px solid #e2e8f0;">
+        <h5 class="modal-title fw-bold" id="modalHistorialTrfLabel">
+          <i class="fas fa-history me-2" style="color:#f37021;"></i>Historial de transferencias bancarias
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body p-0">
+        <!-- Filtro estado -->
+        <div class="d-flex flex-wrap gap-2 align-items-center px-3 py-2 border-bottom" style="background:#f8fafc;">
+          <span class="small fw-bold text-muted">Filtrar:</span>
+          <select id="histTrfFiltroEstado" class="form-select form-select-sm" style="max-width:160px;">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="vinculado">Vinculado</option>
+            <option value="confirmado">Confirmado</option>
+            <option value="descartado">Descartado</option>
+          </select>
+          <span class="ms-auto small text-muted" id="histTrfTotal"></span>
+        </div>
+        <!-- Tabla -->
+        <div class="table-responsive">
+          <table class="table trf-table mb-0" id="histTrfTable">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Ordenante</th>
+                <th>RUT</th>
+                <th>Monto</th>
+                <th>Referencia</th>
+                <th>Estado</th>
+                <th>Vale</th>
+                <th>Confirmado por</th>
+              </tr>
+            </thead>
+            <tbody id="histTrfTbody">
+              <tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Cargando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Paginación -->
+        <div class="d-flex justify-content-center gap-2 py-2 border-top" id="histTrfPag" style="background:#f8fafc;"></div>
+      </div>
+      <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+        <small class="text-muted me-auto">Incluye todos los avisos bancarios recibidos: pendientes, confirmados y descartados.</small>
+        <button type="button" class="btn btn-warning btn-sm" id="btnReactivarDescartados" title="Reactiva avisos descartados por error que tienen monto o vienen de banco">
+          <i class="fas fa-undo me-1"></i>Recuperar descartados
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var _histPage = 1;
+  var _histEstado = '';
+
+  var _estadoBadge = {
+    'pendiente':   '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">Pendiente</span>',
+    'vinculado':   '<span class="badge" style="background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;">Vinculado</span>',
+    'confirmado':  '<span class="badge" style="background:#dcfce7;color:#166534;border:1px solid #86efac;">Confirmado</span>',
+    'descartado':  '<span class="badge" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">Descartado</span>',
+  };
+
+  function escH(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function cargarHistorial(page) {
+    page = page || 1;
+    _histPage = page;
+    var url = '/api/caja/transferencias/historial?page=' + page + '&per_page=50';
+    if (_histEstado) url += '&estado=' + encodeURIComponent(_histEstado);
+    var tbody = document.getElementById('histTrfTbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin me-1"></i>Cargando…</td></tr>';
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j.ok || !tbody) return;
+        var totalEl = document.getElementById('histTrfTotal');
+        if (totalEl) totalEl.textContent = j.total + ' registro' + (j.total !== 1 ? 's' : '');
+        if (!j.items || j.items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-inbox me-1"></i>Sin registros</td></tr>';
+          var pagEl = document.getElementById('histTrfPag'); if (pagEl) pagEl.innerHTML = '';
+          return;
+        }
+        tbody.innerHTML = j.items.map(function (it) {
+          var badge = _estadoBadge[it.estado] || ('<span class="badge bg-secondary">' + escH(it.estado) + '</span>');
+          var vale = it.venta_id ? '<a href="/ventas/' + escH(it.venta_id) + '" class="trf-vale-folio" target="_blank">VL' + String(it.venta_id).padStart(6,'0') + '</a>' : '<span class="text-muted">—</span>';
+          var conf = it.confirmado_at
+            ? '<span class="small">' + escH(it.confirmado_at) + (it.confirmado_por ? '<br><span class="text-muted">' + escH(it.confirmado_por) + '</span>' : '') + '</span>'
+            : '<span class="text-muted">—</span>';
+          return '<tr>' +
+            '<td class="small">' + escH(it.fecha) + '</td>' +
+            '<td><span class="trf-correo-ordenante">' + escH(it.ordenante) + '</span></td>' +
+            '<td class="small text-muted">' + escH(it.rut || '—') + '</td>' +
+            '<td class="trf-monto">' + escH(it.monto_fmt) + '</td>' +
+            '<td>' + (it.referencia ? '<span class="trf-ref">' + escH(it.referencia) + '</span>' : '<span class="text-muted">—</span>') + '</td>' +
+            '<td>' + badge + '</td>' +
+            '<td>' + vale + '</td>' +
+            '<td>' + conf + '</td>' +
+            '</tr>';
+        }).join('');
+        // Paginación
+        var pagEl = document.getElementById('histTrfPag');
+        if (pagEl) {
+          var html = '';
+          if (page > 1) html += '<button class="btn btn-sm btn-outline-secondary" onclick="window._histCargar(' + (page-1) + ')"><i class="fas fa-chevron-left"></i> Anterior</button>';
+          html += '<span class="small text-muted align-self-center">Pág ' + page + ' / ' + j.pages + '</span>';
+          if (page < j.pages) html += '<button class="btn btn-sm btn-outline-secondary" onclick="window._histCargar(' + (page+1) + ')">Siguiente <i class="fas fa-chevron-right"></i></button>';
+          pagEl.innerHTML = html;
+        }
+      })
+      .catch(function () {
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-danger">Error al cargar historial.</td></tr>';
+      });
+  }
+
+  window._histCargar = function (page) { cargarHistorial(page); };
+
+  var btnVer = document.getElementById('btnVerHistorialTrf');
+  if (btnVer) {
+    btnVer.addEventListener('click', function () {
+      var modal = new bootstrap.Modal(document.getElementById('modalHistorialTrf'));
+      modal.show();
+      cargarHistorial(1);
+    });
+  }
+
+  var filtroEstado = document.getElementById('histTrfFiltroEstado');
+  if (filtroEstado) {
+    filtroEstado.addEventListener('change', function () {
+      _histEstado = filtroEstado.value;
+      cargarHistorial(1);
+    });
+  }
+
+  var btnReact = document.getElementById('btnReactivarDescartados');
+  if (btnReact) {
+    btnReact.addEventListener('click', function () {
+      if (!confirm('¿Recuperar los avisos descartados que tienen monto o vienen de un banco reconocido?\nAparecerán como "Pendiente" para que puedas revisarlos.')) return;
+      btnReact.disabled = true;
+      fetch('/api/caja/transferencias/reactivar-descartados', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.ok) {
+            alert(j.mensaje || 'Reactivados.');
+            cargarHistorial(_histPage);
+          } else {
+            alert(j.error || 'Error al reactivar.');
+          }
+        })
+        .catch(function () { alert('Error de red.'); })
+        .finally(function () { btnReact.disabled = false; });
+    });
+  }
+})();
+</script>
+{% endblock %}

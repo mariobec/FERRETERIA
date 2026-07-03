@@ -1,0 +1,49 @@
+{# Encabezado principal OC — requiere: empresa, orden_compra, logo_cliente_b64, pagina #}
+<div class="doc-header{% if not pagina.es_primera %} doc-header--continuacion{% endif %}">
+  <div class="col-l">
+    {% if logo_cliente_b64 %}
+    <img class="cot-membrete__logo{% if not pagina.es_primera %} doc-header__logo-sm{% endif %}" src="data:image/png;base64,{{ logo_cliente_b64 }}" alt="{{ empresa.nombre_comercial }}">
+    {% endif %}
+    <div class="{% if pagina.es_primera %}cot-membrete__marca{% else %}doc-header__empresa-sm{% endif %}">{{ empresa.nombre_comercial or 'Ferretería Santo Domingo' }}</div>
+    {% if pagina.es_primera %}
+    {% if empresa.razon_social %}
+    <div class="cot-membrete__razon">{{ empresa.razon_social }}</div>
+    {% endif %}
+    {% if empresa.eslogan %}
+    <div class="cot-membrete__giro">{{ empresa.eslogan }}</div>
+    {% endif %}
+    {% if empresa.direccion %}
+    <div class="cot-membrete__dir">
+      {% for linea in empresa.direccion.replace('\r\n', '\n').split('\n') if linea.strip() %}
+      <div>{{ linea.strip() }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if empresa.telefono %}
+    <div class="cot-membrete__contacto">{{ empresa.telefono }}</div>
+    {% endif %}
+    {% set rut_oc = empresa.rut_emisor or empresa.rut or '' %}
+    {% if rut_oc %}
+    <div class="cot-membrete__contacto">RUT {{ rut_oc }}</div>
+    {% endif %}
+    {% if empresa.correo %}
+    <div class="cot-membrete__contacto">Email: {{ empresa.correo }}</div>
+    {% endif %}
+    {% endif %}
+  </div>
+  <div class="col-r">
+    {% if not pagina.es_primera %}
+    <div class="doc-continuacion-label">CONTINUACIÓN</div>
+    {% endif %}
+    <h1 class="doc-title">ORDEN DE COMPRA</h1>
+    <div class="doc-num">{{ orden_compra.numero }}</div>
+    <div class="doc-meta">
+      Fecha emisión: {{ orden_compra.fecha_emision.strftime('%d-%m-%Y') if orden_compra.fecha_emision else '' }}<br>
+      {% if not pagina.es_primera %}
+      <strong class="doc-hoja-label">Hoja {{ pagina.numero }} de {{ pagina.total }} de esta orden</strong><br>
+      {% endif %}
+      {% set bcls = {'Borrador': 'badge-borrador', 'Enviada': 'badge-enviada', 'Parcial': 'badge-parcial', 'Cerrada': 'badge-cerrada', 'Anulada': 'badge-anulada'} %}
+      <span class="badge-estado {{ bcls.get(orden_compra.estado, 'badge-borrador') }}">{{ orden_compra.estado }}</span>
+    </div>
+  </div>
+</div>

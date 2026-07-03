@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% block body_class %}erp-ops-space page-bodega-enrolador-setup{% endblock %}
+{% block extra_css %}
+<style>
+  .be-setup-shell { max-width: 920px; margin: 0 auto; }
+  .be-setup-card {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, .92), rgba(15, 23, 42, .78));
+    padding: 20px;
+    color: #e2e8f0;
+    box-shadow: 0 14px 34px rgba(2, 6, 23, .35);
+  }
+  .be-qr-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px;
+    display: inline-block;
+  }
+  .be-qr-box img { display: block; width: 200px; height: 200px; }
+  .be-url {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .92rem;
+    word-break: break-all;
+    background: rgba(2, 6, 23, .55);
+    border: 1px solid rgba(148, 163, 184, .35);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .be-step { border-left: 3px solid #f59e0b; padding-left: 12px; margin-bottom: 14px; }
+  .be-step-num { color: #fbbf24; font-weight: 700; font-size: .78rem; text-transform: uppercase; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 be-setup-shell">
+  <div class="be-setup-card mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+      <div>
+        <h1 class="h4 fw-bold mb-1 text-white">
+          <i class="fas fa-tablet-alt me-2 text-warning"></i>Instalador Enrolador Bodega
+        </h1>
+        <p class="mb-0 text-white-50">Tablet en la misma WiFi + pistola BCST-560B (Bluetooth).</p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('inventario_enrolamiento_tablet') }}" class="btn btn-warning text-dark btn-sm fw-bold">
+          <i class="fas fa-barcode me-1"></i>Abrir escáner tablet
+        </a>
+        <a href="{{ url_for('inventario_enrolamiento') }}" class="btn btn-outline-light btn-sm">
+          <i class="fas fa-desktop me-1"></i>Vista PC
+        </a>
+      </div>
+    </div>
+
+    <div class="alert alert-info py-2 small mb-3">
+      <strong>Red detectada:</strong> {{ urls.base_lan }}
+      {% if lan_explicit %}
+      <span class="text-muted">(desde variable <code>BODEGA_ENROLADOR_LAN_URL</code>)</span>
+      {% elif lan_auto %}
+      <span class="text-muted">(IP LAN auto-detectada — tu PC mostró <code>192.168.7.10</code> en ipconfig)</span>
+      {% endif %}
+    </div>
+
+    <div class="row g-4 align-items-start">
+      <div class="col-md-5 text-center">
+        <p class="small fw-bold text-warning mb-2">QR — escanear desde el tablet</p>
+        <div class="be-qr-box mb-2">
+          <img src="{{ qr_tablet }}" width="200" height="200" alt="QR enrolador tablet">
+        </div>
+        <p class="small text-white-50 mb-0">Abre el enrolador optimizado para tablet.</p>
+      </div>
+      <div class="col-md-7">
+        <div class="be-step">
+          <div class="be-step-num">Paso 1 · Servidor</div>
+          <p class="mb-1 small">El ERP debe estar corriendo en el PC (<code>iniciar_servidor.bat</code>).</p>
+        </div>
+        <div class="be-step">
+          <div class="be-step-num">Paso 2 · Tablet — login</div>
+          <p class="mb-1 small">Primera vez: abrir login y entrar con usuario de bodega.</p>
+          <div class="be-url mb-2">{{ urls.login }}</div>
+          <div class="be-qr-box mb-0">
+            <img src="{{ qr_login }}" width="120" height="120" alt="QR login">
+          </div>
+        </div>
+        <div class="be-step">
+          <div class="be-step-num">Paso 3 · Enrolador</div>
+          <p class="mb-1 small">URL fija del escáner (guardar en favoritos o «Agregar a inicio»):</p>
+          <div class="be-url" id="beUrlTablet">{{ urls.tablet }}</div>
+          <button type="button" class="btn btn-outline-info btn-sm mt-2" id="beCopyUrl">
+            <i class="fas fa-copy me-1"></i>Copiar URL
+          </button>
+        </div>
+        <div class="be-step mb-0">
+          <div class="be-step-num">Paso 4 · Pistola BCST-560B</div>
+          <p class="mb-0 small">Ajustes → Bluetooth → emparejar. En el enrolador, pistolar con foco en pantalla (Enter automático).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="be-setup-card">
+    <h2 class="h6 fw-bold text-white mb-3"><i class="fas fa-wrench me-2 text-info"></i>Si el QR no abre en el tablet</h2>
+    <ul class="small text-white-50 mb-3">
+      <li>Tablet y PC en la <strong>misma WiFi</strong> (no datos móviles).</li>
+      <li>Firewall Windows: permitir Python / puerto <strong>5000</strong> en red privada.</li>
+      <li>Si abriste esta página con <code>127.0.0.1</code>, fijá la IP en <code>.env.local</code>:
+        <code>BODEGA_ENROLADOR_LAN_URL=http://192.168.7.10:5000</code> y reiniciá Flask.</li>
+    </ul>
+    <form class="row g-2 align-items-end" method="get" action="{{ url_for('bodega_enrolador_setup') }}">
+      <div class="col-md-8">
+        <label class="form-label small text-white-50 mb-1">Probar otra base LAN (solo vista previa QR)</label>
+        <input type="url" name="lan_preview" class="form-control form-control-sm" placeholder="http://192.168.7.10:5000" value="{{ lan_preview or '' }}">
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-outline-light btn-sm w-100">Actualizar QR</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var btn = document.getElementById('beCopyUrl');
+  var el = document.getElementById('beUrlTablet');
+  if (!btn || !el) return;
+  btn.addEventListener('click', function () {
+    var t = el.textContent.trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () {
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Copiado';
+        setTimeout(function () {
+          btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copiar URL';
+        }, 1800);
+      });
+    } else {
+      prompt('Copiá la URL:', t);
+    }
+  });
+})();
+</script>
+{% endblock %}

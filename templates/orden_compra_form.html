@@ -10,7 +10,14 @@
       </h3>
       <p class="page-subtitle mb-0">{% if oc %}Edite cabecera y líneas.{% else %}Ingrese datos de cabecera y luego agregue productos.{% endif %}</p>
     </div>
-    <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-outline-secondary btn-sm">Listado OC</a>
+    <div class="d-flex flex-wrap gap-2">
+      {% if oc %}
+      <a href="{{ url_for('orden_compra_pdf', oid=oc.id) }}" target="_blank" class="btn btn-danger btn-sm" title="Abre la OC lista para descargar como PDF (selecciona 'Guardar como PDF' en el diálogo)">
+        <i class="fas fa-file-pdf me-1"></i>Descargar PDF
+      </a>
+      {% endif %}
+      <a href="{{ url_for('lista_ordenes_compra') }}" class="btn btn-outline-secondary btn-sm">Listado OC</a>
+    </div>
   </div>
 
   <div class="card card-ds mb-4">

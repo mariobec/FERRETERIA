@@ -1,0 +1,119 @@
+<div id="cajaModalesPortal">
+    <div class="modal fade modal-premium" id="modalCajaSlaRecordatorio" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-clock me-2"></i>Vale sin cobrar</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="mb-2" id="cajaSlaModalText">Este vale lleva varios minutos en cola.</p>
+                    <div class="text-center mb-3">
+                        <div class="display-6 fw-bold text-primary" id="cajaSlaModalMonto">$ 0</div>
+                        <div class="small text-muted" id="cajaSlaModalMeta"></div>
+                    </div>
+                </div>
+                <div class="modal-footer flex-wrap gap-2">
+                    <button type="button" class="btn btn-secondary" id="cajaSlaBtnPosponer">Recordar en 5 min</button>
+                    <button type="button" class="btn btn-primary fw-bold" id="cajaSlaBtnCobrar">Cobrar ahora</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% for v in cola_combined %}
+    {% set saldo_disp = v.saldo_favor_disponible or 0 %}
+    {% set monto_cobro = v.monto_cobro_ui if v.monto_cobro_ui is defined else (v.monto_total or 0) %}
+    {% set saldo_sugerido = saldo_disp if saldo_disp < monto_cobro else monto_cobro %}
+    {% set total_sugerido = monto_cobro - saldo_sugerido %}
+    <div class="modal fade modal-premium" id="modalCobro{{ v.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <form action="{{ url_for('procesar_cobro_caja', id=v.id) }}" method="POST" onsubmit="return manejarEnvioSeguro(this)">
+                    {% if caja_return_to %}
+                    <input type="hidden" name="return_to" value="{{ caja_return_to }}">
+                    {% endif %}
+                    <div class="modal-header">
+                        <h5 class="modal-title fw-bold">{% if v.cola_es_borrador %}Cobrar borrador #{% else %}Cobrar vale #{% endif %}{{ v.id }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="text-center mb-4">
+                            <h1 class="display-5 fw-bold text-primary">$ {{ "{:,.0f}".format(monto_cobro).replace(",", ".") }}</h1>
+                            {% if monto_cobro <= 0 %}
+                            <p class="small text-warning mb-2">Sin líneas con precio. Complete la venta en el POS.</p>
+                            {% elif v.cola_es_borrador %}
+                            <p class="small text-muted mb-0">Borrador POS: al cobrar se emite y paga en un paso.</p>
+                            {% endif %}
+                        </div>
+                        {% if v.cliente %}
+                        <div class="alert {% if (v.cliente.saldo_deudor or 0) > 0 %}alert-warning{% else %}alert-light{% endif %} py-2 mb-3">
+                            <div class="small">
+                                <strong>Cliente:</strong> {{ v.cliente.nombre }}
+                            </div>
+                        </div>
+                        {% if saldo_disp > 0 %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Usar saldo a favor</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" class="form-control" value="{{ saldo_sugerido|round(0)|int }}" min="0" max="{{ saldo_sugerido|round(0)|int }}" step="any" data-disponible="{{ saldo_disp }}" data-total="{{ monto_cobro }}" oninput="actualizarSaldoFavorCobro({{ v.id }})">
+                                <button class="btn btn-outline-warning" type="button" onclick="usarMaximoSaldoFavor({{ v.id }})">Usar máximo</button>
+                            </div>
+                        </div>
+                        <div class="alert alert-light border py-2 mb-3">
+                            <strong>Total a pagar ahora:</strong>
+                            <span id="total_a_pagar_{{ v.id }}">$ {{ "{:,.0f}".format(total_sugerido).replace(",", ".") }}</span>
+                        </div>
+                        {% else %}
+                        <input type="hidden" name="usar_saldo_favor" id="usar_saldo_favor_{{ v.id }}" value="0" data-disponible="0" data-total="{{ monto_cobro }}">
+                        {% endif %}
+                        {% endif %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Documento</label>
+                            <select name="tipo_documento" class="form-select" required>
+                                <option value="Boleta" selected>Boleta</option>
+                                <option value="Factura">Factura</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Pago</label>
+                            <select name="metodo_pago" class="form-select" required id="metodo_pago_{{ v.id }}" onchange="verificarCredito({{ v.id }})">
+                                <option value="Efectivo" selected>Efectivo</option>
+                                <option value="Debito">Débito / prepago</option>
+                                <option value="TarjetaCredito">Tarjeta de crédito</option>
+                                <option value="Transferencia">Transferencia bancaria</option>
+                                <option value="Credito">Crédito tienda</option>
+                            </select>
+                        </div>
+                        <div class="mb-3 d-none" id="transferencia_ref_wrap_{{ v.id }}">
+                            <label class="form-label fw-bold">Referencia transferencia</label>
+                            <input type="text" name="transferencia_referencia" class="form-control" maxlength="80" autocomplete="off">
+                        </div>
+                        {% if v.cliente %}
+                        <div class="mb-3 d-none border rounded p-3 bg-light" id="credito_cuotas_wrap_{{ v.id }}">
+                            <label class="form-label fw-bold">Crédito en cuotas</label>
+                            <select name="credito_plan_cuotas" id="credito_plan_cuotas_{{ v.id }}" class="form-select">
+                                {% for val, label in planes_cuotas_credito %}
+                                <option value="{{ val }}" {% if val == '' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Monto recibido</label>
+                            <input type="number" name="monto_recibido" id="monto_recibido_{{ v.id }}" class="form-control form-control-lg" required min="{{ total_sugerido }}" value="{{ total_sugerido|round(0)|int }}" step="any" data-total="{{ monto_cobro }}" data-cliente="{{ v.cliente.nombre if v.cliente else '' }}" data-saldo="{{ v.cliente.saldo_deudor if v.cliente else 0 }}">
+                            <div class="form-text" id="hint_monto_{{ v.id }}">Debe ser mayor o igual al total pendiente.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer d-flex flex-wrap gap-2 justify-content-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary fw-bold px-4" {% if monto_cobro <= 0 %}disabled{% endif %}>
+                            <i class="fas fa-check-circle me-1"></i> Finalizar cobro
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>

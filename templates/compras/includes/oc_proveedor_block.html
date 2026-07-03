@@ -1,0 +1,40 @@
+{# Bloque proveedor OC — requiere variable `orden_compra` con relación proveedor #}
+{% set prov = orden_compra.proveedor %}
+<div class="cot-cliente-ficha">
+  <div class="cot-cliente-ficha__grid">
+    <div class="cot-cliente-ficha__col">
+      {% if prov and prov.nombre %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Nombre</span>
+        <span class="cot-cliente-ficha__value cot-cliente-ficha__value--nombre">{{ prov.nombre }}</span>
+      </div>
+      {% endif %}
+      {% if prov and prov.rut %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">RUT</span>
+        <span class="cot-cliente-ficha__value">{{ prov.rut }}</span>
+      </div>
+      {% endif %}
+      {% if prov and prov.contacto %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Contacto</span>
+        <span class="cot-cliente-ficha__value">{{ prov.contacto }}</span>
+      </div>
+      {% endif %}
+    </div>
+    <div class="cot-cliente-ficha__col cot-cliente-ficha__col--contacto">
+      {% if prov and prov.telefono %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Teléfono</span>
+        <span class="cot-cliente-ficha__value">{{ prov.telefono }}</span>
+      </div>
+      {% endif %}
+      {% if prov and prov.email %}
+      <div class="cot-cliente-ficha__row">
+        <span class="cot-cliente-ficha__label">Correo</span>
+        <span class="cot-cliente-ficha__value cot-cliente-ficha__value--email">{{ prov.email }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>

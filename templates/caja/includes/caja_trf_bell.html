@@ -1,0 +1,22 @@
+{# Campanita transferencias bancarias — caja vales pendientes + bandeja transferencias #}
+<div class="caja-trf-bell-wrap d-none" id="cajaTrfBellWrap"
+     data-url="{{ url_for('api_caja_transferencias_alerta') }}"
+     data-bandaja="{{ url_for('caja_transferencias') }}"
+     data-inicial-total="{{ (n_transferencias_pendientes|default(0)) + (n_correos_transferencia|default(0)) }}">
+    <button type="button" class="caja-trf-bell-btn" id="cajaTrfBellBtn" aria-expanded="false" aria-controls="cajaTrfBellPanel"
+            aria-label="Alertas transferencias bancarias">
+        <i class="fas fa-bell fa-lg" aria-hidden="true"></i>
+        <span class="caja-trf-bell-badge d-none" id="cajaTrfBellBadge">0</span>
+    </button>
+    <div class="caja-trf-bell-panel d-none" id="cajaTrfBellPanel" role="dialog" aria-label="Avisos transferencias bancarias">
+        <div class="caja-trf-bell-panel__title"><i class="fas fa-university me-1"></i> Transferencias bancarias</div>
+        <div class="caja-trf-bell-panel__sub">Avisos del banco y vales por confirmar abono</div>
+        <div class="caja-trf-bell-panel__line" id="cajaTrfBellLineVales">Vales por confirmar: 0</div>
+        <div class="caja-trf-bell-panel__line" id="cajaTrfBellLineCorreos">Avisos banco: 0</div>
+        <div class="caja-trf-bell-panel__items" id="cajaTrfBellItems" aria-live="polite"></div>
+        <p class="small mb-0 mt-1" style="color:#94a3b8;" id="cajaTrfBellHint">Confirme el abono antes de entregar mercadería.</p>
+        <a href="{{ url_for('caja_transferencias') }}" class="btn btn-warning btn-sm caja-trf-bell-panel__cta text-dark fw-bold" id="cajaTrfBellCta">
+            Abrir bandeja transferencias
+        </a>
+    </div>
+</div>

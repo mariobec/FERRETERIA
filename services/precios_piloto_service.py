@@ -801,4 +801,3 @@ def bitacora_reciente_piloto(limite: int = 20) -> list:
         .limit(limite)
         .all()
     )
-    1|  WZ<<<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA

@@ -13,6 +13,7 @@
 
 <div class="glass-card p-3 p-md-4 mb-3">
   <form method="GET" action="{{ url_for('inventario_dashboard_premium') }}" class="row g-2 align-items-end">
+    {% if vista_integridad %}<input type="hidden" name="vista" value="{{ vista_integridad }}">{% endif %}
     <div class="col-md-5">
       <label class="form-label small text-secondary mb-1">Buscar</label>
       <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Nombre, barras o interno">

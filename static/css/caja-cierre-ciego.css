@@ -1,12 +1,20 @@
 /* Cierre a ciegas — cajero (PLAT-1.1 UI) */
 
+.caja-cierre-ciego-page .app-content {
+  background: #eceae6;
+}
+
 .caja-cierre-visible__total-box {
-  background: #fff8f4;
+  background: #faf9f7;
   border: 2px solid var(--ds-primary, #e85d04);
 }
+
 .caja-cierre-ciego {
-  --cierre-accent: var(--ds-primary);
-  --cierre-accent-soft: rgba(243, 112, 33, 0.12);
+  --cierre-accent: var(--ds-primary, #e85d04);
+  --cierre-accent-soft: rgba(243, 112, 33, 0.14);
+  --cierre-surface: #faf9f7;
+  --cierre-input-bg: #ffffff;
+  --cierre-input-border: #b8b2a8;
   max-width: 720px;
   margin: 0 auto;
 }
@@ -34,23 +42,59 @@
   font-size: 0.9rem;
 }
 
+.caja-cierre-ciego__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ds-text-muted);
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+}
+
+.caja-cierre-ciego__back:hover {
+  color: var(--cierre-accent);
+}
+
 .caja-cierre-ciego__card {
-  background: var(--ds-surface);
-  border: 1px solid var(--ds-border);
+  background: var(--cierre-surface);
+  border: 1px solid #d4cfc7;
   border-radius: var(--ds-radius-lg);
   box-shadow: var(--ds-shadow-md);
   padding: 1.25rem 1.5rem;
   margin-bottom: 1rem;
 }
 
+/* Campos editables — mismo tono en toda la pantalla */
+.caja-cierre-ciego__card .form-control,
+.caja-cierre-ciego__card textarea.form-control {
+  background: var(--cierre-input-bg);
+  border: 2px solid var(--cierre-input-border);
+  color: var(--ds-text, #1c1917);
+}
+
+.caja-cierre-ciego__card .form-control:focus,
+.caja-cierre-ciego__card textarea.form-control:focus {
+  background: #fff;
+  border-color: var(--cierre-accent);
+  box-shadow: 0 0 0 3px var(--cierre-accent-soft);
+  outline: none;
+}
+
+.caja-cierre-ciego__card .form-control::placeholder {
+  color: #78716c;
+  opacity: 1;
+}
+
 .caja-cierre-ciego__input-hero {
   font-size: 2rem;
   font-weight: 700;
   text-align: center;
-  border: 2px solid var(--ds-border);
+  border: 2px solid var(--cierre-input-border);
   border-radius: var(--ds-radius-md);
   padding: 0.75rem 1rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .caja-cierre-ciego__input-hero:focus {
@@ -64,8 +108,14 @@
 }
 
 @keyframes cierreInputPulse {
-  0%, 100% { border-color: var(--ds-border); }
+  0%, 100% { border-color: var(--cierre-input-border); }
   50% { border-color: var(--cierre-accent); box-shadow: 0 0 0 3px var(--cierre-accent-soft); }
+}
+
+.caja-cierre-billetes-table {
+  background: #fff;
+  border: 1px solid #d4cfc7;
+  border-radius: var(--ds-radius-md);
 }
 
 .caja-cierre-billetes-table input {

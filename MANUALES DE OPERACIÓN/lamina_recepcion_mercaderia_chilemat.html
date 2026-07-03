@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recepción de mercadería — Chilemat · Santo Domingo</title>
+  <style>
+    :root {
+      --chilemat-green: #1e5631;
+      --chilemat-green-dark: #164225;
+      --chilemat-orange: #e87722;
+      --chilemat-green-light: #3d9b5a;
+      --text-dark: #2d3436;
+      --text-mid: #636e72;
+      --text-light: #95a5a6;
+      --bg: linear-gradient(180deg, #f4f6f5 0%, #ffffff 55%);
+      --slide-w: 1280px;
+      --slide-h: 720px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: #dfe6e9;
+      color: var(--text-dark);
+      min-height: 100vh;
+    }
+
+    .deck {
+      max-width: var(--slide-w);
+      margin: 0 auto;
+      padding: 24px 16px 80px;
+    }
+
+    .slide {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: var(--slide-h);
+      background: var(--bg);
+      border-radius: 4px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+      margin-bottom: 32px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      page-break-after: always;
+    }
+
+    .ch-header {
+      background: var(--chilemat-green);
+      padding: 14px 40px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ch-logo {
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.55rem;
+      letter-spacing: .04em;
+      line-height: 1.1;
+    }
+    .ch-logo small {
+      display: block;
+      font-size: .55rem;
+      font-weight: 600;
+      letter-spacing: .22em;
+      opacity: .92;
+      margin-top: 2px;
+    }
+    .ch-header-meta {
+      color: rgba(255,255,255,.85);
+      font-size: .72rem;
+      text-align: right;
+    }
+    .ch-orange-bar { height: 4px; background: var(--chilemat-orange); }
+
+    .slide-body {
+      flex: 1;
+      padding: 28px 40px 24px;
+      display: flex;
+      gap: 32px;
+      min-height: 0;
+    }
+    .slide-body.solo { display: block; }
+
+    .slide-left { flex: 1.15; min-width: 0; }
+    .slide-right {
+      flex: .85;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 400;
+      color: var(--text-mid);
+      margin-bottom: 18px;
+      line-height: 1.45;
+    }
+    h3 {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--chilemat-green);
+      margin: 14px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 14px 0;
+    }
+    .presentado {
+      font-size: .78rem;
+      color: var(--text-mid);
+    }
+    .presentado strong { color: var(--text-dark); }
+    .objetivo {
+      margin-top: 16px;
+      font-size: .82rem;
+      color: var(--text-mid);
+      line-height: 1.55;
+      max-width: 520px;
+    }
+    .objetivo b { color: var(--text-dark); }
+
+    .illus-boxes {
+      position: relative;
+      width: 260px;
+      height: 220px;
+    }
+    .box {
+      position: absolute;
+      border-radius: 6px;
+      background: linear-gradient(145deg, #4caf50, #2e7d32);
+      box-shadow: 2px 4px 12px rgba(30,86,49,.25);
+    }
+    .box.b1 { width: 90px; height: 70px; bottom: 20px; left: 30px; transform: rotate(-4deg); }
+    .box.b2 { width: 100px; height: 75px; bottom: 55px; left: 85px; transform: rotate(2deg); }
+    .box.b3 { width: 85px; height: 65px; bottom: 95px; left: 140px; transform: rotate(-2deg); }
+    .icon-float {
+      position: absolute;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--chilemat-green-light);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      box-shadow: 0 3px 10px rgba(0,0,0,.15);
+    }
+    .icon-float.i1 { top: 10px; right: 20px; }
+    .icon-float.i2 { top: 70px; right: 60px; }
+    .icon-float.i3 { bottom: 30px; right: 10px; font-size: .85rem; }
+
+    .steps-row {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0 16px;
+    }
+    .step-pill {
+      flex: 1;
+      text-align: center;
+      padding: 10px 6px;
+      border-radius: 6px;
+      font-size: .68rem;
+      font-weight: 700;
+      line-height: 1.25;
+      border: 2px solid #ddd;
+      background: #fff;
+      color: var(--text-mid);
+    }
+    .step-pill.done {
+      background: var(--chilemat-green);
+      border-color: var(--chilemat-green);
+      color: #fff;
+    }
+    .step-pill.active {
+      background: #fff;
+      border-color: var(--chilemat-orange);
+      color: var(--chilemat-green-dark);
+      box-shadow: 0 0 0 2px rgba(232,119,34,.2);
+    }
+    .step-num { display: block; font-size: 1rem; margin-bottom: 2px; }
+
+    ol.process {
+      padding-left: 1.1rem;
+      font-size: .78rem;
+      color: var(--text-mid);
+      line-height: 1.55;
+    }
+    ol.process li { margin-bottom: 6px; }
+    ol.process strong { color: var(--text-dark); }
+
+    .paths {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .path-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-left: 4px solid var(--chilemat-green);
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: .72rem;
+      line-height: 1.45;
+    }
+    .path-card .path-title {
+      font-weight: 700;
+      color: var(--chilemat-green);
+      font-size: .78rem;
+      margin-bottom: 4px;
+    }
+
+    table.casos {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .68rem;
+      line-height: 1.4;
+    }
+    table.casos th {
+      background: var(--chilemat-green);
+      color: #fff;
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 600;
+    }
+    table.casos td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+    table.casos tr:nth-child(even) td { background: #f8faf9; }
+    table.casos .caso { font-weight: 700; color: var(--text-dark); white-space: nowrap; }
+    table.casos .accion { color: var(--chilemat-green-dark); }
+
+    .ch-footer {
+      position: absolute;
+      bottom: 16px;
+      right: 32px;
+      text-align: right;
+    }
+    .ch-footer .mini-logo {
+      display: inline-block;
+      background: var(--chilemat-green);
+      color: #fff;
+      font-weight: 800;
+      font-size: .65rem;
+      padding: 4px 10px 3px;
+      letter-spacing: .06em;
+    }
+    .ch-footer .mini-bar {
+      height: 3px;
+      background: var(--chilemat-orange);
+      width: 100%;
+    }
+
+    .flow-diagram {
+      font-size: .68rem;
+      color: var(--text-mid);
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 14px 16px;
+      line-height: 1.6;
+      font-family: Consolas, "Courier New", monospace;
+    }
+    .flow-diagram .hl { color: var(--chilemat-green); font-weight: 700; }
+
+    .badge-tip {
+      display: inline-block;
+      background: #fff3e0;
+      color: #bf360c;
+      font-size: .65rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 3px;
+      margin-left: 4px;
+    }
+
+    .nav-hint {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30,86,49,.92);
+      color: #fff;
+      font-size: .75rem;
+      padding: 8px 18px;
+      border-radius: 20px;
+      z-index: 99;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .deck { padding: 0; max-width: 100%; }
+      .slide {
+        box-shadow: none;
+        margin-bottom: 0;
+        max-height: none;
+        height: 100vh;
+      }
+      .nav-hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <section class="slide" id="s1">
+    <div class="ch-header">
+      <div class="ch-logo">CHILEMAT<small>— TRADICIÓN FERRETERA —</small></div>
+      <div class="ch-header-meta">LhexIA ERP · Ferretería Santo Domingo</div>
+    </div>
+    <div class="ch-orange-bar"></div>
+    <div class="slide-body">
+      <div class="slide-left">
+        <h1>Recepción de mercadería<br>CHILEMAT en LhexIA ERP</h1>
+        <h2>Control exacto del ingreso físico, stock por almacén y valorización con comisión 5&nbsp;% + precio SD</h2>
+        <hr class="divider">
+        <p class="presentado">Presentado por: <strong>Ferretería Santo Domingo · Equipo Operaciones</strong></p>
+        <p class="objetivo">
+          <b>Objetivo:</b> Estandarizar el flujo desde la factura/guía hasta el stock en tienda o bodega,
+          cubriendo los casos frecuentes de la red (OC histórica, líneas genéricas, facturas parciales y DTE por correo).
+        </p>
+      </div>
+      <div class="slide-right">
+        <div class="illus-boxes">
+          <div class="box b1"></div>
+          <div class="box b2"></div>
+          <div class="box b3"></div>
+          <div class="icon-float i1">⚙</div>
+          <div class="icon-float i2">✓</div>
+          <div class="icon-float i3">▮▮</div>
+        </div>
+      </div>
+    </div>
+    <div class="ch-footer">
+      <div class="mini-logo">CHILEMAT</div>
+      <div class="mini-bar"></div>
+    </div>
+  </section>
+
+  <section class="slide" id="s2">
+    <div class="ch-header">
+      <div class="ch-logo">CHILEMAT<small>— TRADICIÓN FERRETERA —</small></div>
+      <div class="ch-header-meta">Proceso operativo · 4 pasos</div>
+    </div>
+    <div class="ch-orange-bar"></div>
+    <div class="slide-body solo" style="padding-top:22px;">
+      <h1 style="font-size:1.45rem;margin-bottom:6px;">Flujo completo de recepción</h1>
+      <h2 style="font-size:.88rem;margin-bottom:12px;">Ruta: <strong>Recepciones → Nueva</strong> o ingreso automático DTE → detalle recepción</h2>
+
+      <div class="steps-row">
+        <div class="step-pill done"><span class="step-num">1</span>Vincular OC</div>
+        <div class="step-pill done"><span class="step-num">2</span>Stock por línea</div>
+        <div class="step-pill active"><span class="step-num">3</span>Precio SD</div>
+        <div class="step-pill"><span class="step-num">4</span>Cerrar</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:24px;">
+        <div>
+          <h3>Paso 0 — Abrir documento</h3>
+          <div class="paths">
+            <div class="path-card">
+              <div class="path-title">Manual</div>
+              Nueva recepción → proveedor CHILEMAT → N° factura, guía, neto sin IVA.
+            </div>
+            <div class="path-card">
+              <div class="path-title">IA cámara</div>
+              Fotografiar factura → lee códigos, cantidades y costos netos → propone líneas.
+            </div>
+            <div class="path-card">
+              <div class="path-title">DTE correo</div>
+              XML SII → recepción <em>documental</em> (sin stock) hasta confirmación física.
+            </div>
+          </div>
+
+          <h3>Pasos 1 a 4</h3>
+          <ol class="process">
+            <li><strong>Vincular OC:</strong> ingresar N° ODP de la guía (ej. 47310589). La OC puede ser de otro proveedor del grupo.</li>
+            <li><strong>Cargar stock:</strong> marcar líneas, cantidad pendiente, destino <strong>Tienda</strong> o <strong>Bodega</strong> (o reparto split). Pulsa <em>Cargar stock</em> → Kardex ENTRADA + stock almacén.</li>
+            <li><strong>Precio SD:</strong> comisión = 0,05 × neto factura; margen % → calcular → editar Precio SD → <em>Guardar precios SD</em> (impacta POS/caja).</li>
+            <li><strong>Cerrar:</strong> finalizar recepción. Estado <em>Finalizada</em>. Pistola de barras opcional (no duplica stock).</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Diagrama resumido</h3>
+          <div class="flow-diagram">
+            Factura / Guía / DTE XML<br>
+            &nbsp;&nbsp;↓<br>
+            <span class="hl">Recepción</span> (Pendiente → Incompleta)<br>
+            &nbsp;&nbsp;↓ paso 1<br>
+            <span class="hl">OC vinculada</span> (líneas esperadas)<br>
+            &nbsp;&nbsp;↓ paso 2<br>
+            <span class="hl">DetalleRecepcion</span> + stock tienda/bodega<br>
+            &nbsp;&nbsp;↓ paso 3<br>
+            Precio compra + <span class="hl">Precio SD</span> + comisión CHILEMAT<br>
+            &nbsp;&nbsp;↓ paso 4<br>
+            <span class="hl">Finalizada</span> · trazabilidad Kardex<br>
+            <br>
+            ── Varias facturas, misma OC ──<br>
+            OC acumula recibido · cada factura suma<br>
+            pendiente = OC total − recibido global
+          </div>
+          <p style="font-size:.68rem;color:var(--text-light);margin-top:10px;">
+            Comisión automática: <strong>5&nbsp;% del neto</strong> (sin IVA). El neto se edita en cabecera de la recepción.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="ch-footer"><div class="mini-logo">CHILEMAT</div><div class="mini-bar"></div></div>
+  </section>
+
+  <section class="slide" id="s3">
+    <div class="ch-header">
+      <div class="ch-logo">CHILEMAT<small>— TRADICIÓN FERRETERA —</small></div>
+      <div class="ch-header-meta">Casuísticas frecuentes · Parte A</div>
+    </div>
+    <div class="ch-orange-bar"></div>
+    <div class="slide-body solo" style="padding-top:20px;">
+      <h1 style="font-size:1.35rem;margin-bottom:14px;">Casuísticas operativas</h1>
+      <table class="casos">
+        <thead>
+          <tr><th style="width:22%">Situación</th><th style="width:38%">Qué ocurre</th><th style="width:40%">Qué hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="caso">A · Línea genérica OC<br><code style="font-size:.6rem">COMPRA-HIST-MAESTRA</code></td>
+            <td>Import maestra histórica: varios SKU reales quedaron en un producto genérico sin código visible.</td>
+            <td class="accion">Paso 2 → escribir <strong>código factura</strong> en la fila → botón 🔗 vincular al SKU real. Guarda equivalencia proveedor para la próxima.</td>
+          </tr>
+          <tr>
+            <td class="caso">B · Mismo SKU, varias líneas OC</td>
+            <td>La OC repite el mismo código (ej. 3 líneas de 400059: 30+30+40 u.). El ERP consolida stock en una línea de recepción.</td>
+            <td class="accion">Seleccionar <strong>todas</strong> las filas y cargar: el sistema <strong>suma cantidades</strong> y reparte pendiente FIFO por línea. Verificar total = suma OC.</td>
+          </tr>
+          <tr>
+            <td class="caso">C · Factura ≠ líneas OC</td>
+            <td>Factura trae 17 productos pero la OC solo tiene 11 (faltan fichas ERP o quedaron en genérico).</td>
+            <td class="accion">Vincular los que coinciden · resolver genéricos · enrolar SKU faltantes en maestro · re-vincular o usar IA factura para acelerar match.</td>
+          </tr>
+          <tr>
+            <td class="caso">D · Recepción parcial / 2ª factura</td>
+            <td>Misma OC recibida en varios despachos. Primera factura deja ítems «completados»; otros siguen pendientes.</td>
+            <td class="accion">Nueva recepción → misma OC → paso 2 muestra solo pendientes (filtro activo). Cada factura suma al acumulado OC sin pasar el tope.</td>
+          </tr>
+          <tr>
+            <td class="caso">E · DTE XML sin mercadería</td>
+            <td>Correo SII crea recepción documental: líneas visibles pero <strong>cantidad_recibida = 0</strong>.</td>
+            <td class="accion">Operador confirma físicamente en paso 2 antes de stock. Evita inflar inventario solo por XML.</td>
+          </tr>
+          <tr>
+            <td class="caso">F · Cargó de más / producto que no vino</td>
+            <td>Se marcó un ítem de la OC que no estaba en la factura física.</td>
+            <td class="accion">Icono 🗑 en «Líneas registradas» → revierte stock tienda/bodega. Precio SD se ajusta manual en paso 3 si aplica.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="ch-footer"><div class="mini-logo">CHILEMAT</div><div class="mini-bar"></div></div>
+  </section>
+
+  <section class="slide" id="s4">
+    <div class="ch-header">
+      <div class="ch-logo">CHILEMAT<small>— TRADICIÓN FERRETERA —</small></div>
+      <div class="ch-header-meta">Casuísticas · Parte B + checklist cierre</div>
+    </div>
+    <div class="ch-orange-bar"></div>
+    <div class="slide-body solo" style="padding-top:20px;">
+      <h1 style="font-size:1.35rem;margin-bottom:14px;">Casuísticas y checklist de cierre</h1>
+      <table class="casos">
+        <thead>
+          <tr><th style="width:22%">Situación</th><th style="width:38%">Qué ocurre</th><th style="width:40%">Qué hacer</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="caso">G · Reparto tienda / bodega</td>
+            <td>Parte va a exhibición y parte a bodega en la misma línea.</td>
+            <td class="accion">Modo <strong>Split</strong> en destino → indicar unidades tienda + bodega que sumen la cantidad. Un solo Kardex con dos movimientos.</td>
+          </tr>
+          <tr>
+            <td class="caso">H · Paso 3 sin productos</td>
+            <td>Se avanzó a precios pero faltan ítems por cargar en paso 2.</td>
+            <td class="accion"><strong>Reabrir paso 2</strong> (botón amarillo) → cargar faltantes → volver a paso 3. Las líneas ya cargadas se mantienen.</td>
+          </tr>
+          <tr>
+            <td class="caso">I · Código de barras</td>
+            <td>Producto ingresó con código interno <code>INT-…</code> provisional.</td>
+            <td class="accion">Tras paso 2: botón <strong>Pistola</strong> en línea registrada → escanear código real. <em>No suma stock</em>, solo actualiza barras.</td>
+          </tr>
+          <tr>
+            <td class="caso">J · IA factura</td>
+            <td>Cámara lee tabla pero match parcial al catálogo.</td>
+            <td class="accion">Revisar columna Match → corregir código → aplicar seleccionadas → completar en paso 2 con OC vinculada.</td>
+          </tr>
+          <tr>
+            <td class="caso">K · Neto / comisión</td>
+            <td>Neto factura mal digitado afecta comisión 5&nbsp;% y reparto en precio SD.</td>
+            <td class="accion">Editar <strong>Neto factura (sin IVA)</strong> en cabecera → guardar → recalcular precios paso 3.</td>
+          </tr>
+          <tr>
+            <td class="caso">L · Cierre sin stock</td>
+            <td>Recepción finalizada con OC vinculada pero 0 líneas cargadas.</td>
+            <td class="accion">Alerta roja al abrir → <strong>Reabrir para cargar stock</strong>. No dar por cerrada una factura sin ENTRADA en Kardex.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:14px;padding:12px 16px;background:#e8f5e9;border-left:4px solid var(--chilemat-green);border-radius:4px;font-size:.72rem;line-height:1.5;">
+        <strong style="color:var(--chilemat-green);">Checklist antes de Finalizar</strong>
+        &nbsp;☑ OC vinculada &nbsp;☑ Neto y guía correctos &nbsp;☑ Stock cargado = factura física
+        &nbsp;☑ Precios SD guardados &nbsp;☑ Kardex con ENTRADA por producto &nbsp;☑ Barras pistoleadas si aplica
+        <span class="badge-tip">SD-1 · Santo Domingo</span>
+      </div>
+    </div>
+    <div class="ch-footer"><div class="mini-logo">CHILEMAT</div><div class="mini-bar"></div></div>
+  </section>
+
+</div>
+
+<p class="nav-hint">Impresión: Ctrl+P → PDF · Cada lámina = 1 página</p>
+
+</body>
+</html>
