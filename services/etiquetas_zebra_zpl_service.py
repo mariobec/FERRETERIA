@@ -49,6 +49,8 @@ _PERFIL_GX420D: dict[str, Any] = {
     'mostrar_precio_lista': True,
     'mostrar_precio_mayoreo': True,
     'impresora_nombre': '',
+    'impresora_host': '',
+    'impresora_puerto': 9100,
 }
 
 _PERFIL_DOBLE_85x30: dict[str, Any] = {
@@ -77,6 +79,8 @@ _PERFIL_DOBLE_85x30: dict[str, Any] = {
     'mostrar_precio_lista': True,
     'mostrar_precio_mayoreo': True,
     'impresora_nombre': '',
+    'impresora_host': '',
+    'impresora_puerto': 9100,
 }
 
 PERFILES_ZEBRA: dict[str, dict[str, Any]] = {
@@ -110,6 +114,20 @@ def _merge_config_desde_raw(raw: dict[str, Any]) -> dict[str, Any]:
 
 def mm_a_dots(mm: float, dpi: int = 203) -> int:
     return max(1, int(round(float(mm) / 25.4 * int(dpi))))
+
+
+def _zpl_usar_ci28() -> bool:
+    """GX420d antigua: ^CI28 puede hacer que el firmware imprima ZPL como texto plano."""
+    v = (os.getenv('ZEBRA_ZPL_CI28') or '0').strip().lower()
+    return v in ('1', 'true', 'yes', 'on')
+
+
+def _cabecera_zpl_partes(pw: int, ll: int) -> list[str]:
+    partes = ['^XA']
+    if _zpl_usar_ci28():
+        partes.append('^CI28')
+    partes.extend([f'^PW{pw}', f'^LL{ll}', '^LH0,0'])
+    return partes
 
 
 def zpl_escape(texto: str) -> str:
@@ -397,7 +415,7 @@ def generar_zpl_strip_doble(
     x_col2 = mm_a_dots(_offset_columna2_mm(c), dpi) + margen_x
     max_chars = _max_chars_por_ancho_mm(col_w_mm)
 
-    partes = ['^XA', '^CI28', f'^PW{pw}', f'^LL{ll}', '^LH0,0']
+    partes = _cabecera_zpl_partes(pw, ll)
     if fila1:
         _agregar_campos_etiqueta(
             partes, fila1, x_col1, y0, c, variante=variante, max_chars=max_chars, ancho_col_mm=col_w_mm
@@ -448,7 +466,7 @@ def generar_zpl_etiqueta(
     y0 = mm_a_dots(float(c.get('margen_y_mm') or 2), dpi)
     max_chars = _max_chars_por_ancho_mm(float(c.get('ancho_mm') or 50))
 
-    partes = ['^XA', '^CI28', f'^PW{pw}', f'^LL{ll}', '^LH0,0']
+    partes = _cabecera_zpl_partes(pw, ll)
     _agregar_campos_etiqueta(partes, fila, x0, y0, c, variante=variante, max_chars=max_chars)
     partes.append('^XZ')
     return '\n'.join(partes)
@@ -490,6 +508,23 @@ def nombre_impresora_zebra(cfg: dict[str, Any] | None = None) -> str:
     if cfg and (cfg.get('impresora_nombre') or '').strip():
         return str(cfg['impresora_nombre']).strip()
     return (os.getenv('ZEBRA_IMPRESORA_NOMBRE') or os.getenv('ETIQUETAS_ZEBRA_IMPRESORA') or '').strip()
+
+
+def host_impresora_zebra(cfg: dict[str, Any] | None = None) -> str:
+    c = cfg or cargar_config_etiqueta_zebra()
+    return (
+        (os.getenv('ZEBRA_ZPL_HOST') or os.getenv('ZEBRA_IMPRESORA_HOST') or '').strip()
+        or str(c.get('impresora_host') or '').strip()
+    )
+
+
+def puerto_impresora_zebra(cfg: dict[str, Any] | None = None) -> int:
+    c = cfg or cargar_config_etiqueta_zebra()
+    raw = os.getenv('ZEBRA_ZPL_PORT') or c.get('impresora_puerto') or 9100
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 9100
 
 
 def _coincidir_cola_zebra(pref: str, candidatos: list[str]) -> str | None:
@@ -555,7 +590,11 @@ def imprimir_zpl_en_zebra(zpl: str, *, impresora: str | None = None, cfg: dict[s
         sel, _, _ = impresora_para_panel(c)
         nombre = sel
     nombre = nombre or None
-    res = enviar_raw_zpl(zpl.encode('utf-8', errors='replace'), nombre)
+    host = host_impresora_zebra(c) or None
+    if host:
+        os.environ.setdefault('ZEBRA_ZPL_HOST', host)
+        os.environ.setdefault('ZEBRA_ZPL_PORT', str(puerto_impresora_zebra(c)))
+    res = enviar_raw_zpl(zpl.encode('ascii', errors='replace'), nombre, host=host)
     if res.get('ok'):
         res['tipo'] = 'zebra_zpl'
     return res

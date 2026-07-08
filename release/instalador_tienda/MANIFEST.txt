@@ -1,7 +1,0 @@
-stamp=20260601_001534
-commit=135e4641bea2636cddb77f2e165075ce738207f2
-branch=main
-message=fix(caja): estabilizar flujo TV y SLA de vales pendientes
-dump=piloto_sd_ferreteria_20260601_001534.dump
-generated=20260601_001534
-remote=https://github.com/mariobec/FERRETERIA.git

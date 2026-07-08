@@ -1,0 +1,51 @@
+---
+description: Fase -1/-0 Go-Live — estabilizar legacy; prohibir arquitectura; backlog obligatorio
+alwaysApply: true
+---
+
+# Fase -1 / -0 — Producción (estabilización)
+
+**Contexto:** Go-live en semanas. Prioridad = **reducir riesgo**, no reconstruir.
+
+## Rol Cursor
+
+Arquitecto Técnico + **PMO** — programar cuando corresponde; **documentar siempre**.
+
+## Línea A (100%) — Legacy
+
+**Permitido:**
+- Bugs críticos/altos
+- Rendimiento que bloquea piso
+- Funcionalidades **P0 go-live** ya comprometidas
+- UX bloqueante
+- Logs diagnóstico
+- Tests smoke en flujos críticos (POS, caja, retiros, FE si aplica)
+- Checkpoint git antes de flujos POS/caja/UI visibles
+
+**Prohibido hasta gate Clean:**
+- Refactors arquitectónicos, mover carpetas, extraer modelos de `app.py`
+- Alembic, FastAPI, cambio ORM
+- Cambios de esquema BD salvo hotfix imprescindible documentado
+- Iniciar repo **LhexiaERP-Clean**
+
+## Política oficial — Product Backlog
+
+> Toda funcionalidad nueva **no imprescindible** para go-live → `docs/governance/PRODUCT_BACKLOG.md`.  
+> **No desarrollar** en Legacy durante Fase -1 / -0.
+
+Respuesta a “aprovechemos de agregar…”: **“Se registra para v2 / Clean.”**
+
+## DoD Fase -1 (legacy)
+
+Fix + test smoke si crítico + sin refactor colateral + actualizar:
+- `docs/governance/CHANGELOG.md`
+- bitácora `docs/governance/daily/`
+- `RISKS.md` / backlog si aplica
+
+## Línea B (paralelo)
+
+Documentar en `docs/governance/` — ADR, roadmap, deuda, KPIs, gate Clean. **Sin tocar lógica de negocio legacy** salvo P0.
+
+## Referencia
+
+Plan completo: `docs/governance/PLAN_MAESTRO.md`

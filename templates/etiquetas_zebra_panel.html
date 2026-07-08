@@ -225,8 +225,9 @@
     configUrl: {{ url_for('api_etiquetas_zebra_config')|tojson }},
     previewUrl: {{ url_for('api_etiquetas_zebra_preview')|tojson }},
     printUrl: {{ url_for('api_etiquetas_zebra_imprimir')|tojson }},
-    downloadUrl: {{ url_for('api_etiquetas_zebra_descargar')|tojson }}
+    downloadUrl: {{ url_for('api_etiquetas_zebra_descargar')|tojson }},
+    autoImprimir: {{ auto_imprimir|default(false)|tojson }}
   };
 </script>
-<script src="{{ url_for('static', filename='js/etiquetas-zebra.js') }}?v=11"></script>
+<script src="{{ url_for('static', filename='js/etiquetas-zebra.js') }}?v=12"></script>
 {% endblock %}

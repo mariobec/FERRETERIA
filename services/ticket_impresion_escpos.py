@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
+import tempfile
 from typing import Any
 
 ESC = b'\x1b'
@@ -285,6 +287,118 @@ def listar_impresoras_windows() -> list[str]:
         return []
 
 
+def _zpl_preferir_copy_b() -> bool:
+    """COPY /b alternativo; en algunos PCs win32 RAW es el que realmente imprime."""
+    v = (os.getenv('ZEBRA_ZPL_METODO') or 'win32').strip().lower()
+    return v in ('copy', 'copy_b')
+
+
+def _zebra_zpl_host() -> str:
+    return (os.getenv('ZEBRA_ZPL_HOST') or os.getenv('ZEBRA_IMPRESORA_HOST') or '').strip()
+
+
+def _zebra_zpl_port() -> int:
+    raw = (os.getenv('ZEBRA_ZPL_PORT') or '9100').strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return 9100
+
+
+def _zpl_metodo_tcp_forzado() -> bool:
+    return (os.getenv('ZEBRA_ZPL_METODO') or '').strip().lower() == 'tcp'
+
+
+def _enviar_zpl_tcp(data: bytes, host: str | None = None, port: int | None = None) -> dict[str, Any]:
+    """ZPL directo por RJ45 / red (puerto RAW 9100 típico en Zebra)."""
+    import socket
+
+    h = (host or _zebra_zpl_host()).strip()
+    p = int(port or _zebra_zpl_port())
+    if not h:
+        return {'ok': False, 'error': 'sin_host', 'mensaje': 'Configure ZEBRA_ZPL_HOST (IP de la impresora).'}
+    payload = _zpl_a_bytes(data)
+    try:
+        with socket.create_connection((h, p), timeout=10) as sock:
+            sock.sendall(payload)
+        return {'ok': True, 'metodo': 'tcp_zpl', 'host': h, 'port': p, 'bytes': len(payload)}
+    except Exception as ex:
+        return {
+            'ok': False,
+            'error': 'tcp_zpl',
+            'mensaje': str(ex)[:300],
+            'host': h,
+            'port': p,
+        }
+
+
+def _zpl_a_bytes(data: bytes | str) -> bytes:
+    if isinstance(data, bytes):
+        raw = data
+    else:
+        raw = (data or '').encode('ascii', errors='replace')
+    if not raw.startswith(b'^XA'):
+        raw = b'^XA\n' + raw
+    if not raw.rstrip().endswith(b'^XZ'):
+        raw = raw.rstrip() + b'\n^XZ\n'
+    return raw
+
+
+def _enviar_raw_copy_b(data: bytes, printer_name: str) -> dict[str, Any]:
+    """Envía binario a cola Windows con COPY /b (recomendado Zebra ZPL)."""
+    nombre = (printer_name or '').strip()
+    if not nombre:
+        return {'ok': False, 'error': 'sin_nombre', 'mensaje': 'Sin nombre de impresora.'}
+    path = ''
+    try:
+        fd, path = tempfile.mkstemp(suffix='.zpl', prefix='lhexia_')
+        os.write(fd, data)
+        os.close(fd)
+        cmd = ['cmd', '/c', 'copy', '/b', path, nombre]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            err = (proc.stderr or proc.stdout or '').strip()[:300]
+            return {'ok': False, 'error': 'copy_b', 'mensaje': err or 'COPY /b falló', 'impresora': nombre}
+        return {'ok': True, 'impresora': nombre, 'bytes': len(data), 'metodo': 'copy_b'}
+    except Exception as ex:
+        return {'ok': False, 'error': 'copy_b', 'mensaje': str(ex)[:300], 'impresora': nombre}
+    finally:
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+def _escribir_raw_win32(data: bytes, printer_name: str, *, titulo: str = 'LhexIA RAW') -> dict[str, Any]:
+    """WritePrinter con DOC_INFO nivel 2 (datatype RAW explícito)."""
+    try:
+        import win32print
+    except ImportError:
+        return {'ok': False, 'error': 'pywin32', 'mensaje': 'Instale pywin32: pip install pywin32'}
+
+    hprinter = None
+    try:
+        hprinter = win32print.OpenPrinter(printer_name)
+        # Nivel 1 + tupla RAW (compatible pywin32; el dict nivel 2 falla en algunos builds).
+        win32print.StartDocPrinter(hprinter, 1, (titulo, None, 'RAW'))
+        try:
+            win32print.StartPagePrinter(hprinter)
+            win32print.WritePrinter(hprinter, data)
+            win32print.EndPagePrinter(hprinter)
+        finally:
+            win32print.EndDocPrinter(hprinter)
+        return {'ok': True, 'impresora': printer_name, 'bytes': len(data), 'metodo': 'win32_raw'}
+    except Exception as ex:
+        return {'ok': False, 'error': 'impresion', 'mensaje': str(ex)[:300], 'impresora': printer_name}
+    finally:
+        if hprinter:
+            try:
+                win32print.ClosePrinter(hprinter)
+            except Exception:
+                pass
+
+
 def _impresora_abrible(nombre: str) -> bool:
     """True si la cola existe y no es puerto FILE (sin enviar trabajo de prueba al spooler)."""
     info = describir_cola_impresora(nombre)
@@ -313,7 +427,14 @@ def describir_cola_impresora(nombre: str) -> dict[str, Any]:
         driver = (info.get('pDriverName') or '').strip()
         out['puerto'] = port
         out['driver'] = driver
+        out['print_processor'] = (info.get('pPrintProcessor') or '').strip()
         out['abrible'] = True
+        proc = (out.get('print_processor') or '').lower()
+        if proc and proc != 'winprint':
+            out['advertencias'].append(
+                f'Procesador de impresión «{out["print_processor"]}» — en Propiedades → Avanzado '
+                'debe ser WinPrint para ZPL RAW.'
+            )
         port_u = port.upper()
         if port_u.startswith('FILE:'):
             out['abrible'] = False
@@ -588,12 +709,21 @@ def enviar_raw_escpos(data: bytes, printer_name: str | None = None) -> dict[str,
                 pass
 
 
-def enviar_raw_zpl(data: bytes, printer_name: str | None = None) -> dict[str, Any]:
-    """Envía ZPL RAW solo a cola Zebra (no XP-80 / POS)."""
+def enviar_raw_zpl(data: bytes, printer_name: str | None = None, *, host: str | None = None) -> dict[str, Any]:
+    """Envía ZPL RAW a Zebra: TCP (RJ45) si hay host, si no cola Windows."""
     if sys.platform != 'win32':
         return {'ok': False, 'error': 'plataforma', 'mensaje': 'Solo Windows (PC tienda).'}
     if not data:
         return {'ok': False, 'error': 'vacio', 'mensaje': 'Sin datos para imprimir.'}
+
+    host_tcp = (host or _zebra_zpl_host()).strip()
+    if host_tcp or _zpl_metodo_tcp_forzado():
+        res_tcp = _enviar_zpl_tcp(data, host=host_tcp or None)
+        if res_tcp.get('ok') or _zpl_metodo_tcp_forzado():
+            if res_tcp.get('ok'):
+                res_tcp['tipo'] = 'zebra_zpl'
+            return res_tcp
+
     explicit = (printer_name or '').strip()
     if explicit and not _es_cola_zebra(explicit):
         return {
@@ -643,32 +773,28 @@ def enviar_raw_zpl(data: bytes, printer_name: str | None = None) -> dict[str, An
             'driver': desc.get('driver') or '',
         }
 
-    hprinter = None
-    try:
-        hprinter = win32print.OpenPrinter(nombre)
-        job = win32print.StartDocPrinter(hprinter, 1, ('LhexIA ZPL', None, 'RAW'))
-        try:
-            win32print.StartPagePrinter(hprinter)
-            win32print.WritePrinter(hprinter, data)
-            win32print.EndPagePrinter(hprinter)
-        finally:
-            win32print.EndDocPrinter(hprinter)
-        advertencias = list(desc.get('advertencias') or [])
-        res: dict[str, Any] = {
-            'ok': True,
-            'impresora': nombre,
-            'bytes': len(data),
-            'tipo': 'zebra_zpl',
-            'puerto': desc.get('puerto') or '',
-        }
+    payload = _zpl_a_bytes(data)
+    advertencias = list(desc.get('advertencias') or [])
+
+    res = _escribir_raw_win32(payload, nombre, titulo='LhexIA ZPL')
+    if not res.get('ok') and _zpl_preferir_copy_b():
+        res = _enviar_raw_copy_b(payload, nombre)
+    elif not res.get('ok'):
+        res_fb = _enviar_raw_copy_b(payload, nombre)
+        if res_fb.get('ok'):
+            res = res_fb
+        else:
+            res['mensaje'] = (
+                (res.get('mensaje') or 'win32 RAW falló')
+                + ' · copy: '
+                + (res_fb.get('mensaje') or 'error')
+            )
+
+    if res.get('ok'):
+        res['tipo'] = 'zebra_zpl'
+        res['puerto'] = desc.get('puerto') or ''
         if advertencias:
             res['advertencia'] = advertencias[0]
         return res
-    except Exception as ex:
-        return {'ok': False, 'error': 'impresion', 'mensaje': str(ex)[:300], 'impresora': nombre}
-    finally:
-        if hprinter:
-            try:
-                win32print.ClosePrinter(hprinter)
-            except Exception:
-                pass
+    res['impresora'] = nombre
+    return res

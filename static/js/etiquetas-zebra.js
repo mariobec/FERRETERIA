@@ -285,4 +285,16 @@
   if (zplActual) {
     renderPreview(zplActual, cfgDesdeForm());
   }
+
+  if (ctx.autoImprimir && ctx.filas && ctx.filas.length) {
+    refrescarZpl(true)
+      .then(function (res) {
+        if (res && res.ok) {
+          var msg = 'Etiqueta enviada a: ' + (res.impresora || 'Zebra');
+          if (res.advertencia) msg += '\n\n' + res.advertencia;
+          alert(msg);
+        }
+      })
+      .catch(function (e) { alert(e.message || e); });
+  }
 })();

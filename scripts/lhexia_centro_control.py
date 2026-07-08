@@ -18,8 +18,8 @@ import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
-APP_TITLE = "LhexIA ERP — Centro de Control"
-APP_VERSION = "1.1.0"
+APP_TITLE = "LhexIA Control"
+APP_VERSION = "1.2.0"
 CREATE_NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
 
 
@@ -29,7 +29,13 @@ def _is_frozen() -> bool:
 
 def find_instalacion_root() -> Path:
     if _is_frozen():
-        return Path(sys.executable).resolve().parent
+        exe_dir = Path(sys.executable).resolve().parent
+        if (exe_dir / "paquete").is_dir() or (exe_dir / "02_Iniciar_ERP.bat").is_file():
+            return exe_dir
+        nested = exe_dir / "INSTALACION"
+        if nested.is_dir():
+            return nested
+        return exe_dir
     return Path(__file__).resolve().parent.parent / "INSTALACION"
 
 
@@ -115,6 +121,44 @@ def _port_listening(port: int) -> bool:
         return False
     needle = f":{port} "
     return any(needle in ln and "LISTENING" in ln for ln in out.splitlines())
+
+
+def _start_postgres() -> str:
+    try:
+        out = subprocess.check_output(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "$msgs = @(); "
+                "Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue | ForEach-Object { "
+                "  if ($_.Status -ne 'Running') { "
+                "    try { Start-Service $_.Name -ErrorAction Stop; $msgs += \"Iniciado: $($_.Name)\" } "
+                "    catch { $msgs += \"Error $($_.Name): $($_.Exception.Message)\" } "
+                "  } else { $msgs += \"Ya activo: $($_.Name)\" } "
+                "}; "
+                "if (-not $msgs) { 'No se encontro servicio postgresql*' } else { $msgs -join ' · ' }",
+            ],
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        ).strip()
+        return out or "PostgreSQL: sin respuesta"
+    except Exception as exc:
+        return f"Error al iniciar PostgreSQL: {exc}"
+
+
+def _ollama_status() -> str:
+    port_ok = _port_listening(11434)
+    if port_ok:
+        return "Ollama local: activo (puerto 11434)"
+    env_url = (os.getenv("VITRINA_OLLAMA_BASE_URL") or "").strip()
+    if env_url and "127.0.0.1" not in env_url and "localhost" not in env_url.lower():
+        return f"Ollama remoto configurado: {env_url}"
+    if (os.getenv("VITRINA_OLLAMA_ENABLED") or "").strip() in ("1", "true", "yes"):
+        return "Ollama: configurado pero puerto 11434 inactivo"
+    return "Ollama: no requerido / desactivado"
 
 
 def _postgres_status() -> str:
@@ -245,7 +289,7 @@ class CentroControlApp(tk.Tk):
         pad = {"padx": 10, "pady": 4}
         header = ttk.Frame(self)
         header.pack(fill="x", **pad)
-        ttk.Label(header, text="LhexIA ERP", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(header, text="LhexIA Control", font=("Segoe UI", 16, "bold")).pack(anchor="w")
         ttk.Label(
             header,
             text=f"Centro de Control v{APP_VERSION}  ·  INSTALACION: {INSTALACION_ROOT}",
@@ -259,10 +303,24 @@ class CentroControlApp(tk.Tk):
         self.lbl_pg.pack(anchor="w")
         self.lbl_erp = ttk.Label(status, text="Servidor ERP: …")
         self.lbl_erp.pack(anchor="w")
+        self.lbl_ollama = ttk.Label(status, text="Ollama: …")
+        self.lbl_ollama.pack(anchor="w")
         self.lbl_urls = ttk.Label(status, text="URLs tablet: …", wraplength=760)
         self.lbl_urls.pack(anchor="w", pady=(4, 0))
         ttk.Button(status, text="Actualizar estado", command=self.refresh_status).pack(
             anchor="e", pady=(6, 0)
+        )
+
+        svc = ttk.LabelFrame(self, text="Servicios (base de datos y servidores)", padding=8)
+        svc.pack(fill="x", **pad)
+        self._btn_row(
+            svc,
+            [
+                ("Iniciar todo", self.start_all, "PostgreSQL + servidor ERP"),
+                ("Iniciar PostgreSQL", self.start_postgres, "Servicio postgresql*"),
+                ("Iniciar ERP", self.start_erp, "Flask en puerto 5000"),
+                ("Detener ERP", self.stop_erp, "Libera el puerto 5000"),
+            ],
         )
 
         ops = ttk.LabelFrame(self, text="Operacion diaria", padding=8)
@@ -270,8 +328,6 @@ class CentroControlApp(tk.Tk):
         self._btn_row(
             ops,
             [
-                ("Iniciar ERP", self.start_erp, "Abre el servidor"),
-                ("Detener ERP", self.stop_erp, "Libera el puerto 5000"),
                 ("Abrir en PC", lambda: webbrowser.open("http://127.0.0.1:5000/login"), "Navegador local"),
                 ("Abrir en tablet", self.open_tablet_url, "URL de red WiFi"),
             ],
@@ -352,12 +408,14 @@ class CentroControlApp(tk.Tk):
     def refresh_status(self) -> None:
         def work() -> None:
             pg = _postgres_status()
+            ollama = _ollama_status()
             erp_port = _port_listening(5000)
             health = _healthz_ok() if erp_port else False
             urls = _lan_urls()
 
             def apply() -> None:
                 self.lbl_pg.configure(text=f"PostgreSQL: {pg}")
+                self.lbl_ollama.configure(text=ollama)
                 if health:
                     erp_txt = "Servidor ERP: activo (healthz OK)"
                 elif erp_port:
@@ -374,13 +432,46 @@ class CentroControlApp(tk.Tk):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def start_postgres(self) -> None:
+        def work() -> None:
+            msg = _start_postgres()
+
+            def apply() -> None:
+                self._log(msg)
+                self.refresh_status()
+
+            self.after(0, apply)
+
+        self._log("[...] Iniciando PostgreSQL...")
+        threading.Thread(target=work, daemon=True).start()
+
     def start_erp(self) -> None:
         try:
             _run_bat("02_Iniciar_ERP.bat")
-            self._log("[OK] Iniciando servidor...")
+            self._log("[OK] Iniciando servidor ERP...")
             self.after(3000, self.refresh_status)
         except Exception as exc:
             messagebox.showerror(APP_TITLE, str(exc))
+
+    def start_all(self) -> None:
+        def work() -> None:
+            pg_msg = _start_postgres()
+            self.after(0, lambda: self._log(pg_msg))
+            if _port_listening(5432):
+                self.after(0, self.start_erp)
+            else:
+                self.after(
+                    0,
+                    lambda: messagebox.showwarning(
+                        APP_TITLE,
+                        "PostgreSQL no respondio en puerto 5432.\n"
+                        "Revise el servicio o ejecute la instalacion completa.",
+                    ),
+                )
+            self.after(4000, self.refresh_status)
+
+        self._log("[...] Iniciando PostgreSQL y ERP...")
+        threading.Thread(target=work, daemon=True).start()
 
     def stop_erp(self) -> None:
         if not messagebox.askyesno(APP_TITLE, "Detener el servidor ERP en puerto 5000?"):

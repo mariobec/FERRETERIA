@@ -26,5 +26,5 @@
   "portal_gastos_op_mensual_clp": "8000000",
   "portal_activos_fijos_clp": "0",
   "portal_meta_ventas_anual_clp": "0",
-  "url_red_erp": "http://192.168.7.12:5000"
+  "url_red_erp": "http://192.168.1.2:5000"
 }

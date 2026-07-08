@@ -449,8 +449,8 @@
           <a href="{{ url_for('exportar_productos_excel') }}{% if url_filtros_qs %}?{{ url_filtros_qs }}&amp;solo_enrolados=1{% else %}?solo_enrolados=1{% endif %}" class="btn btn-sm btn-outline-success">
             <i class="fas fa-file-excel me-1"></i>Excel
           </a>
-          <a href="{{ url_for('imprimir_etiquetas_enrolamiento') }}{% if url_filtros_qs %}?{{ url_filtros_qs }}&amp;solo_enrolados=1{% else %}?solo_enrolados=1{% endif %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
-            <i class="fas fa-tags me-1"></i>Etiquetas
+          <a href="{% if zebra_etiquetas_habilitada %}{{ url_for('panel_etiquetas_zebra_enrolamiento') }}{% if url_filtros_qs %}?{{ url_filtros_qs }}&amp;solo_enrolados=1{% else %}?solo_enrolados=1{% endif %}{% else %}{{ url_for('imprimir_etiquetas_enrolamiento') }}{% if url_filtros_qs %}?{{ url_filtros_qs }}&amp;solo_enrolados=1{% else %}?solo_enrolados=1{% endif %}{% endif %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">
+            <i class="fas fa-tags me-1"></i>{% if zebra_etiquetas_habilitada %}Etiquetas Zebra{% else %}Etiquetas{% endif %}
           </a>
           {% if usuario_tiene_permiso('pos_emitir_vale') %}
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalFotoSkuInv">
@@ -701,7 +701,11 @@
               <a href="{{ url_for('revision_precios', q=p.codigo_barra or p.codigo_interno or p.nombre) }}" class="btn btn-outline-secondary" title="Márgenes"><i class="fas fa-tags"></i></a>
               {% endif %}
               {% if p.tiene_enrolamiento %}
+              {% if zebra_etiquetas_habilitada %}
+              <a href="{{ url_for('panel_etiquetas_zebra_enrolamiento', ids=p.id, auto_imprimir=1) }}" class="btn btn-outline-primary" target="_blank" rel="noopener" title="Etiqueta Zebra"><i class="fas fa-tag"></i></a>
+              {% else %}
               <a href="{{ url_for('imprimir_etiquetas_enrolamiento', ids=p.id, auto_print='0') }}" class="btn btn-outline-primary" target="_blank" rel="noopener" title="Etiqueta"><i class="fas fa-tag"></i></a>
+              {% endif %}
               {% endif %}
             </div>
           </div>

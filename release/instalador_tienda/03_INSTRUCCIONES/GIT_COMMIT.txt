@@ -1,6 +1,0 @@
-﻿commit=135e4641bea2636cddb77f2e165075ce738207f2
-branch=main
-message=fix(caja): estabilizar flujo TV y SLA de vales pendientes
-remote=https://github.com/mariobec/FERRETERIA.git
-generated=20260601_001534
-working_tree_dirty=True

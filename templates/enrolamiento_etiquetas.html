@@ -9,10 +9,17 @@
     .header { margin-bottom: 12px; }
     .header h2 { margin: 0 0 4px 0; font-size: 1.15rem; }
     .header-meta { font-size: 0.85rem; color: #475569; }
-    .header-actions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
-    .header-actions button {
+    .header-actions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .header-actions button, .header-actions a.btn-zebra {
       border: 1px solid #cbd5e1; background: #fff; border-radius: 8px;
-      padding: 6px 12px; cursor: pointer; font-size: 0.9rem;
+      padding: 6px 12px; cursor: pointer; font-size: 0.9rem; text-decoration: none; color: inherit;
+    }
+    .btn-zebra-primary {
+      border-color: #0ea5e9 !important; background: #e0f2fe !important; color: #0369a1 !important; font-weight: 700;
+    }
+    .zebra-banner {
+      background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; padding: 8px 10px;
+      font-size: 0.85rem; color: #9a3412; margin-bottom: 10px;
     }
     .labels {
       display: grid;
@@ -57,10 +64,22 @@
   <div class="header no-print">
     <h2>{{ titulo or 'Etiquetas enrolados' }}</h2>
     <div class="header-meta">{{ origen or '' }} · {{ total_etiquetas or 0 }} etiqueta(s) · {{ cantidad_por_producto or 1 }} copia(s) c/u</div>
+    {% if zebra_etiquetas_habilitada %}
+    <div class="zebra-banner">
+      <strong>Zebra GX420d:</strong> use el botón verde «Imprimir en Zebra». El botón del navegador parte la etiqueta en varias hojas.
+    </div>
+    {% endif %}
     <div class="header-actions">
-      <button type="button" onclick="window.print()">Imprimir (navegador · suele ser 80 mm)</button>
+      {% if zebra_etiquetas_habilitada %}
+      <button type="button" class="btn-zebra btn-zebra-primary" id="btnEtiquetaZebra">Imprimir en Zebra (ZPL)</button>
       <a href="{{ url_for('panel_etiquetas_zebra_enrolamiento') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% else %}?solo_enrolados=1{% endif %}"
-         style="border:1px solid #0ea5e9;color:#0369a1;border-radius:8px;padding:6px 12px;text-decoration:none;font-size:.9rem;">Zebra GX420d (ZPL)</a>
+         class="btn-zebra">Calibrar Zebra…</a>
+      <button type="button" onclick="window.print()" title="Solo XP-80 / impresora láser A4">Vista navegador (no Zebra)</button>
+      {% else %}
+      <button type="button" onclick="window.print()">Imprimir (navegador · XP-80 / láser)</button>
+      <a href="{{ url_for('panel_etiquetas_zebra_enrolamiento') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% else %}?solo_enrolados=1{% endif %}"
+         class="btn-zebra">Zebra GX420d (ZPL)</a>
+      {% endif %}
       <button type="button" onclick="window.close()">Cerrar</button>
     </div>
   </div>
@@ -105,6 +124,36 @@
   <script src="{{ url_for('static', filename='vendor/jsbarcode/JsBarcode.all.min.js') }}"></script>
   <script>
     (function () {
+      var zebraOn = {{ zebra_etiquetas_habilitada|default(false)|tojson }};
+      var zebraPrintUrl = {{ url_for('api_etiquetas_zebra_imprimir_lote')|tojson }};
+      var idsRaw = {{ (ids_raw or '')|tojson }};
+      var sesionId = {{ sesion_id|tojson }};
+      var cantidad = {{ cantidad_por_producto|default(1)|tojson }};
+      var autoPrint = {{ auto_print|default(false)|tojson }};
+
+      function imprimirZebra() {
+        var payload = { variante: 'enrolamiento', cantidad: cantidad };
+        if (idsRaw) payload.ids = idsRaw;
+        else if (sesionId) payload.sesion_id = sesionId;
+        else {
+          alert('Sin productos para imprimir.');
+          return Promise.resolve();
+        }
+        return fetch(zebraPrintUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload)
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          if (!res || !res.ok) throw new Error((res && res.mensaje) || 'No se pudo imprimir');
+          var msg = 'Etiqueta enviada a: ' + (res.impresora || 'Zebra');
+          if (res.total_etiquetas && res.total_etiquetas > 1) {
+            msg = res.total_etiquetas + ' etiquetas enviadas a: ' + (res.impresora || 'Zebra');
+          }
+          alert(msg);
+        });
+      }
+
       document.querySelectorAll('svg.barcode').forEach(function (el) {
         var val = (el.getAttribute('data-barcode') || el.getAttribute('jsbarcode-value') || '').trim();
         if (!val || typeof window.JsBarcode === 'undefined') return;
@@ -120,9 +169,20 @@
           el.outerHTML = '<div class="code" style="color:#b91c1c">Código no válido</div>';
         }
       });
-      {% if auto_print %}
-      window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 400); });
-      {% endif %}
+
+      var btnZ = document.getElementById('btnEtiquetaZebra');
+      if (btnZ) btnZ.addEventListener('click', function () {
+        imprimirZebra().catch(function (e) { alert(e.message || e); });
+      });
+
+      window.addEventListener('load', function () {
+        if (!autoPrint) return;
+        if (zebraOn) {
+          imprimirZebra().catch(function (e) { alert(e.message || e); });
+        } else {
+          setTimeout(function () { window.print(); }, 400);
+        }
+      });
     })();
   </script>
 </body>

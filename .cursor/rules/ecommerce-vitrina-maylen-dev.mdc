@@ -45,7 +45,7 @@ Catálogo → carrito → Ir a pagar
 | Bandeja ERP | `blueprints/ecommerce.py`, `services/ecommerce_pedidos_service.py` |
 | UI | `templates/tienda/includes/carrito_vitrina_shell.html`, `static/js/tienda-vitrina.js`, `static/css/tienda-vitrina.css` |
 | Pago resultado | `templates/tienda/pago_resultado.html` |
-| Plan | `PLAN_ECOM_PILOTO_v0.md` |
+| Plan | `docs/planes/02-producto-lhexia/PLAN_ECOM_PILOTO_v0.md` |
 | Tests smoke | `tests/test_tienda_publica.py`, `tests/test_ecommerce_bandeja.py` (17 smoke) |
 
 ## Variables DEV (habilitado para pruebas)
