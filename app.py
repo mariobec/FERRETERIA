@@ -3436,11 +3436,11 @@ def _enrol_normalizar_codigo(c):
     return (c or '').strip()
 
 
-def _enrol_buscar_producto_por_codigo(codigo):
-    """Misma cadena que POS: alias → barras/interno → variantes EAN → Chilemat."""
-    from services.catalogo_resolucion_codigo_service import buscar_producto_por_codigo_escaneado
+def _enrol_resolver_codigo_escaneado(codigo):
+    """Resolución unificada pistola → producto (exacto, alias, variantes EAN sin colapsar SKUs)."""
+    from services.catalogo_resolucion_codigo_service import resolver_codigo_escaneado
 
-    return buscar_producto_por_codigo_escaneado(
+    return resolver_codigo_escaneado(
         codigo,
         Producto=Producto,
         ProductoCodigoEscaneo=ProductoCodigoEscaneo,
@@ -3448,6 +3448,23 @@ def _enrol_buscar_producto_por_codigo(codigo):
         app=app,
         buscar_chilemat_fn=_producto_por_codigo_chilemat_escaneo,
     )
+
+
+def _enrol_candidatos_ambiguos_json(productos):
+    out = []
+    for p in productos or []:
+        out.append({
+            'id': int(p.id),
+            'nombre': (p.nombre or '')[:100],
+            'codigo_barra': (p.codigo_barra or '').strip(),
+            'codigo_interno': (p.codigo_interno or '').strip(),
+        })
+    return out
+
+
+def _enrol_buscar_producto_por_codigo(codigo):
+    """Misma cadena que POS: exacto → alias → variantes EAN → Chilemat."""
+    return _enrol_resolver_codigo_escaneado(codigo).get('producto')
 
 
 def _enrol_prefijo_codigo_interno():
@@ -3628,6 +3645,7 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
             })
 
     pe_pos = float(precio_efectivo_pos_producto(producto) or 0)
+    lista_pv = float(producto.precio_venta or 0)
     return {
         'id': producto.id,
         'nombre': producto.nombre,
@@ -3641,6 +3659,8 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
         'precio_venta': float(producto.precio_venta or 0),
         'precio_venta_sd': float(getattr(producto, 'precio_venta_sd', None) or 0),
         'precio_efectivo_pos': pe_pos,
+        'precio_sd_pendiente': bool(lista_pv > 0 and pe_pos <= 0),
+        'precio_lista_sugerido': lista_pv if lista_pv > 0 else 0,
         'precio_compra': float(producto.precio_compra or 0),
         'precio_mayoreo': float(producto.precio_mayoreo or 0),
         'stock_tienda': st_t,
@@ -3658,6 +3678,10 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
         'activo': bool(getattr(producto, 'activo', True)),
         'marca': (getattr(producto, 'marca', None) or '').strip(),
         'tono_color': (getattr(producto, 'tono_color', None) or '').strip(),
+        'ubicacion_pasillo': (getattr(producto, 'ubicacion_pasillo', None) or '').strip(),
+        'ubicacion_estante': (getattr(producto, 'ubicacion_estante', None) or '').strip(),
+        'ubicacion_nivel': (getattr(producto, 'ubicacion_nivel', None) or '').strip(),
+        'ubicacion_codigo': (producto.ubicacion_codigo or '').strip() if hasattr(producto, 'ubicacion_codigo') else '',
     }
 
 
@@ -3718,6 +3742,21 @@ def _enrol_aplicar_marca_tono(producto, data):
                 producto.tono_color = asegurar_tono(producto.tono_color)
         except Exception:
             pass
+
+
+def _enrol_clip_ubic(v):
+    s = (str(v or '')).strip()
+    return s[:12] if s else None
+
+
+def _enrol_aplicar_ubicacion(producto, data):
+    """Pasillo / estante / nivel (columnas productos.ubicacion_*)."""
+    if 'ubicacion_pasillo' in data:
+        producto.ubicacion_pasillo = _enrol_clip_ubic(data.get('ubicacion_pasillo'))
+    if 'ubicacion_estante' in data:
+        producto.ubicacion_estante = _enrol_clip_ubic(data.get('ubicacion_estante'))
+    if 'ubicacion_nivel' in data:
+        producto.ubicacion_nivel = _enrol_clip_ubic(data.get('ubicacion_nivel'))
 
 
 def _enrol_producto_disponible(producto):
@@ -10305,6 +10344,7 @@ def mostrar_productos():
         marcas_catalogo=_marcas_catalogo_lista(),
         tonos_catalogo=_tonos_catalogo_lista(),
         catalogo_pinturas_maestro_ok=_tablas_catalogo_pinturas_maestro_existen(),
+        zebra_etiquetas_habilitada=_zebra_etiquetas_ui_habilitada(),
     )
 
 
@@ -11395,6 +11435,7 @@ def filtrar_productos(tipo):
         puede_editar_stock_admin=_usuario_puede_ajustar_stock(),
         c360_fases_obra=C360_FASE_OBRA_VALORES,
         c360_fase_labels=C360_FASE_OBRA_LABELS,
+        zebra_etiquetas_habilitada=_zebra_etiquetas_ui_habilitada(),
     )
 
 
@@ -11941,7 +11982,19 @@ def api_enrol_procesar_escaneo():
     ses = _enrol_sesion_get_or_404(sesion_id)
     if not ses:
         return jsonify(ok=False, mensaje='Sesión no encontrada.'), 404
-    p = _enrol_buscar_producto_por_codigo(codigo)
+    res_cod = _enrol_resolver_codigo_escaneado(codigo)
+    if res_cod.get('ambiguo'):
+        return jsonify(
+            ok=True,
+            caso='ambiguo',
+            codigo_pendiente=codigo,
+            mensaje=(
+                'Hay varios productos con códigos muy parecidos (ej. uno termina en 0 y otro tiene un dígito más). '
+                'Elegí el producto correcto.'
+            ),
+            candidatos=_enrol_candidatos_ambiguos_json(res_cod.get('candidatos')),
+        )
+    p = res_cod.get('producto')
     if p and not _enrol_producto_disponible(p):
         return jsonify(
             ok=False,
@@ -12398,6 +12451,7 @@ def api_enrol_alta_manual():
         return jsonify(ok=False, mensaje=err_cat), 400
 
     _enrol_aplicar_marca_tono(p, data)
+    _enrol_aplicar_ubicacion(p, data)
 
     mult = _tablas_inventario_almacen_existen()
     aid = _enrol_destino_almacen(
@@ -12477,6 +12531,13 @@ def api_enrol_entrada_stock():
 
     act_precios = bool(data.get('actualizar_precios'))
     if act_precios:
+        if data.get('precio_venta_sd') not in (None, ''):
+            try:
+                psd_in = float(str(data.get('precio_venta_sd')).replace(',', '.'))
+                if psd_in > 0:
+                    p.precio_venta_sd = psd_in
+            except (TypeError, ValueError):
+                pass
         if data.get('precio_venta') not in (None, ''):
             try:
                 pv_in = float(str(data.get('precio_venta')).replace(',', '.'))
@@ -12496,6 +12557,9 @@ def api_enrol_entrada_stock():
                 p.precio_mayoreo = max(0.0, float(str(data.get('precio_mayoreo')).replace(',', '.')))
             except (TypeError, ValueError):
                 pass
+
+    if precio_efectivo_pos_producto(p) <= 0 and float(p.precio_venta or 0) > 0:
+        _pos_aplicar_precio_sd_desde_pos(p, data if act_precios else None)
 
     mult = _tablas_inventario_almacen_existen()
     aid = _enrol_destino_almacen(
@@ -12544,6 +12608,7 @@ def api_enrol_entrada_stock():
                 'stock_en_almacen_destino': (
                     stock_producto_en_almacen(p.id, aid) if (mult and aid) else None
                 ),
+                'precio_venta_sd': float(getattr(p, 'precio_venta_sd', None) or 0),
             },
         )
         db.session.commit()
@@ -12551,6 +12616,62 @@ def api_enrol_entrada_stock():
         db.session.rollback()
         return jsonify(ok=False, mensaje=str(ex)), 400
     return jsonify(producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen))
+
+
+@app.route('/api/enrolamiento/aplicar_precio_lista_sd', methods=['POST'])
+@login_required
+def api_enrol_aplicar_precio_lista_sd():
+    """Copia precio lista → precio_venta_sd si el producto aún no tiene precio POS."""
+    if not _usuario_enrol_autorizado():
+        return jsonify(ok=False, mensaje='No autorizado.'), 403
+    if not _tablas_enrolamiento_existen():
+        return jsonify(ok=False, mensaje='Tablas de enrolamiento no instaladas.'), 503
+    data = request.get_json(silent=True) or {}
+    try:
+        sesion_id = int(data.get('sesion_id'))
+        producto_id = int(data.get('producto_id'))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, mensaje='Datos incompletos.'), 400
+    ses = _enrol_sesion_get_or_404(sesion_id)
+    if not ses:
+        return jsonify(ok=False, mensaje='Sesión no encontrada.'), 404
+    p = Producto.query.get(producto_id)
+    if not p:
+        return jsonify(ok=False, mensaje='Producto no encontrado.'), 404
+    if precio_efectivo_pos_producto(p) > 0:
+        return jsonify(
+            ok=True,
+            producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen),
+            mensaje='El producto ya tiene precio POS.',
+            ya_tenia_precio_sd=True,
+        )
+    res = _pos_aplicar_precio_sd_desde_pos(p, None)
+    if not res.get('ok'):
+        return jsonify(ok=False, mensaje=res.get('mensaje') or 'No se pudo asignar precio POS.', error=res.get('error')), 422
+    try:
+        usr = current_user.nombre if current_user.is_authenticated else None
+        _audit_log(
+            'enrolamiento_aplicar_precio_lista_sd',
+            'producto',
+            p.id,
+            usuario=usr,
+            datos_despues={
+                'sesion_id': ses.id,
+                'precio_venta_sd': res.get('precio_venta_sd'),
+                'origen': res.get('origen_precio_sd'),
+                'precio_lista': float(p.precio_venta or 0),
+            },
+        )
+        db.session.commit()
+    except SQLAlchemyError as ex:
+        db.session.rollback()
+        return jsonify(ok=False, mensaje=str(ex)), 400
+    return jsonify(
+        ok=True,
+        producto=_enrol_serializar_producto(p, ses.id, ses.id_almacen),
+        precio_venta_sd=res.get('precio_venta_sd'),
+        origen_precio_sd=res.get('origen_precio_sd'),
+    )
 
 
 @app.route('/api/enrolamiento/salida_stock', methods=['POST'])
@@ -12677,6 +12798,9 @@ def api_enrol_editar_ficha():
         'precio_mayoreo': float(p.precio_mayoreo or 0),
         'marca': (p.marca or '').strip(),
         'tono_color': (p.tono_color or '').strip(),
+        'ubicacion_pasillo': (p.ubicacion_pasillo or '').strip(),
+        'ubicacion_estante': (p.ubicacion_estante or '').strip(),
+        'ubicacion_nivel': (p.ubicacion_nivel or '').strip(),
     }
 
     p.nombre = nombre[:100]
@@ -12726,6 +12850,7 @@ def api_enrol_editar_ficha():
             p.subcategoria_catalogo_id = None
 
     _enrol_aplicar_marca_tono(p, data)
+    _enrol_aplicar_ubicacion(p, data)
 
     if data.get('precio_venta') not in (None, ''):
         try:
@@ -12774,6 +12899,9 @@ def api_enrol_editar_ficha():
                 'precio_mayoreo': float(p.precio_mayoreo or 0),
                 'marca': (p.marca or '').strip(),
                 'tono_color': (p.tono_color or '').strip(),
+                'ubicacion_pasillo': (p.ubicacion_pasillo or '').strip(),
+                'ubicacion_estante': (p.ubicacion_estante or '').strip(),
+                'ubicacion_nivel': (p.ubicacion_nivel or '').strip(),
             },
         )
         db.session.commit()
@@ -12895,7 +13023,17 @@ def _contexto_vista_enrolamiento(*, prefer_bodega=False):
         'enrol_cat_nombres': enrol_cat_nombres,
         'marcas_catalogo': _marcas_catalogo_lista(),
         'tonos_catalogo': _tonos_catalogo_lista(),
+        'zebra_etiquetas_habilitada': _zebra_etiquetas_ui_habilitada(),
     }
+
+
+def _zebra_etiquetas_ui_habilitada() -> bool:
+    try:
+        from services.etiquetas_zebra_zpl_service import zebra_habilitada
+
+        return bool(zebra_habilitada())
+    except Exception:
+        return True
 
 
 def bodega_enrolador_setup():
@@ -12974,6 +13112,7 @@ def inventario_enrolamiento():
         enrol_cat_nombres=enrol_cat_nombres,
         marcas_catalogo=_marcas_catalogo_lista(),
         tonos_catalogo=_tonos_catalogo_lista(),
+        zebra_etiquetas_habilitada=_zebra_etiquetas_ui_habilitada(),
     )
 
 
@@ -12983,8 +13122,21 @@ def imprimir_etiquetas_enrolamiento():
     """Etiquetas de góndola para productos enrolados: nombre, código de barras y precios."""
     cantidad = request.args.get('cantidad', 1, type=int)
     auto_print = (request.args.get('auto_print') or '1').strip() != '0'
+    usa_html = (request.args.get('html') or '').strip() == '1'
     ids_raw = (request.args.get('ids') or '').strip()
     sesion_id = request.args.get('sesion_id', type=int)
+
+    # Zebra GX420d: ZPL directo — no usar diálogo Imprimir del navegador (parte en hojas).
+    if _zebra_etiquetas_ui_habilitada() and not usa_html:
+        from urllib.parse import urlencode
+
+        args = {k: request.args.get(k) for k in request.args.keys()}
+        args.pop('auto_print', None)
+        if auto_print:
+            args['auto_imprimir'] = '1'
+        qs = urlencode({k: v for k, v in args.items() if v is not None and str(v) != ''})
+        dest = url_for('panel_etiquetas_zebra_enrolamiento')
+        return redirect(dest + ('?' + qs if qs else ''))
 
     productos = []
     titulo = 'Etiquetas — productos enrolados'
@@ -13036,6 +13188,9 @@ def imprimir_etiquetas_enrolamiento():
         total_etiquetas=total_etiquetas,
         cantidad_por_producto=max(1, min(int(cantidad or 1), 50)),
         auto_print=auto_print,
+        zebra_etiquetas_habilitada=_zebra_etiquetas_ui_habilitada(),
+        ids_raw=ids_raw,
+        sesion_id=sesion_id,
     )
 
 
@@ -13927,6 +14082,7 @@ def panel_etiquetas_zebra():
         colas_zebra=colas_zebra,
         impresora_desc=impresora_desc,
         url_volver=url_volver,
+        auto_imprimir=(request.args.get('auto_imprimir') or '').strip() == '1',
     )
 
 
@@ -14018,6 +14174,77 @@ def api_etiquetas_zebra_imprimir():
             ),
         ), 400
     res = imprimir_zpl_en_zebra(zpl, impresora=imp or None, cfg=cfg)
+    return jsonify(res)
+
+
+@app.route('/api/etiquetas/zebra/imprimir_lote', methods=['POST'])
+@login_required
+@permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
+def api_etiquetas_zebra_imprimir_lote():
+    """Imprime etiquetas ZPL directo (enrolamiento/catálogo) sin diálogo del navegador."""
+    from services.etiquetas_zebra_zpl_service import (
+        cargar_config_etiqueta_zebra,
+        generar_zpl_lote,
+        imprimir_zpl_en_zebra,
+        zebra_habilitada,
+    )
+
+    if not zebra_habilitada():
+        return jsonify(ok=False, mensaje='Etiquetas Zebra deshabilitadas (ZEBRA_ETIQUETAS_HABILITADA=0).'), 503
+    data = request.get_json(silent=True) or {}
+    variante = (data.get('variante') or 'enrolamiento').strip()
+    cantidad = max(1, min(int(data.get('cantidad') or 1), 50))
+    ids_raw = data.get('ids')
+    if ids_raw is not None and not isinstance(ids_raw, str):
+        ids_raw = ','.join(str(int(x)) for x in ids_raw if str(x).strip().isdigit())
+    ids_raw = (ids_raw or '').strip() if ids_raw is not None else ''
+    sesion_id = data.get('sesion_id')
+    try:
+        sesion_id = int(sesion_id) if sesion_id is not None else None
+    except (TypeError, ValueError):
+        sesion_id = None
+
+    productos = []
+    if ids_raw:
+        ids_set = {int(x) for x in ids_raw.split(',') if x.strip().isdigit()}
+        if ids_set:
+            productos = Producto.query.filter(Producto.id.in_(list(ids_set))).order_by(Producto.nombre.asc()).all()
+    elif sesion_id and _tablas_enrolamiento_existen():
+        pids = [
+            int(row[0])
+            for row in db.session.query(EnrolamientoTomaLinea.producto_id)
+            .filter_by(sesion_id=int(sesion_id))
+            .distinct()
+            .all()
+        ]
+        if pids:
+            productos = Producto.query.filter(Producto.id.in_(pids)).order_by(Producto.nombre.asc()).all()
+    if not productos:
+        return jsonify(ok=False, mensaje='Sin productos para etiqueta.'), 400
+
+    filas_fn = _filas_etiquetas_enrolamiento if variante == 'enrolamiento' else _filas_etiquetas_catalogo
+    filas = filas_fn(productos, cantidad=cantidad)
+    total_etiquetas = sum(int(f.get('cantidad') or 1) for f in filas)
+    if total_etiquetas > 500:
+        return jsonify(ok=False, mensaje='Demasiadas etiquetas (máx. 500).'), 400
+
+    cfg = cargar_config_etiqueta_zebra()
+    zpl = generar_zpl_lote(filas, cfg, variante=variante)
+    imp = (data.get('impresora') or cfg.get('impresora_nombre') or '').strip()
+    from services.ticket_impresion_escpos import _es_cola_zebra
+
+    if imp and not _es_cola_zebra(imp):
+        return jsonify(
+            ok=False,
+            error='impresora_no_zebra',
+            mensaje=(
+                f'«{imp}» no es cola Zebra. Configure ZEBRA_IMPRESORA_NOMBRE=ZDesigner GX420d '
+                'en .env.local del PC donde corre el ERP.'
+            ),
+        ), 400
+    res = imprimir_zpl_en_zebra(zpl, impresora=imp or None, cfg=cfg)
+    if res.get('ok'):
+        res['total_etiquetas'] = total_etiquetas
     return jsonify(res)
 
 
@@ -17077,45 +17304,10 @@ def _producto_por_codigo_chilemat_escaneo(cnorm: str):
 
 
 def _pos_buscar_producto_por_codigo(codigo):
-    """Resuelve producto por alias POS, código de barras, interno o chilemat (variantes EAN pistola)."""
+    """Resuelve producto (misma cadena que enrolador; None si ambiguo)."""
     if not codigo:
         return None
-
-    from services.producto_codigo_escaneo_service import buscar_producto_por_alias
-
-    p_alias = buscar_producto_por_alias(
-        codigo,
-        Producto=Producto,
-        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
-        db=db,
-        app=app,
-    )
-    if p_alias:
-        return p_alias
-
-    def _por_barra_o_interno(cnorm: str):
-        p = (
-            Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
-            .first()
-        )
-        if p:
-            return p
-        return (
-            Producto.query.filter(
-                Producto.codigo_interno.isnot(None),
-                db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
-            )
-            .first()
-        )
-
-    from services.pos_codigo_escaneo_service import buscar_producto_por_variantes_codigo
-
-    producto, _variant = buscar_producto_por_variantes_codigo(
-        codigo,
-        buscar_fn=_por_barra_o_interno,
-        buscar_chilemat_fn=_producto_por_codigo_chilemat_escaneo,
-    )
-    return producto
+    return _enrol_resolver_codigo_escaneado(codigo).get('producto')
 
 
 def _pos_codigo_escaneo_resolvio_variante(codigo_escaneado: str, producto) -> bool:
@@ -17704,8 +17896,32 @@ def api_pos_escanear_agregar():
             producto = Producto.query.get(int(producto_id_raw))
         except (TypeError, ValueError):
             producto = None
+    res_cod = None
     if not producto and codigo:
-        producto = _pos_buscar_producto_por_codigo(codigo)
+        res_cod = _enrol_resolver_codigo_escaneado(codigo)
+        if res_cod.get('ambiguo'):
+            candidatos = []
+            for p in res_cod.get('candidatos') or []:
+                candidatos.append({
+                    'id': int(p.id),
+                    'nombre': (p.nombre or '').strip(),
+                    'codigo_barra': (p.codigo_barra or '').strip(),
+                    'codigo_interno': (p.codigo_interno or '').strip(),
+                    'stock_tienda': int(stock_disponible_venta_tienda(p) or 0),
+                    'precio': float(precio_efectivo_pos_producto(p) or 0),
+                    'coincidencia': 'codigo_ambiguo',
+                })
+            return jsonify({
+                'ok': False,
+                'error': 'codigo_ambiguo',
+                'codigo': codigo,
+                'mensaje': (
+                    'Varios productos con códigos muy parecidos (ej. EAN con/sin cero final). '
+                    'Elegí el producto correcto.'
+                ),
+                'candidatos': candidatos,
+            }), 409
+        producto = res_cod.get('producto')
     if not producto and not codigo:
         return jsonify({'ok': False, 'error': 'sin_codigo'}), 400
     caja = obtener_caja_activa()
@@ -23063,10 +23279,12 @@ def login():
 
         if request.method == 'POST':
             _seed_permisos_catalogo_si_vacio()
-            correo = request.form.get('correo')
-            password = request.form.get('password')
+            correo = (request.form.get('correo') or '').strip()
+            password = request.form.get('password') or ''
             try:
-                usuario = Usuario.query.filter_by(correo=correo).first()
+                usuario = Usuario.query.filter(
+                    db.func.lower(Usuario.correo) == correo.lower()
+                ).first()
             except SQLAlchemyError as err:
                 app.logger.error('Error de base de datos en POST /login: %s', err)
                 flash(

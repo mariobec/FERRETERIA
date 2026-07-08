@@ -4,7 +4,23 @@ from __future__ import annotations
 from typing import Any, Callable
 
 
-def buscar_producto_por_codigo_escaneado(
+def _por_barra_o_interno(cnorm: str, *, Producto, db):
+    p = (
+        Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
+        .first()
+    )
+    if p:
+        return p
+    return (
+        Producto.query.filter(
+            Producto.codigo_interno.isnot(None),
+            db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
+        )
+        .first()
+    )
+
+
+def resolver_codigo_escaneado(
     codigo: str | None,
     *,
     Producto,
@@ -12,40 +28,40 @@ def buscar_producto_por_codigo_escaneado(
     db,
     app,
     buscar_chilemat_fn: Callable[[str], Any | None],
-) -> Any | None:
+) -> dict[str, Any]:
     """
-    Código maestro EXACTO (barras/interno) → alias POS → variantes EAN → Chilemat.
-    Misma cadena que el mostrador; usar en enrolador y API escáner móvil.
+    Resuelve código pistola → producto maestro.
 
-    El maestro exacto va primero para que un alias viejo no tape el producto real
-    cuando se escanea su propio código de barras (caso 6931598203983 vs alias).
+    Orden: exacto barras/interno → alias POS → variantes EAN (sin colapsar SKUs distintos).
+
+    Retorna dict con claves:
+      producto, ambiguo, candidatos, variante, codigo
     """
-    if not codigo:
-        return None
-
-    def _por_barra_o_interno(cnorm: str):
-        p = (
-            Producto.query.filter(db.func.upper(db.func.trim(Producto.codigo_barra)) == cnorm)
-            .first()
-        )
-        if p:
-            return p
-        return (
-            Producto.query.filter(
-                Producto.codigo_interno.isnot(None),
-                db.func.upper(db.func.trim(Producto.codigo_interno)) == cnorm,
-            )
-            .first()
-        )
-
-    # 1) Coincidencia EXACTA con código maestro (barras/interno) gana sobre cualquier alias.
+    vacio = {
+        'producto': None,
+        'ambiguo': False,
+        'candidatos': [],
+        'variante': None,
+        'codigo': '',
+    }
     cnorm = (codigo or '').strip().upper()
-    if cnorm:
-        p_exacto = _por_barra_o_interno(cnorm)
-        if p_exacto:
-            return p_exacto
+    if not cnorm:
+        return vacio
 
-    # 2) Alias POS (código pistola mapeado manualmente a un maestro).
+    buscar_fn = lambda c: _por_barra_o_interno(c, Producto=Producto, db=db)
+
+    # 1) Coincidencia EXACTA con código maestro (barras/interno).
+    p_exacto = buscar_fn(cnorm)
+    if p_exacto:
+        return {
+            'producto': p_exacto,
+            'ambiguo': False,
+            'candidatos': [],
+            'variante': cnorm,
+            'codigo': cnorm,
+        }
+
+    # 2) Alias POS.
     from services.producto_codigo_escaneo_service import buscar_producto_por_alias
 
     p_alias = buscar_producto_por_alias(
@@ -56,14 +72,56 @@ def buscar_producto_por_codigo_escaneado(
         app=app,
     )
     if p_alias:
-        return p_alias
+        return {
+            'producto': p_alias,
+            'ambiguo': False,
+            'candidatos': [],
+            'variante': cnorm,
+            'codigo': cnorm,
+        }
 
-    # 3) Variantes EAN (ceros, dígito de empaque) + interno + Chilemat.
+    # 3) Variantes EAN — si homologan a 2+ productos distintos → ambiguo (no auto-elegir).
     from services.pos_codigo_escaneo_service import buscar_producto_por_variantes_codigo
 
-    producto, _variant = buscar_producto_por_variantes_codigo(
+    producto, variant, candidatos = buscar_producto_por_variantes_codigo(
         codigo,
-        buscar_fn=_por_barra_o_interno,
+        buscar_fn=buscar_fn,
         buscar_chilemat_fn=buscar_chilemat_fn,
     )
-    return producto
+    if candidatos:
+        return {
+            'producto': None,
+            'ambiguo': True,
+            'candidatos': candidatos,
+            'variante': None,
+            'codigo': cnorm,
+        }
+    return {
+        'producto': producto,
+        'ambiguo': False,
+        'candidatos': [],
+        'variante': variant,
+        'codigo': cnorm,
+    }
+
+
+def buscar_producto_por_codigo_escaneado(
+    codigo: str | None,
+    *,
+    Producto,
+    ProductoCodigoEscaneo,
+    db,
+    app,
+    buscar_chilemat_fn: Callable[[str], Any | None],
+) -> Any | None:
+    """
+    Atajo: retorna producto o None (incluye None si el código es ambiguo entre 2+ maestros).
+    """
+    return resolver_codigo_escaneado(
+        codigo,
+        Producto=Producto,
+        ProductoCodigoEscaneo=ProductoCodigoEscaneo,
+        db=db,
+        app=app,
+        buscar_chilemat_fn=buscar_chilemat_fn,
+    ).get('producto')

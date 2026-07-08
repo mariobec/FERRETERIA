@@ -200,6 +200,38 @@ def test_enrol_alta_manual_asigna_precio_venta_sd(app_client, productos_con_stoc
 
 
 @pytest.mark.smoke
+def test_enrol_editar_ficha_ubicacion(app_client, productos_con_stock):
+    """Editar ficha en enrolamiento persiste pasillo, estante y nivel."""
+    p = productos_con_stock[0]
+    ses = m.EnrolamientoTomaSesion(usuario='qa', id_almacen=m.id_almacen_tienda())
+    db.session.add(ses)
+    db.session.commit()
+    r = app_client.post(
+        '/api/enrolamiento/editar_ficha',
+        json={
+            'sesion_id': ses.id,
+            'producto_id': p.id,
+            'nombre': p.nombre,
+            'ubicacion_pasillo': 'A3',
+            'ubicacion_estante': '12',
+            'ubicacion_nivel': '2',
+        },
+    )
+    assert r.status_code == 200
+    body = r.get_json()
+    prod = body.get('producto') or {}
+    assert prod.get('ubicacion_pasillo') == 'A3'
+    assert prod.get('ubicacion_estante') == '12'
+    assert prod.get('ubicacion_nivel') == '2'
+    assert prod.get('ubicacion_codigo') == 'A3-12-2'
+    db.session.expire(p)
+    p2 = m.Producto.query.get(p.id)
+    assert (p2.ubicacion_pasillo or '') == 'A3'
+    assert (p2.ubicacion_estante or '') == '12'
+    assert (p2.ubicacion_nivel or '') == '2'
+
+
+@pytest.mark.smoke
 def test_enrol_buscar_maestro_usa_motor_pos(app_client, productos_con_stock):
     """buscar_maestro delega en _buscar_productos_json (mismo motor que POS)."""
     p = productos_con_stock[0]

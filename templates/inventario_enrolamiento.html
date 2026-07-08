@@ -379,7 +379,7 @@
       </label>
       <div class="row g-2 enrol-precio-fields d-none">
         <div class="col-4">
-          <label class="small enrol-text-muted">Venta</label>
+          <label class="small enrol-text-muted">Precio POS (góndola)</label>
           <input type="number" class="form-control enrol-in-pv" min="0" step="1" placeholder="—" inputmode="numeric">
         </div>
         <div class="col-4">
@@ -391,7 +391,7 @@
           <input type="number" class="form-control enrol-in-pm" min="0" step="1" placeholder="—" inputmode="numeric">
         </div>
       </div>
-      <p class="small enrol-text-muted mb-0 mt-2">Solo marcar precios si querés sobrescribirlos; si no, dejalos vacíos y sin tilde. <strong>Descontar</strong> resta del almacén elegido (no permite quedar en negativo).</p>
+      <p class="small enrol-text-muted mb-0 mt-2">Si falta precio POS, al sumar stock se copia la lista automáticamente (podés cambiarlo acá). <strong>Descontar</strong> resta del almacén elegido.</p>
     </div>
   </template>
 
@@ -523,6 +523,21 @@
         <label class="small fw-bold">Código Chilemat (opcional)</label>
         <input type="text" id="enrol-manual-chilemat" class="form-control" maxlength="80" autocomplete="off">
       </div>
+      <div class="mb-2">
+        <label class="small fw-bold">Ubicación en tienda</label>
+        <div class="row g-2">
+          <div class="col-4">
+            <input type="text" id="enrol-manual-pasillo" class="form-control" maxlength="12" placeholder="Pasillo" title="Pasillo" autocomplete="off">
+          </div>
+          <div class="col-4">
+            <input type="text" id="enrol-manual-estante" class="form-control" maxlength="12" placeholder="Estante" title="Estante" autocomplete="off">
+          </div>
+          <div class="col-4">
+            <input type="text" id="enrol-manual-nivel" class="form-control" maxlength="12" placeholder="Nivel" title="Nivel" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-text small text-muted">Pasillo · Estante · Nivel — misma ficha que el catálogo de productos.</div>
+      </div>
       <div class="row g-2 mb-2">
         <div class="col-12 col-md-6 mb-3 mb-md-0">
           <label class="small fw-bold">Cantidad inicial</label>
@@ -597,6 +612,21 @@
                  list="enrolTonosMaestro" autocomplete="off">
         </div>
       </div>
+      <div class="mb-2">
+        <label class="small fw-bold">Ubicación en tienda</label>
+        <div class="row g-2">
+          <div class="col-4">
+            <input type="text" id="enrol-edit-pasillo" class="form-control" maxlength="12" placeholder="Pasillo" title="Pasillo" autocomplete="off">
+          </div>
+          <div class="col-4">
+            <input type="text" id="enrol-edit-estante" class="form-control" maxlength="12" placeholder="Estante" title="Estante" autocomplete="off">
+          </div>
+          <div class="col-4">
+            <input type="text" id="enrol-edit-nivel" class="form-control" maxlength="12" placeholder="Nivel" title="Nivel" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-text small text-muted">Pasillo · Estante · Nivel — misma ficha que el catálogo de productos.</div>
+      </div>
       <div class="row g-2 mb-2">
         <div class="col-6 col-md-3">
           <label class="small fw-bold">Precio POS (SD)</label>
@@ -622,6 +652,30 @@
 
 <script>
 (function () {
+  var enrolZebraEtiquetas = {{ zebra_etiquetas_habilitada|default(true)|tojson }};
+  var enrolZebraPrintUrl = {{ url_for('api_etiquetas_zebra_imprimir_lote')|tojson }};
+
+  function enrolImprimirZebraLote(payload) {
+    return fetch(enrolZebraPrintUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify(payload || {})
+    }).then(function (r) { return r.json(); });
+  }
+
+  function enrolMensajeImpresionZebra(res) {
+    if (!res || !res.ok) {
+      alert((res && res.mensaje) || 'No se pudo imprimir en Zebra.');
+      return;
+    }
+    var msg = 'Etiqueta enviada a: ' + (res.impresora || 'Zebra');
+    if (res.total_etiquetas && res.total_etiquetas > 1) {
+      msg = res.total_etiquetas + ' etiquetas enviadas a: ' + (res.impresora || 'Zebra');
+    }
+    if (res.advertencia) msg += '\n\n' + res.advertencia;
+    alert(msg);
+  }
+
   const AC = window.AudioContext || window.webkitAudioContext;
   let audioCtx = null;
   function beep(freq, dur, type) {
@@ -1136,6 +1190,18 @@
         enrolBindDestinoSelect(ds);
         enrolAplicarDestinoEnSelects();
       }
+      if (lastCasoAProducto) {
+        var pe0 = Number(lastCasoAProducto.precio_efectivo_pos != null ? lastCasoAProducto.precio_efectivo_pos : (lastCasoAProducto.precio_venta_sd || 0));
+        var lista0 = Number(lastCasoAProducto.precio_venta || lastCasoAProducto.precio_lista_sugerido || 0);
+        if (pe0 <= 0 && lista0 > 0) {
+          var chk0 = ew.querySelector('.enrol-chk-precio');
+          var pf0 = ew.querySelector('.enrol-precio-fields');
+          var pv0 = ew.querySelector('.enrol-in-pv');
+          if (chk0) chk0.checked = true;
+          if (pf0) pf0.classList.remove('d-none');
+          if (pv0 && !String(pv0.value || '').trim()) pv0.value = String(Math.round(lista0));
+        }
+      }
     }
     if (ENROL_PUEDE_TRASLADO && ENROL_MODO_AVANZADO) {
       var tplT = document.getElementById('enrol-traslado-tpl');
@@ -1204,9 +1270,16 @@
   }
 
   function enrolUrlEtiquetas(p, cantidad) {
-    var base = '/inventario/enrolamiento/etiquetas';
+    var base = enrolZebraEtiquetas
+      ? '/inventario/etiquetas/zebra'
+      : '/inventario/enrolamiento/etiquetas';
     if (!p || !p.id) return base;
-    var q = 'ids=' + encodeURIComponent(String(p.id)) + '&auto_print=1';
+    var q = 'ids=' + encodeURIComponent(String(p.id));
+    if (enrolZebraEtiquetas) {
+      q += '&auto_imprimir=1';
+    } else {
+      q += '&auto_print=1';
+    }
     if (cantidad && parseInt(cantidad, 10) > 1) {
       q += '&cantidad=' + encodeURIComponent(String(parseInt(cantidad, 10)));
     }
@@ -1214,8 +1287,13 @@
   }
 
   function enrolUrlEtiquetasSesion(sid) {
-    if (!sid) return '/inventario/enrolamiento/etiquetas';
-    return '/inventario/enrolamiento/etiquetas?sesion_id=' + encodeURIComponent(String(sid)) + '&auto_print=1';
+    if (!sid) {
+      return enrolZebraEtiquetas ? '/inventario/etiquetas/zebra' : '/inventario/enrolamiento/etiquetas';
+    }
+    var q = 'sesion_id=' + encodeURIComponent(String(sid));
+    q += enrolZebraEtiquetas ? '&auto_imprimir=1' : '&auto_print=1';
+    var base = enrolZebraEtiquetas ? '/inventario/etiquetas/zebra' : '/inventario/enrolamiento/etiquetas';
+    return base + '?' + q;
   }
 
   /** Pie de tarjeta: cerrar sin tocar inventario (no revierte un ingreso ya guardado en servidor). */
@@ -1226,7 +1304,7 @@
       '<button type="button" class="btn btn-outline-primary btn-sm enrol-btn-editar-ficha">' +
       '<i class="fas fa-pen me-1"></i>Editar ficha</button>' +
       '<button type="button" class="btn btn-outline-success btn-sm enrol-btn-imprimir-etiqueta">' +
-      '<i class="fas fa-tag me-1"></i>Imprimir etiqueta</button>' +
+      '<i class="fas fa-tag me-1"></i>' + (enrolZebraEtiquetas ? 'Imprimir etiqueta Zebra' : 'Imprimir etiqueta') + '</button>' +
       '<a href="#" class="btn btn-outline-info btn-sm enrol-btn-ir-catalogo" target="_blank" rel="noopener">' +
       '<i class="fas fa-external-link-alt me-1"></i>Ir al catálogo</a>' +
       '<button type="button" class="btn btn-outline-secondary btn-sm enrol-btn-cerrar-panel">' +
@@ -1239,6 +1317,30 @@
   }
 
   var enrolEditInternoUnlock = false;
+
+  function enrolUbicacionPayload(prefix) {
+    var pEl = document.getElementById(prefix + '-pasillo');
+    var eEl = document.getElementById(prefix + '-estante');
+    var nEl = document.getElementById(prefix + '-nivel');
+    return {
+      ubicacion_pasillo: pEl ? pEl.value.trim() : '',
+      ubicacion_estante: eEl ? eEl.value.trim() : '',
+      ubicacion_nivel: nEl ? nEl.value.trim() : '',
+    };
+  }
+
+  function enrolUbicacionLineaHtml(p) {
+    var cod = (p.ubicacion_codigo || '').trim();
+    if (!cod) {
+      var bits = [];
+      if ((p.ubicacion_pasillo || '').trim()) bits.push('P ' + p.ubicacion_pasillo);
+      if ((p.ubicacion_estante || '').trim()) bits.push('E ' + p.ubicacion_estante);
+      if ((p.ubicacion_nivel || '').trim()) bits.push('N ' + p.ubicacion_nivel);
+      if (!bits.length) return '';
+      cod = bits.join(' · ');
+    }
+    return '<div class="enrol-product-sub">Ubicación: ' + cod + '</div>';
+  }
 
   function enrolAbrirEditarFicha(p) {
     if (!p || !overlayD) return;
@@ -1268,7 +1370,8 @@
       if (subEditEl) subEditEl.value = p.subcategoria || '';
     }
     var psd = p.precio_venta_sd || p.precio_efectivo_pos || 0;
-    document.getElementById('enrol-edit-psd').value = psd > 0 ? Math.round(psd) : '';
+    var listaEdit = Number(p.precio_venta || 0);
+    document.getElementById('enrol-edit-psd').value = psd > 0 ? Math.round(psd) : (listaEdit > 0 ? Math.round(listaEdit) : '');
     document.getElementById('enrol-edit-pventa').value = p.precio_venta > 0 ? Math.round(p.precio_venta) : '';
     document.getElementById('enrol-edit-pcompra').value = p.precio_compra > 0 ? Math.round(p.precio_compra) : '';
     document.getElementById('enrol-edit-pmayoreo').value = p.precio_mayoreo > 0 ? Math.round(p.precio_mayoreo) : '';
@@ -1276,6 +1379,12 @@
     if (marcaEl) marcaEl.value = p.marca || '';
     var tonoEl = document.getElementById('enrol-edit-tono');
     if (tonoEl) tonoEl.value = p.tono_color || '';
+    var pasEl = document.getElementById('enrol-edit-pasillo');
+    if (pasEl) pasEl.value = p.ubicacion_pasillo || '';
+    var estEl = document.getElementById('enrol-edit-estante');
+    if (estEl) estEl.value = p.ubicacion_estante || '';
+    var nivEl = document.getElementById('enrol-edit-nivel');
+    if (nivEl) nivEl.value = p.ubicacion_nivel || '';
     overlayD.classList.add('show');
     setTimeout(function () {
       var n = document.getElementById('enrol-edit-nombre');
@@ -1387,6 +1496,21 @@
         '</div>'
       );
     }
+    var lista = Number(p.precio_venta || p.precio_lista_sugerido || 0);
+    if (pe <= 0 && lista > 0) {
+      return (
+        '<div class="enrol-pos-pill warn mt-2">' +
+        '<strong><i class="fas fa-circle-xmark me-1"></i>Vendible en POS: NO</strong> ' +
+        '— Hay precio lista <strong>' + fmtPrecioCLP(lista) + '</strong> pero falta precio góndola (POS). ' +
+        'Tienda: <strong>' + st + '</strong> u.' +
+        '<div class="mt-2 d-flex flex-wrap gap-2">' +
+        '<button type="button" class="btn btn-sm btn-warning enrol-btn-usar-lista-sd"><i class="fas fa-tag me-1"></i>Usar lista como precio POS</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-primary enrol-btn-editar-ficha"><i class="fas fa-pen me-1"></i>Otro precio góndola</button>' +
+        '</div>' +
+        '<p class="small mb-0 mt-2 enrol-caption-muted">Si el precio del empaque es distinto (ej. $6.980), usá «Otro precio góndola».</p>' +
+        '</div>'
+      );
+    }
     var razon = pe <= 0 ? 'Falta precio POS (precio_venta_sd).' : 'Sin stock en tienda.';
     return (
       '<div class="enrol-pos-pill warn mt-2">' +
@@ -1412,6 +1536,7 @@
       '<div><div class="fw-bold fs-5">' + (p.nombre || '') + '</div>' +
       ((p.categoria || p.subcategoria) ? '<div class="enrol-product-sub">Categoría: ' + (p.categoria || '—') + (p.subcategoria ? ' · ' + p.subcategoria : '') + '</div>' : '') +
       ((p.marca || p.tono_color) ? '<div class="enrol-product-sub">Marca: ' + (p.marca || '—') + ' · Color: ' + (p.tono_color || '—') + '</div>' : '') +
+      enrolUbicacionLineaHtml(p) +
       '<div class="enrol-product-sub">Barras: ' + (p.codigo_barra || '—') +
       ' · Chilemat: ' + (p.codigo_chilemat || '—') +
       ' · Interno: ' + (p.codigo_interno || '—') + '</div>' +
@@ -1458,6 +1583,30 @@
     focoScan();
   }
 
+  function enrolHtmlCandidatoAmbiguo(it) {
+    return (
+      '<button type="button" class="list-group-item list-group-item-action text-start enrol-pick-ambiguo" data-pid="' + it.id + '">' +
+      '<div class="fw-semibold">' + escHtml(it.nombre || '') + '</div>' +
+      '<div class="small text-muted">Barras: ' + escHtml(it.codigo_barra || '—') +
+      ' · Interno: ' + escHtml(it.codigo_interno || '—') + '</div>' +
+      '</button>'
+    );
+  }
+
+  function mostrarAmbiguoEnPanel(j, codigo) {
+    codigoPendiente = j.codigo_pendiente || codigo;
+    resultA.style.display = 'block';
+    var items = (j.candidatos || []).map(enrolHtmlCandidatoAmbiguo).join('');
+  if (!items) items = '<div class="small text-muted">Sin candidatos.</div>';
+    resultA.innerHTML =
+      '<div class="enrol-result-headline text-warning mb-2"><i class="fas fa-triangle-exclamation me-1"></i>Código ambiguo</div>' +
+      '<p class="small mb-2">' + escHtml(j.mensaje || 'Varios productos con códigos parecidos. Elegí el correcto.') + '</p>' +
+      '<div class="small text-muted mb-2">Escaneado: <code>' + escHtml(codigoPendiente) + '</code></div>' +
+      '<div class="list-group mb-2">' + items + '</div>' +
+      '<p class="small text-muted mb-0">Si ninguno corresponde, usá <strong>Vincular</strong> o corregí el código de barras en Editar ficha.</p>';
+    document.getElementById('enrol-estado-msg').textContent = 'Código ambiguo — elegí producto en la lista.';
+  }
+
   async function procesarEscaneo(codigo) {
     if (!sesionId || !codigo) return;
     document.getElementById('enrol-estado-msg').textContent = 'Procesando…';
@@ -1475,6 +1624,10 @@
         '<div class="enrol-result-headline text-success mb-1"><i class="fas fa-check-circle me-1"></i>Reconocido</div>'
       );
       document.getElementById('enrol-estado-msg').textContent = 'Listo — podés sumar stock o escanear el siguiente.';
+      focoScan();
+    } else if (j.caso === 'ambiguo') {
+      window.enrolSoundBuscar();
+      mostrarAmbiguoEnPanel(j, codigo);
       focoScan();
     } else if (j.caso === 'B') {
       window.enrolSoundBuscar();
@@ -1730,6 +1883,10 @@
     if (marcaManual) marcaManual.value = '';
     var tonoManual = document.getElementById('enrol-manual-tono');
     if (tonoManual) tonoManual.value = '';
+    ['pasillo', 'estante', 'nivel'].forEach(function (suf) {
+      var el = document.getElementById('enrol-manual-' + suf);
+      if (el) el.value = '';
+    });
     document.getElementById('enrol-manual-chilemat').value = '';
     var qV = parseInt(document.getElementById('enrol-cant-vinc').value, 10);
     if (isNaN(qV) || qV < 0) qV = 1;
@@ -1818,6 +1975,7 @@
         precio_compra: pc,
         precio_mayoreo: pm,
       };
+      Object.assign(altaBody, enrolUbicacionPayload('enrol-manual'));
       if (altaBody.cantidad_inicial > 0 && pc <= 0) {
         alert('Indique precio de compra para valorizar el stock en inventario.');
         document.getElementById('enrol-manual-pcompra').focus();
@@ -1995,6 +2153,7 @@
         marca: (document.getElementById('enrol-edit-marca') || {}).value ? document.getElementById('enrol-edit-marca').value.trim() : '',
         tono_color: (document.getElementById('enrol-edit-tono') || {}).value ? document.getElementById('enrol-edit-tono').value.trim() : '',
       };
+      Object.assign(body, enrolUbicacionPayload('enrol-edit'));
       if (barrasVal) body.codigo_barra = barrasVal;
       if (chileVal) body.codigo_chilemat = chileVal;
       if (enrolEditInternoUnlock) {
@@ -2027,6 +2186,12 @@
     btnEtSesion.addEventListener('click', function () {
       if (!sesionId) {
         alert('Iniciá una sesión de enrolamiento primero.');
+        return;
+      }
+      if (enrolZebraEtiquetas) {
+        enrolImprimirZebraLote({ sesion_id: sesionId, variante: 'enrolamiento' })
+          .then(enrolMensajeImpresionZebra)
+          .catch(function (e) { alert(e.message || e); });
         return;
       }
       window.open(enrolUrlEtiquetasSesion(sesionId), '_blank', 'noopener');
@@ -2066,7 +2231,39 @@
         alert('Máximo 50 copias por producto.');
         n = 50;
       }
+      if (enrolZebraEtiquetas) {
+        enrolImprimirZebraLote({ ids: String(lastCasoAProducto.id), cantidad: n, variante: 'enrolamiento' })
+          .then(enrolMensajeImpresionZebra)
+          .catch(function (e) { alert(e.message || e); });
+        return;
+      }
       window.open(enrolUrlEtiquetas(lastCasoAProducto, n), '_blank', 'noopener');
+      return;
+    }
+    if (ev.target.closest('.enrol-pick-ambiguo')) {
+      var btnAmb = ev.target.closest('.enrol-pick-ambiguo');
+      var pidAmb = parseInt(btnAmb.getAttribute('data-pid') || '', 10);
+      if (!sesionId || !pidAmb) return;
+      btnAmb.disabled = true;
+      apiJson('/api/enrolamiento/abrir_producto', {
+        method: 'POST',
+        body: JSON.stringify({ sesion_id: sesionId, producto_id: pidAmb })
+      })
+        .then(function (j) {
+          window.enrolSoundOk();
+          mostrarProductoEnPanel(
+            j.producto,
+            '<div class="enrol-result-headline text-success mb-1"><i class="fas fa-hand-pointer me-1"></i>Producto elegido</div>'
+          );
+          document.getElementById('enrol-estado-msg').textContent = 'Maestro seleccionado — revisá datos y sumá stock si corresponde.';
+          focoScan();
+        })
+        .catch(function (e) {
+          alert((e.body && e.body.mensaje) ? e.body.mensaje : e.message);
+        })
+        .finally(function () {
+          btnAmb.disabled = false;
+        });
       return;
     }
     if (ev.target.closest('.enrol-btn-editar-ficha')) {

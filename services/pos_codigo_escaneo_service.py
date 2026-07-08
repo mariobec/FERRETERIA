@@ -83,27 +83,63 @@ def variantes_codigo_barras_escaneo(codigo: str) -> list[str]:
     return out
 
 
+def _variante_coincide_escaneo_directo(variant: str, codigo: str) -> bool:
+    """True si la variante es el código escaneado (sin homologación EAN-13/14)."""
+    v = (variant or '').strip().upper()
+    c = (codigo or '').strip().upper()
+    if v == c:
+        return True
+    dv = _solo_digitos(variant)
+    dc = _solo_digitos(codigo)
+    return bool(dv and dc and dv == dc)
+
+
 def buscar_producto_por_variantes_codigo(
     codigo: str,
     *,
     buscar_fn,
     buscar_chilemat_fn=None,
-) -> tuple[Any | None, str | None]:
+) -> tuple[Any | None, str | None, list[Any]]:
     """
     buscar_fn(cnorm) -> Producto | None por codigo_barra / interno.
     buscar_chilemat_fn(cnorm) -> Producto | None (opcional).
-    Retorna (producto, variante_que_matcheo).
+    Retorna (producto, variante_que_matcheo, candidatos_si_ambiguo).
+
+    Si el escaneo coincide EXACTO con un maestro, gana sobre homologaciones (EAN +0).
+    Si varias homologaciones apuntan a productos distintos → ambiguo (lista, sin auto-elegir).
     """
+    matches: dict[int, tuple[Any, str]] = {}
+    exact_pid: int | None = None
+
     for variant in variantes_codigo_barras_escaneo(codigo):
         cnorm = variant.strip().upper()
-        producto = buscar_fn(cnorm)
-        if producto:
-            return producto, variant
-        if buscar_chilemat_fn:
-            producto = buscar_chilemat_fn(cnorm)
-            if producto:
-                return producto, variant
-    return None, None
+        es_directo = _variante_coincide_escaneo_directo(variant, codigo)
+        for finder in (buscar_fn, buscar_chilemat_fn):
+            if not finder:
+                continue
+            producto = finder(cnorm)
+            if not producto:
+                continue
+            pid = int(getattr(producto, 'id', 0) or 0)
+            if not pid:
+                continue
+            if pid not in matches:
+                matches[pid] = (producto, variant)
+            if es_directo:
+                exact_pid = pid
+
+    if not matches:
+        return None, None, []
+
+    if exact_pid is not None and exact_pid in matches:
+        p, v = matches[exact_pid]
+        return p, v, []
+
+    if len(matches) == 1:
+        p, v = next(iter(matches.values()))
+        return p, v, []
+
+    return None, None, [m[0] for m in matches.values()]
 
 
 def sugerencias_productos_por_codigo_escaneo(
