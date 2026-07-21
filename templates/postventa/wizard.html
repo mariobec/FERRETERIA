@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block body_class %}page-postventa-wizard erp-ops-space{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/postventa-wizard.css') }}?v=pv2-20260711">
+{% endblock %}
+{% block content %}
+<div class="pv2" id="pv2App"
+     data-url-registrar="{{ url_registrar }}"
+     data-url-buscar="{{ url_buscar_venta }}"
+     data-url-venta="{{ url_venta_detalle_base }}"
+     data-url-producto="{{ url_producto_base }}"
+     data-url-ticket="{{ url_ticket_base }}">
+
+  <header class="pv2-top">
+    <div>
+      <p class="pv2-kicker">LhexIA · Postventa 2.0</p>
+      <h1 class="pv2-title">Asistente de postventa</h1>
+    </div>
+    <div class="pv2-top-links">
+      <a href="{{ url_historial }}" class="pv2-link">Historial</a>
+      <a href="{{ url_clasico }}" class="pv2-link muted">Formulario clásico</a>
+    </div>
+  </header>
+
+  {% if cambio_ok %}
+  <div class="pv2-success" id="pv2Success">
+    <h2>Listo · operación #{{ cambio_ok.id }}</h2>
+    <p>Quedó registrada. Puede imprimir el comprobante o iniciar otra.</p>
+    <div class="pv2-success-actions">
+      <a class="pv2-btn primary" href="{{ url_for('ticket_cambio', id=cambio_ok.id) }}?auto_print=1" target="_blank" rel="noopener">Imprimir ticket</a>
+      <button type="button" class="pv2-btn" id="pv2NuevaOp">Nueva operación</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <nav class="pv2-steps" id="pv2Steps" aria-label="Pasos">
+    <button type="button" class="pv2-step is-active" data-step="1">1 · Tipo</button>
+    <button type="button" class="pv2-step" data-step="2">2 · Venta</button>
+    <button type="button" class="pv2-step" data-step="3">3 · Devuelve</button>
+    <button type="button" class="pv2-step" data-step="4">4 · Lleva</button>
+    <button type="button" class="pv2-step" data-step="5">5 · Confirmar</button>
+  </nav>
+
+  <main class="pv2-main">
+    {# —— Paso 1 —— #}
+    <section class="pv2-panel is-active" data-panel="1">
+      <h2 class="pv2-q">¿Qué necesita realizar?</h2>
+      <div class="pv2-choices">
+        <button type="button" class="pv2-choice" data-tipo="devolucion">
+          <span class="pv2-choice-ico">↩</span>
+          <span class="pv2-choice-t">Devolución</span>
+          <span class="pv2-choice-d">Devuelve dinero o deja saldo a favor</span>
+        </button>
+        <button type="button" class="pv2-choice" data-tipo="cambio">
+          <span class="pv2-choice-ico">⇄</span>
+          <span class="pv2-choice-t">Cambio</span>
+          <span class="pv2-choice-d">Devuelve un producto y lleva otro</span>
+        </button>
+        <button type="button" class="pv2-choice" data-tipo="sin_comprobante">
+          <span class="pv2-choice-ico">📦</span>
+          <span class="pv2-choice-t">Sin comprobante</span>
+          <span class="pv2-choice-d">Ingreso manual sin vale</span>
+        </button>
+      </div>
+    </section>
+
+    {# —— Paso 2 —— #}
+    <section class="pv2-panel" data-panel="2">
+      <h2 class="pv2-q" id="pv2Q2">Buscar venta</h2>
+      <div class="pv2-search">
+        <input type="text" id="pv2Query" class="pv2-input" placeholder="Folio VL… o RUT" autocomplete="off">
+        <button type="button" class="pv2-btn primary" id="pv2Buscar">Buscar</button>
+      </div>
+      <div id="pv2BuscarMsg" class="pv2-msg" hidden></div>
+      <div id="pv2ListaVentas" class="pv2-list" hidden></div>
+      <div id="pv2VentaCard" class="pv2-venta" hidden></div>
+      <div class="pv2-nav-row">
+        <button type="button" class="pv2-btn" data-goto="1">Atrás</button>
+        <button type="button" class="pv2-btn primary" id="pv2Go3" disabled>Siguiente</button>
+      </div>
+    </section>
+
+    {# —— Paso 3 —— #}
+    <section class="pv2-panel" data-panel="3">
+      <h2 class="pv2-q">¿Qué se devuelve?</h2>
+      <div id="pv2DevFromVenta" class="pv2-cards"></div>
+      <div class="pv2-add-row" id="pv2DevScanWrap">
+        <input type="text" id="pv2DevScan" class="pv2-input" placeholder="Código / pistola" autocomplete="off">
+        <button type="button" class="pv2-btn" id="pv2DevAdd">Agregar</button>
+      </div>
+      <div id="pv2DevExtra" class="pv2-cards"></div>
+      <div class="pv2-nav-row">
+        <button type="button" class="pv2-btn" data-goto="2">Atrás</button>
+        <button type="button" class="pv2-btn primary" id="pv2Go4" disabled>Siguiente</button>
+      </div>
+    </section>
+
+    {# —— Paso 4 —— #}
+    <section class="pv2-panel" data-panel="4">
+      <h2 class="pv2-q">¿Qué llevará?</h2>
+      <p class="pv2-hint" id="pv2HintLleva">Pistolee el producto de reemplazo</p>
+      <div class="pv2-add-row">
+        <input type="text" id="pv2EntScan" class="pv2-input" placeholder="Código / pistola" autocomplete="off">
+        <button type="button" class="pv2-btn" id="pv2EntAdd">Agregar</button>
+      </div>
+      <div id="pv2EntCards" class="pv2-cards"></div>
+      <div class="pv2-nav-row">
+        <button type="button" class="pv2-btn" data-goto="3">Atrás</button>
+        <button type="button" class="pv2-btn primary" id="pv2Go5">Siguiente</button>
+      </div>
+    </section>
+
+    {# —— Paso 5 —— #}
+    <section class="pv2-panel" data-panel="5">
+      <h2 class="pv2-q">Confirmar</h2>
+      <div id="pv2Resumen" class="pv2-resumen"></div>
+      <div class="pv2-comp" id="pv2CompBlock">
+        <p class="pv2-comp-label" id="pv2CompLabel">¿Cómo devolver el dinero?</p>
+        <div class="pv2-comp-opts" id="pv2CompOpts">
+          <label class="pv2-radio"><input type="radio" name="pv2Comp" value="efectivo" checked> Efectivo</label>
+          <label class="pv2-radio"><input type="radio" name="pv2Comp" value="saldo"> Saldo a favor</label>
+          <label class="pv2-radio"><input type="radio" name="pv2Comp" value="mixto"> Mixto</label>
+        </div>
+        <div class="pv2-comp-fields" id="pv2CompFields" hidden>
+          <label>Efectivo $<input type="number" min="0" step="1" id="pv2MixEfectivo" class="pv2-input sm" value="0"></label>
+        </div>
+        <p class="pv2-hint" id="pv2SaldoHint" hidden></p>
+      </div>
+      <label class="pv2-obs">Observación
+        <input type="text" id="pv2Obs" class="pv2-input" maxlength="500" placeholder="Opcional">
+      </label>
+      <div class="pv2-nav-row">
+        <button type="button" class="pv2-btn" data-goto="4" id="pv2Back5">Atrás</button>
+        <button type="button" class="pv2-btn primary lg" id="pv2Registrar">Registrar</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="pv2-dock" id="pv2Dock" hidden>
+    <div class="pv2-dock-row"><span>Devuelve</span><strong id="pv2DockDev">$0</strong></div>
+    <div class="pv2-dock-row" id="pv2DockEntRow"><span>Lleva</span><strong id="pv2DockEnt">$0</strong></div>
+    <div class="pv2-dock-row highlight"><span id="pv2DockAccion">—</span><strong id="pv2DockNeto">$0</strong></div>
+  </aside>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/postventa-wizard.js') }}?v=pv2-20260711"></script>
+{% endblock %}

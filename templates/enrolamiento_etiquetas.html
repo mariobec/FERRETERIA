@@ -14,6 +14,15 @@
       border: 1px solid #cbd5e1; background: #fff; border-radius: 8px;
       padding: 6px 12px; cursor: pointer; font-size: 0.9rem; text-decoration: none; color: inherit;
     }
+    .zebra-printer-pick {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.85rem; color: #334155; font-weight: 600;
+    }
+    .zebra-printer-pick select {
+      min-width: 200px; max-width: 320px;
+      border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px;
+      font-size: 0.85rem; font-weight: 500; background: #fff;
+    }
     .btn-zebra-primary {
       border-color: #0ea5e9 !important; background: #e0f2fe !important; color: #0369a1 !important; font-weight: 700;
     }
@@ -71,14 +80,16 @@
     {% endif %}
     <div class="header-actions">
       {% if zebra_etiquetas_habilitada %}
-      <button type="button" class="btn-zebra btn-zebra-primary" id="btnEtiquetaZebra">Imprimir en Zebra (ZPL)</button>
-      <a href="{{ url_for('panel_etiquetas_zebra_enrolamiento') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% else %}?solo_enrolados=1{% endif %}"
-         class="btn-zebra">Calibrar Zebra…</a>
-      <button type="button" onclick="window.print()" title="Solo XP-80 / impresora láser A4">Vista navegador (no Zebra)</button>
+      <label class="zebra-printer-pick" for="selZebraImpresora">
+        Impresora
+        <select id="selZebraImpresora" aria-label="Cola Zebra">
+          <option value="">Cargando…</option>
+        </select>
+      </label>
+      <button type="button" class="btn-zebra btn-zebra-primary" id="btnEtiquetaZebra">Imprimir en Zebra</button>
+      <button type="button" onclick="window.print()" title="Solo XP-80 / impresora láser A4">Imprimir en navegador</button>
       {% else %}
       <button type="button" onclick="window.print()">Imprimir (navegador · XP-80 / láser)</button>
-      <a href="{{ url_for('panel_etiquetas_zebra_enrolamiento') }}{% if request.query_string %}?{{ request.query_string.decode('utf-8') }}{% else %}?solo_enrolados=1{% endif %}"
-         class="btn-zebra">Zebra GX420d (ZPL)</a>
       {% endif %}
       <button type="button" onclick="window.close()">Cerrar</button>
     </div>
@@ -126,10 +137,53 @@
     (function () {
       var zebraOn = {{ zebra_etiquetas_habilitada|default(false)|tojson }};
       var zebraPrintUrl = {{ url_for('api_etiquetas_zebra_imprimir_lote')|tojson }};
+      var zebraPrintersUrl = {{ url_for('api_etiquetas_zebra_impresoras')|tojson }};
       var idsRaw = {{ (ids_raw or '')|tojson }};
       var sesionId = {{ sesion_id|tojson }};
       var cantidad = {{ cantidad_por_producto|default(1)|tojson }};
       var autoPrint = {{ auto_print|default(false)|tojson }};
+
+      function impresoraElegida() {
+        var sel = document.getElementById('selZebraImpresora');
+        return sel ? String(sel.value || '').trim() : '';
+      }
+
+      function cargarImpresorasZebra() {
+        var sel = document.getElementById('selZebraImpresora');
+        if (!sel || !zebraOn) return;
+        fetch(zebraPrintersUrl, {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          if (!data || !data.ok) throw new Error('No se listaron impresoras');
+          var opts = data.impresoras_zebra || data.opciones || [];
+          var seleccionada = data.seleccionada || '';
+          sel.innerHTML = '';
+          if (!opts.length) {
+            var o = document.createElement('option');
+            o.value = seleccionada || '';
+            o.textContent = seleccionada || 'Sin cola Zebra detectada';
+            sel.appendChild(o);
+            return;
+          }
+          opts.forEach(function (nombre) {
+            var o = document.createElement('option');
+            o.value = nombre;
+            o.textContent = nombre;
+            if (nombre === seleccionada) o.selected = true;
+            sel.appendChild(o);
+          });
+          if (seleccionada && !opts.some(function (n) { return n === seleccionada; })) {
+            var ox = document.createElement('option');
+            ox.value = seleccionada;
+            ox.textContent = seleccionada + ' (config)';
+            ox.selected = true;
+            sel.insertBefore(ox, sel.firstChild);
+          }
+        }).catch(function () {
+          sel.innerHTML = '<option value="">Usar impresora configurada</option>';
+        });
+      }
 
       function imprimirZebra() {
         var payload = { variante: 'enrolamiento', cantidad: cantidad };
@@ -139,6 +193,8 @@
           alert('Sin productos para imprimir.');
           return Promise.resolve();
         }
+        var imp = impresoraElegida();
+        if (imp) payload.impresora = imp;
         return fetch(zebraPrintUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -169,6 +225,8 @@
           el.outerHTML = '<div class="code" style="color:#b91c1c">Código no válido</div>';
         }
       });
+
+      cargarImpresorasZebra();
 
       var btnZ = document.getElementById('btnEtiquetaZebra');
       if (btnZ) btnZ.addEventListener('click', function () {

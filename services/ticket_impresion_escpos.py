@@ -234,6 +234,22 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
         if lineas:
             _tabla_lineas(lineas)
 
+    promos = ctx.get('promociones') or []
+    dto_promo = int(ctx.get('descuento_promos') or 0)
+    if promos and dto_promo > 0:
+        out += _sep('-')
+        out += _align(1)
+        out += _bold(True)
+        out += _line('PROMOCIONES')
+        out += _bold(False)
+        out += _align(0)
+        if ctx.get('subtotal_lineas') is not None:
+            out += _line(f'Subtotal ${_fmt_clp_tabla(ctx.get("subtotal_lineas", 0))}')
+        for pr in promos:
+            etq = str(pr.get('etiqueta_ticket') or pr.get('codigo') or 'Promo')[:28]
+            mon = int(pr.get('monto_descuento') or 0)
+            out += _line(f'{etq} -${_fmt_clp_tabla(mon)}')
+
     out += _sep('=')
     out += _align(2)
     out += _bold(True)

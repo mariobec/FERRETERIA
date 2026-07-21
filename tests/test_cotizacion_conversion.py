@@ -137,3 +137,18 @@ class TestCotizacionConversion:
         r2 = app_client.post(f'/api/cotizaciones/{cot.id}/convertir', json=payload)
         assert r2.status_code == 200
         assert r2.get_json().get('ok') is True
+
+
+@pytest.mark.smoke
+def test_gmail_compose_url_cotizacion(app_client, productos_con_stock):
+    cot = _crear_cotizacion_qa(productos_con_stock[0])
+    cot.cliente_correo = 'cliente.qa@example.com'
+    m.db.session.commit()
+    url = m._url_gmail_compose_cotizacion(cot)
+    assert 'mail.google.com/mail/' in url
+    assert 'view=cm' in url
+    assert 'cliente.qa' in url
+    r = app_client.get(f'/cotizaciones/{cot.id}/gmail', follow_redirects=False)
+    assert r.status_code in (302, 303)
+    loc = r.headers.get('Location') or ''
+    assert 'mail.google.com' in loc

@@ -1,0 +1,37 @@
+{
+  "default": "santo-domingo",
+  "empresas": [
+    {
+      "id": "santo-domingo",
+      "label": "Ferretería Santo Domingo (Chilemat)",
+      "plantilla": "chilemat",
+      "nombre_comercial": "Ferretería Santo Domingo",
+      "razon_social": "Luis Gastón Rivera Pérez",
+      "eslogan": "Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas",
+      "marca_linea1": "FERRETERÍA",
+      "marca_linea2": "SANTO DOMINGO",
+      "rut_emisor": "8.054.120-1",
+      "telefono": "(41) 264 5574",
+      "correo": "ferreteria426@gmail.com",
+      "direccion": "C. Matriz Arturo Prat n°426 - Florida\nBodega Arturo Prat n°439"
+    },
+    {
+      "id": "transportes-st-julliet",
+      "label": "Transportes Sta JULLIET",
+      "plantilla": "transportes",
+      "nombre_comercial": "Transportes Sta JULLIET",
+      "razon_social": "JULIO IVAN RIVERA PEREZ EIRL",
+      "eslogan": "venta de aridos y fletes",
+      "marca_linea1": "TRANSPORTES",
+      "marca_linea2": "Sta JULLIET",
+      "rut_emisor": "76.873.527-1",
+      "telefono": "989145920",
+      "correo": "aridosjr1963@gmail.com",
+      "cuenta_banco": "CHEQUERA ELECTRONICA: 51270010532",
+      "banco": "Banco Estado",
+      "logo_img": "img/cot_transportes_julliet_v5.png",
+      "color_primario": "#c41e3a",
+      "color_acento": "#1a1a1a"
+    }
+  ]
+}

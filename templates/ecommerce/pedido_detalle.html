@@ -2,18 +2,113 @@
 {% block body_class %}erp-ops-space page-ecommerce-bandeja{% endblock %}
 {% block extra_css %}
 <style>
+  /* Detalle pedido — contraste operación (sobre erp-ops-space) */
+  .ecom-detalle-page .ecom-hdr-premium__stat {
+    background: rgba(6, 78, 59, 0.55);
+    border-color: rgba(74, 222, 128, 0.45);
+    min-width: 10rem;
+    padding: 0.7rem 1.1rem;
+  }
+  .ecom-detalle-page .ecom-hdr-premium__stat-value {
+    font-size: 2.15rem;
+    color: #bbf7d0;
+    text-shadow: 0 1px 0 rgba(0,0,0,.35);
+  }
+  .ecom-detalle-page .ecom-hdr-premium__meta {
+    color: rgba(248, 250, 252, 0.95);
+    font-size: 0.95rem;
+  }
+  .ecom-detalle-page .ecom-kpi {
+    background: #1e293b;
+    border-color: rgba(148, 163, 184, 0.28);
+  }
+  .ecom-detalle-page .ecom-kpi__label {
+    color: #cbd5e1;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+  }
+  .ecom-detalle-page .ecom-kpi__value {
+    font-size: 1.35rem !important;
+    color: var(--ecom-kpi-accent, #f8fafc);
+    font-weight: 800;
+  }
+  .ecom-detalle-page .ecom-kpi__hint {
+    margin: 0.45rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: #e2e8f0;
+  }
+  .ecom-detalle-page .ecom-kpi--nuevo { --ecom-kpi-accent: #fcd34d; }
+  .ecom-detalle-page .ecom-kpi--prep { --ecom-kpi-accent: #93c5fd; }
+  .ecom-detalle-page .ecom-kpi--listo { --ecom-kpi-accent: #86efac; }
+  .ecom-detalle-page .ecom-kpi--neutral { --ecom-kpi-accent: #e2e8f0; }
+
+  .ecom-detalle-page .ecom-bandeja-card {
+    background: #0f172a !important;
+    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    overflow: hidden;
+  }
+  .ecom-detalle-page .ecom-bandeja-card > .card-header {
+    background: #334155 !important;
+  }
+  .ecom-detalle-page .ecom-bandeja-card > .card-header h6 {
+    color: #f8fafc !important;
+    font-size: 0.8rem !important;
+  }
+  .ecom-detalle-page .ecom-bandeja-card > .card-body {
+    background: #0f172a !important;
+    color: #e2e8f0;
+  }
+
+  .ecom-detalle-page .table thead th {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    font-size: 0.72rem !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+  .ecom-detalle-page .table tbody td {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-size: 0.95rem;
+    padding-top: 0.85rem !important;
+    padding-bottom: 0.85rem !important;
+  }
+  .ecom-detalle-page .ecom-line-nombre { font-weight: 600; color: #0f172a !important; }
+  .ecom-detalle-page .ecom-line-stock-ok { color: #166534 !important; font-weight: 700; }
+  .ecom-detalle-page .ecom-line-stock-bad { color: #b91c1c !important; font-weight: 800; }
+  .ecom-detalle-page .ecom-line-subtotal {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0f172a !important;
+  }
+
   .ecom-timeline { list-style:none;padding:0;margin:0; }
-  .ecom-timeline li { position:relative;padding:0 0 1.25rem 2rem;border-left:2px solid rgba(74,222,128,.25);margin-left:.65rem; }
+  .ecom-timeline li { position:relative;padding:0 0 1.25rem 2rem;border-left:2px solid rgba(134,239,172,.45);margin-left:.65rem; }
   .ecom-timeline li:last-child { border-left-color:transparent;padding-bottom:0; }
-  .ecom-timeline__dot { position:absolute;left:-.55rem;top:.15rem;width:1rem;height:1rem;border-radius:50%;background:#1e293b;border:2px solid #4ade80;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#4ade80; }
-  .ecom-timeline__title { font-weight:700;color:#f1f5f9;font-size:.9rem; }
-  .ecom-timeline__meta { font-size:.75rem;color:#94a3b8; }
-  .ecom-line-stock-ok { color:#4ade80; }
-  .ecom-line-stock-bad { color:#f87171;font-weight:600; }
+  .ecom-timeline__dot {
+    position:absolute;left:-.55rem;top:.15rem;width:1.1rem;height:1.1rem;border-radius:50%;
+    background:#022c22;border:2px solid #4ade80;
+    display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#86efac;
+  }
+  .ecom-timeline__title { font-weight:700;color:#f8fafc;font-size:.95rem; }
+  .ecom-timeline__meta { font-size:.8125rem;color:#cbd5e1; }
+  .ecom-timeline__empty { color:#94a3b8;font-size:.875rem; }
+
+  .ecom-detalle-page .btn-outline-secondary {
+    color: #e2e8f0;
+    border-color: rgba(226,232,240,.45);
+  }
+  .ecom-detalle-page .btn-outline-secondary:hover {
+    color: #0f172a;
+    background: #e2e8f0;
+  }
 </style>
 {% endblock %}
 {% block content %}
-<div class="container-fluid px-0 ecom-bandeja-hud" style="max-width:960px;">
+{% set prep = (fila.estado_prep or '') %}
+{% set kpi_prep = 'ecom-kpi--listo' if prep == 'LISTO_RETIRO' else ('ecom-kpi--prep' if prep == 'EN_PREPARACION' else 'ecom-kpi--nuevo') %}
+<div class="container-fluid px-0 ecom-bandeja-hud ecom-detalle-page" style="max-width:960px;">
   <div class="mb-3">
     <a href="{{ url_for('ecommerce_bandeja') }}" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Bandeja pedidos</a>
   </div>
@@ -36,24 +131,24 @@
 
   <div class="row g-3 mb-4">
     <div class="col-md-4">
-      <article class="ecom-kpi ecom-kpi--nuevo h-100">
+      <article class="ecom-kpi {{ kpi_prep }} h-100">
         <div class="ecom-kpi__label mb-1">Preparación</div>
-        <div class="ecom-kpi__value" style="font-size:1.1rem">{{ fila.estado_prep.replace('_', ' ') }}</div>
-        <p class="small text-muted mb-0">{{ venta.bodega_preparacion_usuario or 'Sin operador' }}</p>
+        <div class="ecom-kpi__value">{{ fila.estado_prep.replace('_', ' ') }}</div>
+        <p class="ecom-kpi__hint">{{ venta.bodega_preparacion_usuario or 'Sin operador' }}</p>
       </article>
     </div>
     <div class="col-md-4">
       <article class="ecom-kpi ecom-kpi--prep h-100">
         <div class="ecom-kpi__label mb-1">Vale ERP</div>
-        <div class="ecom-kpi__value" style="font-size:1.1rem">{{ fila.estado_venta or venta.estado }}</div>
-        <p class="small text-muted mb-0">Cobro en caja con {{ fila.vale_folio }}</p>
+        <div class="ecom-kpi__value">{{ fila.estado_venta or venta.estado }}</div>
+        <p class="ecom-kpi__hint">Cobro en caja con {{ fila.vale_folio }}</p>
       </article>
     </div>
     <div class="col-md-4">
-      <article class="ecom-kpi ecom-kpi--listo h-100">
+      <article class="ecom-kpi ecom-kpi--neutral h-100">
         <div class="ecom-kpi__label mb-1">Entrega QR</div>
-        <div class="ecom-kpi__value" style="font-size:1.1rem">{{ fila.entrega_estado or '—' }}</div>
-        <p class="small text-muted mb-0">Tras cobrar: escanear ticket</p>
+        <div class="ecom-kpi__value">{{ fila.entrega_estado or '—' }}</div>
+        <p class="ecom-kpi__hint">Tras cobrar: escanear ticket</p>
       </article>
     </div>
   </div>
@@ -70,10 +165,10 @@
         <tbody>
           {% for ln in lineas %}
           <tr>
-            <td class="ps-3">{{ ln.nombre }}</td>
-            <td class="text-end font-monospace">{{ ln.cantidad }}</td>
+            <td class="ps-3 ecom-line-nombre">{{ ln.nombre }}</td>
+            <td class="text-end font-monospace fw-semibold">{{ ln.cantidad }}</td>
             <td class="text-end font-monospace {% if ln.falta_stock %}ecom-line-stock-bad{% else %}ecom-line-stock-ok{% endif %}">{{ ln.stock_tienda }}</td>
-            <td class="text-end font-monospace pe-3">${{ '{:,.0f}'.format(ln.subtotal or 0).replace(',', '.') }}</td>
+            <td class="text-end font-monospace pe-3 ecom-line-subtotal">${{ '{:,.0f}'.format(ln.subtotal or 0).replace(',', '.') }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -95,13 +190,13 @@
           </div>
         </li>
         {% else %}
-        <li class="text-muted small">Sin eventos registrados aún.</li>
+        <li class="ecom-timeline__empty">Sin eventos registrados aún.</li>
         {% endfor %}
       </ul>
     </div>
   </div>
 
-  <div class="d-flex flex-wrap gap-2 mb-4">
+    <div class="d-flex flex-wrap gap-2 mb-4">
     {% if fila.estado_prep == 'PENDIENTE' and fila.puede_anular %}
     <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=venta.id) }}">
       <input type="hidden" name="accion" value="tomar">
@@ -126,10 +221,18 @@
     <a href="{{ fila.whatsapp_url }}" class="btn btn-success" target="_blank" rel="noopener"><i class="fab fa-whatsapp me-1"></i>Avisar cliente</a>
     {% endif %}
 
-    <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning">Ir a caja</a>
     {% if venta.estado == 'Pendiente' %}
-    <a href="{{ url_for('pos_ticket_vale', venta_id=venta.id) }}" class="btn btn-outline-light btn-sm" target="_blank" rel="noopener">Ticket vale</a>
+    <a href="{{ url_for('pos_ticket_vale', venta_id=venta.id) }}" class="btn btn-outline-light" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Ticket vale</a>
+    {% elif venta.estado == 'Pagado' %}
+    <a href="{{ url_for('ver_ticket_cobro', id=venta.id, auto_print='1') }}" class="btn btn-outline-light" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>Ticket cobro</a>
+    <a href="{{ url_for('ver_ticket_retiro', id=venta.id, auto_print='1') }}" class="btn btn-outline-warning" target="_blank" rel="noopener"><i class="fas fa-qrcode me-1"></i>Ticket retiro QR</a>
     {% endif %}
+
+    {% if fila.url_seguimiento %}
+    <a href="{{ fila.url_seguimiento }}" class="btn btn-outline-info btn-sm" target="_blank" rel="noopener"><i class="fas fa-link me-1"></i>Seguimiento cliente</a>
+    {% endif %}
+
+    <a href="{{ url_for('caja_pendientes') }}" class="btn btn-outline-warning">Ir a caja</a>
 
     {% if fila.puede_anular %}
     <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalAnularPedido">Anular pedido</button>

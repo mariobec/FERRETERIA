@@ -1,30 +1,84 @@
-{# Membrete cotización — datos desde empresa_config.json #}
-<div class="cot-membrete">
+{# Membrete cotización — según perfil emisor #}
+{% set _membrete_transportes = (
+  (empresa.plantilla == 'transportes' if empresa is defined and empresa else false)
+  or (cotizacion is defined and cotizacion and cotizacion.empresa_cotizacion == 'transportes-st-julliet')
+  or (cotizacion is defined and cotizacion and cotizacion.notas and '[[empresa_cot:transportes-st-julliet]]' in cotizacion.notas)
+) %}
+
+{% if _membrete_transportes %}
+  {% include 'cotizaciones/includes/cot_membrete_transportes.html' %}
+
+{% else %}
+
+{% set tel = (empresa.telefono or '(41) 264 5574')|replace('Fono/Fax:', '')|replace('Fono:', '')|trim %}
+
+{% set mail = empresa.correo or 'ferreteria426@gmail.com' %}
+
+{% set rut_cot = empresa.rut_emisor or empresa.rut or '8.054.120-1' %}
+
+{% set titular = empresa.razon_social or 'Luis Gastón Rivera Pérez' %}
+
+<div class="cot-membrete cot-membrete--chilemat">
+
   {% if show_logo|default(true) %}
-  <img class="cot-membrete__logo" src="{{ url_for('static', filename='img/cliente-logo-light.png') }}" alt="{{ empresa.nombre_comercial }}">
-  {% endif %}
-  <div class="cot-membrete__marca">{{ empresa.nombre_comercial or 'Ferretería Santo Domingo' }}</div>
-  {% if empresa.razon_social %}
-  <div class="cot-membrete__razon">{{ empresa.razon_social }}</div>
-  {% endif %}
-  {% if empresa.eslogan %}
-  <div class="cot-membrete__giro">{{ empresa.eslogan }}</div>
-  {% endif %}
-  {% if empresa.direccion %}
-  <div class="cot-membrete__dir">
-    {% for linea in empresa.direccion.replace('\r\n', '\n').split('\n') if linea.strip() %}
-    <div>{{ linea.strip() }}</div>
-    {% endfor %}
+
+  <div class="cot-membrete__brand-stack">
+
+    <img class="cot-membrete__logo-oficial"
+
+         src="{{ url_for('static', filename='img/chilemat_logo_oficial.png') }}"
+
+         alt="Chilemat"
+
+         onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/chilemat_logo_cotizacion.svg') }}';">
+
+    <div class="cot-membrete__nombre-block">
+
+      <div class="cot-membrete__ferreteria">FERRETERÍA</div>
+
+      <div class="cot-membrete__marca">SANTO DOMINGO</div>
+
+    </div>
+
   </div>
+
+  {% else %}
+
+  <div class="cot-membrete__nombre-block">
+
+    <div class="cot-membrete__ferreteria">FERRETERÍA</div>
+
+    <div class="cot-membrete__marca">SANTO DOMINGO</div>
+
+  </div>
+
   {% endif %}
-  {% if empresa.telefono %}
-  <div class="cot-membrete__contacto">{{ empresa.telefono }}</div>
+
+  <div class="cot-membrete__razon">{{ titular }}</div>
+
+  <div class="cot-membrete__rut-grande">RUT {{ rut_cot }}</div>
+
+  <div class="cot-membrete__giro">Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas</div>
+
+  {% if empresa.direccion %}
+
+  <div class="cot-membrete__dir">
+
+    {% for linea in empresa.direccion.replace('\r\n', '\n').split('\n') if linea.strip() %}
+
+    <div>{{ linea.strip() }}</div>
+
+    {% endfor %}
+
+  </div>
+
   {% endif %}
-  {% set rut_cot = empresa.rut_emisor or empresa.rut or '' %}
-  {% if rut_cot %}
-  <div class="cot-membrete__contacto">RUT {{ rut_cot }}</div>
-  {% endif %}
-  {% if empresa.correo %}
-  <div class="cot-membrete__contacto">Email: {{ empresa.correo }}</div>
-  {% endif %}
+
+  <div class="cot-membrete__contacto">☎ {{ tel }}</div>
+
+  <div class="cot-membrete__contacto">✉ {{ mail }}</div>
+
 </div>
+
+{% endif %}
+

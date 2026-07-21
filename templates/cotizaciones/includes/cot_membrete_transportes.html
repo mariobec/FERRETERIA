@@ -1,0 +1,54 @@
+{# Membrete Transportes Sta JULLIET — identidad fija (no mezclar Chilemat) #}
+{% set _tj = {
+  'razon': 'JULIO IVAN RIVERA PEREZ EIRL',
+  'giro': 'venta de aridos y fletes',
+  'rut': '76.873.527-1',
+  'tel': '989145920',
+  'mail': 'aridosjr1963@gmail.com',
+  'cuenta': 'CHEQUERA ELECTRONICA: 51270010532',
+  'banco': 'Banco Estado',
+  'logo': 'img/cot_transportes_julliet_v5.png'
+} %}
+{% set _ok = empresa is defined and empresa and empresa.plantilla == 'transportes' %}
+{% set tel = ((_ok and empresa.telefono) or _tj.tel)|trim %}
+{% set mail = ((_ok and empresa.correo) or _tj.mail)|trim %}
+{% set rut_cot = ((_ok and empresa.rut_emisor) or _tj.rut)|trim %}
+{% set titular = ((_ok and empresa.razon_social) or _tj.razon)|trim %}
+{% set giro = ((_ok and empresa.eslogan) or _tj.giro)|trim %}
+{% set cuenta = ((_ok and empresa.cuenta_banco) or _tj.cuenta)|trim %}
+{% set banco = ((_ok and empresa.banco) or _tj.banco)|trim %}
+{% set logo_img = ((_ok and empresa.logo_img) or _tj.logo)|trim %}
+{% set logo_v = 'julliet-form-fix-20260720' %}
+
+<div class="cot-membrete cot-membrete--transportes">
+  <div class="cot-tj-grid">
+    <div class="cot-tj-logo">
+      <img class="cot-membrete__transportes-banner"
+           src="{{ url_for('static', filename=logo_img) }}?v={{ logo_v }}"
+           alt="Transportes Sta JULLIET">
+    </div>
+    <div class="cot-tj-datos">
+      <div class="cot-tj-razon">{{ titular }}</div>
+      <div class="cot-tj-giro">{{ giro }}</div>
+      <div class="cot-tj-row">
+        <span class="cot-tj-ico" aria-hidden="true"><i class="fas fa-user"></i></span>
+        <span class="cot-tj-txt"><strong>RUT:</strong> {{ rut_cot }}</span>
+      </div>
+      <div class="cot-tj-row">
+        <span class="cot-tj-ico" aria-hidden="true"><i class="fas fa-credit-card"></i></span>
+        <span class="cot-tj-txt">
+          <strong>{{ cuenta }}</strong>
+          <span class="cot-tj-banco">{{ banco }}</span>
+        </span>
+      </div>
+      <div class="cot-tj-row">
+        <span class="cot-tj-ico" aria-hidden="true"><i class="fas fa-phone"></i></span>
+        <span class="cot-tj-txt"><strong>Teléfono:</strong> {{ tel }}</span>
+      </div>
+      <div class="cot-tj-row">
+        <span class="cot-tj-ico" aria-hidden="true"><i class="fas fa-envelope"></i></span>
+        <span class="cot-tj-txt"><strong>correo:</strong> {{ mail }}</span>
+      </div>
+    </div>
+  </div>
+</div>

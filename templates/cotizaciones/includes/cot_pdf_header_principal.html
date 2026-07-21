@@ -1,52 +1,17 @@
-{# Encabezado principal cotización — requiere: empresa, cotizacion, logo_cliente_b64, pagina #}
-<div class="doc-header{% if not pagina.es_primera %} doc-header--continuacion{% endif %}">
-  <div class="col-l">
-    {% if logo_cliente_b64 %}
-    <img class="cot-membrete__logo{% if not pagina.es_primera %} doc-header__logo-sm{% endif %}" src="data:image/png;base64,{{ logo_cliente_b64 }}" alt="{{ empresa.nombre_comercial }}">
-    {% endif %}
-    <div class="{% if pagina.es_primera %}cot-membrete__marca{% else %}doc-header__empresa-sm{% endif %}">{{ empresa.nombre_comercial or 'Ferretería Santo Domingo' }}</div>
-    {% if pagina.es_primera %}
-    {% if empresa.razon_social %}
-    <div class="cot-membrete__razon">{{ empresa.razon_social }}</div>
-    {% endif %}
-    {% if empresa.eslogan %}
-    <div class="cot-membrete__giro">{{ empresa.eslogan }}</div>
-    {% endif %}
-    {% if empresa.direccion %}
-    <div class="cot-membrete__dir">
-      {% for linea in empresa.direccion.replace('\r\n', '\n').split('\n') if linea.strip() %}
-      <div>{{ linea.strip() }}</div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    {% if empresa.telefono %}
-    <div class="cot-membrete__contacto">{{ empresa.telefono }}</div>
-    {% endif %}
-    {% set rut_cot = empresa.rut_emisor or empresa.rut or '' %}
-    {% if rut_cot %}
-    <div class="cot-membrete__contacto">RUT {{ rut_cot }}</div>
-    {% endif %}
-    {% if empresa.correo %}
-    <div class="cot-membrete__contacto">Email: {{ empresa.correo }}</div>
-    {% endif %}
-    {% endif %}
-  </div>
-  <div class="col-r">
-    {% if not pagina.es_primera %}
-    <div class="doc-continuacion-label">CONTINUACIÓN</div>
-    {% endif %}
-    <h1 class="doc-title">COTIZACIÓN</h1>
-    <div class="doc-num">{{ cotizacion.numero }}</div>
-    <div class="doc-meta">
-      Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') if cotizacion.fecha else '' }}<br>
-      {% if cotizacion.fecha_vencimiento and pagina.es_primera %}
-      Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)<br>
-      {% endif %}
-      {% if not pagina.es_primera %}
-      <strong class="doc-hoja-label">Hoja {{ pagina.numero }} de {{ pagina.total }} de esta cotización</strong><br>
-      {% endif %}
-      {% set bcls = {'Vigente': 'badge-vigente', 'Vencida': 'badge-vencida', 'Aceptada': 'badge-aceptada', 'Rechazada': 'badge-rechazada', 'Convertida': 'badge-convertida'} %}
-      <span class="badge-estado {{ bcls.get(cotizacion.estado, '') }}">{{ cotizacion.estado }}</span>
-    </div>
-  </div>
-</div>
+{# Encabezado corporativo PDF — según perfil emisor #}
+{% set _pdf_transportes = (
+  (empresa.plantilla == 'transportes' if empresa is defined and empresa else false)
+  or (cotizacion is defined and cotizacion and cotizacion.empresa_cotizacion == 'transportes-st-julliet')
+  or (cotizacion is defined and cotizacion and cotizacion.notas and '[[empresa_cot:transportes-st-julliet]]' in cotizacion.notas)
+) %}
+
+{% if _pdf_transportes %}
+
+  {% include 'cotizaciones/includes/cot_pdf_header_transportes.html' %}
+
+{% else %}
+
+  {% include 'cotizaciones/includes/cot_pdf_header_chilemat.html' %}
+
+{% endif %}
+

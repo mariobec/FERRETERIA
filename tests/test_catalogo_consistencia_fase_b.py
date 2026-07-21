@@ -232,6 +232,68 @@ def test_enrol_editar_ficha_ubicacion(app_client, productos_con_stock):
 
 
 @pytest.mark.smoke
+def test_enrol_alta_manual_unidades(app_client, productos_con_stock):
+    """Alta manual en enrolador persiste unidad venta/compra y factor."""
+    ses = m.EnrolamientoTomaSesion(usuario='qa', id_almacen=m.id_almacen_tienda())
+    db.session.add(ses)
+    db.session.commit()
+    codigo = f'ENROL-UM-{ses.id}'
+    r = app_client.post(
+        '/api/enrolamiento/alta_manual',
+        json={
+            'sesion_id': ses.id,
+            'nombre': 'QA Enrol Unidades',
+            'codigo_barras': codigo,
+            'precio_venta': 4990,
+            'precio_compra': 2500,
+            'cantidad_inicial': 0,
+            'unidad_venta': 'Metro',
+            'unidad_compra': 'Rollo',
+            'factor_conversion': 50,
+        },
+    )
+    assert r.status_code == 200
+    prod = (r.get_json() or {}).get('producto') or {}
+    assert prod.get('unidad_venta') == 'Metro'
+    assert prod.get('unidad_compra') == 'Rollo'
+    assert float(prod.get('factor_conversion') or 0) == 50.0
+    p = m.Producto.query.filter_by(codigo_barra=codigo).first()
+    assert p is not None
+    assert (p.unidad_venta or '') == 'Metro'
+    assert (p.unidad_compra or '') == 'Rollo'
+    assert float(p.factor_conversion or 0) == 50.0
+
+
+@pytest.mark.smoke
+def test_enrol_editar_ficha_unidades(app_client, productos_con_stock):
+    """Editar ficha en enrolador actualiza unidades de medida."""
+    p = productos_con_stock[1]
+    ses = m.EnrolamientoTomaSesion(usuario='qa', id_almacen=m.id_almacen_tienda())
+    db.session.add(ses)
+    db.session.commit()
+    r = app_client.post(
+        '/api/enrolamiento/editar_ficha',
+        json={
+            'sesion_id': ses.id,
+            'producto_id': p.id,
+            'nombre': p.nombre,
+            'unidad_venta': 'Par',
+            'unidad_compra': 'Caja',
+            'factor_conversion': 6,
+        },
+    )
+    assert r.status_code == 200
+    prod = (r.get_json() or {}).get('producto') or {}
+    assert prod.get('unidad_venta') == 'Par'
+    assert prod.get('unidad_compra') == 'Caja'
+    assert float(prod.get('factor_conversion') or 0) == 6.0
+    db.session.expire(p)
+    p2 = m.Producto.query.get(p.id)
+    assert (p2.unidad_venta or '') == 'Par'
+    assert (p2.unidad_compra or '') == 'Caja'
+
+
+@pytest.mark.smoke
 def test_enrol_buscar_maestro_usa_motor_pos(app_client, productos_con_stock):
     """buscar_maestro delega en _buscar_productos_json (mismo motor que POS)."""
     p = productos_con_stock[0]

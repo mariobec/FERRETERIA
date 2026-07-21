@@ -33,6 +33,15 @@
           {% if marca_txt %}<span class="pos-cart-card__meta-sep">·</span><span>{{ marca_txt }}</span>{% endif %}
           <span class="pos-cart-card__meta-sep">·</span><span>{{ unidad_txt }}</span>
         </p>
+        {% set _up = (d.producto.ubicacion_pasillo or '')|trim %}
+        {% set _ue = (d.producto.ubicacion_estante or '')|trim %}
+        {% set _un = (d.producto.ubicacion_nivel or '')|trim %}
+        {% set _uc = (d.producto.ubicacion_codigo or '')|trim %}
+        <p class="pos-cart-card__ubic mb-0{% if not _uc %} pos-cart-card__ubic--empty{% endif %}"
+           title="{% if _uc %}Pasillo {{ _up }}{% if _ue %} · Est. {{ _ue }}{% endif %}{% if _un %} · Nv. {{ _un }}{% endif %}{% else %}Sin pasillo / estantería cargada{% endif %}">
+          <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+          <span class="pos-ubic-code">{% if _uc %}{{ _uc }}{% else %}Sin ubic.{% endif %}</span>
+        </p>
         {% if d.a_pedido %}
         <p class="pos-cart-card__logistica mb-0">
           Entrega ~{{ pos_dias_entrega_a_pedido }} días hábiles

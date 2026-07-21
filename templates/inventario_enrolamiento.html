@@ -500,6 +500,32 @@
         </div>
       </div>
       <div class="mb-2">
+        <label class="small fw-bold">Unidades de medida</label>
+        <div class="row g-2">
+          <div class="col-6 col-md-4">
+            <label class="small text-muted mb-0">Venta (POS)</label>
+            <select id="enrol-manual-unidad-venta" class="form-select" title="Cómo se vende en mostrador">
+              {% for u in enrol_unidades_opciones %}
+              <option value="{{ u }}"{% if u == 'Unidad' %} selected{% endif %}>{{ u }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="small text-muted mb-0">Compra (proveedor)</label>
+            <select id="enrol-manual-unidad-compra" class="form-select" title="Cómo factura el proveedor">
+              {% for u in enrol_unidades_opciones %}
+              <option value="{{ u }}"{% if u == 'Unidad' %} selected{% endif %}>{{ u }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="small text-muted mb-0">Factor conv.</label>
+            <input type="number" id="enrol-manual-factor" class="form-control" min="0.01" step="0.01" value="1" inputmode="decimal" title="Unidades de venta por 1 unidad de compra (ej. 12 si 1 caja = 12 piezas)">
+          </div>
+        </div>
+        <div class="form-text small text-muted">Ej: comprás <strong>Caja</strong>, vendés <strong>Pieza</strong>, factor <strong>12</strong>. Metro, Par, Kilo, etc.</div>
+      </div>
+      <div class="mb-2">
         <label class="small fw-bold">Categoría</label>
         <div class="position-relative">
           <input type="text" id="enrol-cat-c-input" class="form-control" maxlength="80"
@@ -610,6 +636,31 @@
           <label class="small fw-bold">Color / tono</label>
           <input type="text" id="enrol-edit-tono" class="form-control" maxlength="80" placeholder="Tono / color"
                  list="enrolTonosMaestro" autocomplete="off">
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="small fw-bold">Unidades de medida</label>
+        <div class="row g-2">
+          <div class="col-6 col-md-4">
+            <label class="small text-muted mb-0">Venta (POS)</label>
+            <select id="enrol-edit-unidad-venta" class="form-select">
+              {% for u in enrol_unidades_opciones %}
+              <option value="{{ u }}">{{ u }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-4">
+            <label class="small text-muted mb-0">Compra (proveedor)</label>
+            <select id="enrol-edit-unidad-compra" class="form-select">
+              {% for u in enrol_unidades_opciones %}
+              <option value="{{ u }}">{{ u }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="small text-muted mb-0">Factor conv.</label>
+            <input type="number" id="enrol-edit-factor" class="form-control" min="0.01" step="0.01" value="1" inputmode="decimal">
+          </div>
         </div>
       </div>
       <div class="mb-2">
@@ -1270,16 +1321,10 @@
   }
 
   function enrolUrlEtiquetas(p, cantidad) {
-    var base = enrolZebraEtiquetas
-      ? '/inventario/etiquetas/zebra'
-      : '/inventario/enrolamiento/etiquetas';
-    if (!p || !p.id) return base;
-    var q = 'ids=' + encodeURIComponent(String(p.id));
-    if (enrolZebraEtiquetas) {
-      q += '&auto_imprimir=1';
-    } else {
-      q += '&auto_print=1';
-    }
+    // Visor de etiquetas (HTML): ver y luego imprimir en Zebra — no el panel de calibración.
+    var base = '/inventario/enrolamiento/etiquetas';
+    if (!p || !p.id) return base + '?html=1&auto_print=0';
+    var q = 'html=1&auto_print=0&ids=' + encodeURIComponent(String(p.id));
     if (cantidad && parseInt(cantidad, 10) > 1) {
       q += '&cantidad=' + encodeURIComponent(String(parseInt(cantidad, 10)));
     }
@@ -1287,13 +1332,9 @@
   }
 
   function enrolUrlEtiquetasSesion(sid) {
-    if (!sid) {
-      return enrolZebraEtiquetas ? '/inventario/etiquetas/zebra' : '/inventario/enrolamiento/etiquetas';
-    }
-    var q = 'sesion_id=' + encodeURIComponent(String(sid));
-    q += enrolZebraEtiquetas ? '&auto_imprimir=1' : '&auto_print=1';
-    var base = enrolZebraEtiquetas ? '/inventario/etiquetas/zebra' : '/inventario/enrolamiento/etiquetas';
-    return base + '?' + q;
+    var base = '/inventario/enrolamiento/etiquetas';
+    if (!sid) return base + '?html=1&auto_print=0';
+    return base + '?html=1&auto_print=0&sesion_id=' + encodeURIComponent(String(sid));
   }
 
   /** Pie de tarjeta: cerrar sin tocar inventario (no revierte un ingreso ya guardado en servidor). */
@@ -1304,7 +1345,7 @@
       '<button type="button" class="btn btn-outline-primary btn-sm enrol-btn-editar-ficha">' +
       '<i class="fas fa-pen me-1"></i>Editar ficha</button>' +
       '<button type="button" class="btn btn-outline-success btn-sm enrol-btn-imprimir-etiqueta">' +
-      '<i class="fas fa-tag me-1"></i>' + (enrolZebraEtiquetas ? 'Imprimir etiqueta Zebra' : 'Imprimir etiqueta') + '</button>' +
+      '<i class="fas fa-tag me-1"></i>Ver / imprimir etiqueta</button>' +
       '<a href="#" class="btn btn-outline-info btn-sm enrol-btn-ir-catalogo" target="_blank" rel="noopener">' +
       '<i class="fas fa-external-link-alt me-1"></i>Ir al catálogo</a>' +
       '<button type="button" class="btn btn-outline-secondary btn-sm enrol-btn-cerrar-panel">' +
@@ -1327,6 +1368,49 @@
       ubicacion_estante: eEl ? eEl.value.trim() : '',
       ubicacion_nivel: nEl ? nEl.value.trim() : '',
     };
+  }
+
+  function enrolSetSelectValor(selId, val, fallback) {
+    var el = document.getElementById(selId);
+    if (!el) return;
+    var v = String(val || fallback || 'Unidad').trim();
+    var found = false;
+    for (var i = 0; i < el.options.length; i++) {
+      if (el.options[i].value === v) {
+        el.selectedIndex = i;
+        found = true;
+        break;
+      }
+    }
+    if (!found && v) {
+      var opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      el.appendChild(opt);
+      el.value = v;
+    }
+  }
+
+  function enrolUnidadesPayload(prefix) {
+    var uv = document.getElementById(prefix + '-unidad-venta');
+    var uc = document.getElementById(prefix + '-unidad-compra');
+    var fc = document.getElementById(prefix + '-factor');
+    return {
+      unidad_venta: uv ? uv.value : 'Unidad',
+      unidad_compra: uc ? uc.value : 'Unidad',
+      factor_conversion: fc ? fc.value : '1',
+    };
+  }
+
+  function enrolUnidadLineaHtml(p) {
+    var uv = String(p.unidad_venta || p.unidad || '').trim();
+    if (!uv) return '';
+    var uc = String(p.unidad_compra || '').trim();
+    var fc = Number(p.factor_conversion || 1);
+    var txt = 'Venta: ' + uv;
+    if (uc && uc !== uv) txt += ' · Compra: ' + uc;
+    if (fc > 1 && uc && uc !== uv) txt += ' (×' + fc + ')';
+    return '<div class="enrol-product-sub">Unidad: ' + txt + '</div>';
   }
 
   function enrolUbicacionLineaHtml(p) {
@@ -1385,6 +1469,10 @@
     if (estEl) estEl.value = p.ubicacion_estante || '';
     var nivEl = document.getElementById('enrol-edit-nivel');
     if (nivEl) nivEl.value = p.ubicacion_nivel || '';
+    enrolSetSelectValor('enrol-edit-unidad-venta', p.unidad_venta || p.unidad, 'Unidad');
+    enrolSetSelectValor('enrol-edit-unidad-compra', p.unidad_compra || p.unidad_venta || p.unidad, 'Unidad');
+    var fcEl = document.getElementById('enrol-edit-factor');
+    if (fcEl) fcEl.value = String(Number(p.factor_conversion || 1) > 0 ? p.factor_conversion : 1);
     overlayD.classList.add('show');
     setTimeout(function () {
       var n = document.getElementById('enrol-edit-nombre');
@@ -1536,6 +1624,7 @@
       '<div><div class="fw-bold fs-5">' + (p.nombre || '') + '</div>' +
       ((p.categoria || p.subcategoria) ? '<div class="enrol-product-sub">Categoría: ' + (p.categoria || '—') + (p.subcategoria ? ' · ' + p.subcategoria : '') + '</div>' : '') +
       ((p.marca || p.tono_color) ? '<div class="enrol-product-sub">Marca: ' + (p.marca || '—') + ' · Color: ' + (p.tono_color || '—') + '</div>' : '') +
+      enrolUnidadLineaHtml(p) +
       enrolUbicacionLineaHtml(p) +
       '<div class="enrol-product-sub">Barras: ' + (p.codigo_barra || '—') +
       ' · Chilemat: ' + (p.codigo_chilemat || '—') +
@@ -1887,6 +1976,10 @@
       var el = document.getElementById('enrol-manual-' + suf);
       if (el) el.value = '';
     });
+    enrolSetSelectValor('enrol-manual-unidad-venta', 'Unidad', 'Unidad');
+    enrolSetSelectValor('enrol-manual-unidad-compra', 'Unidad', 'Unidad');
+    var fcManual = document.getElementById('enrol-manual-factor');
+    if (fcManual) fcManual.value = '1';
     document.getElementById('enrol-manual-chilemat').value = '';
     var qV = parseInt(document.getElementById('enrol-cant-vinc').value, 10);
     if (isNaN(qV) || qV < 0) qV = 1;
@@ -1976,6 +2069,7 @@
         precio_mayoreo: pm,
       };
       Object.assign(altaBody, enrolUbicacionPayload('enrol-manual'));
+      Object.assign(altaBody, enrolUnidadesPayload('enrol-manual'));
       if (altaBody.cantidad_inicial > 0 && pc <= 0) {
         alert('Indique precio de compra para valorizar el stock en inventario.');
         document.getElementById('enrol-manual-pcompra').focus();
@@ -2154,6 +2248,7 @@
         tono_color: (document.getElementById('enrol-edit-tono') || {}).value ? document.getElementById('enrol-edit-tono').value.trim() : '',
       };
       Object.assign(body, enrolUbicacionPayload('enrol-edit'));
+      Object.assign(body, enrolUnidadesPayload('enrol-edit'));
       if (barrasVal) body.codigo_barra = barrasVal;
       if (chileVal) body.codigo_chilemat = chileVal;
       if (enrolEditInternoUnlock) {
@@ -2186,12 +2281,6 @@
     btnEtSesion.addEventListener('click', function () {
       if (!sesionId) {
         alert('Iniciá una sesión de enrolamiento primero.');
-        return;
-      }
-      if (enrolZebraEtiquetas) {
-        enrolImprimirZebraLote({ sesion_id: sesionId, variante: 'enrolamiento' })
-          .then(enrolMensajeImpresionZebra)
-          .catch(function (e) { alert(e.message || e); });
         return;
       }
       window.open(enrolUrlEtiquetasSesion(sesionId), '_blank', 'noopener');
@@ -2231,12 +2320,7 @@
         alert('Máximo 50 copias por producto.');
         n = 50;
       }
-      if (enrolZebraEtiquetas) {
-        enrolImprimirZebraLote({ ids: String(lastCasoAProducto.id), cantidad: n, variante: 'enrolamiento' })
-          .then(enrolMensajeImpresionZebra)
-          .catch(function (e) { alert(e.message || e); });
-        return;
-      }
+      // Abre panel (Zebra o HTML) para vista previa y elegir impresora; no imprime solo.
       window.open(enrolUrlEtiquetas(lastCasoAProducto, n), '_blank', 'noopener');
       return;
     }

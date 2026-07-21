@@ -54,7 +54,7 @@ if exist "%OPS%" (
 
 echo [5/5] Data operativa ...
 mkdir "%ERP%\data" 2>nul
-for %%F in (empresa_config.json proveedores_config.json cross_sell_associations.json pintura_cartilla_sd.json zebra_etiqueta_config.json) do (
+for %%F in (empresa_config.json proveedores_config.json cross_sell_associations.json pintura_cartilla_sd.json zebra_etiqueta_config.json empresas_cotizacion.json) do (
   if exist "%REPO%\data\%%F" copy /Y "%REPO%\data\%%F" "%ERP%\data\" >nul
 )
 mkdir "%ERP%\storage\dtes\emitidos" 2>nul

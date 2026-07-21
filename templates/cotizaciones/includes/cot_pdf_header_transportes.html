@@ -1,0 +1,83 @@
+{# Encabezado PDF Transportes Sta JULLIET — identidad fija (no mezclar Chilemat) #}
+{% set _tj = {
+  'razon': 'JULIO IVAN RIVERA PEREZ EIRL',
+  'giro': 'venta de aridos y fletes',
+  'rut': '76.873.527-1',
+  'tel': '989145920',
+  'mail': 'aridosjr1963@gmail.com',
+  'cuenta': 'CHEQUERA ELECTRONICA: 51270010532',
+  'banco': 'Banco Estado',
+  'logo': 'img/cot_transportes_julliet_v5.png',
+  'l1': 'TRANSPORTES',
+  'l2': 'Sta JULLIET'
+} %}
+{# Si el perfil llegó bien (plantilla transportes), usarlo; si no, constantes TJ #}
+{% set _ok = empresa is defined and empresa and empresa.plantilla == 'transportes' %}
+{% set tel = ((_ok and empresa.telefono) or _tj.tel)|trim %}
+{% set mail = ((_ok and empresa.correo) or _tj.mail)|trim %}
+{% set rut_cot = ((_ok and empresa.rut_emisor) or _tj.rut)|trim %}
+{% set titular = ((_ok and empresa.razon_social) or _tj.razon)|trim %}
+{% set giro = ((_ok and empresa.eslogan) or _tj.giro)|trim %}
+{% set cuenta = ((_ok and empresa.cuenta_banco) or _tj.cuenta)|trim %}
+{% set banco = ((_ok and empresa.banco) or _tj.banco)|trim %}
+{% set logo_img = ((_ok and empresa.logo_img) or _tj.logo)|trim %}
+{% set logo_v = 'julliet-pdf-fix-20260720' %}
+
+<div class="sd-header sd-header--transportes{% if not pagina.es_primera %} sd-header--cont{% endif %}">
+  <div class="sd-header__top sd-header__top--tj">
+    <div class="sd-header__brand sd-header__brand--tj">
+      {% if pagina.es_primera %}
+      <div class="cot-tj-grid cot-tj-grid--pdf">
+        <div class="cot-tj-logo">
+          <img class="sd-header__transportes-banner"
+               src="{{ url_for('static', filename=logo_img) }}?v={{ logo_v }}"
+               alt="Transportes Sta JULLIET"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
+          <div class="sd-header__transportes-text" style="display:none">
+            <div class="sd-header__transportes-l1">{{ _tj.l1 }}</div>
+            <div class="sd-header__transportes-l2">{{ _tj.l2 }}</div>
+          </div>
+        </div>
+        <div class="cot-tj-datos">
+          <div class="cot-tj-razon">{{ titular }}</div>
+          <div class="cot-tj-giro">{{ giro }}</div>
+          <div class="cot-tj-row"><span class="cot-tj-ico">●</span><span class="cot-tj-txt"><strong>RUT:</strong> {{ rut_cot }}</span></div>
+          <div class="cot-tj-row">
+            <span class="cot-tj-ico">●</span>
+            <span class="cot-tj-txt">
+              <strong>{{ cuenta }}</strong>
+              <span class="cot-tj-banco">{{ banco }}</span>
+            </span>
+          </div>
+          <div class="cot-tj-row"><span class="cot-tj-ico">●</span><span class="cot-tj-txt"><strong>Teléfono:</strong> {{ tel }}</span></div>
+          <div class="cot-tj-row"><span class="cot-tj-ico">●</span><span class="cot-tj-txt"><strong>correo:</strong> {{ mail }}</span></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="sd-header__doc">
+      <div class="sd-doc-box sd-doc-box--transportes">
+        {% if not pagina.es_primera %}
+        <div class="doc-continuacion-label">CONTINUACIÓN</div>
+        {% endif %}
+        <div class="doc-title">COTIZACIÓN</div>
+        <div class="doc-num">N° {{ cotizacion.numero }}</div>
+        {% if pagina.es_primera and cot_barcode_svg_compact %}
+        <div class="sd-header__barcode">{{ cot_barcode_svg_compact|safe }}</div>
+        {% endif %}
+        <div class="doc-meta">
+          Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') if cotizacion.fecha else '' }}<br>
+          {% if cotizacion.fecha_vencimiento and pagina.es_primera %}
+          Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)<br>
+          {% endif %}
+          {% if not pagina.es_primera %}
+          <strong class="doc-hoja-label">Hoja {{ pagina.numero }} de {{ pagina.total }}</strong><br>
+          {% endif %}
+          {% set bcls = {'Vigente': 'badge-vigente', 'Vencida': 'badge-vencida', 'Aceptada': 'badge-aceptada', 'Rechazada': 'badge-rechazada', 'Convertida': 'badge-convertida'} %}
+          <span class="badge-estado {{ bcls.get(cotizacion.estado, '') }}">{{ cotizacion.estado }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

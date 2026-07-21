@@ -5,7 +5,7 @@
 {% block body_class %}{% if pos_layout_fullwidth %}pos-layout-fullwidth pos-pantalla-vendedora{% if pos_dock_relayout_busqueda %} pos-dock-relayout-busqueda{% endif %}{% endif %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-modal-scan-20260602">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=pos-ubic-abr-20260715">
 {% if pos_layout_fullwidth %}
 <style id="pos-hdr-nav-fix-inline">
 body.pos-pantalla-vendedora .app-sidebar,
@@ -576,8 +576,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
         <i class="fas fa-file-circle-plus" aria-hidden="true"></i><span>Nueva venta</span>
       </button>
       <a href="{{ url_for('caja_pendientes') }}" class="pos-nav-dock__link pos-nav-dock__link--primary" title="Ir a caja"><i class="fas fa-cash-register" aria-hidden="true"></i><span>Caja</span></a>
+      <a href="{{ url_for('promociones_lista') }}" class="pos-nav-dock__link" title="Promociones comerciales (2x1, packs…)"><i class="fas fa-tags" aria-hidden="true"></i><span>Promos</span></a>
       <a href="{{ url_for('pos_retiros') }}" class="pos-nav-dock__link pos-nav-dock__link--accent-amber" title="Entrega de mercadería pagada"><i class="fas fa-box-open" aria-hidden="true"></i><span>Retiros</span></a>
-      {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy' %}{% set help_link_class = 'pos-nav-dock__link' %}{% set help_link_no_bootstrap_btn = true %}{% include 'partials/help_screen_link.html' %}
+      <a href="{{ url_for('caja_saldos_favor') }}" class="pos-nav-dock__link" title="Clientes con saldo a favor"><i class="fas fa-wallet" aria-hidden="true"></i><span>Saldos a favor</span></a>
       {% if experience_wall_url %}
       <a href="{{ experience_wall_url }}" target="_blank" rel="noopener" class="pos-nav-dock__link pos-nav-dock__link--accent-sky" title="TV cliente"><i class="fas fa-tv" aria-hidden="true"></i><span>TV</span></a>
       {% endif %}
@@ -623,7 +624,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
       <a href="{{ url_for('pos_retiros') }}" class="btn btn-outline-primary btn-sm" title="Entrega de mercadería pagada">
         <i class="fas fa-box-open me-1"></i> Retiros
       </a>
-      {% set help_anchor = 'academy-pos' %}{% set help_link_label = 'Academy POS' %}{% include 'partials/help_screen_link.html' %}
+      <a href="{{ url_for('caja_saldos_favor') }}" class="btn btn-outline-success btn-sm" title="Clientes con saldo a favor">
+        <i class="fas fa-wallet me-1"></i> Saldos a favor
+      </a>
     </div>
   </div>
   {% endif %}
@@ -682,6 +685,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
                  value="{{ cliente.rut if cliente else '' }}">
           <div class="pos-identify-actions">
             <button type="button" class="btn btn-sm btn-info text-white" id="posBtnIdentificarTv" title="Identificar en TV"><i class="fas fa-user-check"></i></button>
+            <button type="button" class="btn btn-sm btn-outline-warning" id="posBtnClienteNuevo" title="Enrolar cliente nuevo"><i class="fas fa-user-plus"></i></button>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="posBtnClienteFinalTv" title="Cliente final"><i class="fas fa-user"></i></button>
             <button type="button" class="btn btn-sm btn-outline-danger" id="posBtnQuitarClienteTv" title="Quitar TV"><i class="fas fa-times"></i></button>
           </div>
@@ -987,6 +991,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
           <div class="pos-dock-checkout">
             <div class="pos-dock-total">
               <span class="pos-dock-total-label">Total a emitir</span>
+              {% if (venta_promo_descuento_clp|default(0)) > 0 %}
+              <small class="pos-dock-meta d-block text-success">Promo −${{ '{:,.0f}'.format(venta_promo_descuento_clp).replace(',', '.') }}</small>
+              {% endif %}
               <strong id="monto_total" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</strong>
               <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</span>
               <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems</small>
@@ -1061,6 +1068,11 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
         </div>
         <div class="d-grid gap-2">
           <button type="button" class="btn btn-ds-primary" id="posBtnAltaRapidaProducto"><i class="fas fa-plus-circle me-1"></i> Producto nuevo — alta rápida</button>
+          {% if usuario_tiene_permiso('enrolamiento_inventario') or usuario_tiene_permiso('admin_inventario') %}
+          <a href="{{ url_for('inventario_enrolamiento') }}" class="btn btn-outline-success" id="posBtnEnrolamientoNormal" target="_blank" rel="noopener">
+            <i class="fas fa-barcode me-1"></i> Enrolamiento normal (con ubicación)
+          </a>
+          {% endif %}
           <button type="button" class="btn btn-success" id="posBtnVincularProducto"><i class="fas fa-link me-1"></i> Mismo producto — vincular código</button>
           <button type="button" class="btn btn-outline-primary" id="posBtnBuscarSimilar"><i class="fas fa-search me-1"></i> Buscar por nombre</button>
         </div>
@@ -1365,8 +1377,8 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
 {% block extra_js %}
 <script id="pos-config" type="application/json">{{ {
   'descuento_libre': false,
-  'cross_sell_enabled': pos_cross_sell_enabled,
-  'producto_ids': pids,
+  'cross_sell_enabled': pos_cross_sell_enabled|default(false),
+  'producto_ids': pids|default([]),
   'urls': {
     'buscar_producto': url_for('buscar_producto'),
     'agregar_producto': url_for('agregar_producto_venta'),
@@ -1383,6 +1395,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
     'retiro_linea': url_for('api_pos_retiro_linea'),
     'producto_alta_rapida': url_for('api_pos_producto_alta_rapida'),
     'vincular_codigo': url_for('api_pos_vincular_codigo'),
+    'enrolamiento': url_for('inventario_enrolamiento'),
     'vales_hoy': url_for('api_pos_vales_hoy'),
     'pedidos_apedido': url_for('api_pos_pedidos_apedido'),
     'cotizacion_nueva': url_for('cotizacion_nueva'),
@@ -1392,19 +1405,19 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
     'mentor_contexto': url_for('api_mentor_context'),
     'mentor_telemetria': url_for('api_mentor_log_read')
   },
-  'vale_resume': pos_vale_resume,
-  'credito_urls': pos_credito_urls,
-  'puede_ver_creditos': puede_ver_creditos,
-  'puede_registrar_abono': puede_registrar_abono,
-  'cliente_vitrina': cliente_vitrina,
-  'cliente_ui': cliente_ui,
-  'pos_rut_obligatorio': pos_rut_obligatorio,
-  'pos_retiro_por_linea': pos_retiro_por_linea,
-  'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido,
-  'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct,
+  'vale_resume': pos_vale_resume|default({'show': false, 'venta_id': none, 'items_count': 0, 'total_fmt': '$0'}),
+  'credito_urls': pos_credito_urls|default({}),
+  'puede_ver_creditos': puede_ver_creditos|default(false),
+  'puede_registrar_abono': puede_registrar_abono|default(false),
+  'cliente_vitrina': cliente_vitrina|default(none),
+  'cliente_ui': cliente_ui|default({'estado': 'idle', 'resumen': none}),
+  'pos_rut_obligatorio': pos_rut_obligatorio|default(false),
+  'pos_retiro_por_linea': pos_retiro_por_linea|default(false),
+  'pos_dias_entrega_a_pedido': pos_dias_entrega_a_pedido|default(5),
+  'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct|default(10),
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-vincular-precio-20260602"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-barcode-trailing0-20260720"></script>
 <script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-4"></script>
 <script>
 (function () {

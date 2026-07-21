@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seguimiento {{ ped.ped_web_codigo }} · {{ nombre_tienda }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=seguimiento-pedido-1">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <style>
+    .seg-wrap { max-width: 560px; margin: 2rem auto; padding: 0 1rem 3rem; }
+    .seg-card {
+      background: #0f172a; color: #f1f5f9; border-radius: 16px;
+      border: 1px solid rgba(148,163,184,.35); padding: 1.5rem 1.35rem;
+      box-shadow: 0 18px 40px rgba(0,0,0,.35);
+    }
+    .seg-code { font-family: ui-monospace, monospace; font-size: 1.35rem; font-weight: 800; letter-spacing: .04em; }
+    .seg-meta { color: #cbd5e1; font-size: .9rem; margin-top: .35rem; }
+    .seg-total { font-size: 1.75rem; font-weight: 800; color: #86efac; margin: 1rem 0 .25rem; }
+    .seg-steps { list-style: none; padding: 0; margin: 1.25rem 0 0; }
+    .seg-steps li {
+      display: flex; gap: .75rem; align-items: flex-start;
+      padding: .55rem 0; border-bottom: 1px solid rgba(148,163,184,.2);
+    }
+    .seg-steps li:last-child { border-bottom: 0; }
+    .seg-dot {
+      width: 1.35rem; height: 1.35rem; border-radius: 50%; flex-shrink: 0;
+      border: 2px solid #64748b; margin-top: .1rem;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .65rem; color: transparent;
+    }
+    .seg-steps li.is-done .seg-dot {
+      background: #166534; border-color: #4ade80; color: #bbf7d0;
+    }
+    .seg-steps li.is-current .seg-dot {
+      border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,.25);
+    }
+    .seg-label { font-weight: 700; color: #f8fafc; }
+    .seg-lineas { margin-top: 1.25rem; background: #1e293b; border-radius: 12px; padding: .75rem 1rem; }
+    .seg-lineas row, .seg-line {
+      display: flex; justify-content: space-between; gap: 1rem;
+      padding: .35rem 0; font-size: .9rem; color: #e2e8f0;
+    }
+    .seg-err { background: #7f1d1d; color: #fecaca; padding: 1rem; border-radius: 12px; }
+    .seg-actions { margin-top: 1.25rem; display: flex; flex-direction: column; gap: .5rem; }
+    .seg-actions a {
+      display: block; text-align: center; text-decoration: none; font-weight: 700;
+      padding: .85rem 1rem; border-radius: 10px;
+    }
+    .seg-btn-primary { background: #22c55e; color: #052e16; }
+    .seg-btn-ghost { background: transparent; color: #e2e8f0; border: 1px solid rgba(226,232,240,.4); }
+  </style>
+</head>
+<body class="tienda-vitrina">
+  <main class="seg-wrap">
+    {% if error %}
+    <div class="seg-card">
+      <div class="seg-err"><i class="fas fa-lock me-1"></i> {{ error }}</div>
+      <div class="seg-actions">
+        <a class="seg-btn-ghost" href="{{ vitrina_url }}">Volver al catálogo</a>
+      </div>
+    </div>
+    {% else %}
+    <div class="seg-card">
+      <div class="small" style="color:#fbbf24;letter-spacing:.08em;text-transform:uppercase;font-weight:700;">Seguimiento de pedido</div>
+      <div class="seg-code">{{ ped.ped_web_codigo }}</div>
+      <div class="seg-meta">
+        {{ ped.vale_folio }} · Retiro: {{ ped.punto_retiro }}
+        {% if ped.contacto_nombre %} · {{ ped.contacto_nombre }}{% endif %}
+      </div>
+      <div class="seg-total">${{ '{:,.0f}'.format(ped.monto_total or 0).replace(',', '.') }}</div>
+      <div class="seg-meta">
+        Preparación: <strong>{{ ped.estado_prep.replace('_', ' ') }}</strong>
+        · Vale: <strong>{{ ped.estado_venta }}</strong>
+      </div>
+      {% if ped.cliente_registrado %}
+      <div class="seg-meta" style="margin-top:.65rem;padding:.65rem .75rem;background:#ecfdf5;border-radius:10px;color:#065f46;">
+        <strong>Cliente registrado:</strong>
+        {{ ped.cliente_nombre_ficha or ped.contacto_nombre or '—' }}
+        {% if ped.contacto_telefono %} · {{ ped.contacto_telefono }}{% endif %}
+      </div>
+      {% endif %}
+
+      {% if ped.qr_data_uri %}
+      <div style="margin:1.25rem 0;text-align:center;padding:1rem;background:#1e293b;border-radius:14px;border:1px solid rgba(148,163,184,.3);">
+        <div class="seg-label" style="margin-bottom:.5rem;">{{ ped.qr_titulo or 'QR' }}</div>
+        <img src="{{ ped.qr_data_uri }}" alt="QR pedido" width="200" height="200" style="image-rendering:pixelated;background:#fff;padding:8px;border-radius:8px;">
+        <p class="seg-meta" style="margin:.65rem 0 0;">{{ ped.qr_ayuda }}</p>
+      </div>
+      {% endif %}
+
+      <ul class="seg-steps">
+        {% for p in ped.pasos %}
+        <li class="{% if p.done %}is-done{% endif %}">
+          <span class="seg-dot">{% if p.done %}<i class="fas fa-check"></i>{% endif %}</span>
+          <span class="seg-label">{{ p.label }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+
+      {% if ped.lineas %}
+      <div class="seg-lineas">
+        {% for ln in ped.lineas %}
+        <div class="seg-line">
+          <span>{{ ln.cantidad }} × {{ ln.nombre }}</span>
+          <span>${{ '{:,.0f}'.format(ln.subtotal or 0).replace(',', '.') }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="seg-actions">
+        <a class="seg-btn-primary" href="{{ vitrina_url }}"><i class="fas fa-store me-1"></i>Seguir comprando</a>
+        <p class="seg-meta" style="margin:0;text-align:center;">Guarda este enlace o el código para consultar el estado.</p>
+      </div>
+    </div>
+    {% endif %}
+  </main>
+</body>
+</html>

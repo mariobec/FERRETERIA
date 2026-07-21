@@ -11,68 +11,170 @@
       .print-page { page-break-after: always; }
       .print-page:last-child { page-break-after: auto; }
       table.lineas thead { display: table-header-group; }
-      .totales, .footer-doc { page-break-inside: avoid; break-inside: avoid; }
+      .totales, .sd-footer { page-break-inside: avoid; break-inside: avoid; }
       table.lineas tbody tr { page-break-inside: avoid; break-inside: avoid; }
-      .doc-header { padding: 8px 0 10px; }
+      .sd-header { padding: 0 0 8px; }
       .seccion { padding: 8px 0; }
     }
     * { box-sizing: border-box; }
-    body { font-family: 'Helvetica', 'Arial', sans-serif; color: #1f2937; margin: 0; padding: 0; font-size: 11px; }
-    .doc-header { display: table; width: 100%; padding: 14px 0 12px; border-bottom: 2px solid #f37021; }
-    .doc-header .col-l, .doc-header .col-r { display: table-cell; vertical-align: top; }
-    .doc-header .col-r { text-align: right; width: 42%; }
-    .doc-header--continuacion { padding: 10px 0 8px; }
-    .doc-header--continuacion .doc-title { font-size: 16px; }
-    .doc-header__logo-sm { max-height: 42px; max-width: 120px; margin-bottom: 4px; }
-    .doc-header__empresa-sm { font-size: 11px; font-weight: 700; color: #111827; }
-    .doc-continuacion-label {
-      font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
-      text-transform: uppercase; color: #b45309; margin-bottom: 2px;
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      color: #1f2937; margin: 0; padding: 0; font-size: 15px;
     }
-    .cot-membrete__logo { max-height: 64px; max-width: 200px; object-fit: contain; display: block; margin-bottom: 6px; }
-    .cot-membrete__marca { font-size: 14px; font-weight: 800; color: #111827; line-height: 1.25; }
-    .cot-membrete__razon { font-size: 11px; font-weight: 700; color: #1f2937; margin-top: 3px; }
-    .cot-membrete__giro { font-size: 10px; color: #4b5563; margin-top: 2px; font-style: italic; }
-    .cot-membrete__dir, .cot-membrete__contacto { color: #6b7280; font-size: 10px; line-height: 1.4; margin-top: 1px; }
-    .doc-title { font-size: 20px; font-weight: 800; color: #111827; letter-spacing: 0.05em; margin: 0; }
-    .doc-num { font-size: 15px; font-weight: 700; color: #f37021; margin-top: 2px; }
-    .doc-meta { color: #6b7280; font-size: 10px; margin-top: 4px; line-height: 1.4; }
-    .doc-hoja-label { color: #b45309; font-weight: 700; font-size: 10px; }
-    .badge-estado { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: 700; color: #fff; margin-top: 3px; }
+
+    /* —— Membrete Chilemat / Santo Domingo —— */
+    .sd-header { padding: 4px 0 10px; border-bottom: 3px solid #00a651; }
+    .sd-header--cont { padding: 6px 0 8px; border-bottom-width: 2px; }
+    .sd-header__top { display: table; width: 100%; table-layout: fixed; }
+    .sd-header__brand, .sd-header__doc { display: table-cell; vertical-align: top; }
+    .sd-header__brand { width: 58%; padding-right: 12px; }
+    .sd-header__doc { width: 42%; text-align: right; }
+    .sd-chilemat {
+      display: block; margin: 0 auto 6px; text-align: center;
+      background: transparent; color: #006B3F;
+      padding: 0; min-width: 0; width: fit-content;
+    }
+    .sd-chilemat-img {
+      display: block; margin: 0 auto 6px;
+      max-height: 48px; max-width: 180px; width: auto;
+      object-fit: contain;
+    }
+    .sd-chilemat__word { white-space: nowrap; line-height: 1; }
+    .sd-chilemat__chile {
+      display: inline-block; background: #006B3F; color: #fff;
+      font-size: 15px; font-weight: 900; letter-spacing: 0.04em;
+      padding: 5px 8px 4px; border-radius: 2px; vertical-align: middle;
+    }
+    .sd-chilemat__mat {
+      display: inline-block; color: #7CB82F; font-size: 15px; font-weight: 900;
+      letter-spacing: 0.04em; margin-left: 2px; vertical-align: middle;
+    }
+    .sd-chilemat__mat sup { font-size: 8px; }
+    .sd-chilemat__tag {
+      margin-top: 5px; font-size: 7px; font-weight: 700; color: #7CB82F;
+      letter-spacing: 0.16em; text-align: center; white-space: nowrap;
+    }
+    .sd-chilemat__tag span {
+      display: inline-block; width: 18px; height: 1px; background: #7CB82F;
+      vertical-align: middle; margin: 0 4px;
+    }
+    .sd-header__brand-stack {
+      display: inline-block; text-align: center; vertical-align: top;
+      width: fit-content; max-width: 100%;
+    }
+    .sd-header__empresa { display: block; text-align: center; margin: 0 auto; }
+    .sd-header__ferreteria {
+      font-size: 12px; font-weight: 800; letter-spacing: 0.22em;
+      color: #006B3F; line-height: 1.1; text-align: center;
+    }
+    .sd-header__local {
+      font-size: 20px; font-weight: 900; color: #0f172a;
+      letter-spacing: 0.02em; line-height: 1.05; margin-top: 1px; text-align: center;
+    }
+    .sd-header__titular {
+      font-size: 15px; font-weight: 700; color: #1e293b;
+      margin-top: 6px; font-style: italic; line-height: 1.2; text-align: left;
+    }
+    .sd-header__rut {
+      margin-top: 3px; font-size: 16px; font-weight: 900;
+      color: #006B3F; letter-spacing: 0.04em; line-height: 1.1; text-align: left;
+    }
+    .sd-header__rubro {
+      font-size: 9px; color: #007a3d; font-weight: 600;
+      letter-spacing: 0.02em; margin-top: 5px; line-height: 1.35;
+      max-width: 340px; text-align: left;
+    }
+    .sd-doc-box {
+      display: inline-block; text-align: center;
+      border: 2px solid #006B3F; border-radius: 6px;
+      padding: 8px 14px 10px; min-width: 210px; max-width: 100%;
+      background: #fff;
+    }
+    .sd-doc-box .doc-title {
+      font-size: 17px; font-weight: 900; color: #0f172a;
+      letter-spacing: 0.08em; margin: 0; line-height: 1.1;
+    }
+    .sd-doc-box .doc-num {
+      margin-top: 6px; font-size: 15px; font-weight: 700; color: #00a651;
+    }
+    .sd-header__contacto {
+      display: table; width: 100%; margin-top: 10px;
+      background: #f0faf4; border: 1px solid #b7e4c7; border-radius: 6px;
+      table-layout: fixed;
+    }
+    .sd-contacto-item {
+      display: table-cell; width: 33.33%; padding: 8px 10px;
+      font-size: 11px; font-weight: 600; color: #14532d;
+      border-right: 1px solid #c6ebd4; vertical-align: middle;
+      text-align: left; line-height: 1.25;
+    }
+    .sd-contacto-item:last-child { border-right: 0; }
+    .sd-contacto-ico {
+      display: inline-block; width: 16px; height: 16px; line-height: 16px;
+      text-align: center; border-radius: 50%; background: #00a651; color: #fff;
+      font-size: 9px; font-weight: 700; margin-right: 5px; vertical-align: middle;
+    }
+
+    .doc-title { font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 0.06em; margin: 0; }
+    .doc-num { font-size: 17px; font-weight: 700; color: #00a651; margin-top: 2px; }
+    .sd-header__barcode { margin-top: 6px; line-height: 0; text-align: center; }
+    .sd-header__barcode svg { max-width: 200px; height: auto; margin: 0 auto; }
+    .doc-meta { color: #64748b; font-size: 11px; margin-top: 5px; line-height: 1.4; text-align: center; }
+    .doc-hoja-label { color: #007a3d; font-weight: 700; font-size: 12px; }
+    .doc-continuacion-label {
+      font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #007a3d; margin-bottom: 2px;
+    }
+    .badge-estado { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; margin-top: 3px; }
     .badge-vigente { background: #16a34a; }
     .badge-vencida { background: #f59e0b; color: #1f2937; }
     .badge-aceptada { background: #2563eb; }
     .badge-rechazada { background: #dc2626; }
-    .badge-convertida { background: #06b6d4; color: #1f2937; }
+    .badge-convertida { background: #0d9488; color: #fff; }
 
     .seccion { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-    .seccion h6 { color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; font-size: 9px; margin: 0 0 5px 0; font-weight: 700; }
-    .cot-cliente-ficha__grid { display: table; width: 100%; }
-    .cot-cliente-ficha__col { display: table-cell; vertical-align: top; width: 58%; }
-    .cot-cliente-ficha__col--contacto { width: 42%; padding-left: 12px; }
-    .cot-cliente-ficha__row { display: table; width: 100%; margin-bottom: 3px; }
+    .seccion h6 { color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; margin: 0 0 6px 0; font-weight: 700; }
+    table.cot-cliente-ficha {
+      width: 100%; border-collapse: collapse; table-layout: fixed;
+      background: #fff; border: 1.5px solid #111; border-radius: 0;
+    }
+    table.cot-cliente-ficha td.cot-cliente-ficha__col {
+      width: 58%; vertical-align: top; padding: 8px 10px;
+    }
+    table.cot-cliente-ficha td.cot-cliente-ficha__col--contacto {
+      width: 42%; padding-left: 14px; border-left: 1px solid #d1d5db;
+    }
+    .cot-cliente-ficha__row {
+      display: table; width: 100%; table-layout: fixed; margin-bottom: 4px;
+    }
+    .cot-cliente-ficha__row:last-child { margin-bottom: 0; }
     .cot-cliente-ficha__label {
-      display: table-cell; width: 72px; padding-right: 8px; vertical-align: top;
-      font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b;
+      display: table-cell; width: 78px; padding-right: 8px; vertical-align: middle;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      color: #111; white-space: nowrap;
     }
     .cot-cliente-ficha__value {
-      display: table-cell; vertical-align: top; font-size: 10px; color: #111827; line-height: 1.35;
+      display: table-cell; vertical-align: middle; font-size: 12px; color: #111827; line-height: 1.3;
     }
-    .cot-cliente-ficha__value--nombre { font-weight: 700; font-size: 11px; }
+    .cot-cliente-ficha__value--nombre { font-weight: 700; font-size: 13px; }
     .cot-cliente-ficha__value--email { word-break: break-all; }
 
     .cot-cliente-mini {
-      font-size: 10px; color: #111827; line-height: 1.4;
+      font-size: 12px; color: #111827; line-height: 1.4;
+      border: 1.5px solid #111; padding: 6px 8px; background: #fff;
     }
     .cot-cliente-mini__label {
-      font-size: 8px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.05em; color: #64748b; margin-right: 6px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: #111; margin-right: 6px;
     }
     .cot-cliente-mini__nombre { font-weight: 700; }
     .cot-cliente-mini__sep { color: #94a3b8; margin: 0 4px; }
     .cot-cliente-mini__rut { color: #475569; }
 
-    table.lineas { width: 100%; border-collapse: collapse; margin-top: 4px; table-layout: fixed; }
+    table.lineas {
+      width: 100%; border-collapse: collapse; margin-top: 4px; table-layout: fixed;
+      border: 1.5px solid #111;
+    }
     table.lineas col.c-col-num { width: 3%; }
     table.lineas col.c-col-codigo { width: 11%; }
     table.lineas col.c-col-art { width: 31%; }
@@ -81,66 +183,178 @@
     table.lineas col.c-col-desc { width: 8%; }
     table.lineas col.c-col-tot { width: 12%; }
     table.lineas thead th {
-      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-      color: #f8fafc; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em;
-      padding: 7px 6px; border-bottom: none; text-align: left; font-weight: 700;
+      background: #f3f4f6;
+      color: #111; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 8px 6px; border-bottom: 1.5px solid #111; border-right: 1px solid #d1d5db;
+      text-align: left; font-weight: 700; vertical-align: middle;
     }
+    table.lineas thead th:last-child { border-right: none; }
     table.lineas thead th.text-end { text-align: right; }
-    table.lineas thead th .th-sub { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.75; font-size: 7px; }
-    table.lineas tbody td { padding: 6px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; line-height: 1.3; }
-    table.lineas tbody tr:nth-child(even) td { background: #f8fafc; }
-    table.lineas .text-end { text-align: right; }
-    table.lineas .linea-num { color: #94a3b8; font-size: 9px; font-weight: 700; text-align: center; }
-    table.lineas .linea-articulo__cod {
-      font-family: ui-monospace, Consolas, monospace; font-size: 8px; font-weight: 700;
-      color: #475569; letter-spacing: 0.02em; margin-bottom: 2px; word-break: break-all;
+    table.lineas thead th.text-center { text-align: center; }
+    table.lineas thead th .th-sub {
+      display: block; font-weight: 500; text-transform: none; letter-spacing: 0;
+      color: #111; opacity: 0.85; font-size: 9px; line-height: 1.1; margin-top: 1px;
     }
-    table.lineas .linea-articulo__cod--ref { color: #b45309; }
-    table.lineas .linea-articulo__nom { font-weight: 600; color: #111827; word-break: break-word; font-size: 10px; }
+    table.lineas tbody td {
+      padding: 7px 6px; border-bottom: 1px solid #d1d5db; vertical-align: middle; line-height: 1.35;
+      color: #111;
+    }
+    table.lineas tbody tr:last-child td { border-bottom: none; }
+    table.lineas tbody tr:nth-child(even) td { background: #f5f5f5; }
+    table.lineas .text-end { text-align: right; }
+    table.lineas .text-center { text-align: center; }
+    table.lineas .linea-num { color: #111; font-size: 11px; font-weight: 700; text-align: center; }
+    table.lineas .linea-articulo__cod {
+      font-family: ui-monospace, Consolas, monospace; font-size: 10px; font-weight: 700;
+      color: #111; letter-spacing: 0.02em; margin-bottom: 2px; word-break: break-all;
+    }
+    table.lineas .linea-articulo__cod--ref { color: #111; }
+    table.lineas .linea-articulo__nom { font-weight: 700; color: #111; word-break: break-word; font-size: 14px; }
     table.lineas .linea-articulo__tag {
       display: inline-block; margin-top: 2px; padding: 1px 4px; border-radius: 4px;
-      background: #fef3c7; color: #92400e; font-size: 7px; font-weight: 700;
+      background: #e5e7eb; color: #111; font-size: 9px; font-weight: 700;
     }
-    table.lineas .linea-money { font-variant-numeric: tabular-nums; font-size: 10px; white-space: nowrap; }
-    table.lineas .linea-money--total { font-weight: 800; color: #0f172a; }
-    table.lineas .linea-dash { color: #cbd5e1; }
+    table.lineas .linea-money { font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; color: #111; }
+    table.lineas .linea-money--total { font-weight: 800; color: #111; }
+    table.lineas .linea-dash { color: #9ca3af; }
 
     .totales { display: table; width: 100%; margin-top: 8px; }
     .totales .col-l, .totales .col-r { display: table-cell; vertical-align: top; }
     .totales .col-r { width: 45%; }
-    .notas { color: #4b5563; font-size: 10px; line-height: 1.45; }
-    .totales-card { background: #fff8ef; border: 1px solid #ffe4c4; border-radius: 8px; padding: 10px 12px; }
-    .totales-row { display: table; width: 100%; padding: 2px 0; }
+    .notas { color: #4b5563; font-size: 12px; line-height: 1.45; }
+    .totales-card {
+      background: #f0faf4; border: 1px solid #b7e4c7; border-radius: 8px; padding: 10px 12px;
+    }
+    .totales-row { display: table; width: 100%; padding: 5px 0; font-size: 15px; }
     .totales-row .lab, .totales-row .val { display: table-cell; vertical-align: baseline; }
-    .totales-row .val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .totales-row.total { font-size: 14px; font-weight: 800; color: #b45309; border-top: 2px dashed #ffb87a; margin-top: 5px; padding-top: 6px; }
-    .totales-row.sep { border-top: 1px solid #ffe4c4; margin-top: 3px; padding-top: 5px; }
-    .totales-row.hint { font-size: 9px; color: #78716c; font-weight: 500; }
-    .totales-iva-nota { font-size: 8px; color: #78716c; margin-top: 6px; line-height: 1.35; }
+    .totales-row .val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .totales-row.total {
+      font-size: 20px; font-weight: 900; color: #007a3d;
+      border-top: 2px solid #00a651; margin-top: 6px; padding-top: 8px;
+    }
+    .totales-row.sep { border-top: 1px solid #b7e4c7; margin-top: 3px; padding-top: 5px; }
+    .totales-row.hint { font-size: 11px; color: #64748b; font-weight: 500; }
+    .totales-iva-nota { font-size: 10px; color: #64748b; margin-top: 6px; line-height: 1.35; }
 
-    .footer-doc { margin-top: 14px; padding-top: 10px; border-top: 1px dashed #e5e7eb; text-align: center; color: #6b7280; font-size: 9px; }
-    .footer-doc strong { color: #f37021; }
+    /* —— Pie confianza —— */
+    .sd-footer { margin-top: 14px; }
+    .sd-footer__gracias {
+      text-align: center; font-size: 13px; font-weight: 700; color: #007a3d;
+      margin-bottom: 8px;
+    }
+    .sd-footer__codes {
+      display: table; width: 100%; margin: 0 0 10px 0;
+      border: 1px solid #b7e4c7; border-radius: 8px; background: #f0faf4;
+      padding: 8px 12px;
+    }
+    .sd-footer__barcode, .sd-footer__qr {
+      display: table-cell; vertical-align: middle;
+    }
+    .sd-footer__barcode { width: 78%; }
+    .sd-footer__qr { width: 22%; text-align: right; }
+    .sd-footer__codes-label {
+      font-size: 11px; font-weight: 700; color: #007a3d;
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;
+    }
+    .sd-barcode-wrap { line-height: 0; }
+    .sd-barcode-wrap svg { max-width: 100%; height: auto; }
+    .sd-footer__qr img {
+      width: 72px; height: 72px; border: 2px solid #00a651; border-radius: 6px;
+      background: #fff; padding: 2px;
+    }
+    .sd-footer__qr-hint {
+      font-size: 9px; color: #64748b; margin-top: 2px; text-align: center;
+    }
+    .sd-footer__pillars {
+      display: table; width: 100%; background: #f3f4f6; color: #111;
+      border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden;
+    }
+    .sd-pillar {
+      display: table-cell; width: 20%; padding: 8px 6px; text-align: center;
+      border-right: 1px solid #d1d5db; vertical-align: top;
+    }
+    .sd-pillar:last-child { border-right: 0; }
+    .sd-pillar__t { display: block; font-size: 10px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; color: #111; }
+    .sd-pillar__d { display: block; font-size: 9px; opacity: 1; margin-top: 2px; line-height: 1.25; color: #111; }
+    .sd-footer__lhexia {
+      text-align: center; color: #94a3b8; font-size: 9px; margin-top: 8px;
+    }
+    .sd-footer__lhexia strong { color: #00a651; }
 
     .pdf-toolbar {
       position: sticky; top: 0; z-index: 10;
-      background: #1f2937; color: #fff; padding: 10px 16px;
+      background: #14532d; color: #fff; padding: 10px 16px;
       display: flex; align-items: center; justify-content: space-between;
       box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     }
     .pdf-toolbar .info { font-size: 13px; }
-    .pdf-toolbar strong { color: #fbbf24; }
+    .pdf-toolbar strong { color: #86efac; }
     .pdf-toolbar .actions { display: flex; gap: 8px; }
     .pdf-toolbar .btn {
-      background: #f37021; color: #fff; border: 0; border-radius: 6px;
+      background: #00a651; color: #fff; border: 0; border-radius: 6px;
       padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none;
     }
-    .pdf-toolbar .btn:hover { background: #ea580c; }
+    .pdf-toolbar .btn:hover { background: #007a3d; }
     .pdf-toolbar .btn.secondary { background: transparent; border: 1px solid #94a3b8; color: #cbd5e1; }
     .doc-wrapper { max-width: 760px; margin: 18px auto; background: #fff; padding: 24px 32px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); border-radius: 8px; }
     @media print {
-      body { background: #fff; font-size: 10px; }
+      body { background: #fff; font-size: 15px; }
       .doc-wrapper { box-shadow: none; padding: 0; margin: 0; max-width: none; border-radius: 0; }
-      table.lineas tbody td { padding: 5px 5px; }
+      table.lineas tbody td { padding: 10px 7px; }
+      table.lineas thead th { font-size: 12px; padding: 10px 7px; }
+    }
+
+    /* —— Transportes Sta JULLIET (rojo) —— */
+    .doc-wrapper--transportes .sd-header { border-bottom-color: #c41e3a; }
+    .doc-wrapper--transportes .sd-doc-box,
+    .doc-wrapper--transportes .sd-doc-box--transportes { border-color: #c41e3a; }
+    .doc-wrapper--transportes .doc-num { color: #c41e3a; }
+    .doc-wrapper--transportes .sd-header__contacto,
+    .doc-wrapper--transportes .sd-header__contacto--transportes {
+      background: #fff5f5; border-color: #fecaca;
+    }
+    .doc-wrapper--transportes .sd-contacto-item { color: #7f1d1d; border-right-color: #fecaca; }
+    .doc-wrapper--transportes .sd-contacto-ico { background: #c41e3a; }
+    .doc-wrapper--transportes .totales-card { background: #fff5f5; border-color: #fecaca; }
+    .doc-wrapper--transportes .totales-row.total { color: #991b1b; border-top-color: #c41e3a; }
+    .doc-wrapper--transportes .sd-footer__gracias,
+    .doc-wrapper--transportes .sd-footer__codes-label { color: #991b1b; }
+    .doc-wrapper--transportes .sd-footer__codes { background: #fff5f5; border-color: #fecaca; }
+    .doc-wrapper--transportes .sd-footer__qr img { border-color: #c41e3a; }
+    .sd-header__top--tj { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .sd-header__brand--tj { flex: 1 1 auto; min-width: 0; max-width: 72%; }
+    .cot-tj-grid { display: flex; align-items: flex-start; gap: 12px 16px; width: 100%; }
+    .cot-tj-grid--pdf .cot-tj-logo { flex: 0 0 140px; width: 140px; line-height: 0; }
+    .sd-header__transportes-banner,
+    .cot-membrete__transportes-banner {
+      display: block; width: 100%; max-width: 140px; height: auto; max-height: 120px; object-fit: contain; object-position: left top; margin: 0;
+    }
+    .cot-tj-datos { flex: 1 1 auto; min-width: 0; border-left: 1px solid #e5e7eb; padding-left: 12px; }
+    .cot-tj-razon { font-size: 13px; font-weight: 800; color: #111; text-transform: uppercase; line-height: 1.25; }
+    .cot-tj-giro { font-size: 11px; color: #64748b; font-style: italic; margin: 2px 0 7px; }
+    .cot-tj-row { display: flex; align-items: flex-start; gap: 7px; margin: 4px 0; }
+    .cot-tj-ico {
+      flex: 0 0 auto; width: 15px; height: 15px; border-radius: 50%; background: #c41e3a; color: #fff;
+      font-size: 9px; line-height: 15px; text-align: center; margin-top: 1px;
+    }
+    .cot-tj-txt { font-size: 12px; color: #1e293b; line-height: 1.3; }
+    .cot-tj-txt strong { color: #0f172a; }
+    .cot-tj-banco { display: block; font-size: 11px; color: #64748b; margin-top: 1px; }
+    .doc-wrapper--transportes .doc-meta { font-size: 12.5px; line-height: 1.45; }
+    .doc-wrapper--transportes .sd-doc-box .doc-title { font-size: 18px; }
+    .doc-wrapper--transportes .sd-doc-box .doc-num { font-size: 16px; }
+    .doc-wrapper--transportes table.lineas thead th { font-size: 11px; }
+    .doc-wrapper--transportes table.lineas tbody td { font-size: 13px; }
+    .doc-wrapper--transportes table.lineas .linea-articulo__nom { font-size: 13px; }
+    .doc-wrapper--transportes .totales-row { font-size: 14px; }
+    .doc-wrapper--transportes .totales-row.total { font-size: 18px; }
+    .sd-header__transportes-l1,
+    .cot-membrete__transportes-l1 {
+      font-size: 12px; font-weight: 800; letter-spacing: 0.12em; color: #1a1a1a;
+    }
+    .sd-header__transportes-l2,
+    .cot-membrete__transportes-l2 {
+      font-size: 18px; font-weight: 900; font-style: italic; color: #c41e3a; line-height: 1.05;
     }
   </style>
 </head>
@@ -158,7 +372,8 @@
     </div>
   </div>
 
-  <div class="doc-wrapper">
+  {% set _doc_transportes = (empresa.plantilla == 'transportes') or (cotizacion.empresa_cotizacion == 'transportes-st-julliet') or (cotizacion.notas and '[[empresa_cot:transportes-st-julliet]]' in cotizacion.notas) %}
+  <div class="doc-wrapper{% if _doc_transportes %} doc-wrapper--transportes{% endif %}">
   {% for pagina in cot_paginas %}
   <section class="print-page">
 
@@ -222,8 +437,15 @@
     <div class="totales">
       <div class="col-l">
         {% if cotizacion.notas %}
-        <h6 style="color:#6b7280;font-size:9px;text-transform:uppercase;letter-spacing:0.06em;margin:10px 0 5px 0;">Notas / condiciones</h6>
-        <div class="notas">{{ cotizacion.notas }}</div>
+        {% set notas_pdf = cotizacion.notas %}
+        {% if notas_pdf.startswith('[[empresa_cot:') %}
+          {% set notas_pdf_parts = notas_pdf.split('\n', 1) %}
+          {% set notas_pdf = notas_pdf_parts[1] if notas_pdf_parts|length > 1 else '' %}
+        {% endif %}
+        {% if notas_pdf %}
+        <h6 style="color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.06em;margin:10px 0 5px 0;">Notas / condiciones</h6>
+        <div class="notas">{{ notas_pdf }}</div>
+        {% endif %}
         {% endif %}
       </div>
       <div class="col-r">
@@ -242,9 +464,8 @@
       </div>
     </div>
 
-    <div class="footer-doc">
-      Cotización generada con <strong>LhexIA ERP</strong> · www.lhexia.cl
-    </div>
+    {% include 'cotizaciones/includes/cot_footer_transferencia.html' %}
+    {% include 'cotizaciones/includes/cot_pdf_footer_confianza.html' %}
     {% endif %}
 
   </section>

@@ -312,3 +312,49 @@ def register_pos_routes(app):
         _wrap_pos_mentor_api(m.api_pos_mentor_telemetria),
         methods=['POST'],
     )
+    # LX-PROMO-COM admin (jefatura / admin / vendedor con POS)
+    _wrap_promo_admin = lambda fn: login_required(
+        m.permisos_required('gestionar_usuarios', 'pos_emitir_vale', 'admin_inventario')(fn)
+    )
+    app.add_url_rule(
+        '/ventas/promociones',
+        'promociones_lista',
+        _wrap_promo_admin(getattr(m, 'promociones_lista', lambda: ('', 404))),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/ventas/promociones/nueva',
+        'promociones_nueva',
+        _wrap_promo_admin(getattr(m, 'promociones_nueva', lambda: ('', 404))),
+        methods=['GET', 'POST'],
+    )
+    app.add_url_rule(
+        '/ventas/promociones/<int:promo_id>/editar',
+        'promociones_editar',
+        _wrap_promo_admin(getattr(m, 'promociones_editar', lambda promo_id: ('', 404))),
+        methods=['GET', 'POST'],
+    )
+    app.add_url_rule(
+        '/ventas/promociones/<int:promo_id>/toggle',
+        'promociones_toggle',
+        _wrap_promo_admin(getattr(m, 'promociones_toggle', lambda promo_id: ('', 404))),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/ventas/promociones/motor/toggle',
+        'promociones_motor_toggle',
+        _wrap_promo_admin(getattr(m, 'promociones_motor_toggle', lambda: ('', 404))),
+        methods=['POST'],
+    )
+    app.add_url_rule(
+        '/api/ventas/promociones/buscar-producto',
+        'api_promociones_buscar_producto',
+        _wrap_promo_admin(getattr(m, 'api_promociones_buscar_producto', lambda: ('', 404))),
+        methods=['GET'],
+    )
+    app.add_url_rule(
+        '/api/ventas/promociones/sugerir-codigo',
+        'api_promociones_sugerir_codigo',
+        _wrap_promo_admin(getattr(m, 'api_promociones_sugerir_codigo', lambda: ('', 404))),
+        methods=['GET'],
+    )

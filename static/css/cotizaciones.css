@@ -353,7 +353,7 @@ body.erp-ops-space.page-cotizaciones .cot-lineas-table tfoot .cot-lineas-sum td 
 
 /* Membrete cotización */
 .cot-membrete {
-  max-width: 420px;
+  max-width: 460px;
 }
 
 .cot-membrete__logo {
@@ -364,25 +364,113 @@ body.erp-ops-space.page-cotizaciones .cot-lineas-table tfoot .cot-lineas-sum td 
   margin-bottom: 0.5rem;
 }
 
-.cot-membrete__marca {
+.cot-membrete--chilemat .cot-membrete__row-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.45rem;
+}
+
+.cot-membrete__brand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0.45rem;
+}
+
+.cot-membrete__logo-oficial {
+  height: 56px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  margin: 0 auto 0.35rem;
+}
+
+.cot-membrete__badge-chilemat {
+  flex-shrink: 0;
+  min-width: 118px;
+  padding: 0.45rem 0.7rem 0.4rem;
+  border-radius: 6px;
+  background: #006B3F;
+  color: #fff;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.cot-membrete__badge-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.cot-membrete__badge-sub {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #c6e89a;
+}
+
+.cot-membrete__logo-chilemat {
+  height: 48px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
+
+.cot-membrete__rut-grande {
+  display: block;
+  margin-top: 0.2rem;
   font-size: 1.05rem;
+  font-weight: 900;
+  color: #006B3F;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+}
+
+.cot-membrete__nombre-block {
+  text-align: center;
+  width: 100%;
+}
+
+.cot-membrete__ferreteria {
+  font-size: 0.72rem;
   font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #007a3d;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.cot-membrete__marca {
+  font-size: 1.25rem;
+  font-weight: 900;
   color: #0f172a;
-  line-height: 1.3;
+  line-height: 1.15;
+  text-align: center;
 }
 
 .cot-membrete__razon {
-  font-size: 0.88rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: #1e293b;
-  margin-top: 0.2rem;
+  margin-top: 0.35rem;
+  font-style: italic;
 }
 
 .cot-membrete__giro {
-  font-size: 0.82rem;
-  color: #475569;
-  margin-top: 0.15rem;
-  font-style: italic;
+  font-size: 0.75rem;
+  color: #007a3d;
+  margin-top: 0.35rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .cot-membrete__dir,
@@ -398,10 +486,194 @@ body.erp-ops-space.page-cotizaciones .cot-membrete__razon {
   color: #0f172a !important;
 }
 
-body.erp-ops-space.page-cotizaciones .cot-membrete__giro,
+body.erp-ops-space.page-cotizaciones .cot-membrete__ferreteria,
+body.erp-ops-space.page-cotizaciones .cot-membrete__giro {
+  color: #007a3d !important;
+}
+
 body.erp-ops-space.page-cotizaciones .cot-membrete__dir,
 body.erp-ops-space.page-cotizaciones .cot-membrete__contacto {
   color: #475569 !important;
+}
+
+/* Membrete Transportes — layout definitivo: logo | datos | (caja COT a la der) */
+.cot-membrete--transportes {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.cot-tj-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px 18px;
+  width: 100%;
+}
+
+.cot-tj-logo {
+  flex: 0 0 auto;
+  width: 150px;
+  max-width: 38%;
+  line-height: 0;
+}
+
+.cot-membrete--transportes .cot-membrete__transportes-banner {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 130px;
+  object-fit: contain;
+  object-position: left top;
+  margin: 0;
+}
+
+.cot-tj-datos {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 4px;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 14px;
+}
+
+.cot-tj-razon {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a !important;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.cot-tj-giro {
+  font-size: 0.88rem;
+  color: #64748b !important;
+  margin: 2px 0 8px;
+  font-style: italic;
+}
+
+.cot-tj-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0;
+  line-height: 1.25;
+}
+
+.cot-tj-ico {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #c41e3a;
+  color: #fff !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  margin-top: 1px;
+}
+
+.cot-tj-ico i {
+  color: #fff !important;
+  font-size: 0.55rem;
+  line-height: 1;
+}
+
+.cot-tj-txt {
+  font-size: 0.9rem;
+  color: #1e293b !important;
+}
+
+.cot-tj-txt strong {
+  color: #0f172a !important;
+  font-weight: 700;
+}
+
+.cot-tj-banco {
+  display: block;
+  font-size: 0.82rem;
+  color: #64748b !important;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header--transportes,
+body.erp-ops-space.page-cotizaciones .cot-doc-header--transportes {
+  border-bottom-color: #c41e3a !important;
+  align-items: flex-start;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header--transportes .cot-doc-header__brand,
+body.erp-ops-space.page-cotizaciones .cot-doc-header--transportes .cot-doc-header__brand {
+  max-width: 72%;
+  flex: 1 1 auto;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-doc-header--transportes .cot-doc-header__title,
+body.erp-ops-space.page-cotizaciones .cot-doc-header--transportes .cot-doc-header__title {
+  flex: 0 0 auto;
+  max-width: 28%;
+}
+
+@media (max-width: 900px) {
+  .cot-tj-grid {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cot-tj-logo {
+    width: 180px;
+    max-width: 100%;
+  }
+  .cot-tj-datos {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid #fecaca;
+    padding-top: 8px;
+  }
+}
+
+.cot-transferencia-footer {
+  margin: 0;
+  padding: 14px 22px;
+  border-top: 2px solid #fecaca;
+  background: #fff5f5;
+  color: #7f1d1d;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cot-transferencia-footer strong {
+  color: #991b1b;
+  margin-right: 0.35rem;
+}
+
+.cot-membrete--transportes .cot-membrete__transportes-l1 {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #1a1a1a;
+}
+
+.cot-membrete--transportes .cot-membrete__transportes-l2 {
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  color: #c41e3a;
+  line-height: 1.05;
+}
+
+.cot-membrete--transportes .cot-membrete__banco {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7f1d1d;
+  margin-top: 4px;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-membrete--transportes .cot-membrete__razon,
+body.erp-ops-space.page-cotizaciones-form .cot-membrete--transportes .cot-membrete__giro,
+body.erp-ops-space.page-cotizaciones-form .cot-membrete--transportes .cot-membrete__contacto {
+  color: #334155 !important;
 }
 
 body.erp-ops-space.page-cotizaciones .cot-lineas-table tbody .cot-linea-producto__nombre,
@@ -1100,7 +1372,7 @@ body.erp-ops-space.page-cotizaciones .cot-lista-kpi a.card.border-warning {
   gap: 20px;
   flex-wrap: nowrap;
   padding: 16px 22px;
-  border-bottom: 2px solid #f37021;
+  border-bottom: 2px solid #00a651;
 }
 
 .cot-doc-header__brand {
@@ -1112,8 +1384,36 @@ body.erp-ops-space.page-cotizaciones .cot-lista-kpi a.card.border-warning {
 .cot-doc-header__title {
   flex: 0 0 auto;
   text-align: right;
-  min-width: 190px;
+  min-width: 220px;
   max-width: 42%;
+}
+
+.cot-doc-box {
+  display: inline-block;
+  text-align: center;
+  border: 2px solid #006B3F;
+  border-radius: 8px;
+  padding: 0.7rem 1rem 0.85rem;
+  min-width: 210px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(0, 107, 63, 0.06);
+}
+
+.cot-doc-box__tipo {
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #0f172a;
+  line-height: 1.15;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.cot-doc-box__num {
+  margin-top: 0.45rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #00a651;
 }
 
 .cot-doc-header__titulo {
@@ -1129,21 +1429,34 @@ body.erp-ops-space.page-cotizaciones .cot-lista-kpi a.card.border-warning {
 .cot-doc-header__num {
   font-size: 1rem;
   font-weight: 700;
-  color: #f37021;
+  color: #00a651;
   margin-top: 2px;
 }
 
 .cot-doc-header__meta {
   font-size: 0.72rem;
   color: #64748b;
-  margin-top: 4px;
+  margin-top: 0.4rem;
   line-height: 1.45;
+  text-align: center;
 }
 
 body.erp-ops-space.page-cotizaciones .cot-doc-header,
 body.erp-ops-space.page-cotizaciones-form .cot-doc-header {
-  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%) !important;
-  border-bottom: 2px solid #f37021 !important;
+  background: linear-gradient(135deg, #fff 0%, #f0faf4 100%) !important;
+  border-bottom: 2px solid #00a651 !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-box__tipo,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-box__tipo {
+  color: #0f172a !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+body.erp-ops-space.page-cotizaciones .cot-doc-box__num,
+body.erp-ops-space.page-cotizaciones-form .cot-doc-box__num {
+  color: #00a651 !important;
 }
 
 body.erp-ops-space.page-cotizaciones .cot-doc-header__titulo,
@@ -1155,7 +1468,7 @@ body.erp-ops-space.page-cotizaciones-form .cot-doc-header__titulo {
 
 body.erp-ops-space.page-cotizaciones .cot-doc-header__num,
 body.erp-ops-space.page-cotizaciones-form .cot-doc-header__num {
-  color: #f37021 !important;
+  color: #00a651 !important;
 }
 
 body.erp-ops-space.page-cotizaciones .cot-doc-header__meta,
@@ -1206,6 +1519,25 @@ body.erp-ops-space.page-cotizaciones-form .cot-doc-header .badge.bg-warning {
   border: 1px solid #e8edf2;
   border-radius: 10px;
   padding: 0.85rem 1rem;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+table.cot-cliente-ficha {
+  padding: 0;
+}
+
+table.cot-cliente-ficha td.cot-cliente-ficha__col {
+  width: 58%;
+  vertical-align: top;
+  padding: 0.85rem 1rem;
+}
+
+table.cot-cliente-ficha td.cot-cliente-ficha__col--contacto {
+  width: 42%;
+  padding-left: 1rem;
+  border-left: 1px solid #e8edf2;
 }
 
 .cot-cliente-ficha--empty {
@@ -1226,10 +1558,11 @@ body.erp-ops-space.page-cotizaciones-form .cot-doc-header .badge.bg-warning {
 
 .cot-cliente-ficha__row {
   display: grid;
-  grid-template-columns: 5.75rem minmax(0, 1fr);
-  gap: 0.5rem 0.75rem;
-  align-items: baseline;
-  padding: 0.18rem 0;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: 0.12rem 0;
 }
 
 .cot-cliente-ficha__label {
@@ -1238,13 +1571,14 @@ body.erp-ops-space.page-cotizaciones-form .cot-doc-header .badge.bg-warning {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #64748b;
-  line-height: 1.3;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .cot-cliente-ficha__value {
   font-size: 0.88rem;
   color: #0f172a;
-  line-height: 1.4;
+  line-height: 1.35;
   word-break: break-word;
 }
 
@@ -2038,6 +2372,68 @@ body.erp-ops-space.page-cotizaciones-form #modalOpcionesCot .modal-body {
   color: #0f172a !important;
 }
 
+/* Selector empresa emisor — tarjetas radio (evita select ilegible con tema oscuro) */
+body.erp-ops-space.page-cotizaciones-form .cot-empresa-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-empresa-picker__opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-empresa-picker__opt:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-empresa-picker__opt:has(input:checked) {
+  border-color: #d97706;
+  background: #fff7ed;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-empresa-picker__opt input[type="radio"] {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+  accent-color: #d97706;
+  pointer-events: auto;
+}
+
+body.erp-ops-space.page-cotizaciones-form .cot-empresa-picker__label {
+  color: #0f172a !important;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* Select/input en modales cotización — anular tema oscuro ciberneón (texto invisible) */
+body.erp-ops-space.page-cotizaciones-form #modalOpcionesCot .form-select,
+body.erp-ops-space.page-cotizaciones-form #modalOpcionesCot .form-control,
+body.erp-ops-space.page-cotizaciones-form #modalClienteCot .form-select,
+body.erp-ops-space.page-cotizaciones-form #modalClienteCot .form-control {
+  color: #0f172a !important;
+  background: #fff !important;
+  border-color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+body.erp-ops-space.page-cotizaciones-form #modalOpcionesCot .form-select option,
+body.erp-ops-space.page-cotizaciones-form #modalClienteCot .form-select option {
+  color: #0f172a !important;
+  background: #fff !important;
+}
+
 @media (max-width: 767px) {
   .page-cotizaciones-form .cot-form-meta-strip__main {
     flex-direction: column;
@@ -2188,6 +2584,8 @@ body.erp-ops-space.page-cotizaciones-form .modal-content .form-text {
 
 body.erp-ops-space.page-cotizaciones .modal-content .form-control,
 body.erp-ops-space.page-cotizaciones-form .modal-content .form-control,
+body.erp-ops-space.page-cotizaciones .modal-content .form-select,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-select,
 body.erp-ops-space.page-cotizaciones .modal-content textarea,
 body.erp-ops-space.page-cotizaciones-form .modal-content textarea {
   background: #ffffff !important;
@@ -2203,6 +2601,8 @@ body.erp-ops-space.page-cotizaciones-form .modal-content .form-control::placehol
 
 body.erp-ops-space.page-cotizaciones .modal-content .form-control:focus,
 body.erp-ops-space.page-cotizaciones-form .modal-content .form-control:focus,
+body.erp-ops-space.page-cotizaciones .modal-content .form-select:focus,
+body.erp-ops-space.page-cotizaciones-form .modal-content .form-select:focus,
 body.erp-ops-space.page-cotizaciones .modal-content textarea:focus,
 body.erp-ops-space.page-cotizaciones-form .modal-content textarea:focus {
   background: #ffffff !important;

@@ -1,0 +1,138 @@
+{# Encabezado corporativo Chilemat — requiere: empresa, cotizacion, pagina #}
+
+{% set tel = (empresa.telefono or '(41) 264 5574')|replace('Fono/Fax:', '')|replace('Fono:', '')|trim %}
+
+{% set mail = empresa.correo or 'ferreteria426@gmail.com' %}
+
+{% set rut_cot = empresa.rut_emisor or empresa.rut or '8.054.120-1' %}
+
+{% set titular = empresa.razon_social or 'Luis Gastón Rivera Pérez' %}
+
+{% set dir1 = '' %}
+
+{% if empresa.direccion %}
+
+  {% set dirs = empresa.direccion.replace('\r\n', '\n').split('\n') %}
+
+  {% set dir1 = (dirs[0] or '')|trim %}
+
+{% endif %}
+
+
+
+<div class="sd-header{% if not pagina.es_primera %} sd-header--cont{% endif %}">
+
+  <div class="sd-header__top">
+
+    <div class="sd-header__brand">
+
+      <div class="sd-header__brand-stack">
+
+        {% if chilemat_logo_b64 %}
+
+        <img class="sd-chilemat-img" src="data:image/png;base64,{{ chilemat_logo_b64 }}" alt="Chilemat">
+
+        {% else %}
+
+        <div class="sd-chilemat" aria-label="Chilemat">
+
+          <div class="sd-chilemat__word">
+
+            <span class="sd-chilemat__chile">CHILE</span><span class="sd-chilemat__mat">MAT<sup>®</sup></span>
+
+          </div>
+
+          <div class="sd-chilemat__tag"><span></span> TRADICIÓN FERRETERA <span></span></div>
+
+        </div>
+
+        {% endif %}
+
+        <div class="sd-header__empresa">
+
+          <div class="sd-header__ferreteria">FERRETERÍA</div>
+
+          <div class="sd-header__local">SANTO DOMINGO</div>
+
+        </div>
+
+      </div>
+
+      {% if pagina.es_primera %}
+
+      <div class="sd-header__titular">{{ titular }}</div>
+
+      <div class="sd-header__rut">RUT {{ rut_cot }}</div>
+
+      <div class="sd-header__rubro">Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas</div>
+
+      {% endif %}
+
+    </div>
+
+    <div class="sd-header__doc">
+
+      <div class="sd-doc-box">
+
+        {% if not pagina.es_primera %}
+
+        <div class="doc-continuacion-label">CONTINUACIÓN</div>
+
+        {% endif %}
+
+        <div class="doc-title">COTIZACIÓN</div>
+
+        <div class="doc-num">N° {{ cotizacion.numero }}</div>
+
+        {% if pagina.es_primera and cot_barcode_svg_compact %}
+
+        <div class="sd-header__barcode">{{ cot_barcode_svg_compact|safe }}</div>
+
+        {% endif %}
+
+        <div class="doc-meta">
+
+          Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') if cotizacion.fecha else '' }}<br>
+
+          {% if cotizacion.fecha_vencimiento and pagina.es_primera %}
+
+          Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)<br>
+
+          {% endif %}
+
+          {% if not pagina.es_primera %}
+
+          <strong class="doc-hoja-label">Hoja {{ pagina.numero }} de {{ pagina.total }}</strong><br>
+
+          {% endif %}
+
+          {% set bcls = {'Vigente': 'badge-vigente', 'Vencida': 'badge-vencida', 'Aceptada': 'badge-aceptada', 'Rechazada': 'badge-rechazada', 'Convertida': 'badge-convertida'} %}
+
+          <span class="badge-estado {{ bcls.get(cotizacion.estado, '') }}">{{ cotizacion.estado }}</span>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  {% if pagina.es_primera %}
+
+  <div class="sd-header__contacto">
+
+    <div class="sd-contacto-item"><span class="sd-contacto-ico">☎</span> {{ tel }}</div>
+
+    <div class="sd-contacto-item"><span class="sd-contacto-ico">✉</span> {{ mail }}</div>
+
+    <div class="sd-contacto-item">{% if dir1 %}<span class="sd-contacto-ico">⌂</span> {{ dir1 }}{% endif %}</div>
+
+  </div>
+
+  {% endif %}
+
+</div>
+

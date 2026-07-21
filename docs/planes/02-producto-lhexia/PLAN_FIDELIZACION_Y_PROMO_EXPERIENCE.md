@@ -1,4 +1,4 @@
-# Plan de trabajo — Fidelización (puntos) y promoción sorteo (Experience Wall)
+﻿# Plan de trabajo — Fidelización (puntos) y promoción sorteo (Experience Wall)
 
 **Prefijos:** **LX-FID** (fidelización) · **LX-PROMO** (sorteo / premio en TV)  
 **Estado:** 📋 **Backlog diseño** — desarrollar **después de cerrar SD-1** (POS + inventario estables)  
@@ -216,3 +216,14 @@ sequenceDiagram
 ---
 
 *Backlog producto LhexIA — no implementar en SD-1 sin acuerdo explícito.*
+
+---
+
+## Nota 2026-07-11 — Distinción de prefijos
+
+| Prefijo | Qué es |
+|---------|--------|
+| **LX-FID** | Puntos / canje % |
+| **LX-PROMO** | Sorteo Experience Wall (este documento) |
+| **LX-PROMO-COM** | Motor de promociones retail (2x1, pack, ticket) — ver [PLAN_MOTOR_PROMOCIONES_COMERCIALES.md](./PLAN_MOTOR_PROMOCIONES_COMERCIALES.md) |
+

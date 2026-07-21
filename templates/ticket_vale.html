@@ -134,12 +134,25 @@
         .ticket th { border-bottom: 1px solid #0f172a; font-weight: 600; }
         .ticket .ticket-total {
             text-align: right;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 700;
             margin-top: 10px;
             padding-top: 8px;
             border-top: 1px dashed #94a3b8;
             color: #0f172a;
+            line-height: 1.25;
+        }
+        .ticket .ticket-total__monto {
+            display: block;
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-top: 4px;
+            line-height: 1.1;
+            color: #0f172a;
+        }
+        @media print {
+            .ticket .ticket-total__monto { font-size: 28px; }
         }
         .ticket .pendiente {
             text-align: center;
@@ -249,7 +262,8 @@
         {% endif %}
     </div>
 
-    {% set total_fmt = "{:,.0f}".format(venta.monto_total).replace(",", ".") %}
+    {% set total_pagar = ticket_total_pagar if ticket_total_pagar is defined else venta.monto_total %}
+    {% set total_fmt = "{:,.0f}".format(total_pagar).replace(",", ".") %}
     {% set empresa_nom = (empresa_cfg.nombre_comercial or empresa_cfg.razon_social or 'Ferretería') if empresa_cfg is defined else 'Ferretería' %}
 
     <p class="vale-vista-previa-leyenda no-print">
@@ -366,8 +380,22 @@
                 {% endif %}
 
                 <div class="ticket-total">
-                  {% if usar_bloques_por_retiro %}<span class="ticket-line-meta" style="display:block;margin-bottom:4px;">TOTAL A PAGAR</span>{% endif %}
-                  ${{ total_fmt }}
+                  {% set _sub = ticket_subtotal_lineas|default(None) %}
+                  {% set _dto = ticket_descuento_promos|default(0) %}
+                  {% set _promos = ticket_promociones|default([]) %}
+                  {% if _sub is not none and _dto and _dto > 0 %}
+                  <p class="ticket-line-meta" style="text-align:right;margin:0 0 4px;">Subtotal ${{ "{:,.0f}".format(_sub).replace(",", ".") }}</p>
+                  <div class="ticket-sep" style="margin:4px 0;">PROMOCIONES</div>
+                  {% for pr in _promos %}
+                  <p class="ticket-line-meta" style="display:flex;justify-content:space-between;gap:8px;margin:2px 0;">
+                    <span>{{ pr.etiqueta_ticket }}</span>
+                    <span>-${{ "{:,.0f}".format(pr.monto_descuento).replace(",", ".") }}</span>
+                  </p>
+                  {% endfor %}
+                  <hr class="ticket-sep-bar">
+                  {% endif %}
+                  {% if usar_bloques_por_retiro %}<span class="ticket-line-meta" style="display:block;margin-bottom:4px;">TOTAL A PAGAR</span>{% else %}<span class="ticket-line-meta" style="display:block;margin-bottom:2px;">TOTAL</span>{% endif %}
+                  <span class="ticket-total__monto">${{ total_fmt }}</span>
                 </div>
                 {% if ticket_es_borrador %}
                 <div class="pendiente" style="background:#fff7ed;color:#9a3412;border:1px dashed #fdba74;">*** BORRADOR POS — EMITA EL VALE DESDE EL PUNTO DE VENTA ***</div>

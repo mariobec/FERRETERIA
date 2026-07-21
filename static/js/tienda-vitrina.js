@@ -988,6 +988,75 @@
     };
   }
 
+  function contactoStorageKey() {
+    return ((cartCfg && cartCfg.storage_key) || "tienda_carrito") + "_contacto";
+  }
+
+  function loadContactoGuardado() {
+    try {
+      const raw = localStorage.getItem(contactoStorageKey());
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (checkoutNombre && data.nombre && !checkoutNombre.value) {
+        checkoutNombre.value = String(data.nombre).slice(0, 80);
+      }
+      if (checkoutTelefono && data.telefono && !checkoutTelefono.value) {
+        checkoutTelefono.value = String(data.telefono).slice(0, 40);
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  function saveContactoGuardado() {
+    const d = clienteCheckoutDatos();
+    if (!d.cliente_nombre && !d.cliente_telefono) return;
+    try {
+      localStorage.setItem(
+        contactoStorageKey(),
+        JSON.stringify({ nombre: d.cliente_nombre, telefono: d.cliente_telefono })
+      );
+    } catch (_e) {
+      /* ignore */
+    }
+  }
+
+  function digitsTel(val) {
+    return String(val || "").replace(/\D/g, "");
+  }
+
+  function validarContactoCheckout() {
+    const errEl = document.getElementById("tiendaCheckoutContactoError");
+    const nom = checkoutNombre ? checkoutNombre.value.trim() : "";
+    const tel = checkoutTelefono ? checkoutTelefono.value.trim() : "";
+    let msg = "";
+    if (nom.length < 2) {
+      msg = "Escribe tu nombre para registrarte.";
+      if (checkoutNombre) checkoutNombre.focus();
+    } else if (digitsTel(tel).length < 8) {
+      msg = "Indica un WhatsApp / teléfono válido (mín. 8 dígitos).";
+      if (checkoutTelefono) checkoutTelefono.focus();
+    }
+    if (errEl) {
+      if (msg) {
+        errEl.textContent = msg;
+        errEl.hidden = false;
+      } else {
+        errEl.textContent = "";
+        errEl.hidden = true;
+      }
+    }
+    return !msg;
+  }
+
+  function syncCheckoutConfirm() {
+    if (!checkoutContinuar || !checkoutConfirm) return;
+    const contactOk =
+      (checkoutNombre && checkoutNombre.value.trim().length >= 2) &&
+      digitsTel(checkoutTelefono && checkoutTelefono.value).length >= 8;
+    checkoutContinuar.disabled = !(checkoutConfirm.checked && contactOk);
+  }
+
   function checkoutShowStep(n) {
     if (!checkoutStep1 || !checkoutStep2 || !checkoutStep3) return;
     checkoutStep1.classList.toggle("d-none", n !== 1);
@@ -1030,15 +1099,11 @@
       "</strong></div>";
   }
 
-  function syncCheckoutConfirm() {
-    if (!checkoutContinuar || !checkoutConfirm) return;
-    checkoutContinuar.disabled = !checkoutConfirm.checked;
-  }
-
   function setCheckoutOpen(open) {
     if (!checkoutEl || !checkoutBackdrop) return;
     if (open) {
       setCartOpen(false);
+      loadContactoGuardado();
       renderCheckoutReview();
       checkoutShowStep(1);
       if (checkoutConfirm) checkoutConfirm.checked = false;
@@ -1089,6 +1154,12 @@
       showCartToast("El carrito está vacío");
       return;
     }
+    if (!validarContactoCheckout()) {
+      checkoutShowStep(1);
+      showCartToast("Completa nombre y WhatsApp para registrarte");
+      return;
+    }
+    saveContactoGuardado();
     const api = cartCfg && (cartCfg.checkout_api_url || cartCfg.vale_api_url);
     if (!api) {
       showCartToast("Checkout no disponible");
@@ -1147,9 +1218,12 @@
         checkoutSuccessCode.classList.remove("d-none");
       }
       if (checkoutSuccessHint) {
-        checkoutSuccessHint.textContent = data.vale_folio
-          ? "Folio caja " + data.vale_folio + ". Te avisaremos cuando esté listo para retiro."
-          : "Te avisaremos cuando tu pedido esté listo para retiro.";
+        const cliNom = data.cliente_nombre || (clienteCheckoutDatos().cliente_nombre || "");
+        const parts = [];
+        if (cliNom) parts.push("Cliente registrado: " + cliNom);
+        if (data.vale_folio) parts.push("Folio caja " + data.vale_folio);
+        parts.push("Te avisaremos por WhatsApp cuando esté listo para retiro.");
+        checkoutSuccessHint.textContent = parts.join(". ");
       }
       saveCart([]);
       if (body && data.ui) {
@@ -1247,8 +1321,19 @@
       });
     }
     if (checkoutConfirm) checkoutConfirm.addEventListener("change", syncCheckoutConfirm);
+    if (checkoutNombre) {
+      checkoutNombre.addEventListener("input", syncCheckoutConfirm);
+      checkoutNombre.addEventListener("change", saveContactoGuardado);
+    }
+    if (checkoutTelefono) {
+      checkoutTelefono.addEventListener("input", syncCheckoutConfirm);
+      checkoutTelefono.addEventListener("change", saveContactoGuardado);
+    }
     if (checkoutContinuar) {
       checkoutContinuar.addEventListener("click", function () {
+        if (!validarContactoCheckout()) return;
+        if (!checkoutConfirm || !checkoutConfirm.checked) return;
+        saveContactoGuardado();
         checkoutShowStep(2);
       });
     }

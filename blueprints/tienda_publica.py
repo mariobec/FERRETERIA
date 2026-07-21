@@ -22,6 +22,38 @@ def _wa_base():
     return f'https://wa.me/{dig}' if dig else None
 
 
+def _cliente_ctx_pedido(venta_id: int) -> dict:
+    """Nombre/teléfono del cliente registrado en el PED-WEB (para pantallas públicas)."""
+    if not venta_id:
+        return {}
+    try:
+        from app import Venta
+        from services.ecommerce_pedidos_service import parse_contacto_pedido_web
+
+        v = Venta.query.get(int(venta_id))
+        if not v:
+            return {}
+        contacto = parse_contacto_pedido_web(getattr(v, 'usuario', None))
+        nom = ''
+        tel = ''
+        cli = getattr(v, 'cliente', None)
+        if cli is not None:
+            nom = (cli.nombre or '').strip()
+            tel = (cli.telefono or '').strip()
+        if not nom:
+            nom = (contacto.get('nombre') or '').strip()
+        if not tel:
+            tel = (contacto.get('telefono') or '').strip()
+        out = {}
+        if nom:
+            out['cliente_nombre'] = nom
+        if tel:
+            out['cliente_telefono'] = tel
+        return out
+    except Exception:
+        return {}
+
+
 def _carrito_template_ctx(slug: str, nombre_tienda: str):
     from services import webpay_service as wp
     from services import khipu_service as kh
@@ -335,7 +367,7 @@ def tienda_api_carrito_vale(slug: str):
     if not res.get('ok'):
         err = res.get('error') or ''
         code = 503
-        if err in ('carrito_vacio', 'sin_productos_validos', 'sin_stock'):
+        if err in ('carrito_vacio', 'sin_productos_validos', 'sin_stock', 'contacto_incompleto'):
             code = 400
         elif err == 'sin_caja':
             code = 503
@@ -354,6 +386,59 @@ def _url_publica(endpoint: str, **kwargs) -> str:
     if base:
         return base + url_for(endpoint, _external=False, **kwargs)
     return url_for(endpoint, _external=True, **kwargs)
+
+
+def _url_seguimiento_pedido(slug: str, venta_id: int) -> str | None:
+    try:
+        vid = int(venta_id)
+        if vid <= 0:
+            return None
+        return _url_publica(
+            'tienda_pedido_seguimiento',
+            slug=slug,
+            codigo=vt.codigo_pedido_web(vid),
+            t=vt.token_seguimiento_pedido(vid),
+        )
+    except Exception:
+        return None
+
+
+def tienda_pedido_seguimiento(slug: str, codigo: str):
+    """Seguimiento público del pedido (token HMAC en ?t=). Sin login."""
+    if not vt.tienda_habilitada() or slug != vt.TIENDA_SLUG_SD:
+        abort(404)
+    from services import ecommerce_pedidos_service as ecom
+
+    _cfg, nombre = _empresa_ctx()
+    ctx = {
+        'slug': slug,
+        'nombre_tienda': nombre,
+        'vitrina_url': url_for('tienda_vitrina', slug=slug),
+        'ped': None,
+        'error': None,
+    }
+    vid = vt.parse_codigo_pedido_web(codigo)
+    token = (request.args.get('t') or request.args.get('token') or '').strip()
+    if not vid or not vt.validar_token_seguimiento(vid, token):
+        ctx['error'] = 'Enlace inválido o incompleto. Usa el código que te enviamos por WhatsApp o en el comprobante de pago.'
+        return render_template('tienda/pedido_seguimiento.html', **ctx), 403
+    venta = ecom.obtener_pedido_web(vid)
+    if not venta:
+        ctx['error'] = 'No encontramos ese pedido. Verifica el código o contacta a la tienda.'
+        return render_template('tienda/pedido_seguimiento.html', **ctx), 404
+    vista = ecom.construir_vista_seguimiento_publico(venta)
+    if not vista:
+        ctx['error'] = 'Pedido no disponible.'
+        return render_template('tienda/pedido_seguimiento.html', **ctx), 404
+    seg_url = request.url
+    # URL canónica sin fragmentos basura
+    try:
+        seg_url = _url_seguimiento_pedido(slug, int(venta.id)) or request.url
+    except Exception:
+        seg_url = request.url
+    vista = ecom.enriquecer_vista_seguimiento_con_qr(vista, venta, url_seguimiento=seg_url)
+    ctx['ped'] = vista
+    return render_template('tienda/pedido_seguimiento.html', **ctx)
 
 
 def tienda_api_carrito_checkout(slug: str):
@@ -383,7 +468,7 @@ def tienda_api_carrito_checkout(slug: str):
     if not res.get('ok'):
         err = res.get('error') or ''
         code = 503
-        if err in ('carrito_vacio', 'sin_productos_validos', 'sin_stock'):
+        if err in ('carrito_vacio', 'sin_productos_validos', 'sin_stock', 'contacto_incompleto'):
             code = 400
         return jsonify(res), code
 
@@ -393,6 +478,10 @@ def tienda_api_carrito_checkout(slug: str):
             cierre_carrito=True,
             vale_pedido=res,
         )
+        vid = int(res.get('venta_id') or 0)
+        seg = _url_seguimiento_pedido(slug, vid) if vid else None
+        if seg:
+            res = {**res, 'seguimiento_url': seg}
         return jsonify({'ok': True, 'modo': 'tienda', **res, 'ui': ui})
 
     if metodo in ('webpay', 'tarjeta', 'card'):
@@ -512,21 +601,30 @@ def tienda_webpay_retorno(slug: str):
 
     cobro = ecom.cobrar_pedido_web_tarjeta(venta_id, metodo_pago='Webpay')
     ped_codigo = vt.codigo_pedido_web(venta_id)
+    seg = cobro.get('seguimiento_url') or _url_seguimiento_pedido(slug, venta_id)
+    wa_ok = bool(cobro.get('whatsapp_enviado'))
     if not cobro.get('ok') and not cobro.get('ya_cobrado'):
         return render_template(
             'tienda/pago_resultado.html',
             ok=False,
             mensaje=cobro.get('mensaje') or 'Pago aprobado; confirme en caja con su código.',
             ped_web_codigo=ped_codigo,
+            seguimiento_url=seg,
             **ctx,
         )
 
+    msg_ok = '¡Pago recibido! Estamos preparando tu pedido.'
+    if wa_ok:
+        msg_ok += ' Te enviamos un WhatsApp con el enlace y el QR de retiro.'
     return render_template(
         'tienda/pago_resultado.html',
         ok=True,
-        mensaje='¡Pago recibido! Estamos preparando tu pedido.',
+        mensaje=msg_ok,
         ped_web_codigo=ped_codigo,
         monto_total_fmt=vt._fmt_clp(commit.get('amount')),
+        seguimiento_url=seg,
+        whatsapp_enviado=wa_ok,
+        **_cliente_ctx_pedido(venta_id),
         **ctx,
     )
 
@@ -601,21 +699,30 @@ def tienda_khipu_retorno(slug: str):
 
     cobro = ecom.cobrar_pedido_web_tarjeta(venta_id, metodo_pago='Khipu')
     ped_codigo = vt.codigo_pedido_web(venta_id)
+    seg = cobro.get('seguimiento_url') or _url_seguimiento_pedido(slug, venta_id)
+    wa_ok = bool(cobro.get('whatsapp_enviado'))
     if not cobro.get('ok') and not cobro.get('ya_cobrado'):
         return render_template(
             'tienda/pago_resultado.html',
             ok=False,
             mensaje=cobro.get('mensaje') or 'Transferencia recibida; confirma en caja con tu código.',
             ped_web_codigo=ped_codigo,
+            seguimiento_url=seg,
             **ctx,
         )
 
+    msg_ok = '¡Transferencia confirmada! Estamos preparando tu pedido.'
+    if wa_ok:
+        msg_ok += ' Te enviamos un WhatsApp con el enlace y el QR de retiro.'
     return render_template(
         'tienda/pago_resultado.html',
         ok=True,
-        mensaje='¡Transferencia confirmada! Estamos preparando tu pedido.',
+        mensaje=msg_ok,
         ped_web_codigo=ped_codigo,
         monto_total_fmt=vt._fmt_clp(verify.get('amount')),
+        seguimiento_url=seg,
+        whatsapp_enviado=wa_ok,
+        **_cliente_ctx_pedido(venta_id),
         **ctx,
     )
 
@@ -712,4 +819,10 @@ def register_tienda_publica_routes(app) -> None:
         view_func=tienda_khipu_notify,
         methods=['POST'],
         endpoint='tienda_khipu_notify',
+    )
+    app.add_url_rule(
+        '/tienda/<slug>/pedido/<codigo>',
+        view_func=tienda_pedido_seguimiento,
+        methods=['GET'],
+        endpoint='tienda_pedido_seguimiento',
     )

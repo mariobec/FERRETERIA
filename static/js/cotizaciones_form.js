@@ -488,6 +488,20 @@
         activeIndex = Math.max(activeIndex - 1, 0);
         showPanel(lastItems, lastQuery);
       } else if (e.key === "Enter") {
+        const q = buscador.value.trim();
+        // Código de barras (sin espacios): preferir ítem con código exacto si está en lista
+        if (q && !/\s/.test(q) && lastItems.length) {
+          const qUp = q.toUpperCase();
+          const exactIdx = lastItems.findIndex((it) => {
+            const cod = String(it.codigo || it.codigo_barra || "").trim().toUpperCase();
+            return cod === qUp;
+          });
+          if (exactIdx >= 0) {
+            e.preventDefault();
+            seleccionarItem(exactIdx);
+            return;
+          }
+        }
         if (activeIndex >= 0 && lastItems.length) {
           e.preventDefault();
           seleccionarItem(activeIndex);
@@ -624,6 +638,265 @@
     });
   }
 
+  function getSelectedEmpresaId() {
+    const checked = document.querySelector('input[name="modal_empresa_cotizacion"]:checked');
+    if (checked) return checked.value || "";
+    return (getHidden("empresa_cotizacion")?.value || "").trim();
+  }
+
+  function getSelectedEmpresaLabel() {
+    const checked = document.querySelector('input[name="modal_empresa_cotizacion"]:checked');
+    if (!checked) return "";
+    const span = checked.closest(".cot-empresa-picker__opt")?.querySelector(".cot-empresa-picker__label");
+    return span ? span.textContent.trim() : "";
+  }
+
+  function setSelectedEmpresaId(id) {
+    const val = (id || "").trim();
+    const he = getHidden("empresa_cotizacion");
+    if (he) he.value = val;
+    document.querySelectorAll('input[name="modal_empresa_cotizacion"]').forEach((r) => {
+      r.checked = r.value === val;
+    });
+  }
+
+  function ensureEmpresaPicker() {
+    const picker = document.getElementById("cotEmpresaPicker");
+    const list = Array.isArray(cfg.empresas_cotizacion) ? cfg.empresas_cotizacion : [];
+    if (!picker || !list.length) return;
+    if (picker.querySelector('input[name="modal_empresa_cotizacion"]')) return;
+    const def = (cfg.empresa_cotizacion_default || list[0].id || "").trim();
+    list.forEach((ec) => {
+      if (!ec || !ec.id) return;
+      const label = document.createElement("label");
+      label.className = "cot-empresa-picker__opt";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "modal_empresa_cotizacion";
+      input.value = ec.id;
+      if (ec.id === def) input.checked = true;
+      const span = document.createElement("span");
+      span.className = "cot-empresa-picker__label";
+      span.textContent = ec.label || ec.id;
+      label.appendChild(input);
+      label.appendChild(span);
+      picker.appendChild(label);
+    });
+  }
+
+  function updateEmpresaBadge() {
+    const badge = document.getElementById("cotEmpresaBadge");
+    const label = getSelectedEmpresaLabel();
+    if (badge && label) badge.textContent = label;
+  }
+
+  const EMPRESA_COT_RE = /\[\[empresa_cot:[^\]]+\]\]\s*/g;
+
+  const EMBEDDED_EMPRESAS_PERFILES = [
+    {
+      id: "santo-domingo",
+      plantilla: "chilemat",
+      label: "Ferretería Santo Domingo (Chilemat)",
+      nombre_comercial: "Ferretería Santo Domingo",
+      razon_social: "Luis Gastón Rivera Pérez",
+      marca_linea1: "FERRETERÍA",
+      marca_linea2: "SANTO DOMINGO",
+      rut_emisor: "8.054.120-1",
+      telefono: "(41) 264 5574",
+      correo: "ferreteria426@gmail.com",
+      direccion: "C. Matriz Arturo Prat n°426 - Florida\nBodega Arturo Prat n°439",
+      eslogan: "Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas",
+    },
+    {
+      id: "transportes-st-julliet",
+      plantilla: "transportes",
+      label: "Transportes Sta JULLIET",
+      nombre_comercial: "Transportes Sta JULLIET",
+      razon_social: "JULIO IVAN RIVERA PEREZ EIRL",
+      marca_linea1: "TRANSPORTES",
+      marca_linea2: "Sta JULLIET",
+      rut_emisor: "76.873.527-1",
+      telefono: "989145920",
+      correo: "aridosjr1963@gmail.com",
+      eslogan: "venta de aridos y fletes",
+      cuenta_banco: "CHEQUERA ELECTRONICA: 51270010532",
+      banco: "Banco Estado",
+      logo_img: "img/cot_transportes_julliet_v5.png",
+    },
+  ];
+
+  function empresasPerfilesCfg() {
+    const fromCfg = Array.isArray(cfg.empresas_perfiles) ? cfg.empresas_perfiles : [];
+    return fromCfg.length ? fromCfg : EMBEDDED_EMPRESAS_PERFILES;
+  }
+
+  function stripEmpresaMarker(text) {
+    return String(text || "").replace(EMPRESA_COT_RE, "").trim();
+  }
+
+  function applyEmpresaMarker(notas, slug) {
+    const limpio = stripEmpresaMarker(notas);
+    const def = cfg.empresa_cotizacion_default || "santo-domingo";
+    const s = (slug || "").trim();
+    if (!s || s === def) return limpio;
+    return `[[empresa_cot:${s}]]` + (limpio ? "\n" + limpio : "");
+  }
+
+  function syncEmpresaMarkerToNotas() {
+    const slug = getSelectedEmpresaId();
+    const hn = getHidden("notas");
+    const modalNotas = document.getElementById("modal_notas");
+    const visible = modalNotas ? modalNotas.value : stripEmpresaMarker(hn?.value || "");
+    if (hn) hn.value = applyEmpresaMarker(visible, slug);
+  }
+
+  function syncEmpresaSelectionFromModal() {
+    const he = getHidden("empresa_cotizacion");
+    const slug = getSelectedEmpresaId();
+    if (he) he.value = slug || he.value || "";
+    syncEmpresaMarkerToNotas();
+    updateMembretePreview();
+  }
+
+  function perfilEmpresaById(id) {
+    const list = empresasPerfilesCfg();
+    return list.find((e) => e && e.id === id) || null;
+  }
+
+  function logoUrlForEmpresa(emp) {
+    if (!emp) return "";
+    if (emp.logo_url) return emp.logo_url;
+    if (emp.plantilla === "transportes" && cfg.transportes_logo_url) return cfg.transportes_logo_url;
+    if (emp.logo_img) return (cfg.static_root || "/static/") + emp.logo_img + "?v=julliet-layout-v6-20260720";
+    return "";
+  }
+
+  function renderMembretePreviewHtml(emp) {
+    if (!emp) return "";
+    if (emp.plantilla === "transportes") {
+      const logo = logoUrlForEmpresa(emp);
+      let html = '<div class="cot-membrete cot-membrete--transportes"><div class="cot-tj-grid">';
+      html += '<div class="cot-tj-logo">';
+      if (logo) {
+        html +=
+          '<img class="cot-membrete__transportes-banner" src="' +
+          escapeHtml(logo) +
+          '" alt="' +
+          escapeHtml(emp.nombre_comercial || "Transportes") +
+          '">';
+      } else {
+        html +=
+          '<div class="cot-membrete__transportes-text">' +
+          '<div class="cot-membrete__transportes-l1">' +
+          escapeHtml(emp.marca_linea1 || "TRANSPORTES") +
+          "</div>" +
+          '<div class="cot-membrete__transportes-l2">' +
+          escapeHtml(emp.marca_linea2 || "Sta JULLIET") +
+          "</div></div>";
+      }
+      html += '</div><div class="cot-tj-datos">';
+      if (emp.razon_social) {
+        html += '<div class="cot-tj-razon">' + escapeHtml(emp.razon_social) + "</div>";
+      }
+      if (emp.eslogan) {
+        html += '<div class="cot-tj-giro">' + escapeHtml(emp.eslogan) + "</div>";
+      }
+      if (emp.rut_emisor) {
+        html +=
+          '<div class="cot-tj-row"><span class="cot-tj-ico"><i class="fas fa-user"></i></span>' +
+          '<span class="cot-tj-txt"><strong>RUT:</strong> ' +
+          escapeHtml(emp.rut_emisor) +
+          "</span></div>";
+      }
+      if (emp.cuenta_banco || emp.banco) {
+        html +=
+          '<div class="cot-tj-row"><span class="cot-tj-ico"><i class="fas fa-credit-card"></i></span><span class="cot-tj-txt">';
+        if (emp.cuenta_banco) html += "<strong>" + escapeHtml(emp.cuenta_banco) + "</strong>";
+        if (emp.banco) html += '<span class="cot-tj-banco">' + escapeHtml(emp.banco) + "</span>";
+        html += "</span></div>";
+      }
+      if (emp.telefono) {
+        html +=
+          '<div class="cot-tj-row"><span class="cot-tj-ico"><i class="fas fa-phone"></i></span>' +
+          '<span class="cot-tj-txt"><strong>Teléfono:</strong> ' +
+          escapeHtml(emp.telefono) +
+          "</span></div>";
+      }
+      if (emp.correo) {
+        html +=
+          '<div class="cot-tj-row"><span class="cot-tj-ico"><i class="fas fa-envelope"></i></span>' +
+          '<span class="cot-tj-txt"><strong>correo:</strong> ' +
+          escapeHtml(emp.correo) +
+          "</span></div>";
+      }
+      html += "</div></div></div>";
+      return html;
+    }
+    const tel = (emp.telefono || "(41) 264 5574").replace(/Fono\/Fax:|Fono:/g, "").trim();
+    const mail = emp.correo || "ferreteria426@gmail.com";
+    const rut = emp.rut_emisor || "8.054.120-1";
+    const titular = emp.razon_social || "Luis Gastón Rivera Pérez";
+    let dirs = "";
+    if (emp.direccion) {
+      emp.direccion.split("\n").forEach((linea) => {
+        if ((linea || "").trim()) dirs += "<div>" + escapeHtml(linea.trim()) + "</div>";
+      });
+    }
+    return (
+      '<div class="cot-membrete cot-membrete--chilemat">' +
+      '<div class="cot-membrete__brand-stack">' +
+      '<img class="cot-membrete__logo-oficial" src="/static/img/chilemat_logo_oficial.png" alt="Chilemat" onerror="this.onerror=null;this.src=\'/static/img/chilemat_logo_cotizacion.svg\';">' +
+      '<div class="cot-membrete__nombre-block">' +
+      '<div class="cot-membrete__ferreteria">' +
+      escapeHtml(emp.marca_linea1 || "FERRETERÍA") +
+      "</div>" +
+      '<div class="cot-membrete__marca">' +
+      escapeHtml(emp.marca_linea2 || "SANTO DOMINGO") +
+      "</div></div></div>" +
+      '<div class="cot-membrete__razon">' +
+      escapeHtml(titular) +
+      "</div>" +
+      '<div class="cot-membrete__rut-grande">RUT ' +
+      escapeHtml(rut) +
+      "</div>" +
+      '<div class="cot-membrete__giro">' +
+      escapeHtml(emp.eslogan || "Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas") +
+      "</div>" +
+      (dirs ? '<div class="cot-membrete__dir">' + dirs + "</div>" : "") +
+      '<div class="cot-membrete__contacto">☎ ' +
+      escapeHtml(tel) +
+      "</div>" +
+      '<div class="cot-membrete__contacto">✉ ' +
+      escapeHtml(mail) +
+      "</div></div>"
+    );
+  }
+
+  function updateTransferenciaFooter() {
+    const wrap = document.getElementById("cotTransferenciaFooterWrap");
+    const el = document.getElementById("cotTransferenciaFooter");
+    const header = document.querySelector(".cot-doc-header");
+    const slug = getSelectedEmpresaId() || cfg.empresa_cotizacion_default || "";
+    const emp = perfilEmpresaById(slug);
+    const isTransportes = !!(emp && emp.plantilla === "transportes");
+    if (header) header.classList.toggle("cot-doc-header--transportes", isTransportes);
+    // Datos bancarios van en el membrete (layout definitivo); no duplicar al pie.
+    if (wrap) {
+      wrap.classList.add("d-none");
+      if (el) el.innerHTML = "";
+    }
+  }
+
+  function updateMembretePreview() {
+    const host = document.getElementById("cotMembretePreview");
+    if (!host) return;
+    const slug = getSelectedEmpresaId() || cfg.empresa_cotizacion_default || "santo-domingo";
+    const emp = perfilEmpresaById(slug);
+    if (emp) host.innerHTML = renderMembretePreviewHtml(emp);
+    updateEmpresaBadge();
+    updateTransferenciaFooter();
+  }
+
   function syncHiddenFromModal() {
     clientFieldMap.forEach(([hid, mid]) => {
       if (!mid) return;
@@ -642,9 +915,11 @@
     const hv = getHidden("validez_dias");
     const hd = getHidden("descuento_global");
     const hn = getHidden("notas");
+    const he = getHidden("empresa_cotizacion");
     if (hv && v) hv.value = v.value || "15";
     if (hd && d) hd.value = d.value || "0";
-    if (hn && n) hn.value = n.value || "";
+    if (hn && n) hn.value = applyEmpresaMarker(n.value || "", getSelectedEmpresaId());
+    syncEmpresaSelectionFromModal();
   }
 
   function htmlClientFichaRow(label, value, extraClass) {
@@ -736,7 +1011,8 @@
     const hn = getHidden("notas");
     if (hv && v) hv.value = v.value || "15";
     if (hd && d) hd.value = d.value || "0";
-    if (hn && n) hn.value = n.value || "";
+    if (n && hn) hn.value = applyEmpresaMarker(n.value || "", getSelectedEmpresaId());
+    syncEmpresaSelectionFromModal();
     updateOpcionesPreview();
     recalcular();
   }
@@ -747,7 +1023,16 @@
     const n = document.getElementById("modal_notas");
     if (v) v.value = getHidden("validez_dias")?.value || "15";
     if (d) d.value = getHidden("descuento_global")?.value || "0";
-    if (n) n.value = getHidden("notas")?.value || "";
+    if (n) n.value = stripEmpresaMarker(getHidden("notas")?.value || "");
+    setSelectedEmpresaId(getHidden("empresa_cotizacion")?.value || cfg.empresa_cotizacion_default || "");
+  }
+
+  const empresaPicker = document.getElementById("cotEmpresaPicker");
+  if (empresaPicker) {
+    empresaPicker.addEventListener("change", (e) => {
+      if (!e.target || e.target.name !== "modal_empresa_cotizacion") return;
+      syncEmpresaSelectionFromModal();
+    });
   }
 
   const btnOpcionesListo = document.getElementById("btnOpcionesListo");
@@ -756,6 +1041,7 @@
   const modalOpciones = document.getElementById("modalOpcionesCot");
   if (modalOpciones) {
     modalOpciones.addEventListener("show.bs.modal", syncOpcionesToModal);
+    modalOpciones.addEventListener("hidden.bs.modal", syncOpcionesFromModal);
   }
 
   const modalCliente = document.getElementById("modalClienteCot");
@@ -931,6 +1217,11 @@
   });
 
   syncModalFromHidden();
+  ensureEmpresaPicker();
+  setSelectedEmpresaId(getHidden("empresa_cotizacion")?.value || cfg.empresa_cotizacion_default || "");
+  const modalNotasInit = document.getElementById("modal_notas");
+  if (modalNotasInit) modalNotasInit.value = stripEmpresaMarker(getHidden("notas")?.value || "");
+  updateMembretePreview();
   updateClientChip();
   updateOpcionesPreview();
   renumberLineas();

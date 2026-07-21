@@ -1326,6 +1326,40 @@ def codigo_pedido_web(venta_id: int) -> str:
     return f'PED-WEB-{int(venta_id):06d}'
 
 
+def parse_codigo_pedido_web(codigo: str | None) -> int | None:
+    """PED-WEB-003527 → 3527. None si inválido."""
+    raw = (codigo or '').strip().upper().replace(' ', '')
+    m = re.match(r'^PED-WEB-(\d{1,9})$', raw)
+    if not m:
+        return None
+    try:
+        vid = int(m.group(1))
+    except ValueError:
+        return None
+    return vid if vid > 0 else None
+
+
+def token_seguimiento_pedido(venta_id: int, secret: str | None = None) -> str:
+    """Token corto HMAC para seguimiento público (no es secret de sesión)."""
+    import hashlib
+    import hmac
+
+    key = (secret or os.getenv('SECRET_KEY') or 'lhexia-dev-seguimiento').encode('utf-8')
+    msg = f'ped-web-track:{int(venta_id)}'.encode('utf-8')
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()[:20]
+
+
+def validar_token_seguimiento(venta_id: int, token: str | None, secret: str | None = None) -> bool:
+    import hmac
+
+    esperado = token_seguimiento_pedido(venta_id, secret=secret)
+    got = (token or '').strip().lower()
+    if len(got) < 8:
+        return False
+    # aceptar prefijo si truncaron al compartir
+    return hmac.compare_digest(esperado[: len(got)], got) if len(got) <= len(esperado) else hmac.compare_digest(esperado, got[: len(esperado)])
+
+
 def crear_vale_pedido_web(
     carrito_lineas: list[dict[str, Any]] | None,
     *,
@@ -1348,8 +1382,20 @@ def crear_vale_pedido_web(
     from services.ecommerce_pedidos_service import (
         requiere_caja_abierta_pedido_web,
         resolver_cliente_pedido_web,
+        validar_contacto_pedido_web,
         validar_stock_lineas_carrito,
     )
+
+    contacto = validar_contacto_pedido_web(cliente_nombre, cliente_telefono)
+    if not contacto.get('ok'):
+        return {
+            'ok': False,
+            'error': contacto.get('error') or 'contacto_incompleto',
+            'mensaje': contacto.get('mensaje')
+            or 'Completa tu nombre y teléfono para registrarte.',
+        }
+    cliente_nombre = contacto.get('nombre') or ''
+    cliente_telefono = contacto.get('telefono') or ''
 
     bloquear_sin_stock = (os.getenv('ECOM_PEDIDO_BLOQUEAR_SIN_STOCK') or '1').strip().lower() not in (
         '0',
@@ -1464,6 +1510,8 @@ def crear_vale_pedido_web(
     tot = calcular_totales_carrito(lineas)
     tienda = (nombre_tienda or TIENDA_TITULO_DEFAULT).strip()
 
+    cli_nom = (getattr(cliente, 'nombre', None) or cliente_nombre or '').strip()
+    cli_tel = (getattr(cliente, 'telefono', None) or cliente_telefono or '').strip()
     return {
         'ok': True,
         'venta_id': int(venta.id),
@@ -1473,6 +1521,10 @@ def crear_vale_pedido_web(
         'monto_total_fmt': _fmt_clp(venta.monto_total),
         'items_count': tot.get('items_count'),
         'lineas_count': detalles_ok,
+        'cliente_registrado': True,
+        'cliente_id': int(cliente.id),
+        'cliente_nombre': cli_nom,
+        'cliente_telefono': cli_tel,
         'mensaje': (
             f'Vale {codigo} creado en {tienda}. Presenta este código en caja para retiro; '
             f'folio interno {vale_folio}.'

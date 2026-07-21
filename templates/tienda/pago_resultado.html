@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if ok %}Pago confirmado{% else %}Pago no completado{% endif %} · {{ nombre_tienda }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=maylen-vitrina-11-checkout">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tienda-vitrina.css') }}?v=maylen-vitrina-12-registro">
 </head>
 <body class="tienda-vitrina tienda-pago-resultado">
   <main class="tienda-pago-resultado__main">
@@ -19,13 +19,25 @@
       {% if monto_total_fmt %}
       <p class="text-muted">Total pagado: <strong>{{ monto_total_fmt }}</strong></p>
       {% endif %}
-      <p class="small text-muted">Te avisaremos cuando tu pedido esté listo para retiro. Guarda tu código.</p>
+      <p class="small text-muted">Te avisaremos cuando tu pedido esté listo para retiro. Guarda tu código{% if seguimiento_url %} o el enlace de seguimiento{% endif %}.</p>
+      {% if cliente_nombre %}
+      <p class="small text-success mb-1"><i class="fas fa-user-check me-1"></i>Cliente registrado: <strong>{{ cliente_nombre }}</strong>{% if cliente_telefono %} · {{ cliente_telefono }}{% endif %}</p>
+      {% endif %}
+      {% if seguimiento_url %}
+      <a href="{{ seguimiento_url }}" class="btn btn-outline-light btn-lg mt-2 w-100"><i class="fas fa-qrcode me-1"></i>Ver seguimiento y QR</a>
+      {% endif %}
+      {% if whatsapp_enviado %}
+      <p class="small text-success mt-2 mb-0"><i class="fab fa-whatsapp me-1"></i>WhatsApp enviado con el enlace de tu pedido.</p>
+      {% endif %}
       {% else %}
       <div class="tienda-pago-resultado__icon tienda-pago-resultado__icon--fail"><i class="fas fa-times-circle"></i></div>
       <h1>Pago no completado</h1>
       <p class="lead">{{ mensaje }}</p>
       {% if ped_web_codigo %}
       <p class="small">Tu reserva: <strong class="font-monospace">{{ ped_web_codigo }}</strong> — puedes pagar en caja.</p>
+      {% endif %}
+      {% if seguimiento_url %}
+      <a href="{{ seguimiento_url }}" class="btn btn-outline-light btn-lg mt-2 w-100">Ver estado del pedido</a>
       {% endif %}
       {% endif %}
       <a href="{{ vitrina_url }}" class="btn btn-success btn-lg mt-3 w-100">Volver al catálogo</a>

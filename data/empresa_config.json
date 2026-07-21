@@ -1,9 +1,9 @@
 {
-  "nombre_comercial": "CHILEMAT Ferretería Santo Domingo",
-  "razon_social": "Luis Gastón Raivera Pérez",
-  "eslogan": "Ferretería, Fertilizante y Materiales de construcción",
-  "telefono": "Fono/Fax: 41 2645574 - Florida",
-  "correo": "Ferreteria426@gmail.com",
+  "nombre_comercial": "Ferretería Santo Domingo",
+  "razon_social": "Luis Gastón Rivera Pérez",
+  "eslogan": "Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas",
+  "telefono": "(41) 264 5574",
+  "correo": "ferreteria426@gmail.com",
   "direccion": "C. Matriz Arturo Prat n°426 - Florida\nBodega Arturo Prat n°439",
   "mod_ventas": "1",
   "mod_caja": "1",
@@ -26,5 +26,6 @@
   "portal_gastos_op_mensual_clp": "8000000",
   "portal_activos_fijos_clp": "0",
   "portal_meta_ventas_anual_clp": "0",
-  "url_red_erp": "http://192.168.1.2:5000"
+  "url_red_erp": "http://192.168.1.2:5000",
+  "motor_promociones_activo": "1"
 }

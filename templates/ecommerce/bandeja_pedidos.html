@@ -119,7 +119,7 @@
           <tr>
             <td class="ps-3">
               <span class="ecom-pedido-code">{{ p.ped_web_codigo }}</span>
-              <div class="small text-muted mt-1">{{ p.vale_folio }} · {{ p.contacto_nombre or p.contacto or 'Cliente web' }}</div>
+              <div class="small text-muted mt-1">{{ p.vale_folio }} · {{ p.contacto_nombre or p.contacto or 'Cliente web' }}{% if p.contacto_telefono %} · {{ p.contacto_telefono }}{% endif %}</div>
               {% if p.alerta_stock %}<span class="badge text-bg-danger mt-1">Sin stock</span>{% endif %}
               {% if p.sin_caja %}<span class="badge text-bg-secondary mt-1">Sin caja</span>{% endif %}
             </td>
@@ -144,6 +144,11 @@
             <td class="small">{{ v.bodega_preparacion_usuario or '—' }}</td>
             <td class="text-end text-nowrap pe-3">
               <a href="{{ url_for('ecommerce_pedido_detalle', vid=v.id) }}" class="ecom-btn-ver btn-sm">Ver</a>
+              {% if p.estado_venta == 'Pendiente' %}
+              <a href="{{ url_for('pos_ticket_vale', venta_id=v.id) }}" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener" title="Ticket vale">🖨</a>
+              {% elif p.estado_venta == 'Pagado' %}
+              <a href="{{ url_for('ver_ticket_cobro', id=v.id, auto_print='1') }}" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener" title="Ticket cobro">🖨</a>
+              {% endif %}
               {% if vista != 'historial' and est == 'PENDIENTE' %}
               <form method="post" action="{{ url_for('ecommerce_pedido_estado', vid=v.id) }}" class="d-inline">
                 <input type="hidden" name="accion" value="tomar">

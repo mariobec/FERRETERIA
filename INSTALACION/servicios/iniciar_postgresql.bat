@@ -1,6 +1,7 @@
 @echo off
 setlocal
 title LhexIA - Iniciar PostgreSQL
+set "SILENT=%~1"
 
 echo.
 echo ============================================
@@ -28,5 +29,5 @@ if "%PG_FOUND%"=="0" (
 echo.
 netstat -ano | findstr /R /C:":5432 .*LISTENING" >nul && echo Puerto 5432: [OK] || echo Puerto 5432: [FAIL]
 echo.
-pause
+if /I not "%SILENT%"=="silent" pause
 exit /b 0

@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}{% if es_nuevo %}Nueva{% else %}Editar{% endif %} promoción{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/promociones-form.css') }}?v=promo-precio-par-20260715">
+{% endblock %}
+{% block content %}
+{% set ben = promo.beneficio or {} %}
+{% set cond = promo.condiciones or {} %}
+{% set pids = cond.producto_ids or [] %}
+{% set seleccion = productos_seleccionados or [] %}
+{% set auto_codigo = es_nuevo and not (promo.codigo or '') %}
+
+{# Botón ? — clic abre explicación (quien arma la promo) #}
+{% macro help_q(titulo, texto) -%}
+<button type="button" class="promo-help"
+        data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top"
+        title="{{ titulo }}"
+        data-bs-content="{{ texto }}"
+        aria-label="Ayuda: {{ titulo }}">?</button>
+{%- endmacro %}
+
+<div class="promo-form-wrap container py-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+      <a href="{{ url_for('promociones_lista') }}" class="promo-form-back"><i class="fas fa-arrow-left me-1"></i>Volver</a>
+      <h1 class="h3 mb-1">{% if es_nuevo %}Nueva promoción{% else %}Editar {{ promo.codigo }}{% endif %}</h1>
+      <p class="text-muted small mb-0">Armar una promo en 3 pasos. El código lo genera el sistema.</p>
+    </div>
+  </div>
+
+  <div class="promo-howto alert alert-light border mb-3">
+    <strong>Cómo se hace (estilo retail)</strong>
+    <ol class="mb-0 small mt-1">
+      <li><strong>Nombre</strong> — lo que ve el cliente en el ticket (ej. «2x1 Tornillos»).</li>
+      <li><strong>Productos</strong> — búscalo y agrégalo (tornillo, amarra, etc.).</li>
+      <li><strong>Beneficio</strong> — ej. Compra 2 / Paga 1.</li>
+    </ol>
+    <p class="small text-muted mb-0 mt-2">
+      El <strong>código interno</strong> se crea solo (como en Líder/Walmart). No lo inventes a mano salvo que te lo pidan.
+      Pulsa <span class="promo-help promo-help--inline" aria-hidden="true">?</span> en cada campo si tienes duda.
+    </p>
+  </div>
+
+  <form method="post" id="promoForm" class="promo-form" novalidate
+        data-url-sugerir="{{ url_sugerir_codigo }}"
+        data-promo-id="{{ promo.id if promo.id is defined else '' }}"
+        data-auto-codigo="{% if auto_codigo %}1{% else %}0{% endif %}">
+
+    <section class="promo-card">
+      <h2 class="promo-card__title">
+        <span class="promo-step">1</span> Nombre de la promoción
+        {{ help_q(
+          'Nombre en ticket',
+          'Es el texto que aparece en el ticket y en el POS. Ejemplo: «2x1 Tornillos». No es el código de barras del producto.'
+        ) }}
+      </h2>
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label" for="promoNombre">
+            Nombre en ticket <span class="text-danger">*</span>
+            {{ help_q('¿Qué escribo aquí?', 'Piensa en cómo se lo dirías al cliente: «llévate 2 y paga 1». Ese es el nombre.') }}
+          </label>
+          <input id="promoNombre" name="nombre" class="form-control form-control-lg" required value="{{ promo.nombre or '' }}" placeholder="Ej. 2x1 Tornillos">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="promoPrioridad">
+            Prioridad
+            {{ help_q(
+              'Prioridad',
+              'Si dos promos tocan el mismo producto, gana la de menor número. Usa 10 para promos importantes y 100 para el resto.'
+            ) }}
+          </label>
+          <input id="promoPrioridad" type="number" name="prioridad" class="form-control" value="{{ promo.prioridad or 100 }}" min="1" max="999">
+        </div>
+
+        <div class="col-12">
+          <div class="promo-codigo-auto" id="promoCodigoAutoBox">
+            <div class="promo-codigo-auto__row">
+              <span class="promo-codigo-auto__lbl">
+                Código interno (automático)
+                {{ help_q(
+                  'Código interno',
+                  'Lo genera el sistema. Solo sirve para administración. No es el código de barras del producto. Ejemplo: 2X1-TORNILLOS.'
+                ) }}
+              </span>
+              <code class="promo-codigo-auto__preview" id="promoCodigoPreview">{{ promo.codigo or 'Se creará al escribir el nombre…' }}</code>
+            </div>
+            <input type="hidden" name="codigo" id="promoCodigo" value="{{ promo.codigo or '' }}"
+                   data-auto="{% if auto_codigo %}1{% else %}0{% endif %}">
+            <button type="button" class="btn btn-link btn-sm p-0 promo-codigo-auto__toggle" id="promoCodigoToggle">
+              ¿Cambiar código a mano?
+            </button>
+            <div class="promo-codigo-manual d-none mt-2" id="promoCodigoManual">
+              <div class="promo-codigo-row">
+                <input type="text" id="promoCodigoEditable" class="form-control font-monospace" value="{{ promo.codigo or '' }}" autocomplete="off" aria-label="Código manual">
+                <button type="button" class="btn btn-outline-secondary" id="promoBtnGenerarCodigo">
+                  <i class="fas fa-magic me-1"></i>Regenerar
+                </button>
+              </div>
+              <div class="form-text">Solo si jefatura pide un código especial. Si no, déjalo automático.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="promo-card">
+      <h2 class="promo-card__title">
+        <span class="promo-step">2</span> Productos que reciben la promo
+        {{ help_q(
+          'Productos',
+          'Busca por nombre o código de barras y elige de la lista. Puedes agregar varios. Quita con la ×.'
+        ) }}
+      </h2>
+      <p class="promo-card__hint">Escribe o escanea. No necesitas saber el ID interno del ERP.</p>
+
+      <div class="promo-search" id="promoSearchRoot" data-url="{{ url_buscar_producto }}">
+        <div class="promo-search__input-wrap">
+          <i class="fas fa-search promo-search__icon" aria-hidden="true"></i>
+          <input type="search" id="promoSearchInput" class="form-control promo-search__input"
+                 placeholder="Escribe o escanea: tornillo, 7804…, amarra…"
+                 autocomplete="off" aria-autocomplete="list" aria-controls="promoSearchResults">
+          <kbd class="promo-search__kbd">Enter</kbd>
+        </div>
+        <div class="promo-search__results d-none" id="promoSearchResults" role="listbox"></div>
+      </div>
+
+      <input type="hidden" name="producto_ids" id="promoProductoIds" value="{{ pids|join(',') }}">
+      <div class="promo-chips" id="promoChips" aria-live="polite">
+        {% for p in seleccion %}
+        <div class="promo-chip" data-id="{{ p.id }}">
+          <div class="promo-chip__body">
+            <strong class="promo-chip__name">{{ p.nombre }}</strong>
+            <span class="promo-chip__meta">#{{ p.id }}{% if p.codigo %} · {{ p.codigo }}{% endif %}{% if p.precio_fmt %} · {{ p.precio_fmt }}{% endif %}</span>
+          </div>
+          <button type="button" class="promo-chip__remove" data-remove="{{ p.id }}" title="Quitar" aria-label="Quitar {{ p.nombre }}">&times;</button>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="promo-chips__empty text-muted small {% if seleccion %}d-none{% endif %}" id="promoChipsEmpty">
+        Ningún producto aún. Usa el buscador de arriba.
+      </p>
+      <p class="text-danger small d-none mb-0" id="promoChipsError">Agrega al menos un producto.</p>
+    </section>
+
+    <section class="promo-card">
+      <h2 class="promo-card__title">
+        <span class="promo-step">3</span> Beneficio
+        {{ help_q(
+          'Beneficio',
+          'N×M: una gratis (2×1 fuerte). Precio por par: 2 por un monto fijo (ej. $3.200). 2ª %: descuento porcentual. Escala: precio por tramo de cantidad.'
+        ) }}
+      </h2>
+      <div class="row g-3">
+        <div class="col-md-5">
+          <label class="form-label" for="promoTipo">
+            Tipo
+            {{ help_q('Tipo de promo', 'Para 2 por $3.200 elige Precio por par. El N×M clásico regala una unidad entera.') }}
+          </label>
+          <select name="tipo" id="promoTipo" class="form-select">
+            <option value="NXM" {% if promo.tipo=='NXM' %}selected{% endif %}>N×M (2x1 gratis clásico)</option>
+            <option value="PRECIO_PAR" {% if promo.tipo=='PRECIO_PAR' %}selected{% endif %}>Precio por par (ej. 2 por $3.200)</option>
+            <option value="SEGUNDO_PCT" {% if promo.tipo=='SEGUNDO_PCT' %}selected{% endif %}>2ª unidad con %</option>
+            <option value="ESCALA_QTY" {% if promo.tipo=='ESCALA_QTY' %}selected{% endif %}>Escala por cantidad</option>
+          </select>
+        </div>
+        <div class="col-md-7" id="blkNxm">
+          <label class="form-label">
+            Lleva / paga
+            {{ help_q('Compra N · Paga M', 'El cliente lleva N unidades y solo paga M. Ejemplo: Compra 2 → Paga 1 = 2×1 (una gratis).') }}
+          </label>
+          <div class="promo-nxm">
+            <div>
+              <span class="promo-nxm__lbl">Compra</span>
+              <input type="number" name="nxm_n" class="form-control" min="2" value="{{ ben.n or 2 }}" aria-label="Compra N">
+            </div>
+            <span class="promo-nxm__x" aria-hidden="true">→</span>
+            <div>
+              <span class="promo-nxm__lbl">Paga</span>
+              <input type="number" name="nxm_m" class="form-control" min="1" value="{{ ben.m or 1 }}" aria-label="Paga M">
+            </div>
+          </div>
+          <div class="form-text">Ej.: Compra 2 · Paga 1 = 2×1 (pago $1.700 si lista es $1.700)</div>
+        </div>
+        <div class="col-md-7 {% if promo.tipo != 'PRECIO_PAR' %}d-none{% endif %}" id="blkPrecioPar">
+          <label class="form-label">
+            Pack a precio fijo
+            {{ help_q(
+              'Precio por par',
+              'Ej.: lista $1.700. Si lleva 2 paga $3.200; si lleva 3 = $3.200+$1.700=$4.900; si lleva 4 = $6.400. La unidad suelta queda a precio lista.'
+            ) }}
+          </label>
+          <div class="promo-nxm">
+            <div>
+              <span class="promo-nxm__lbl">Unidades del pack</span>
+              <input type="number" name="par_qty" class="form-control" min="2" value="{{ ben.pack_qty or ben.n or 2 }}" aria-label="Cantidad del pack">
+            </div>
+            <span class="promo-nxm__x" aria-hidden="true">=</span>
+            <div>
+              <span class="promo-nxm__lbl">Precio pack ($)</span>
+              <input type="number" name="par_precio" class="form-control" min="1" value="{{ ben.precio_pack or ben.precio_par or 3200 }}" aria-label="Precio del pack">
+            </div>
+          </div>
+          <div class="form-text" id="promoParEjemplo">Ej.: 2 unidades por $3.200 (lista $1.700 → 2=$3.200 · 3=$4.900 · 4=$6.400)</div>
+        </div>
+        <div class="col-md-4 d-none" id="blkSegundo">
+          <label class="form-label">
+            % 2ª unidad
+            {{ help_q('2ª unidad', 'La segunda unidad lleva este % de descuento. 50 = mitad de precio en la 2ª.') }}
+          </label>
+          <input type="number" name="segundo_pct" class="form-control" min="1" max="100" value="{{ ben.pct or 50 }}">
+        </div>
+        <div class="col-12 d-none" id="blkEscala">
+          <label class="form-label">
+            Precio por tramo (1–4 / 5–9 / 10+)
+            {{ help_q('Escala', 'Precio unitario distinto según cuántas unidades lleve el cliente.') }}
+          </label>
+          <div class="row g-2">
+            {% set tramos = ben.tramos or [] %}
+            <div class="col-4">
+              <input type="number" name="esc_p1" class="form-control" placeholder="1–4 u." value="{{ (tramos[0].precio_unitario if tramos|length>0 else '') }}">
+            </div>
+            <div class="col-4">
+              <input type="number" name="esc_p2" class="form-control" placeholder="5–9 u." value="{{ (tramos[1].precio_unitario if tramos|length>1 else '') }}">
+            </div>
+            <div class="col-4">
+              <input type="number" name="esc_p3" class="form-control" placeholder="10+ u." value="{{ (tramos[2].precio_unitario if tramos|length>2 else '') }}">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="promo-card">
+      <h2 class="promo-card__title">
+        Vigencia y opciones
+        {{ help_q(
+          'Vigencia',
+          'Si dejas las fechas vacías, la promo vale mientras esté Activa. Exclusiva: no se mezcla con otra promo en los mismos productos.'
+        ) }}
+      </h2>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="promoDesde">Desde (opcional)</label>
+          <input id="promoDesde" type="date" name="vigencia_desde" class="form-control" value="{% if promo.vigencia_desde %}{{ promo.vigencia_desde if promo.vigencia_desde is string else promo.vigencia_desde.isoformat() }}{% endif %}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="promoHasta">Hasta (opcional)</label>
+          <input id="promoHasta" type="date" name="vigencia_hasta" class="form-control" value="{% if promo.vigencia_hasta %}{{ promo.vigencia_hasta if promo.vigencia_hasta is string else promo.vigencia_hasta.isoformat() }}{% endif %}">
+        </div>
+        <div class="col-12">
+          <div class="form-check form-switch form-check-inline">
+            <input class="form-check-input" type="checkbox" name="activo" value="1" id="chkAct" {% if promo.activo %}checked{% endif %}>
+            <label class="form-check-label" for="chkAct">
+              Activa
+              {{ help_q('Activa', 'Si está apagada, no se aplica en POS aunque el motor esté encendido.') }}
+            </label>
+          </div>
+          <div class="form-check form-switch form-check-inline">
+            <input class="form-check-input" type="checkbox" name="exclusiva" value="1" id="chkExc" {% if promo.exclusiva is not defined or promo.exclusiva %}checked{% endif %}>
+            <label class="form-check-label" for="chkExc">
+              Exclusiva
+              {{ help_q('Exclusiva', 'Recomendado: no apilar otra promoción sobre los mismos productos.') }}
+            </label>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="promoNotas">Notas internas (opcional)</label>
+          <textarea id="promoNotas" name="notas" class="form-control" rows="2" placeholder="Solo para el equipo…">{{ promo.notas or '' }}</textarea>
+        </div>
+      </div>
+    </section>
+
+    <div class="promo-form__actions">
+      <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save me-1"></i> Guardar promoción</button>
+      <a href="{{ url_for('promociones_lista') }}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+    </div>
+  </form>
+</div>
+<script src="{{ url_for('static', filename='js/promociones-form.js') }}?v=promo-precio-par-20260715"></script>
+{% endblock %}

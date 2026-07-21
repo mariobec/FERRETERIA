@@ -35,17 +35,29 @@
   </header>
 
   <div class="tienda-checkout__step" id="tiendaCheckoutStep1">
-    <p class="tienda-checkout__lead">Revisa tu pedido antes de pagar.</p>
+    <p class="tienda-checkout__lead">Revisa tu pedido y regístrate para el retiro.</p>
     <ul class="tienda-checkout__lines list-unstyled" id="tiendaCheckoutLines"></ul>
     <div class="tienda-checkout__totals" id="tiendaCheckoutTotals"></div>
-    <div class="mb-3">
-      <label class="form-label small fw-semibold" for="tiendaCheckoutNombre">Nombre</label>
-      <input type="text" class="form-control" id="tiendaCheckoutNombre" maxlength="80" autocomplete="name" placeholder="Ej. Juan Pérez">
+
+    <div class="tienda-checkout-registro" id="tiendaCheckoutRegistro">
+      <div class="tienda-checkout-registro__title">
+        <i class="fas fa-user-check" aria-hidden="true"></i>
+        Tus datos · te registramos en la tienda
+      </div>
+      <p class="tienda-checkout-registro__hint">
+        Con nombre y WhatsApp te avisamos cuando el pedido esté listo y podrás mostrar el QR al retirar.
+      </p>
+      <div class="mb-2">
+        <label class="form-label small fw-semibold" for="tiendaCheckoutNombre">Nombre completo <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="tiendaCheckoutNombre" maxlength="80" autocomplete="name" required placeholder="Ej. Juan Pérez" aria-required="true">
+      </div>
+      <div class="mb-1">
+        <label class="form-label small fw-semibold" for="tiendaCheckoutTelefono">Teléfono / WhatsApp <span class="text-danger">*</span></label>
+        <input type="tel" class="form-control" id="tiendaCheckoutTelefono" maxlength="40" autocomplete="tel" required inputmode="tel" placeholder="Ej. +56 9 1234 5678" aria-required="true">
+      </div>
+      <p class="tienda-checkout-registro__note" id="tiendaCheckoutContactoError" hidden></p>
     </div>
-    <div class="mb-3">
-      <label class="form-label small fw-semibold" for="tiendaCheckoutTelefono">Teléfono</label>
-      <input type="tel" class="form-control" id="tiendaCheckoutTelefono" maxlength="40" autocomplete="tel" placeholder="Ej. +56 9 1234 5678">
-    </div>
+
     <div class="mb-3">
       <span class="form-label small fw-semibold d-block mb-2">Retiro</span>
       <div class="tienda-checkout-retiro">

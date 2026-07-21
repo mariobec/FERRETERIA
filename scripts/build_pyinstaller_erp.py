@@ -66,6 +66,7 @@ def _datas() -> list[tuple[str, str]]:
     if data_src.is_dir():
         for name in (
             "empresa_config.json",
+            "empresas_cotizacion.json",
             "proveedores_config.json",
             "cross_sell_associations.json",
             "pintura_cartilla_sd.json",
@@ -182,6 +183,7 @@ def stage_instalacion() -> Path:
         (dest / sub).mkdir(parents=True, exist_ok=True)
     for name in (
         "empresa_config.json",
+        "empresas_cotizacion.json",
         "proveedores_config.json",
         "cross_sell_associations.json",
         "pintura_cartilla_sd.json",

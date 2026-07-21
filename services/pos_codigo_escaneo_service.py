@@ -152,10 +152,10 @@ def sugerencias_productos_por_codigo_escaneo(
 ) -> list[dict]:
     """
     Candidatos cuando no hubo match exacto: código numérico contenido en barras/interno.
-    query_productos(like_pattern) -> iterable Producto activos.
+    No sugiere un código más corto que sea solo prefijo (11111 ante escaneo 111110).
     """
     digits = _solo_digitos(codigo)
-    if len(digits) < 8:
+    if len(digits) < 4:
         return []
     like = f'%{digits}%'
     rows = list(query_productos(like, limit=limit * 3))
@@ -167,9 +167,20 @@ def sugerencias_productos_por_codigo_escaneo(
             continue
         bar_digits = _solo_digitos(getattr(p, 'codigo_barra', None) or '')
         int_digits = _solo_digitos(getattr(p, 'codigo_interno', None) or '')
-        if digits not in bar_digits and digits not in int_digits:
-            if not (bar_digits and (bar_digits.startswith(digits) or digits.startswith(bar_digits))):
+        # Preferir igualdad o que el maestro CONTENGA el escaneo completo.
+        # Evitar: escaneo 111110 → sugerir 11111 solo porque es prefijo.
+        ok = False
+        for cand in (bar_digits, int_digits):
+            if not cand:
                 continue
+            if cand == digits:
+                ok = True
+                break
+            if digits in cand and len(cand) >= len(digits):
+                ok = True
+                break
+        if not ok:
+            continue
         seen_ids.add(pid)
         out.append({
             'id': pid,

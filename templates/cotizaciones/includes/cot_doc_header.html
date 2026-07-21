@@ -1,36 +1,38 @@
-{# Encabezado documento cotización — alineado con PDF (membrete izq · título der) #}
+{# Encabezado documento cotización — membrete izq · recuadro COTIZACIÓN der #}
 <div class="cot-doc-header">
-  <div class="cot-doc-header__brand">
+  <div class="cot-doc-header__brand" id="cotMembretePreview">
     {% include 'cotizaciones/includes/cot_membrete.html' %}
   </div>
   <div class="cot-doc-header__title">
-    <h1 class="cot-doc-header__titulo">COTIZACIÓN</h1>
-    {% if cotizacion is defined and cotizacion and cotizacion.numero %}
-    <div class="cot-doc-header__num">{{ cotizacion.numero }}</div>
-    <div class="cot-doc-header__meta">
-      {% if cotizacion.fecha %}
-      <span>Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') }}</span><br>
-      {% endif %}
-      {% if cotizacion.fecha_vencimiento %}
-      <span>Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)</span><br>
-      {% endif %}
-      {% if cotizacion.estado %}
-      {% set estado_badge = {
-        'Vigente': 'bg-success',
-        'Vencida': 'bg-warning text-dark',
-        'Aceptada': 'bg-primary',
-        'Rechazada': 'bg-danger',
-        'Convertida': 'bg-info text-dark',
-      } %}
-      <span class="badge {{ estado_badge.get(cotizacion.estado, 'bg-secondary') }} mt-1">{{ cotizacion.estado }}</span>
+    <div class="cot-doc-box">
+      <div class="cot-doc-box__tipo">COTIZACIÓN</div>
+      {% if cotizacion is defined and cotizacion and cotizacion.numero %}
+      <div class="cot-doc-box__num">N° {{ cotizacion.numero }}</div>
+      <div class="cot-doc-header__meta">
+        {% if cotizacion.fecha %}
+        <span>Fecha: {{ cotizacion.fecha.strftime('%d-%m-%Y') }}</span><br>
+        {% endif %}
+        {% if cotizacion.fecha_vencimiento %}
+        <span>Válida hasta: {{ cotizacion.fecha_vencimiento.strftime('%d-%m-%Y') }} ({{ cotizacion.validez_dias }} días)</span><br>
+        {% endif %}
+        {% if cotizacion.estado %}
+        {% set estado_badge = {
+          'Vigente': 'bg-success',
+          'Vencida': 'bg-warning text-dark',
+          'Aceptada': 'bg-primary',
+          'Rechazada': 'bg-danger',
+          'Convertida': 'bg-info text-dark',
+        } %}
+        <span class="badge {{ estado_badge.get(cotizacion.estado, 'bg-secondary') }} mt-1">{{ cotizacion.estado }}</span>
+        {% endif %}
+      </div>
+      {% elif es_borrador|default(false) %}
+      <div class="cot-form-draft-badge">Nueva · borrador</div>
+      <div class="cot-doc-header__meta text-muted">Presupuesto sin vale</div>
+      {% elif es_edicion|default(false) and cotizacion %}
+      <div class="cot-doc-box__num">N° {{ cotizacion.numero }}</div>
+      <div class="cot-doc-header__meta text-muted">Edición · {{ cotizacion.estado }}</div>
       {% endif %}
     </div>
-    {% elif es_borrador|default(false) %}
-    <div class="cot-form-draft-badge">Nueva · borrador</div>
-    <div class="cot-doc-header__meta text-muted">Presupuesto sin vale</div>
-    {% elif es_edicion|default(false) and cotizacion %}
-    <div class="cot-doc-header__num">{{ cotizacion.numero }}</div>
-    <div class="cot-doc-header__meta text-muted">Edición · {{ cotizacion.estado }}</div>
-    {% endif %}
   </div>
 </div>

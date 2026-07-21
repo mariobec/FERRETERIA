@@ -74,6 +74,31 @@ def _norm_tel_digits(telefono: str | None) -> str:
     return ''.join(ch for ch in (telefono or '') if ch.isdigit())
 
 
+def validar_contacto_pedido_web(nombre: str = '', telefono: str = '') -> dict[str, Any]:
+    """Nombre + teléfono WhatsApp obligatorios para registrar cliente en vitrina."""
+    cn = (nombre or '').strip()
+    ct = (telefono or '').strip()
+    digits = _norm_tel_digits(ct)
+    if len(cn) < 2:
+        return {
+            'ok': False,
+            'error': 'contacto_incompleto',
+            'mensaje': 'Indica tu nombre para registrarte en la tienda.',
+        }
+    if len(digits) < 8:
+        return {
+            'ok': False,
+            'error': 'contacto_incompleto',
+            'mensaje': 'Indica un teléfono / WhatsApp válido (mínimo 8 dígitos).',
+        }
+    return {
+        'ok': True,
+        'nombre': cn[:100],
+        'telefono': ct[:40],
+        'digits': digits,
+    }
+
+
 def resolver_cliente_pedido_web(nombre: str = '', telefono: str = ''):
     """Busca cliente por teléfono o crea registro web mínimo."""
     from app import Cliente, db
@@ -496,15 +521,111 @@ def timeline_pedido(venta) -> list[dict[str, Any]]:
     return events
 
 
-def mensaje_whatsapp_listo_pedido(venta, *, empresa: str = 'Ferretería Santo Domingo') -> str:
+def mensaje_whatsapp_listo_pedido(
+    venta,
+    *,
+    empresa: str = 'Ferretería Santo Domingo',
+    url_seguimiento: str | None = None,
+) -> str:
     contacto = parse_contacto_liz_web(getattr(venta, 'usuario', None))
     nom = contacto.get('nombre') or 'cliente'
     cod = codigo_pedido_web(int(venta.id))
     folio = f'VL{int(venta.id):06d}'
-    return (
+    msg = (
         f'Hola {nom}, su pedido {cod} ({folio}) está *listo para retiro* en {empresa}. '
-        f'Acérquese a caja con este código para pagar y retirar. Gracias.'
+        f'Acérquese con este código. Gracias.'
     )
+    if url_seguimiento:
+        msg += f'\nSeguimiento: {url_seguimiento}'
+    return msg
+
+
+def mensaje_whatsapp_pedido_pagado(
+    venta,
+    *,
+    empresa: str = 'Ferretería Santo Domingo',
+    url_seguimiento: str | None = None,
+    metodo_pago: str = 'tarjeta',
+) -> str:
+    contacto = parse_contacto_pedido_web(getattr(venta, 'usuario', None))
+    nom = contacto.get('nombre') or 'cliente'
+    cod = codigo_pedido_web(int(venta.id))
+    folio = f'VL{int(venta.id):06d}'
+    total = int(round(float(getattr(venta, 'monto_total', 0) or 0)))
+    total_fmt = f'${total:,}'.replace(',', '.')
+    met = (metodo_pago or 'tarjeta').strip() or 'tarjeta'
+    msg = (
+        f'Hola {nom}, ¡pago recibido en {empresa}!\n'
+        f'Pedido *{cod}* ({folio}) · Total {total_fmt} · {met}.\n'
+        f'Estamos preparando tu retiro en tienda. '
+        f'Abre el enlace y muestra el *QR* al retirar.'
+    )
+    if url_seguimiento:
+        msg += f'\n{url_seguimiento}'
+    return msg
+
+
+def _qr_png_data_uri(payload: str, *, box_size: int = 5) -> str:
+    import base64
+    import io
+
+    import qrcode
+
+    text = (payload or '').strip()
+    if not text:
+        return ''
+    qr = qrcode.QRCode(version=None, box_size=box_size, border=2)
+    qr.add_data(text)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color='#0f172a', back_color='#ffffff')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+def _url_despacho_qr_cliente(venta_id: int) -> str | None:
+    """QR de retiro para el móvil del cliente (misma ruta que ticket térmico)."""
+    try:
+        from app import pos_despacho_vale_token_create
+        from services.despacho_qr_service import url_despacho_qr_corta
+
+        tok = pos_despacho_vale_token_create(int(venta_id))
+        if not tok:
+            return None
+        return url_despacho_qr_corta(int(venta_id), tok, canal='Tienda')
+    except Exception:
+        return None
+
+
+def notificar_whatsapp_auto_pedido(
+    venta,
+    *,
+    mensaje: str,
+) -> dict[str, Any]:
+    """Intenta WhatsApp Cloud API; si no hay credenciales, no falla el cobro."""
+    flag = (os.getenv('ECOM_WHATSAPP_AUTO_PAGO') or '1').strip().lower()
+    if flag in ('0', 'false', 'no', 'off'):
+        return {'ok': False, 'skipped': True, 'detalle': 'auto_disabled'}
+    contacto = parse_contacto_pedido_web(getattr(venta, 'usuario', None))
+    tel = contacto.get('telefono') or ''
+    digits = _norm_tel_digits(tel)
+    if len(digits) < 8:
+        # fallback tel cliente maestro
+        cli = getattr(venta, 'cliente', None)
+        digits = _norm_tel_digits(getattr(cli, 'telefono', None) if cli else None)
+    if len(digits) == 9 and digits.startswith('9'):
+        digits = '56' + digits
+    elif len(digits) == 8:
+        digits = '569' + digits
+    if len(digits) < 11:
+        return {'ok': False, 'skipped': True, 'detalle': 'sin_telefono'}
+    try:
+        from services.whatsapp_service import whatsapp_cloud_send_text
+
+        ok, det = whatsapp_cloud_send_text(digits, mensaje)
+        return {'ok': bool(ok), 'detalle': det, 'destino': digits}
+    except Exception as ex:
+        return {'ok': False, 'detalle': str(ex)[:160]}
 
 
 def url_whatsapp_pedido(telefono: str | None, mensaje: str) -> str | None:
@@ -513,13 +634,123 @@ def url_whatsapp_pedido(telefono: str | None, mensaje: str) -> str | None:
     return url_whatsapp_aviso(telefono, mensaje)
 
 
+def url_seguimiento_pedido_abs(venta_id: int, *, slug: str | None = None) -> str | None:
+    """URL absoluta de seguimiento cliente (token HMAC)."""
+    from flask import has_request_context, url_for
+
+    from services.vitrina_tienda_service import TIENDA_SLUG_SD, codigo_pedido_web, token_seguimiento_pedido
+
+    try:
+        vid = int(venta_id)
+        codigo = codigo_pedido_web(vid)
+        tok = token_seguimiento_pedido(vid)
+        sl = (slug or TIENDA_SLUG_SD).strip()
+        if has_request_context():
+            return url_for(
+                'tienda_pedido_seguimiento',
+                slug=sl,
+                codigo=codigo,
+                t=tok,
+                _external=True,
+            )
+    except Exception:
+        return None
+    return None
+
+
+def construir_vista_seguimiento_publico(venta) -> dict[str, Any] | None:
+    """Datos seguros para página pública de seguimiento (sin costos internos)."""
+    if not venta or not es_pedido_web(venta):
+        return None
+    fila = enriquecer_pedido_fila(venta)
+    lineas = []
+    for ln in _lineas_detalle_stock(venta):
+        lineas.append({
+            'nombre': ln.get('nombre'),
+            'cantidad': ln.get('cantidad'),
+            'subtotal': ln.get('subtotal'),
+        })
+    est_prep = (fila.get('estado_prep') or 'PENDIENTE').strip().upper()
+    est_venta = (fila.get('estado_venta') or getattr(venta, 'estado', '') or '').strip()
+    pasos = [
+        {'id': 'creado', 'label': 'Pedido recibido', 'done': True},
+        {
+            'id': 'prep',
+            'label': 'En preparación',
+            'done': est_prep in ('EN_PREPARACION', 'LISTO_RETIRO', 'ENTREGA_PARCIAL', 'CERRADO'),
+        },
+        {
+            'id': 'listo',
+            'label': 'Listo para retiro',
+            'done': est_prep in ('LISTO_RETIRO', 'ENTREGA_PARCIAL', 'CERRADO'),
+        },
+        {
+            'id': 'pagado',
+            'label': 'Pagado',
+            'done': est_venta == 'Pagado',
+        },
+        {
+            'id': 'entregado',
+            'label': 'Entregado',
+            'done': est_prep == 'CERRADO' or (getattr(venta, 'entrega_ticket_estado', None) or '').upper() in (
+                'ENTREGADO',
+                'COMPLETO',
+                'CERRADO',
+            ),
+        },
+    ]
+    return {
+        'ped_web_codigo': fila.get('ped_web_codigo'),
+        'vale_folio': fila.get('vale_folio'),
+        'estado_prep': est_prep,
+        'estado_venta': est_venta,
+        'contacto_nombre': fila.get('contacto_nombre') or '',
+        'contacto_telefono': fila.get('contacto_telefono') or '',
+        'monto_total': float(getattr(venta, 'monto_total', 0) or 0),
+        'lineas': lineas,
+        'pasos': pasos,
+        'punto_retiro': (getattr(venta, 'punto_retiro', None) or 'Tienda'),
+        'puede_imprimir_ticket_staff': False,
+        'cliente_registrado': bool(getattr(venta, 'cliente_id', None)),
+        'cliente_nombre_ficha': (
+            (venta.cliente.nombre or '').strip() if getattr(venta, 'cliente', None) else ''
+        ),
+        'qr_data_uri': '',
+        'qr_titulo': '',
+        'qr_ayuda': '',
+    }
+
+
+def enriquecer_vista_seguimiento_con_qr(vista: dict[str, Any], venta, *, url_seguimiento: str | None = None) -> dict[str, Any]:
+    """Agrega QR: retiro (pagado) o enlace de seguimiento (pendiente)."""
+    if not vista:
+        return vista
+    est = (vista.get('estado_venta') or '').strip()
+    if est == 'Pagado':
+        qr_url = _url_despacho_qr_cliente(int(venta.id))
+        if qr_url:
+            vista['qr_data_uri'] = _qr_png_data_uri(qr_url, box_size=6)
+            vista['qr_titulo'] = 'QR de retiro'
+            vista['qr_ayuda'] = 'Muéstralo en tienda al retirar tu pedido.'
+            vista['qr_payload'] = qr_url
+            return vista
+    if url_seguimiento:
+        vista['qr_data_uri'] = _qr_png_data_uri(url_seguimiento, box_size=5)
+        vista['qr_titulo'] = 'Tu seguimiento'
+        vista['qr_ayuda'] = 'Guarda este QR para volver a ver el estado del pedido.'
+        vista['qr_payload'] = url_seguimiento
+    return vista
+
+
 def enriquecer_pedido_detalle(venta) -> dict[str, Any]:
     fila = enriquecer_pedido_fila(venta)
     fila['lineas'] = _lineas_detalle_stock(venta)
     fila['timeline'] = timeline_pedido(venta)
+    seg_url = url_seguimiento_pedido_abs(int(venta.id))
+    fila['url_seguimiento'] = seg_url
     fila['whatsapp_url'] = url_whatsapp_pedido(
         fila.get('contacto_telefono'),
-        mensaje_whatsapp_listo_pedido(venta),
+        mensaje_whatsapp_listo_pedido(venta, url_seguimiento=seg_url),
     )
     fila['entrega_estado'] = (getattr(venta, 'entrega_ticket_estado', None) or '').strip()
     fila['puede_anular'] = (
@@ -763,10 +994,21 @@ def cobrar_pedido_web_tarjeta(venta_id: int, *, metodo_pago: str = 'Webpay') -> 
         db.session.rollback()
         return {'ok': False, 'error': 'cobro_fallido', 'mensaje': str(ex)[:200]}
 
+    seg = url_seguimiento_pedido_abs(int(venta.id))
+    msg_wa = mensaje_whatsapp_pedido_pagado(
+        venta,
+        url_seguimiento=seg,
+        metodo_pago=metodo,
+    )
+    wa = notificar_whatsapp_auto_pedido(venta, mensaje=msg_wa)
+
     return {
         'ok': True,
         'venta_id': int(venta.id),
         'estado': venta.estado,
         'metodo_pago': venta.metodo_pago,
         'ped_web_codigo': codigo_pedido_web(int(venta.id)),
+        'seguimiento_url': seg,
+        'whatsapp_enviado': bool(wa.get('ok')),
+        'whatsapp_detalle': wa.get('detalle'),
     }

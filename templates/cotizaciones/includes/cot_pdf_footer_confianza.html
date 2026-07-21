@@ -1,0 +1,28 @@
+{# Pie de confianza cotización Santo Domingo / Chilemat #}
+<div class="sd-footer">
+    <div class="sd-footer__gracias">Gracias por cotizar con nosotros</div>
+  {% if cot_barcode_svg or cot_qr_data_uri %}
+  <div class="sd-footer__codes">
+    {% if cot_barcode_svg %}
+    <div class="sd-footer__barcode">
+      <div class="sd-footer__codes-label">Presente o escanee este código al volver</div>
+      <div class="sd-barcode-wrap">{{ cot_barcode_svg|safe }}</div>
+    </div>
+    {% endif %}
+    {% if cot_qr_data_uri %}
+    <div class="sd-footer__qr">
+      <img src="{{ cot_qr_data_uri }}" alt="QR cotización" width="72" height="72">
+      <div class="sd-footer__qr-hint">Abrir en ERP</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  <div class="sd-footer__pillars">
+    <div class="sd-pillar"><span class="sd-pillar__t">Amplio stock</span><span class="sd-pillar__d">Las mejores marcas</span></div>
+    <div class="sd-pillar"><span class="sd-pillar__t">Despachos a obra</span><span class="sd-pillar__d">Rápido y seguro</span></div>
+    <div class="sd-pillar"><span class="sd-pillar__t">Atención a empresas</span><span class="sd-pillar__d">Soluciones por proyecto</span></div>
+    <div class="sd-pillar"><span class="sd-pillar__t">Facturación electrónica</span><span class="sd-pillar__d">Rápida y eficiente</span></div>
+    <div class="sd-pillar"><span class="sd-pillar__t">Precios especiales</span><span class="sd-pillar__d">Constructoras y empresas</span></div>
+  </div>
+  <div class="sd-footer__lhexia">Cotización generada con <strong>LhexIA ERP</strong> · www.lhexia.cl</div>
+</div>

@@ -8,8 +8,84 @@ from services.pos_codigo_escaneo_service import variantes_codigo_barras_escaneo
 from tests.conftest import db
 
 
-@pytest.mark.smoke
-def test_variantes_ean13_agrega_cero_final():
+def test_dos_productos_corto_con_cero_final_exacto(app_ctx, productos_con_stock):
+    """11111 vs 111110: cada escaneo debe resolver su SKU (no colapsar al más corto)."""
+    from services.catalogo_resolucion_codigo_service import resolver_codigo_escaneado
+
+    p1, p2 = productos_con_stock[0], productos_con_stock[1]
+    old1, old2 = p1.codigo_barra, p2.codigo_barra
+    corto = f'77{(int(p1.id) % 100000):05d}'  # ej. 7712345
+    largo = corto + '0'
+    p1.codigo_barra = corto
+    p2.codigo_barra = largo
+    db.session.commit()
+    try:
+        r_corto = resolver_codigo_escaneado(
+            corto,
+            Producto=m.Producto,
+            ProductoCodigoEscaneo=m.ProductoCodigoEscaneo,
+            db=db,
+            app=m.app,
+            buscar_chilemat_fn=m._producto_por_codigo_chilemat_escaneo,
+        )
+        r_largo = resolver_codigo_escaneado(
+            largo,
+            Producto=m.Producto,
+            ProductoCodigoEscaneo=m.ProductoCodigoEscaneo,
+            db=db,
+            app=m.app,
+            buscar_chilemat_fn=m._producto_por_codigo_chilemat_escaneo,
+        )
+        assert r_corto.get('ambiguo') is False
+        assert r_largo.get('ambiguo') is False
+        assert int(r_corto['producto'].id) == int(p1.id)
+        assert int(r_largo['producto'].id) == int(p2.id)
+        assert int(m._pos_buscar_producto_por_codigo(corto).id) == int(p1.id)
+        assert int(m._pos_buscar_producto_por_codigo(largo).id) == int(p2.id)
+    finally:
+        p1.codigo_barra = old1
+        p2.codigo_barra = old2
+        db.session.commit()
+
+
+def test_sugerencias_no_prefieren_codigo_mas_corto(app_ctx, productos_con_stock):
+    from services.pos_codigo_escaneo_service import sugerencias_productos_por_codigo_escaneo
+
+    p1, p2 = productos_con_stock[0], productos_con_stock[1]
+    old1, old2 = p1.codigo_barra, p2.codigo_barra
+    corto = f'66{(int(p1.id) % 100000):05d}'
+    largo = corto + '0'
+    p1.codigo_barra = corto
+    p2.codigo_barra = largo
+    db.session.commit()
+    try:
+        def _q(like_pat, limit=15):
+            return (
+                m.Producto.query.filter(
+                    m.Producto.activo == True,
+                    m.db.func.lower(m.db.func.coalesce(m.Producto.codigo_barra, '')).like(
+                        like_pat.lower()
+                    ),
+                )
+                .limit(limit)
+                .all()
+            )
+
+        sug = sugerencias_productos_por_codigo_escaneo(
+            largo,
+            query_productos=_q,
+            stock_tienda_fn=lambda p: 1,
+            precio_pos_fn=lambda p: 1000,
+            limit=5,
+        )
+        ids = {int(x['id']) for x in sug}
+        assert int(p1.id) not in ids
+        assert int(p2.id) in ids or sug == []  # exacto puede no sugerir si ya se resolvió
+    finally:
+        p1.codigo_barra = old1
+        p2.codigo_barra = old2
+        db.session.commit()
+
     v = variantes_codigo_barras_escaneo('7806179608053')
     assert '7806179608053' in v
     assert '78061796080530' in v

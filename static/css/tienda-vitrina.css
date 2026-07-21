@@ -2159,6 +2159,56 @@ body.tienda-cart-open {
   font-size: 1.2rem;
 }
 
+.tienda-checkout-registro {
+  margin: 14px 0 16px;
+  padding: 14px 14px 12px;
+  border: 2px solid #bbf7d0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+}
+
+.tienda-checkout-registro__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #065f46;
+  margin-bottom: 4px;
+}
+
+.tienda-checkout-registro__title i {
+  color: var(--chm-green-dark, #047857);
+}
+
+.tienda-checkout-registro__hint {
+  font-size: 0.8rem;
+  color: #047857;
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+
+.tienda-checkout-registro .form-control {
+  border-color: #86efac;
+  background: #fff;
+}
+
+.tienda-checkout-registro .form-control:focus {
+  border-color: var(--chm-green, #16a34a);
+  box-shadow: 0 0 0 0.2rem rgba(22, 163, 74, 0.18);
+}
+
+.tienda-checkout-registro__note {
+  font-size: 0.8rem;
+  color: #b91c1c;
+  margin: 6px 0 0;
+  min-height: 1.1em;
+}
+
+.tienda-checkout-registro__note[hidden] {
+  display: none !important;
+}
+
 .tienda-checkout-retiro {
   display: flex;
   gap: 8px;

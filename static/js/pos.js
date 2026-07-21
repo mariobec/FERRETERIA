@@ -1077,10 +1077,12 @@
     }
   }
 
-  async function posRefrescarCarritoVendedor() {
+  async function posRefrescarCarritoVendedor(opts) {
     const cfg = readPosConfig();
     const url = cfg && cfg.urls && cfg.urls.carrito_html;
     if (!url || !document.body.classList.contains("pos-pantalla-vendedora")) return false;
+    const focusDetalleId =
+      opts && opts.detalle_id != null ? parseInt(opts.detalle_id, 10) : null;
     try {
       const res = await fetch(url, {
         method: "GET",
@@ -1113,9 +1115,44 @@
       document.dispatchEvent(new CustomEvent("pos-cart-refreshed"));
       actualizarEstadoEmisionVale();
       posAsegurarDockVisible();
+      posEnfocarLineaCarrito(
+        !isNaN(focusDetalleId) && focusDetalleId > 0 ? focusDetalleId : null
+      );
       return true;
     } catch (_e) {
       return false;
+    }
+  }
+
+  /** Lleva a vista la línea (último agregado arriba) y la resalta brevemente. */
+  function posEnfocarLineaCarrito(detalleId) {
+    const list = document.getElementById("contenedor-carrito");
+    if (!list) return;
+    var card = null;
+    if (detalleId) {
+      card = document.getElementById("pos_row_" + detalleId);
+    }
+    if (!card) {
+      card = list.querySelector(".pos-cart-card");
+    }
+    list.querySelectorAll(".pos-cart-card--active, .pos-cart-card--flash").forEach(function (c) {
+      c.classList.remove("pos-cart-card--active", "pos-cart-card--flash");
+    });
+    // Lista con overflow propio: anclar al tope si es la primera, o scrollIntoView
+    try {
+      if (!card || card === list.querySelector(".pos-cart-card")) {
+        list.scrollTop = 0;
+      } else {
+        card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    } catch (_e) {
+      list.scrollTop = 0;
+    }
+    if (card) {
+      card.classList.add("pos-cart-card--active", "pos-cart-card--flash");
+      setTimeout(function () {
+        card.classList.remove("pos-cart-card--flash");
+      }, 1200);
     }
   }
 
@@ -1496,6 +1533,23 @@
       return chip + sep + '<span class="' + cls.trim() + '">' + body + "</span>";
     }
 
+    function ubicacionChipHtml(it) {
+      const codigo = ((it && it.ubicacion_codigo) || "").trim();
+      const label = ((it && it.ubicacion_label) || "").trim();
+      const txt = codigo || "Sin ubic.";
+      const title = label || (codigo ? "Ubicación " + codigo : "Sin pasillo / estantería cargada");
+      const emptyCls = codigo ? "" : " pos-search-card__ubic--empty";
+      return (
+        '<p class="pos-search-card__ubic' +
+        emptyCls +
+        '" title="' +
+        escapeHtml(title) +
+        '"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> <span class="pos-ubic-code">' +
+        escapeHtml(txt) +
+        "</span></p>"
+      );
+    }
+
     function renderItems(items, searchMeta) {
       if (!items.length) {
         const emptyBody = searchMeta
@@ -1547,6 +1601,7 @@
             '<p class="pos-search-card__meta">' +
             meta +
             "</p>" +
+            ubicacionChipHtml(it) +
             '<p class="pos-search-card__stock">' +
             stockLinea(it) +
             "</p>" +
@@ -1731,16 +1786,23 @@
         }
         return;
       }
+      // Pistola / código con 0 final (111110 vs 11111): Enter siempre escanea el valor
+      // actual del input. Si el panel aún muestra resultados del código más corto
+      // (debounce), NO elegir el primer ítem de la lista.
+      if (e.key === "Enter") {
+        const qNow = (input.value || "").trim();
+        if (posEsBusquedaUnificada() && posPareceCodigoBarras(qNow) && qNow.length >= 2) {
+          e.preventDefault();
+          e.stopPropagation();
+          input.value = "";
+          hidePanel();
+          posEscanearYAgregar(qNow, false);
+          return;
+        }
+      }
       if (panel.classList.contains("d-none") || !lastItems.length) {
         if (e.key === "Enter") {
           const q = (input.value || "").trim();
-          if (posEsBusquedaUnificada() && posPareceCodigoBarras(q)) {
-            e.preventDefault();
-            input.value = "";
-            hidePanel();
-            posEscanearYAgregar(q, false);
-            return;
-          }
           if (q.length >= 2) {
             e.preventDefault();
             ejecutarBusqueda(q);
@@ -1850,6 +1912,11 @@
     let srv = 0;
     if (typeof serverTotal === "number" && !isNaN(serverTotal)) {
       srv = Math.max(0, Math.round(serverTotal));
+    }
+    // Preferir suma de líneas (bruto comercial). El desglose IVA SII a veces
+    // mueve el total de BD ±$1 y desentonaba el dock vs cada ítem.
+    if (sumLineas > 0 && (srv === 0 || Math.abs(srv - sumLineas) <= 1)) {
+      return sumLineas;
     }
     return Math.max(srv, sumLineas);
   }
@@ -2097,7 +2164,9 @@
         posNotifyExperienceWallRefresh();
         if (document.body.classList.contains("pos-pantalla-vendedora")) {
           posSearchPanelCerrar();
-          const okCart = await posRefrescarCarritoVendedor();
+          const okCart = await posRefrescarCarritoVendedor({
+            detalle_id: data.detalle_id,
+          });
           if (!okCart) window.location.reload();
           return;
         }
@@ -2426,7 +2495,9 @@
         if (document.body.classList.contains("pos-pantalla-vendedora")) {
           clearBusy();
           posSearchPanelCerrar();
-          const okCart = await posRefrescarCarritoVendedor();
+          const okCart = await posRefrescarCarritoVendedor({
+            detalle_id: data.detalle_id,
+          });
           if (!okCart) window.location.reload();
           const inp = posInputBusqueda();
           if (inp) {
@@ -2514,7 +2585,9 @@
         if (document.body.classList.contains("pos-pantalla-vendedora")) {
           posSearchPanelLiberar();
           posSearchPanelCerrar();
-          const okCart = await posRefrescarCarritoVendedor();
+          const okCart = await posRefrescarCarritoVendedor({
+            detalle_id: data.detalle_id,
+          });
           if (!okCart) window.location.reload();
           return;
         }
@@ -3025,7 +3098,8 @@
   function openPosClienteNuevoModal(resumen) {
     const modalEl = document.getElementById("modalPosClienteNuevo");
     if (!modalEl || typeof bootstrap === "undefined") return false;
-    posAnclarModalEnBody(modalEl);
+    /* Cierra portal de búsqueda y ancla modal en body (mismo hit-target que alta producto). */
+    posPrepararModalEscaneo(modalEl);
     const rutVal = (resumen && resumen.rut) || getClienteRutForSearch();
     const rutIn = document.getElementById("posClienteModalRut");
     const nomIn = document.getElementById("posClienteModalNombre");
@@ -4404,6 +4478,22 @@
         openPosProductoAltaRapidaModal(posUltimoCodigoEscaneado);
       });
     }
+    const btnEnrolNormal = document.getElementById("posBtnEnrolamientoNormal");
+    if (btnEnrolNormal) {
+      btnEnrolNormal.addEventListener("click", function (e) {
+        e.preventDefault();
+        const codigo = (posUltimoCodigoEscaneado || "").trim();
+        let url =
+          (u.enrolamiento || btnEnrolNormal.getAttribute("href") || "/inventario/enrolamiento").split(
+            "?"
+          )[0];
+        if (codigo) {
+          url += (url.indexOf("?") >= 0 ? "&" : "?") + "codigo=" + encodeURIComponent(codigo);
+        }
+        if (posModalProductoNoEncontrado) posModalProductoNoEncontrado.hide();
+        window.open(url, "_blank", "noopener");
+      });
+    }
     const btnVincularProd = document.getElementById("posBtnVincularProducto");
     if (btnVincularProd) {
       btnVincularProd.addEventListener("click", function () {
@@ -4558,6 +4648,22 @@
       btnIdentTv.addEventListener("click", function () {
         setClienteRutEverywhere(getClienteRutForSearch());
         buscarClientePorRut(u.consultar_cliente);
+      });
+    }
+    const btnClienteNuevo = document.getElementById("posBtnClienteNuevo");
+    if (btnClienteNuevo) {
+      btnClienteNuevo.addEventListener("click", function () {
+        const rutVal = (getClienteRutForSearch() || "").trim();
+        if (!rutVal) {
+          mostrarPosToast("Escriba el RUT del cliente y luego pulse Enrolar.", {
+            variant: "warning",
+          });
+          const rutQuick = document.getElementById("posIdentRutQuick");
+          if (rutQuick) rutQuick.focus();
+          return;
+        }
+        setClienteRutEverywhere(rutVal);
+        openPosClienteNuevoModal({ rut: rutVal });
       });
     }
     const btnFinalTv = document.getElementById("posBtnClienteFinalTv");

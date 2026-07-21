@@ -1,7 +1,7 @@
 {# Bloque cliente cotización — requiere variable `cotizacion` #}
-<div class="cot-cliente-ficha">
-  <div class="cot-cliente-ficha__grid">
-    <div class="cot-cliente-ficha__col">
+<table class="cot-cliente-ficha" role="presentation">
+  <tr>
+    <td class="cot-cliente-ficha__col">
       {% if cotizacion.cliente_nombre %}
       <div class="cot-cliente-ficha__row">
         <span class="cot-cliente-ficha__label">Nombre</span>
@@ -30,8 +30,8 @@
         </span>
       </div>
       {% endif %}
-    </div>
-    <div class="cot-cliente-ficha__col cot-cliente-ficha__col--contacto">
+    </td>
+    <td class="cot-cliente-ficha__col cot-cliente-ficha__col--contacto">
       {% if cotizacion.cliente_telefono %}
       <div class="cot-cliente-ficha__row">
         <span class="cot-cliente-ficha__label">Teléfono</span>
@@ -44,6 +44,6 @@
         <span class="cot-cliente-ficha__value cot-cliente-ficha__value--email">{{ cotizacion.cliente_correo }}</span>
       </div>
       {% endif %}
-    </div>
-  </div>
-</div>
+    </td>
+  </tr>
+</table>

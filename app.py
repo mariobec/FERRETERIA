@@ -764,6 +764,8 @@ def _config_empresa_default():
         "portal_meta_ventas_anual_clp": "0",
         # URL fija LAN (tablets/PC en WiFi). Ej: http://192.168.1.100:5000 o http://erp-sd:5000
         "url_red_erp": (os.getenv("ERP_URL_RED_FIJA") or "").strip(),
+        # LX-PROMO-COM: motor retail (2x1 etc.). "0" = apagado (default). Env MOTOR_PROMOCIONES_ACTIVO gana.
+        "motor_promociones_activo": "0",
     }
 
 
@@ -990,22 +992,63 @@ def _pos_sincronizar_monto_total_abierta(venta) -> None:
 
 
 def _monto_cobro_venta_ui(venta):
-    """Monto a mostrar en caja; borradores POS (Abierta) suelen tener monto_total=0 en BD."""
-    mt = float(venta.monto_total or 0)
-    if mt > 0:
-        return mt
+    """Monto a cobrar/mostrar: bruto líneas − promociones (si hay), no el ±$1 SII."""
     detalles = getattr(venta, 'detalles', None)
-    bruto = _venta_bruto_desde_detalles_lineas(detalles) if detalles else 0
-    if bruto > 0:
-        return float(int(bruto or 0))
+    bruto_lineas = int(_venta_bruto_desde_detalles_lineas(detalles) or 0) if detalles else 0
+    if bruto_lineas <= 0:
+        mt = float(venta.monto_total or 0)
+        if mt > 0:
+            bruto_lineas = int(round(mt))
+        else:
+            vid = getattr(venta, 'id', None)
+            if vid is not None:
+                bruto_sql = _monto_cobro_venta_bruto_sql(vid)
+                if bruto_sql > 0:
+                    bruto_lineas = int(bruto_sql or 0)
+            if bruto_lineas <= 0:
+                if (getattr(venta, 'estado', None) or '').strip() == 'Abierta':
+                    return 0.0
+                return float(venta.monto_total or 0)
+
+    dto_promo = 0
     vid = getattr(venta, 'id', None)
     if vid is not None:
-        bruto_sql = _monto_cobro_venta_bruto_sql(vid)
-        if bruto_sql > 0:
-            return bruto_sql
-    if (getattr(venta, 'estado', None) or '').strip() == 'Abierta':
-        return 0.0
-    return mt
+        try:
+            from services.promociones_service import (
+                descuento_promos_venta_clp,
+                motor_promociones_activo,
+            )
+
+            if motor_promociones_activo(obtener_config_empresa()):
+                dto_promo = int(descuento_promos_venta_clp(db, int(vid)) or 0)
+        except Exception:
+            dto_promo = 0
+    return float(max(0, bruto_lineas - dto_promo))
+
+
+def _venta_contexto_promociones(venta) -> dict:
+    """Subtotal líneas + aplicaciones para ticket/dock."""
+    detalles = getattr(venta, 'detalles', None) or []
+    subtotal = int(_venta_bruto_desde_detalles_lineas(detalles) or 0)
+    apps = []
+    dto = 0
+    vid = getattr(venta, 'id', None)
+    if vid is not None:
+        try:
+            from services.promociones_service import listar_aplicaciones_venta
+
+            apps = listar_aplicaciones_venta(db, int(vid))
+            dto = sum(int(a.get('monto_descuento') or 0) for a in apps)
+        except Exception:
+            apps = []
+            dto = 0
+    total = max(0, subtotal - dto)
+    return {
+        'subtotal_lineas_clp': subtotal,
+        'descuento_promos_clp': dto,
+        'total_clp': total,
+        'aplicaciones': apps,
+    }
 
 
 def _ticket_agrupar_detalles_por_retiro(venta):
@@ -1997,7 +2040,7 @@ def usuario_requiere_cambio_clave(usuario):
 _NAV_MAP = [
     {
         'id': 'ventas_mostrador', 'label': 'Ventas y mostrador', 'icon': 'fa-cart-shopping', 'modulo': 'ventas',
-        'permisos_grupo': ['pos_emitir_vale', 'gestionar_usuarios'],
+        'permisos_grupo': ['pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios'],
         'items': [
             {'label': 'Punto de venta', 'icon': 'fa-cash-register', 'endpoint': 'punto_venta',
              'permisos': ['pos_emitir_vale'],
@@ -2008,6 +2051,12 @@ _NAV_MAP = [
             {'label': 'Historial ventas', 'icon': 'fa-shopping-cart', 'endpoint': 'mostrar_ventas',
              'permisos': ['pos_emitir_vale', 'caja_cobrar_vale', 'gestionar_usuarios'],
              'endpoints_activos': ['mostrar_ventas', 'guardar_venta', 'editar_venta', 'eliminar_venta']},
+            {'label': 'Postventa', 'icon': 'fa-rotate', 'endpoint': 'postventa_asistente',
+             'permisos': ['caja_cobrar_vale'],
+             'endpoints_activos': ['postventa_asistente', 'caja_cambios']},
+            {'label': 'Promociones', 'icon': 'fa-tags', 'endpoint': 'promociones_lista',
+             'permisos': ['gestionar_usuarios', 'pos_emitir_vale', 'admin_inventario'],
+             'endpoints_activos': ['promociones_lista', 'promociones_nueva', 'promociones_editar', 'promociones_toggle']},
         ],
     },
     {
@@ -2285,6 +2334,9 @@ _NAV_MAP = [
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_unidades']},
             {'label': 'POS — autorización descuentos', 'icon': 'fa-id-card', 'endpoint': 'admin_pos_autorizacion',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_pos_autorizacion']},
+            {'label': 'Promociones comerciales', 'icon': 'fa-tags', 'endpoint': 'promociones_lista',
+             'permisos': ['gestionar_usuarios', 'pos_emitir_vale', 'admin_inventario'],
+             'endpoints_activos': ['promociones_lista', 'promociones_nueva', 'promociones_editar', 'promociones_toggle']},
             {'label': 'Log auditoría ERP', 'icon': 'fa-scroll', 'endpoint': 'admin_erp_audit_log',
              'permisos': ['gestionar_usuarios'], 'endpoints_activos': ['admin_erp_audit_log']},
         ],
@@ -2341,17 +2393,19 @@ _MODULOS_HUB = [
         'id': 'ventas_mostrador',
         'grupo': 'operacion',
         'titulo': 'Ventas y mostrador',
-        'subtitulo': 'POS, cotizaciones e historial',
+        'subtitulo': 'POS, cotizaciones, historial, postventa y promociones',
         'icon': 'fa-cash-register',
         'endpoint': 'punto_venta',
-        'permisos': ['pos_emitir_vale'],
+        'permisos': ['pos_emitir_vale', 'caja_cobrar_vale'],
         'modulo': 'ventas',
         'accent': '#ea580c',
-        'atajos_max': 3,
+        'atajos_max': 5,
         'atajos': [
             {'label': 'Punto de venta', 'endpoint': 'punto_venta', 'icon': 'fa-cash-register', 'permisos': ['pos_emitir_vale']},
             {'label': 'Cotizaciones', 'endpoint': 'cotizaciones_lista', 'icon': 'fa-file-invoice-dollar', 'permisos': ['pos_emitir_vale']},
             {'label': 'Historial ventas', 'endpoint': 'mostrar_ventas', 'icon': 'fa-shopping-cart', 'permisos': ['pos_emitir_vale', 'caja_cobrar_vale']},
+            {'label': 'Postventa', 'endpoint': 'postventa_asistente', 'icon': 'fa-rotate', 'permisos': ['caja_cobrar_vale']},
+            {'label': 'Promociones', 'endpoint': 'promociones_lista', 'icon': 'fa-tags', 'permisos': ['gestionar_usuarios', 'pos_emitir_vale', 'admin_inventario']},
         ],
     },
     {
@@ -2710,6 +2764,17 @@ def _lhexia_static_img_url(filename: str) -> str:
 
 
 @app.context_processor
+def inject_has_endpoint():
+    def has_endpoint(name: str) -> bool:
+        try:
+            return bool(name) and name in current_app.view_functions
+        except Exception:
+            return False
+
+    return {'has_endpoint': has_endpoint}
+
+
+@app.context_processor
 def inject_company_context():
     try:
         nav = _construir_nav_usuario() if current_user.is_authenticated else []
@@ -2928,6 +2993,7 @@ _ENDPOINTS_CAJA_ESTRICTA = {
     'ver_ticket_cobro',
     # Cambios
     'caja_cambios',
+    'postventa_asistente',
     'api_cambios_producto',
     'api_cambios_buscar_venta',
     'api_cambios_venta_detalle',
@@ -2957,6 +3023,7 @@ _ENDPOINTS_EXENTOS_BLOQUEO_FECHA_CAJA = frozenset({
     # Cambios/devoluciones: permitir mientras se regulariza caja de día anterior
     'caja_cambios',
     'caja_cambios_historial',
+    'postventa_asistente',
     'api_cambios_producto',
     'api_cambios_buscar_venta',
     'api_cambios_venta_detalle',
@@ -3219,6 +3286,7 @@ def forzar_cambio_clave_si_corresponde():
                     _asegurar_tabla_producto_codigo_proveedor()
                     _asegurar_tabla_producto_codigo_escaneo()
                     _asegurar_tablas_chilemat_relaciones()
+                    _asegurar_tablas_promociones_comerciales()
                     _asegurar_tabla_agente_ejecuciones()
                     _asegurar_tabla_academy_articles()
                     _asegurar_tabla_cafs_y_columnas_ventas_fe()
@@ -3682,7 +3750,62 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
         'ubicacion_estante': (getattr(producto, 'ubicacion_estante', None) or '').strip(),
         'ubicacion_nivel': (getattr(producto, 'ubicacion_nivel', None) or '').strip(),
         'ubicacion_codigo': (producto.ubicacion_codigo or '').strip() if hasattr(producto, 'ubicacion_codigo') else '',
+        'unidad': (producto.unidad or producto.unidad_venta or 'Unidad').strip() or 'Unidad',
+        'unidad_venta': (producto.unidad_venta or producto.unidad or 'Unidad').strip() or 'Unidad',
+        'unidad_compra': (producto.unidad_compra or producto.unidad_venta or producto.unidad or 'Unidad').strip() or 'Unidad',
+        'factor_conversion': float(producto.factor_conversion or 1),
     }
+
+
+_ENROL_UNIDADES_FERRETERIA = (
+    'Unidad', 'Pieza', 'Par', 'Metro', 'Kilo', 'Caja', 'Rollo', 'Saco', 'Litro',
+)
+
+
+def _enrol_unidades_opciones():
+    """Lista de unidades para selects del enrolador (maestro BD + ferretería)."""
+    try:
+        _seed_unidades_base()
+    except Exception:
+        pass
+    nombres = []
+    if _unidades_disponibles():
+        for u in UnidadMedida.query.filter_by(activo=True).order_by(UnidadMedida.nombre.asc()).all():
+            n = (u.nombre or '').strip()
+            if n and n not in nombres:
+                nombres.append(n)
+    for d in _ENROL_UNIDADES_FERRETERIA:
+        if d not in nombres:
+            nombres.append(d)
+    return nombres
+
+
+def _enrol_clip_unidad(v):
+    s = (str(v or '')).strip()
+    return s[:20] if s else None
+
+
+def _enrol_aplicar_unidades(producto, data):
+    """Unidad compra/venta y factor desde enrolador."""
+    uv = _enrol_clip_unidad(data.get('unidad_venta')) if 'unidad_venta' in data else None
+    uc = _enrol_clip_unidad(data.get('unidad_compra')) if 'unidad_compra' in data else None
+    ub = _enrol_clip_unidad(data.get('unidad')) if 'unidad' in data else None
+    if uv:
+        producto.unidad_venta = uv
+        if not ub:
+            producto.unidad = uv
+    if uc:
+        producto.unidad_compra = uc
+    elif uv:
+        producto.unidad_compra = uv
+    if ub:
+        producto.unidad = ub
+    if 'factor_conversion' in data:
+        try:
+            fc = float(str(data.get('factor_conversion')).replace(',', '.'))
+            producto.factor_conversion = fc if fc > 0 else 1.0
+        except (TypeError, ValueError):
+            producto.factor_conversion = 1.0
 
 
 def _enrol_aplicar_categoria_subcategoria(producto, data, *, requerida=False):
@@ -4350,14 +4473,24 @@ class Venta(db.Model):
 
     # Lógica Tributaria: Desglose de IVA (Chile 19% — única fuente: desglosar_iva_clp)
     def desglosar_iva(self):
-        """Calcula Neto e IVA desde monto_total bruto (Decimal, ROUND_HALF_UP)."""
+        """Calcula Neto e IVA desde monto_total bruto comercial (mostrador).
+
+        Conserva el bruto cobrado (suma de líneas). El redondeo SII a veces
+        produce neto+round(neto×19%) = bruto±1; en ese caso el $1 se absorbe
+        en el IVA residual para no mutar el total que ve el cliente en POS.
+        """
         from core.domain.shared.iva_chile import desglosar_iva_clp
 
         bruto = int(round(float(self.monto_total or 0)))
-        neto, iva, total = desglosar_iva_clp(bruto)
+        if bruto <= 0:
+            self.neto = 0.0
+            self.iva = 0.0
+            self.monto_total = 0.0
+            return
+        neto, _iva_calc, _total_sii = desglosar_iva_clp(bruto)
         self.neto = float(neto)
-        self.iva = float(iva)
-        self.monto_total = float(total)
+        self.monto_total = float(bruto)
+        self.iva = float(bruto - neto)
 
     # Método para recalcular el total automáticamente
     def recalcular_total(self):
@@ -4367,6 +4500,13 @@ class Venta(db.Model):
             bruto = int(_venta_bruto_desde_detalles_lineas(self.detalles) or 0)
         self.monto_total = float(bruto)
         self.desglosar_iva()
+        # LX-PROMO-COM: aplica motor (flag off = no-op / limpia aplicaciones)
+        try:
+            from services.promociones_service import reaplicar_promociones_venta
+
+            reaplicar_promociones_venta(db, self, cfg=obtener_config_empresa())
+        except Exception:
+            app.logger.exception('reaplicar_promociones_venta')
 
     @property
     def total(self):
@@ -4822,6 +4962,13 @@ def _asegurar_tabla_producto_codigo_escaneo():
     from services.producto_codigo_escaneo_service import asegurar_tabla_producto_codigo_escaneo
 
     return asegurar_tabla_producto_codigo_escaneo(app, db)
+
+
+def _asegurar_tablas_promociones_comerciales():
+    """LX-PROMO-COM: tablas promocion / venta_promocion (motor retail)."""
+    from services.promociones_service import asegurar_tablas_promociones
+
+    return asegurar_tablas_promociones(app, db)
 
 
 def _asegurar_tablas_chilemat_relaciones():
@@ -5921,6 +6068,8 @@ class Cotizacion(db.Model):
     venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=True)
     fecha_estado = db.Column(db.DateTime, nullable=True)
     motivo_estado = db.Column(db.String(300), nullable=True)
+    # Membrete emisor: slug en data/empresas_cotizacion.json (ej. santo-domingo, transportes-st-julliet)
+    empresa_cotizacion = db.Column(db.String(40), nullable=True)
 
     cliente = db.relationship('Cliente')
     venta = db.relationship('Venta', foreign_keys=[venta_id])
@@ -12441,7 +12590,9 @@ def api_enrol_alta_manual():
         unidad='Unidad',
         unidad_venta='Unidad',
         unidad_compra='Unidad',
+        factor_conversion=1.0,
     )
+    _enrol_aplicar_unidades(p, data)
     err_cat = _enrol_aplicar_categoria_subcategoria(
         p,
         data,
@@ -12801,6 +12952,9 @@ def api_enrol_editar_ficha():
         'ubicacion_pasillo': (p.ubicacion_pasillo or '').strip(),
         'ubicacion_estante': (p.ubicacion_estante or '').strip(),
         'ubicacion_nivel': (p.ubicacion_nivel or '').strip(),
+        'unidad_venta': (p.unidad_venta or p.unidad or '').strip(),
+        'unidad_compra': (p.unidad_compra or '').strip(),
+        'factor_conversion': float(p.factor_conversion or 1),
     }
 
     p.nombre = nombre[:100]
@@ -12851,6 +13005,7 @@ def api_enrol_editar_ficha():
 
     _enrol_aplicar_marca_tono(p, data)
     _enrol_aplicar_ubicacion(p, data)
+    _enrol_aplicar_unidades(p, data)
 
     if data.get('precio_venta') not in (None, ''):
         try:
@@ -12902,6 +13057,9 @@ def api_enrol_editar_ficha():
                 'ubicacion_pasillo': (p.ubicacion_pasillo or '').strip(),
                 'ubicacion_estante': (p.ubicacion_estante or '').strip(),
                 'ubicacion_nivel': (p.ubicacion_nivel or '').strip(),
+                'unidad_venta': (p.unidad_venta or p.unidad or '').strip(),
+                'unidad_compra': (p.unidad_compra or '').strip(),
+                'factor_conversion': float(p.factor_conversion or 1),
             },
         )
         db.session.commit()
@@ -13024,6 +13182,7 @@ def _contexto_vista_enrolamiento(*, prefer_bodega=False):
         'marcas_catalogo': _marcas_catalogo_lista(),
         'tonos_catalogo': _tonos_catalogo_lista(),
         'zebra_etiquetas_habilitada': _zebra_etiquetas_ui_habilitada(),
+        'enrol_unidades_opciones': _enrol_unidades_opciones(),
     }
 
 
@@ -13085,35 +13244,12 @@ def inventario_enrolamiento():
             'danger',
         )
         return _redirigir_home_erp()
-    almacenes_ui = _enrol_almacenes_ui()
-    if not almacenes_ui:
+    ctx = _contexto_vista_enrolamiento()
+    if ctx is None:
+        return _redirigir_home_erp()
+    if not ctx['almacenes_ui']:
         flash('No hay almacenes activos. Creá al menos uno en Administración → Almacenes.', 'warning')
-    enrol_cat_padres = None
-    enrol_cat_nombres = _categorias_filtro_lista()
-    if _catalogo_ui_disponible():
-        enrol_cat_padres = [
-            {'id': c.id, 'nombre': c.nombre}
-            for c in CatalogoCategoria.query.filter_by(activo=True)
-            .order_by(CatalogoCategoria.orden.asc(), CatalogoCategoria.nombre.asc())
-            .all()
-        ]
-    id_almacen_default = None
-    tid = id_almacen_tienda()
-    if tid and any(a['id'] == tid for a in almacenes_ui):
-        id_almacen_default = tid
-    elif almacenes_ui:
-        id_almacen_default = almacenes_ui[0]['id']
-    return render_template(
-        'inventario_enrolamiento.html',
-        almacenes_ui=almacenes_ui,
-        puede_traslado_almacenes=_enrol_permite_traslado_ui(),
-        id_almacen_default=id_almacen_default,
-        enrol_cat_padres=enrol_cat_padres,
-        enrol_cat_nombres=enrol_cat_nombres,
-        marcas_catalogo=_marcas_catalogo_lista(),
-        tonos_catalogo=_tonos_catalogo_lista(),
-        zebra_etiquetas_habilitada=_zebra_etiquetas_ui_habilitada(),
-    )
+    return render_template('inventario_enrolamiento.html', **ctx)
 
 
 @app.route('/inventario/enrolamiento/etiquetas')
@@ -13126,14 +13262,16 @@ def imprimir_etiquetas_enrolamiento():
     ids_raw = (request.args.get('ids') or '').strip()
     sesion_id = request.args.get('sesion_id', type=int)
 
-    # Zebra GX420d: ZPL directo — no usar diálogo Imprimir del navegador (parte en hojas).
-    if _zebra_etiquetas_ui_habilitada() and not usa_html:
+    # Por defecto: visor HTML de etiquetas (ver + imprimir).
+    # Panel de calibración Zebra solo con ?zebra=1 (no confundir con configuración ERP).
+    fuerza_zebra_panel = (request.args.get('zebra') or '').strip() == '1'
+    if _zebra_etiquetas_ui_habilitada() and fuerza_zebra_panel and not usa_html:
         from urllib.parse import urlencode
 
         args = {k: request.args.get(k) for k in request.args.keys()}
         args.pop('auto_print', None)
-        if auto_print:
-            args['auto_imprimir'] = '1'
+        args.pop('auto_imprimir', None)
+        args.pop('zebra', None)
         qs = urlencode({k: v for k, v in args.items() if v is not None and str(v) != ''})
         dest = url_for('panel_etiquetas_zebra_enrolamiento')
         return redirect(dest + ('?' + qs if qs else ''))
@@ -16034,6 +16172,29 @@ def _asegurar_columnas_productos_legacy():
         return False
 
 
+def _asegurar_columnas_cotizaciones_legacy():
+    """Columna empresa_cotizacion (multi-membrete cotizaciones)."""
+    if app.config.get('_COTIZACIONES_LEGACY_OK'):
+        return True
+    try:
+        insp = sa_inspect(db.engine)
+        if 'cotizaciones' not in set(insp.get_table_names()):
+            app.config['_COTIZACIONES_LEGACY_OK'] = True
+            return True
+        cols = {c['name'] for c in insp.get_columns('cotizaciones')}
+        if 'empresa_cotizacion' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE cotizaciones ADD COLUMN empresa_cotizacion VARCHAR(40) NULL"
+            ))
+            db.session.commit()
+        app.config['_COTIZACIONES_LEGACY_OK'] = True
+        return True
+    except Exception as ex:
+        db.session.rollback()
+        app.logger.exception("No se pudo asegurar columnas legacy de cotizaciones: %s", ex)
+        return False
+
+
 def _asegurar_columnas_detalle_ventas_legacy():
     """Asegura columnas agregadas en `detalle_ventas` para bases legacy."""
     if app.config.get('_DETALLE_VENTAS_LEGACY_OK'):
@@ -16335,11 +16496,18 @@ def _pos_pagina_context():
     cliente = venta.cliente if venta and venta.cliente_id else None
     if venta:
         _pos_cross_sell_sync_session_scope(venta.id)
-    detalles = venta.detalles or []
+    detalles = sorted(
+        [d for d in list(venta.detalles or []) if getattr(d, 'producto', None) is not None],
+        key=lambda d: int(getattr(d, 'id', 0) or 0),
+        reverse=True,
+    )  # POS: último agregado arriba (más visible al vendedor)
     factores_stock = {}
     consumos_stock = {}
     for d in detalles:
-        f = _factor_venta_a_stock(d.producto)
+        try:
+            f = float(_factor_venta_a_stock(d.producto) or 1) or 1.0
+        except Exception:
+            f = 1.0
         factores_stock[d.id] = f
         consumos_stock[d.id] = int(round((d.cantidad or 0) * f))
     pids = [d.id_producto for d in detalles if d.id_producto]
@@ -16404,6 +16572,12 @@ def _pos_pagina_context():
     }
     venta_total_clp = _pos_venta_total_clp(venta) if venta else 0
     venta_total_fmt = f'${venta_total_clp:,.0f}'.replace(',', '.')
+    promo_ctx = _venta_contexto_promociones(venta) if venta else {
+        'subtotal_lineas_clp': 0,
+        'descuento_promos_clp': 0,
+        'total_clp': 0,
+        'aplicaciones': [],
+    }
     if venta and detalles and (venta.estado or '').strip() == 'Abierta':
         pos_vale_resume = {
             'show': True,
@@ -16415,6 +16589,9 @@ def _pos_pagina_context():
         'venta': venta,
         'venta_total_clp': venta_total_clp,
         'venta_total_fmt': venta_total_fmt,
+        'venta_promo_subtotal_clp': promo_ctx['subtotal_lineas_clp'],
+        'venta_promo_descuento_clp': promo_ctx['descuento_promos_clp'],
+        'venta_promociones': promo_ctx['aplicaciones'],
         'caja': caja,
         'detalles': detalles,
         'vales_pendientes': vales_pendientes,
@@ -16479,14 +16656,23 @@ def punto_venta():
     if not ctx:
         flash('No se pudo preparar el punto de venta.', 'danger')
         return redirect(url_for('mostrar_ventas'))
-    resp = make_response(
-        render_template(
-            'punto_venta.html',
-            ticket_modal_impresion_url=_pos_ticket_modal_impresion_url_from_query(),
-            cot_emitir_guia=(request.args.get('cot_emitir_guia') or '').strip() == '1',
-            **ctx,
+    try:
+        resp = make_response(
+            render_template(
+                'punto_venta.html',
+                ticket_modal_impresion_url=_pos_ticket_modal_impresion_url_from_query(),
+                cot_emitir_guia=(request.args.get('cot_emitir_guia') or '').strip() == '1',
+                **ctx,
+            )
         )
-    )
+    except Exception as ex:
+        app.logger.exception('punto_venta render falló')
+        flash(
+            f'Error al cargar el punto de venta: {type(ex).__name__}: {ex}. '
+            'Si acaba de actualizar el ERP, verifique que la carpeta erp\\_internal esté completa.',
+            'danger',
+        )
+        return redirect(url_for('mostrar_ventas'))
     if ctx.get('pos_layout_fullwidth'):
         resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         resp.headers['Pragma'] = 'no-cache'
@@ -17519,6 +17705,7 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
         'items_count': items,
         'producto_id': producto.id,
         'producto_nombre': producto.nombre,
+        'detalle_id': int(detalle.id) if detalle and getattr(detalle, 'id', None) else None,
         'linea_incrementada': linea_incrementada,
         'cantidad_en_vale': _pos_cantidad_producto_en_venta(venta, producto.id),
         'a_pedido': bool(a_pedido),
@@ -18409,6 +18596,7 @@ def pos_ticket_vale(venta_id):
         ticket_line_etiqueta[d.id] = etiqueta_retiro_linea.get(kk, '[T]')
 
     detalles_picking = buckets.get('Bodega') or []
+    promo_ctx = _venta_contexto_promociones(venta)
 
     return render_template(
         'ticket_vale.html',
@@ -18429,6 +18617,10 @@ def pos_ticket_vale(venta_id):
         pos_impresion_termica=_pos_impresion_termica_habilitada(),
         ticket_telefono=_ticket_telefono_vale_display(empresa_cfg),
         ticket_direccion=((empresa_cfg or {}).get('direccion') or '').strip(),
+        ticket_promociones=promo_ctx['aplicaciones'],
+        ticket_subtotal_lineas=promo_ctx['subtotal_lineas_clp'],
+        ticket_descuento_promos=promo_ctx['descuento_promos_clp'],
+        ticket_total_pagar=promo_ctx['total_clp'],
     )
 
 
@@ -19027,16 +19219,19 @@ def _json_tras_actualizar_item_pos(detalle, ok=True, mensaje=None, status=400):
     if not ok:
         return jsonify({'ok': False, 'mensaje': mensaje or 'No se pudo actualizar.'}), status
     venta = detalle.venta if detalle else None
-    total = float(venta.monto_total or 0) if venta else 0.0
+    total = _pos_venta_total_clp(venta) if venta else 0
     cnt = (
         DetalleVenta.query.filter_by(id_venta=venta.id).count()
         if venta
         else 0
     )
+    promo = _venta_contexto_promociones(venta) if venta else {}
     return jsonify({
         'ok': True,
         'venta_total': int(round(total)),
         'items_count': cnt,
+        'promo_descuento': int(promo.get('descuento_promos_clp') or 0),
+        'promo_aplicaciones': promo.get('aplicaciones') or [],
     })
 
 
@@ -19916,6 +20111,358 @@ def api_caja_vales_pendientes_sla():
     })
 
 
+def _promocion_productos_chips(producto_ids) -> list[dict]:
+    """Resuelve IDs → chips (nombre/código/precio) para el form admin."""
+    out = []
+    seen = set()
+    for raw in producto_ids or []:
+        try:
+            pid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if pid <= 0 or pid in seen:
+            continue
+        seen.add(pid)
+        p = Producto.query.get(pid)
+        if not p:
+            out.append({
+                'id': pid,
+                'nombre': f'Producto #{pid} (no encontrado)',
+                'codigo': '',
+                'precio_fmt': '',
+            })
+            continue
+        try:
+            precio = int(round(float(p.precio_venta_sd or p.precio_venta or 0)))
+        except (TypeError, ValueError):
+            precio = 0
+        out.append({
+            'id': int(p.id),
+            'nombre': (p.nombre or f'#{p.id}')[:100],
+            'codigo': (p.codigo_barra or p.codigo_interno or '')[:50],
+            'precio_fmt': (f'${precio:,}'.replace(',', '.') if precio > 0 else 'Sin precio'),
+        })
+    return out
+
+
+def _promocion_form_ctx(promo: dict, *, es_nuevo: bool) -> dict:
+    cond = promo.get('condiciones') or {}
+    pids = cond.get('producto_ids') or []
+    return {
+        'promo': promo,
+        'es_nuevo': es_nuevo,
+        'productos_seleccionados': _promocion_productos_chips(pids),
+        'url_buscar_producto': url_for('api_promociones_buscar_producto'),
+        'url_sugerir_codigo': url_for('api_promociones_sugerir_codigo'),
+    }
+
+
+def api_promociones_sugerir_codigo():
+    """Vista previa del código interno automático (tipo retail)."""
+    from services.promociones_service import sugerir_codigo_promocion
+
+    tipo = (request.args.get('tipo') or 'NXM').strip().upper()
+    nombre = (request.args.get('nombre') or '').strip()
+    try:
+        n = int(request.args.get('n') or 2)
+        m = int(request.args.get('m') or 1)
+        pct = float(request.args.get('pct') or 50)
+        precio_pack = int(request.args.get('precio_pack') or request.args.get('par_precio') or 0)
+        pack_qty = int(request.args.get('pack_qty') or request.args.get('par_qty') or 2)
+    except (TypeError, ValueError):
+        n, m, pct, precio_pack, pack_qty = 2, 1, 50.0, 0, 2
+    beneficio = {
+        'n': n,
+        'm': m,
+        'pct': pct,
+        'precio_pack': precio_pack,
+        'pack_qty': pack_qty,
+    }
+    excluir = request.args.get('excluir_id', type=int)
+    codigo = sugerir_codigo_promocion(
+        db,
+        tipo=tipo,
+        nombre=nombre,
+        beneficio=beneficio,
+        excluir_id=excluir,
+    )
+    return jsonify({'ok': True, 'codigo': codigo})
+
+
+def api_promociones_buscar_producto():
+    """Buscador inteligente para asociar SKUs a una promoción (sin caja abierta)."""
+    q = (request.args.get('q') or '').strip()
+    if len(q) < 1:
+        return jsonify({'ok': True, 'results': []})
+    exact = _pos_buscar_producto_por_codigo(q)
+    results = []
+    if exact:
+        item = _item_busqueda_pos_desde_producto(exact)
+        if item:
+            results.append(item)
+    if len(q) >= 2 or not results:
+        from services.pos_busqueda_service import resolver_filtro_busqueda_pos
+
+        filtro = resolver_filtro_busqueda_pos(request.args) or 'catalogo'
+        if filtro not in ('operativo', 'tienda', 'catalogo'):
+            filtro = 'catalogo'
+        data = _buscar_productos_json(
+            q,
+            filtro_pos=filtro,
+            enriquecido=True,
+            requiere_precio_lista=False,
+        )
+        for row in data.get('results') or []:
+            pid = int(row.get('producto_id') or row.get('id') or 0)
+            if pid and all(int(r.get('producto_id') or 0) != pid for r in results):
+                results.append(row)
+    slim = []
+    for r in results[:20]:
+        pid = int(r.get('producto_id') or r.get('id') or 0)
+        if pid <= 0:
+            continue
+        slim.append({
+            'id': pid,
+            'producto_id': pid,
+            'nombre': (r.get('nombre') or '')[:120],
+            'codigo': (r.get('codigo') or '')[:50],
+            'precio_fmt': r.get('precio_fmt') or '',
+            'precio': r.get('precio'),
+            'stock_tienda': r.get('stock_tienda'),
+        })
+    return jsonify({'ok': True, 'results': slim})
+
+
+def _promocion_form_a_data(form) -> dict:
+    """Normaliza POST admin → dict para guardar_promocion."""
+    tipo = (form.get('tipo') or 'NXM').strip().upper()
+    if tipo not in ('NXM', 'SEGUNDO_PCT', 'ESCALA_QTY', 'PRECIO_PAR'):
+        tipo = 'NXM'
+    pids_raw = (form.get('producto_ids') or '').replace(';', ',')
+    producto_ids = []
+    for part in pids_raw.split(','):
+        part = part.strip()
+        if part.isdigit():
+            producto_ids.append(int(part))
+    beneficio = {}
+    if tipo == 'NXM':
+        beneficio = {
+            'n': int(form.get('nxm_n') or 2),
+            'm': int(form.get('nxm_m') or 1),
+        }
+    elif tipo == 'SEGUNDO_PCT':
+        beneficio = {'pct': float(form.get('segundo_pct') or 50)}
+    elif tipo == 'PRECIO_PAR':
+        beneficio = {
+            'pack_qty': int(form.get('par_qty') or 2),
+            'precio_pack': int(form.get('par_precio') or 0),
+        }
+    else:
+        raw = (form.get('escala_json') or '').strip()
+        if raw:
+            import json as _json
+            try:
+                parsed = _json.loads(raw)
+                beneficio = {'tramos': parsed if isinstance(parsed, list) else parsed.get('tramos', [])}
+            except Exception:
+                beneficio = {
+                    'tramos': [
+                        {'desde': 1, 'hasta': 4, 'precio_unitario': int(form.get('esc_p1') or 0)},
+                        {'desde': 5, 'hasta': 9, 'precio_unitario': int(form.get('esc_p2') or 0)},
+                        {'desde': 10, 'hasta': None, 'precio_unitario': int(form.get('esc_p3') or 0)},
+                    ]
+                }
+        else:
+            beneficio = {
+                'tramos': [
+                    {'desde': 1, 'hasta': 4, 'precio_unitario': int(form.get('esc_p1') or 0)},
+                    {'desde': 5, 'hasta': 9, 'precio_unitario': int(form.get('esc_p2') or 0)},
+                    {'desde': 10, 'hasta': None, 'precio_unitario': int(form.get('esc_p3') or 0)},
+                ]
+            }
+    vd = (form.get('vigencia_desde') or '').strip() or None
+    vh = (form.get('vigencia_hasta') or '').strip() or None
+    return {
+        'codigo': (form.get('codigo') or '').strip().upper(),
+        'nombre': (form.get('nombre') or '').strip(),
+        'tipo': tipo,
+        'prioridad': int(form.get('prioridad') or 100),
+        'vigencia_desde': vd,
+        'vigencia_hasta': vh,
+        'activo': form.get('activo') == '1',
+        'exclusiva': form.get('exclusiva', '1') == '1',
+        'beneficio': beneficio,
+        'condiciones': {'producto_ids': producto_ids},
+        'notas': (form.get('notas') or '').strip() or None,
+    }
+
+
+def promociones_lista():
+    """Admin LX-PROMO-COM: catálogo de promociones comerciales."""
+    import os
+
+    from services.promociones_service import (
+        asegurar_tablas_promociones,
+        listar_promociones_admin,
+        motor_promociones_activo,
+    )
+
+    asegurar_tablas_promociones(app, db)
+    rows = listar_promociones_admin(db)
+    cfg = obtener_config_empresa()
+    env_flag = (os.environ.get('MOTOR_PROMOCIONES_ACTIVO') or '').strip()
+    return render_template(
+        'promociones/lista.html',
+        promociones=rows,
+        motor_activo=motor_promociones_activo(cfg),
+        flag_cfg=str(cfg.get('motor_promociones_activo', '0')),
+        motor_env_override=env_flag or None,
+    )
+
+
+def promociones_nueva():
+    from services.promociones_service import asegurar_tablas_promociones, guardar_promocion
+
+    asegurar_tablas_promociones(app, db)
+    if request.method == 'POST':
+        data = _promocion_form_a_data(request.form)
+        if not data['nombre']:
+            flash('El nombre en ticket es obligatorio.', 'warning')
+            return render_template('promociones/form.html', **_promocion_form_ctx(data, es_nuevo=True))
+        if not (data.get('condiciones') or {}).get('producto_ids'):
+            flash('Agrega al menos un producto con el buscador.', 'warning')
+            return render_template('promociones/form.html', **_promocion_form_ctx(data, es_nuevo=True))
+        if data.get('tipo') == 'PRECIO_PAR':
+            ben = data.get('beneficio') or {}
+            if int(ben.get('precio_pack') or 0) <= 0:
+                flash('Indica el precio del pack (ej. 3200).', 'warning')
+                return render_template('promociones/form.html', **_promocion_form_ctx(data, es_nuevo=True))
+        try:
+            guardar_promocion(db, data)
+            db.session.commit()
+            flash('Promoción creada. Active el motor con el botón de esta lista para que aplique en POS.', 'success')
+            return redirect(url_for('promociones_lista'))
+        except Exception as ex:
+            db.session.rollback()
+            flash(f'No se pudo guardar: {ex}', 'danger')
+            return render_template('promociones/form.html', **_promocion_form_ctx(data, es_nuevo=True))
+    return render_template(
+        'promociones/form.html',
+        **_promocion_form_ctx(
+            {
+                'codigo': '',
+                'nombre': '',
+                'tipo': 'PRECIO_PAR',
+                'prioridad': 10,
+                'activo': True,
+                'exclusiva': True,
+                'beneficio': {'pack_qty': 2, 'precio_pack': 3200},
+                'condiciones': {'producto_ids': []},
+            },
+            es_nuevo=True,
+        ),
+    )
+
+
+def promociones_editar(promo_id):
+    from services.promociones_service import (
+        asegurar_tablas_promociones,
+        guardar_promocion,
+        obtener_promocion,
+    )
+
+    asegurar_tablas_promociones(app, db)
+    promo = obtener_promocion(db, int(promo_id))
+    if not promo:
+        flash('Promoción no encontrada.', 'warning')
+        return redirect(url_for('promociones_lista'))
+    if request.method == 'POST':
+        data = _promocion_form_a_data(request.form)
+        try:
+            guardar_promocion(db, data, promo_id=int(promo_id))
+            db.session.commit()
+            flash('Promoción actualizada.', 'success')
+            return redirect(url_for('promociones_lista'))
+        except Exception as ex:
+            db.session.rollback()
+            flash(f'No se pudo guardar: {ex}', 'danger')
+            data['id'] = promo_id
+            return render_template('promociones/form.html', **_promocion_form_ctx(data, es_nuevo=False))
+    return render_template('promociones/form.html', **_promocion_form_ctx(promo, es_nuevo=False))
+
+
+def promociones_toggle(promo_id):
+    from services.promociones_service import asegurar_tablas_promociones, toggle_promocion_activa
+
+    asegurar_tablas_promociones(app, db)
+    if request.method != 'POST':
+        return redirect(url_for('promociones_lista'))
+    try:
+        nuevo = toggle_promocion_activa(db, int(promo_id))
+        db.session.commit()
+        if nuevo is None:
+            flash('Promoción no encontrada.', 'warning')
+        else:
+            flash('Promoción ' + ('activada' if nuevo else 'desactivada') + '.', 'success')
+    except Exception as ex:
+        db.session.rollback()
+        flash(f'Error: {ex}', 'danger')
+    return redirect(url_for('promociones_lista'))
+
+
+def promociones_motor_toggle():
+    """Activa/apaga el motor retail (empresa_config.motor_promociones_activo)."""
+    import os
+
+    from services.promociones_service import motor_promociones_activo
+
+    if request.method != 'POST':
+        return redirect(url_for('promociones_lista'))
+
+    env = (os.environ.get('MOTOR_PROMOCIONES_ACTIVO') or '').strip()
+    if env:
+        flash(
+            'El motor está forzado por variable de entorno MOTOR_PROMOCIONES_ACTIVO='
+            f'{env}. Quite esa variable del .env.local para controlarlo desde aquí.',
+            'warning',
+        )
+        return redirect(url_for('promociones_lista'))
+
+    cfg = obtener_config_empresa()
+    activo_ahora = motor_promociones_activo(cfg)
+    nuevo = '0' if activo_ahora else '1'
+    try:
+        guardar_config_empresa({'motor_promociones_activo': nuevo})
+        if nuevo == '1':
+            flash('Motor de promociones ACTIVADO. Las reglas activas aplican en el POS.', 'success')
+        else:
+            flash('Motor de promociones APAGADO. Las reglas no se aplican en el POS.', 'warning')
+    except Exception as ex:
+        flash(f'No se pudo guardar el flag del motor: {ex}', 'danger')
+    return redirect(url_for('promociones_lista'))
+
+
+def postventa_asistente():
+    """Postventa 2.0 — asistente guiado (paralelo a /caja/cambios clásico)."""
+    if not _asegurar_tablas_cambios():
+        flash("No se pudo preparar tablas de cambios/saldos. Revise permisos de BD.", "danger")
+        return redirect(url_for('caja_pendientes'))
+    cambio_id = request.args.get('cambio_id', type=int)
+    ok = (request.args.get('ok') or '').strip() == '1'
+    cambio = CambioOperacion.query.get(cambio_id) if cambio_id else None
+    return render_template(
+        'postventa/wizard.html',
+        cambio_ok=cambio if ok else None,
+        url_registrar=url_for('caja_cambios'),
+        url_buscar_venta=url_for('api_cambios_buscar_venta'),
+        url_venta_detalle_base='/api/cambios/venta',
+        url_producto_base='/api/cambios/producto',
+        url_ticket_base='/caja/cambios',
+        url_clasico=url_for('caja_cambios'),
+        url_historial=url_for('caja_cambios_historial'),
+    )
+
+
 def caja_cambios():
     if not _asegurar_tablas_cambios():
         flash("No se pudo preparar tablas de cambios/saldos. Revise permisos de BD.", "danger")
@@ -20088,6 +20635,9 @@ def caja_cambios():
                 elif monto_devuelto > 0:
                     msg += f" Devuelto en efectivo: ${monto_devuelto:,.0f}."
                 flash(msg, "success")
+            # Postventa 2.0 (wizard): vuelve al asistente; el formulario clásico no cambia.
+            if (request.form.get('ui_origen') or '').strip() == 'postventa':
+                return redirect(url_for('postventa_asistente', ok=1, cambio_id=cambio.id))
             return redirect(
                 url_for(
                     'caja_cambios',
@@ -21747,6 +22297,7 @@ def _buscar_productos_json(
             'codigo_barra', 'codigo_interno', 'codigo_chilemat',
             'precio_venta', 'precio_venta_sd', 'precio_mayoreo', 'stock', 'unidad', 'unidad_venta',
             'marca', 'fabricante', 'categoria', 'subcategoria',
+            'ubicacion_pasillo', 'ubicacion_estante', 'ubicacion_nivel',
         ):
             if c in cols:
                 campos.append(c)
@@ -21878,7 +22429,7 @@ def _buscar_productos_json(
         pmin, pmax = min(precios), max(precios)
         for c in candidatos:
             c['badges'] = construir_badges_semaforo(c, pmin, pmax)
-        candidatos = ordenar_candidatos_busqueda(candidatos)
+        candidatos = ordenar_candidatos_busqueda(candidatos, q)
 
     meta = {}
     if filtro_estricto_stock and n_antes_filtro_stock > 0 and not candidatos:
@@ -21932,6 +22483,7 @@ def _item_busqueda_pos_desde_producto(producto, cfg_emp=None):
         'id', 'nombre', 'codigo_barra', 'codigo_interno', 'codigo_chilemat',
         'precio_venta', 'precio_venta_sd', 'precio_mayoreo', 'stock',
         'unidad', 'unidad_venta', 'marca', 'fabricante', 'categoria', 'subcategoria',
+        'ubicacion_pasillo', 'ubicacion_estante', 'ubicacion_nivel',
     ):
         if hasattr(producto, c):
             row[c] = getattr(producto, c, None)
@@ -23288,9 +23840,9 @@ def login():
             except SQLAlchemyError as err:
                 app.logger.error('Error de base de datos en POST /login: %s', err)
                 flash(
-                    'No se pudo conectar a la base de datos. Revisa que MySQL esté en marcha, que '
-                    'SQLALCHEMY_DATABASE_URI en env_qa.txt o .env.qa sea correcta (host, puerto, usuario y nombre de base) '
-                    'y ejecuta chequear_bd_windows.bat para validar la conexión y el esquema.',
+                    'No se pudo conectar a PostgreSQL. El servidor ERP puede estar activo pero la base de datos no. '
+                    'En LhexIA Control use «Iniciar PostgreSQL» (como administrador si hace falta), verifique puerto 5432 '
+                    'con «Verificar todo» y luego reinicie el ERP. Revise DATABASE_URL en erp\\.env.local.',
                     'danger',
                 )
                 return redirect(url_for('login'))
@@ -24314,16 +24866,21 @@ def c360_oferta_publica_pdf(token):
     except Exception:
         logo_b64 = None
     cot_lineas = _lineas_presentacion_cotizacion(cot)
+    cot_barcode_svg, cot_barcode_svg_compact, cot_qr_data_uri, chilemat_logo_b64 = _cotizacion_pdf_codigos(cot)
     return render_template(
         'cotizacion_pdf.html',
         cotizacion=cot,
         empresa=empresa,
         logo_cliente_b64=logo_b64,
+        chilemat_logo_b64=chilemat_logo_b64,
         auto_print=False,
         cot_totales=_presentacion_totales_cotizacion(cot),
         subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
         cot_lineas=cot_lineas,
         cot_paginas=_paginas_pdf_cotizacion(cot_lineas, lineas_p1=16, lineas_sig=28),
+        cot_barcode_svg=cot_barcode_svg,
+        cot_barcode_svg_compact=cot_barcode_svg_compact,
+        cot_qr_data_uri=cot_qr_data_uri,
     )
 
 
@@ -26549,7 +27106,7 @@ def orden_compra_pdf(oid):
         db.session.refresh(oc)
     except Exception:
         pass
-    empresa = obtener_config_empresa()
+    empresa = _empresa_cotizacion_para_cot(cot)
 
     logo_b64 = None
     try:
@@ -30437,6 +30994,65 @@ def _siguiente_numero_cotizacion():
     return f"COT-{n:06d}"
 
 
+def _empresa_cotizacion_para_cot(cot):
+    try:
+        from services.empresas_cotizacion_service import (
+            extraer_empresa_slug_cot,
+            resolver_empresa_cotizacion,
+            resolver_empresa_cotizacion_cot,
+        )
+
+        empresa = resolver_empresa_cotizacion_cot(cot)
+        slug = extraer_empresa_slug_cot(cot)
+        # Evitar PDF/membrete híbrido: plantilla Transportes con datos Chilemat
+        if slug == 'transportes-st-julliet' and (empresa or {}).get('plantilla') != 'transportes':
+            empresa = resolver_empresa_cotizacion('transportes-st-julliet')
+        return empresa
+    except Exception as ex:
+        app.logger.warning('resolver_empresa_cotizacion fallback: %s', ex)
+        cfg = obtener_config_empresa()
+        return {
+            'id': 'santo-domingo',
+            'label': cfg.get('nombre_comercial') or 'Ferretería Santo Domingo',
+            'plantilla': 'chilemat',
+            'nombre_comercial': cfg.get('nombre_comercial') or '',
+        }
+
+
+def _empresas_cotizacion_form_ctx():
+    try:
+        from services.empresas_cotizacion_service import (
+            empresa_cotizacion_default_id,
+            listar_empresas_cotizacion,
+            listar_perfiles_empresas_cotizacion,
+        )
+        empresas = listar_empresas_cotizacion()
+        default_id = empresa_cotizacion_default_id()
+        perfiles = listar_perfiles_empresas_cotizacion()
+        perfiles_ctx: list[dict] = []
+        for p in perfiles:
+            item = dict(p)
+            img = (item.get('logo_img') or '').strip()
+            if img:
+                item['logo_url'] = url_for('static', filename=img) + '?v=julliet-v5-20260720'
+            perfiles_ctx.append(item)
+        perfiles = perfiles_ctx
+    except Exception as ex:
+        app.logger.warning('empresas_cotizacion no disponible, usando fallback embebido: %s', ex)
+        empresas = [
+            {'id': 'santo-domingo', 'label': 'Ferretería Santo Domingo (Chilemat)'},
+            {'id': 'transportes-st-julliet', 'label': 'Transportes Sta JULLIET'},
+        ]
+        default_id = 'santo-domingo'
+        perfiles = []
+
+    return {
+        'empresas_cotizacion': empresas,
+        'empresa_cotizacion_default': default_id,
+        'empresas_cotizacion_perfiles': perfiles,
+    }
+
+
 def _actualizar_estado_vencidas():
     """Marca como Vencida cualquier cotizacion Vigente cuyo vencimiento sea anterior a hoy."""
     from datetime import date, datetime
@@ -30546,6 +31162,38 @@ def _lineas_presentacion_cotizacion(cot):
     return lineas
 
 
+def _cotizacion_pdf_codigos(cot):
+    """Barcode Code128 (número COT-…) + QR al detalle en ERP + logo Chilemat."""
+    numero = (getattr(cot, 'numero', None) or '').strip()
+    barcode_svg = None
+    barcode_svg_compact = None
+    qr_uri = None
+    chilemat_logo_b64 = None
+    if numero:
+        try:
+            from services.barcode_code128_service import code128_svg
+
+            barcode_svg = code128_svg(numero, height=52, module_width=1.35, show_text=True)
+            barcode_svg_compact = code128_svg(
+                numero, height=36, module_width=1.15, show_text=False
+            )
+        except Exception:
+            app.logger.exception('No se pudo generar barcode cotización %s', numero)
+    try:
+        detalle_url = url_for('cotizacion_detalle', cot_id=cot.id, _external=True)
+        qr_uri = _qr_data_uri_png(detalle_url, box_size=3, border=1)
+    except Exception:
+        app.logger.exception('No se pudo generar QR cotización id=%s', getattr(cot, 'id', None))
+    try:
+        logo_path = os.path.join(app.root_path, 'static', 'img', 'chilemat_logo_oficial.png')
+        if os.path.isfile(logo_path):
+            with open(logo_path, 'rb') as fimg:
+                chilemat_logo_b64 = base64.b64encode(fimg.read()).decode('ascii')
+    except Exception:
+        chilemat_logo_b64 = None
+    return barcode_svg, barcode_svg_compact, qr_uri, chilemat_logo_b64
+
+
 def _paginas_pdf_cotizacion(cot_lineas, lineas_p1=24, lineas_sig=34):
     """Parte líneas del PDF: pág.1 con encabezado completo; pág.2+ con continuación."""
     items = list(cot_lineas or [])
@@ -30623,6 +31271,63 @@ def _construir_mensaje_whatsapp_cotizacion(cot):
         lineas.append("")
         lineas.append(f"Contacto: {empresa.get('telefono')}")
     return "\n".join(lineas)
+
+
+def _construir_mensaje_email_cotizacion(cot):
+    """Cuerpo plano para Gmail (sin markdown de WhatsApp)."""
+    empresa = obtener_config_empresa()
+    tienda = (empresa.get('nombre_comercial') or empresa.get('razon_social') or 'Ferretería').strip()
+    lineas = [
+        f"Estimado/a{((' ' + cot.cliente_nombre) if (cot.cliente_nombre or '').strip() else '')},",
+        "",
+        f"Adjuntamos la cotización {cot.numero} de {tienda}.",
+        f"Fecha: {cot.fecha.strftime('%d-%m-%Y') if cot.fecha else ''}",
+    ]
+    if cot.fecha_vencimiento:
+        lineas.append(f"Válida hasta: {cot.fecha_vencimiento.strftime('%d-%m-%Y')}")
+    lineas.append("")
+    lineas.append("Resumen:")
+    for d in (cot.detalles or [])[:40]:
+        lineas.append(f"- {d.cantidad:g} × {d.nombre} → ${(d.subtotal or 0):,.0f}".replace(",", "."))
+    if len(cot.detalles or []) > 40:
+        lineas.append(f"- … y {len(cot.detalles) - 40} ítems más (ver PDF adjunto)")
+    lineas.append("")
+    lineas.append(f"Neto: ${(cot.neto or 0):,.0f}".replace(",", "."))
+    lineas.append(f"IVA 19%: ${(cot.iva or 0):,.0f}".replace(",", "."))
+    lineas.append(f"Total: ${(cot.monto_total or 0):,.0f}".replace(",", "."))
+    lineas.append("")
+    lineas.append(
+        "Por favor adjunte el PDF de la cotización (se abrió la ventana de impresión "
+        "para Guardar como PDF) antes de enviar este mensaje."
+    )
+    if empresa.get('telefono'):
+        lineas.append("")
+        lineas.append(f"Contacto: {empresa.get('telefono')}")
+    lineas.append("")
+    lineas.append(f"Saludos,\n{tienda}")
+    return "\n".join(lineas)
+
+
+def _url_gmail_compose_cotizacion(cot) -> str:
+    """URL de Gmail Redactar con destinatario, asunto y cuerpo (sin adjunto — limitación del navegador)."""
+    from urllib.parse import quote, urlencode
+
+    empresa = obtener_config_empresa()
+    tienda = (empresa.get('nombre_comercial') or empresa.get('razon_social') or 'Ferretería').strip()
+    correo = (cot.cliente_correo or '').strip()
+    asunto = f"Cotización {cot.numero} — {tienda}"
+    cuerpo = _construir_mensaje_email_cotizacion(cot)
+    # mail.google.com compose: abre la cuenta de Gmail ya logueada en el navegador
+    q = {
+        'view': 'cm',
+        'fs': '1',
+        'tf': '1',
+        'su': asunto,
+        'body': cuerpo,
+    }
+    if correo:
+        q['to'] = correo
+    return 'https://mail.google.com/mail/?' + urlencode(q, quote_via=quote)
 
 
 @app.route('/cotizaciones')
@@ -30760,6 +31465,15 @@ def cotizacion_nueva():
         validez = int((request.form.get('validez_dias') or '15').strip() or '15')
         descuento_global = float((request.form.get('descuento_global') or '0').strip() or '0')
         notas = (request.form.get('notas') or '').strip() or None
+        try:
+            from services.empresas_cotizacion_service import (
+                normalizar_empresa_cotizacion_id,
+                aplicar_marker_empresa_notas,
+            )
+            empresa_cot_slug = normalizar_empresa_cotizacion_id(request.form.get('empresa_cotizacion'))
+            notas = aplicar_marker_empresa_notas(notas, empresa_cot_slug)
+        except Exception:
+            empresa_cot_slug = (request.form.get('empresa_cotizacion') or 'santo-domingo').strip()[:40] or 'santo-domingo'
 
         # Lineas: arrays paralelos
         productos = request.form.getlist('det_producto_id')
@@ -30803,6 +31517,7 @@ def cotizacion_nueva():
             descuento_global=descuento_global,
             notas=notas,
             estado='Vigente',
+            empresa_cotizacion=empresa_cot_slug,
             usuario_creador=(getattr(current_user, 'nombre', '') or 'sistema')[:100],
         )
         db.session.add(cot)
@@ -30858,11 +31573,25 @@ def cotizacion_nueva():
         .limit(50)
         .all()
     )
+    try:
+        from services.empresas_cotizacion_service import (
+            empresa_cotizacion_default_id,
+            resolver_empresa_cotizacion,
+        )
+        empresa_ctx = resolver_empresa_cotizacion(empresa_cotizacion_default_id())
+    except Exception as ex:
+        app.logger.warning('empresa cotizacion GET fallback: %s', ex)
+        cfg = obtener_config_empresa()
+        empresa_ctx = {
+            'label': cfg.get('nombre_comercial') or 'Ferretería Santo Domingo (Chilemat)',
+            'nombre_comercial': cfg.get('nombre_comercial') or 'Ferretería Santo Domingo',
+        }
     return render_template(
         'cotizacion_form.html',
         cotizacion=None,
         productos_demo=productos_demo,
-        empresa=obtener_config_empresa(),
+        empresa=empresa_ctx,
+        **_empresas_cotizacion_form_ctx(),
     )
 
 
@@ -30872,7 +31601,7 @@ def cotizacion_detalle(cot_id):
     cot = Cotizacion.query.get_or_404(cot_id)
     _actualizar_estado_vencidas()
     db.session.refresh(cot)
-    empresa = obtener_config_empresa()
+    empresa = _empresa_cotizacion_para_cot(cot)
     return render_template(
         'cotizacion_detalle.html',
         cotizacion=cot,
@@ -30880,6 +31609,8 @@ def cotizacion_detalle(cot_id):
         cot_totales=_presentacion_totales_cotizacion(cot),
         subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
         cot_lineas=_lineas_presentacion_cotizacion(cot),
+        gmail_compose_url=_url_gmail_compose_cotizacion(cot),
+        cot_pdf_url=url_for('cotizacion_pdf', cot_id=cot.id, auto='1'),
     )
 
 
@@ -30907,6 +31638,15 @@ def cotizacion_editar(cot_id):
         validez = int((request.form.get('validez_dias') or '15').strip() or '15')
         descuento_global = float((request.form.get('descuento_global') or '0').strip() or '0')
         notas = (request.form.get('notas') or '').strip() or None
+        try:
+            from services.empresas_cotizacion_service import (
+                normalizar_empresa_cotizacion_id,
+                aplicar_marker_empresa_notas,
+            )
+            empresa_cot_slug = normalizar_empresa_cotizacion_id(request.form.get('empresa_cotizacion'))
+            notas = aplicar_marker_empresa_notas(notas, empresa_cot_slug)
+        except Exception:
+            empresa_cot_slug = (request.form.get('empresa_cotizacion') or 'santo-domingo').strip()[:40] or 'santo-domingo'
 
         nombres = request.form.getlist('det_nombre')
         if not nombres:
@@ -30941,6 +31681,7 @@ def cotizacion_editar(cot_id):
         cot.cliente_comuna = cliente_comuna or None
         cot.cliente_ciudad = cliente_ciudad or None
         cot.cliente_correo = cliente_correo or None
+        cot.empresa_cotizacion = empresa_cot_slug
         cot.descuento_global = descuento_global
         cot.notas = notas
         cot.validez_dias = max(1, validez)
@@ -31019,7 +31760,8 @@ def cotizacion_editar(cot_id):
     return render_template(
         'cotizacion_form.html',
         cotizacion=cot,
-        empresa=obtener_config_empresa(),
+        empresa=_empresa_cotizacion_para_cot(cot),
+        **_empresas_cotizacion_form_ctx(),
     )
 
 
@@ -31093,7 +31835,7 @@ def cotizacion_pdf(cot_id):
         db.session.refresh(cot)
     except Exception:
         pass
-    empresa = obtener_config_empresa()
+    empresa = _empresa_cotizacion_para_cot(cot)
 
     logo_b64 = None
     try:
@@ -31106,16 +31848,21 @@ def cotizacion_pdf(cot_id):
 
     auto_print = (request.args.get('auto') or '1') == '1'
     cot_lineas = _lineas_presentacion_cotizacion(cot)
+    cot_barcode_svg, cot_barcode_svg_compact, cot_qr_data_uri, chilemat_logo_b64 = _cotizacion_pdf_codigos(cot)
     return render_template(
         'cotizacion_pdf.html',
         cotizacion=cot,
         empresa=empresa,
         logo_cliente_b64=logo_b64,
+        chilemat_logo_b64=chilemat_logo_b64,
         auto_print=auto_print,
         cot_totales=_presentacion_totales_cotizacion(cot),
         subtotal_linea_cot=_subtotal_linea_cotizacion_detalle,
         cot_lineas=cot_lineas,
         cot_paginas=_paginas_pdf_cotizacion(cot_lineas, lineas_p1=16, lineas_sig=28),
+        cot_barcode_svg=cot_barcode_svg,
+        cot_barcode_svg_compact=cot_barcode_svg_compact,
+        cot_qr_data_uri=cot_qr_data_uri,
     )
 
 
@@ -31134,6 +31881,14 @@ def cotizacion_whatsapp(cot_id):
     base = f"https://wa.me/{telefono_limpio}" if telefono_limpio else "https://wa.me/"
     url = f"{base}?text={quote(texto)}"
     return redirect(url)
+
+
+@app.route('/cotizaciones/<int:cot_id>/gmail')
+@login_required
+def cotizacion_gmail(cot_id):
+    """Abre Gmail Redactar con la cotización (destinatario/asunto/cuerpo). El PDF se adjunta a mano."""
+    cot = Cotizacion.query.get_or_404(cot_id)
+    return redirect(_url_gmail_compose_cotizacion(cot))
 
 
 def _cotizacion_payload_legacy_desde_cot(cot):
@@ -31735,6 +32490,7 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_caja_cuadratura()
         _asegurar_columnas_ventas_legacy()
         _asegurar_columnas_productos_legacy()
+        _asegurar_columnas_cotizaciones_legacy()
         _asegurar_tablas_catalogo_pinturas_maestro()
         _asegurar_columnas_detalle_ventas_legacy()
         _asegurar_columnas_usuario_pin_autorizacion()

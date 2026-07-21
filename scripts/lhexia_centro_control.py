@@ -123,6 +123,30 @@ def _port_listening(port: int) -> bool:
     return any(needle in ln and "LISTENING" in ln for ln in out.splitlines())
 
 
+def _wait_port(port: int, *, seconds: float = 20.0) -> bool:
+    import time
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if _port_listening(port):
+            return True
+        time.sleep(0.6)
+    return _port_listening(port)
+
+
+def _start_postgres_admin_bat() -> str:
+    bat = _resolve_bat("iniciar_postgresql.bat")
+    if bat is None:
+        return "No se encontro iniciar_postgresql.bat"
+    params = f'/c "{bat}" silent'
+    rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", "cmd.exe", params, str(bat.parent), 0)
+    if rc <= 32:
+        return f"No se pudo elevar admin para PostgreSQL (codigo {rc})"
+    if _wait_port(5432, seconds=25):
+        return "PostgreSQL iniciado (admin) — puerto 5432 OK"
+    return "Se pidio admin para PostgreSQL; espere y pulse Actualizar estado"
+
+
 def _start_postgres() -> str:
     try:
         out = subprocess.check_output(
@@ -144,7 +168,12 @@ def _start_postgres() -> str:
             errors="replace",
             timeout=30,
         ).strip()
-        return out or "PostgreSQL: sin respuesta"
+        msg = out or "PostgreSQL: sin respuesta"
+        if _wait_port(5432, seconds=12):
+            return msg + " · puerto 5432 OK"
+        if "Error" in msg or "No se encontro" in msg:
+            return msg + " · " + _start_postgres_admin_bat()
+        return msg + " · puerto 5432 aun inactivo — ejecute Iniciar PostgreSQL como administrador"
     except Exception as exc:
         return f"Error al iniciar PostgreSQL: {exc}"
 
@@ -446,9 +475,36 @@ class CentroControlApp(tk.Tk):
         threading.Thread(target=work, daemon=True).start()
 
     def start_erp(self) -> None:
+        if not _port_listening(5432):
+            if not messagebox.askyesno(
+                APP_TITLE,
+                "PostgreSQL NO esta activo (puerto 5432 cerrado).\n\n"
+                "El ERP arrancara pero NO podra iniciar sesion.\n\n"
+                "¿Iniciar PostgreSQL primero y luego el ERP?",
+            ):
+                return
+            self.start_postgres()
+            self.after(3500, self._start_erp_after_pg)
+            return
         try:
             _run_bat("02_Iniciar_ERP.bat")
             self._log("[OK] Iniciando servidor ERP...")
+            self.after(3000, self.refresh_status)
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+
+    def _start_erp_after_pg(self) -> None:
+        if not _port_listening(5432):
+            messagebox.showwarning(
+                APP_TITLE,
+                "PostgreSQL sigue sin responder en 5432.\n"
+                "Clic derecho en LhexIA Control → Ejecutar como administrador,\n"
+                "luego «Iniciar PostgreSQL» o «Iniciar todo».",
+            )
+            return
+        try:
+            _run_bat("02_Iniciar_ERP.bat")
+            self._log("[OK] PostgreSQL listo — iniciando servidor ERP...")
             self.after(3000, self.refresh_status)
         except Exception as exc:
             messagebox.showerror(APP_TITLE, str(exc))
@@ -457,18 +513,22 @@ class CentroControlApp(tk.Tk):
         def work() -> None:
             pg_msg = _start_postgres()
             self.after(0, lambda: self._log(pg_msg))
-            if _port_listening(5432):
-                self.after(0, self.start_erp)
+            if _wait_port(5432, seconds=25):
+                self.after(0, self._start_erp_after_pg)
             else:
                 self.after(
                     0,
                     lambda: messagebox.showwarning(
                         APP_TITLE,
-                        "PostgreSQL no respondio en puerto 5432.\n"
-                        "Revise el servicio o ejecute la instalacion completa.",
+                        "PostgreSQL no respondio en puerto 5432.\n\n"
+                        "Sin la base de datos el login SIEMPRE falla.\n\n"
+                        "1. Cierre LhexIA Control\n"
+                        "2. Clic derecho → Ejecutar como administrador\n"
+                        "3. «Iniciar PostgreSQL» o «Arranque automatico»\n"
+                        "4. Luego «Iniciar todo» de nuevo",
                     ),
                 )
-            self.after(4000, self.refresh_status)
+            self.after(5000, self.refresh_status)
 
         self._log("[...] Iniciando PostgreSQL y ERP...")
         threading.Thread(target=work, daemon=True).start()

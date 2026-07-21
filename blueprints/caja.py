@@ -4,6 +4,20 @@ from flask_login import login_required
 from blueprints._app_ref import app_module
 
 
+def _wrap_ticket_lectura(fn):
+    """Ver/imprimir tickets cobro y retiro: sin exigir caja abierta; incluye operadores ecom/bodega."""
+    m = app_module()
+    return login_required(
+        m.permisos_required(
+            'caja_cobrar_vale',
+            'ecommerce_pedidos',
+            'bodega_operador',
+            'gestionar_usuarios',
+            'caja_cerrar',
+        )(fn)
+    )
+
+
 def _wrap_caja_vale(fn):
     m = app_module()
     return login_required(m.caja_requerida(m.permisos_required('caja_cobrar_vale')(fn)))
@@ -112,6 +126,15 @@ def register_caja_routes(app):
         methods=['GET'],
     )
     app.add_url_rule('/caja/cambios', 'caja_cambios', _wrap_caja_vale(m.caja_cambios), methods=['GET', 'POST'])
+    # Postventa 2.0 (wizard). getattr evita tumbar el ERP si el reload ocurre a medias.
+    _postventa = getattr(m, 'postventa_asistente', None)
+    if callable(_postventa):
+        app.add_url_rule(
+            '/ventas/postventa',
+            'postventa_asistente',
+            _wrap_caja_vale(_postventa),
+            methods=['GET'],
+        )
     app.add_url_rule(
         '/api/cambios/producto/<codigo>',
         'api_cambios_producto',
@@ -175,13 +198,13 @@ def register_caja_routes(app):
     app.add_url_rule(
         '/caja/vale_retiro/<int:id>',
         'ver_ticket_cobro',
-        _wrap_caja_vale(m.ver_ticket_cobro),
+        _wrap_ticket_lectura(m.ver_ticket_cobro),
         methods=['GET'],
     )
     app.add_url_rule(
         '/caja/ticket_retiro/<int:id>',
         'ver_ticket_retiro',
-        _wrap_caja_vale(m.ver_ticket_retiro),
+        _wrap_ticket_lectura(m.ver_ticket_retiro),
         methods=['GET'],
     )
     app.add_url_rule(

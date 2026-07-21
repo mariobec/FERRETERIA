@@ -4,7 +4,7 @@
 
 {% block extra_css %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-cliente-save-20260614">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cotizaciones.css') }}?v=cot-julliet-barcode-20260720">
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-premium-layout.css') }}?v=cot-search-cards">
 
@@ -13,6 +13,22 @@
 {% block content %}
 
 {% set es_edicion = cotizacion is not none %}
+{% set _empresas_fallback = [
+  {'id': 'santo-domingo', 'label': 'Ferretería Santo Domingo (Chilemat)'},
+  {'id': 'transportes-st-julliet', 'label': 'Transportes Sta JULLIET'}
+] %}
+{% set empresas_emisor = empresas_cotizacion if empresas_cotizacion is defined and empresas_cotizacion else _empresas_fallback %}
+{% set _empresa_default_id = empresa_cotizacion_default if empresa_cotizacion_default is defined else 'santo-domingo' %}
+{% set _empresas_perfiles_fallback = [
+  {'id': 'santo-domingo', 'label': 'Ferretería Santo Domingo (Chilemat)', 'plantilla': 'chilemat', 'nombre_comercial': 'Ferretería Santo Domingo', 'razon_social': 'Luis Gastón Rivera Pérez', 'marca_linea1': 'FERRETERÍA', 'marca_linea2': 'SANTO DOMINGO', 'rut_emisor': '8.054.120-1', 'telefono': '(41) 264 5574', 'correo': 'ferreteria426@gmail.com', 'direccion': 'C. Matriz Arturo Prat n°426 - Florida\nBodega Arturo Prat n°439', 'eslogan': 'Materiales para Construcción · Ferretería Industrial · Herramientas · Seguridad · Pinturas'},
+  {'id': 'transportes-st-julliet', 'label': 'Transportes Sta JULLIET', 'plantilla': 'transportes', 'nombre_comercial': 'Transportes Sta JULLIET', 'razon_social': 'JULIO IVAN RIVERA PEREZ EIRL', 'marca_linea1': 'TRANSPORTES', 'marca_linea2': 'Sta JULLIET', 'rut_emisor': '76.873.527-1', 'telefono': '989145920', 'correo': 'aridosjr1963@gmail.com', 'eslogan': 'venta de aridos y fletes', 'cuenta_banco': 'CHEQUERA ELECTRONICA: 51270010532', 'banco': 'Banco Estado', 'logo_img': 'img/cot_transportes_julliet_v5.png'}
+] %}
+{% set empresas_perfiles = empresas_cotizacion_perfiles if empresas_cotizacion_perfiles is defined and empresas_cotizacion_perfiles else _empresas_perfiles_fallback %}
+{% set empresa_emisor_sel = (
+  cotizacion.empresa_cotizacion if es_edicion and cotizacion and cotizacion.empresa_cotizacion else
+  ('transportes-st-julliet' if es_edicion and cotizacion and cotizacion.notas and '[[empresa_cot:transportes-st-julliet]]' in cotizacion.notas else _empresa_default_id)
+) %}
+{% set _empresa_badge_label = (empresa.label if empresa is defined and empresa and empresa.label else none) or (empresa.nombre_comercial if empresa is defined and empresa and empresa.nombre_comercial else none) or 'Ferretería Santo Domingo (Chilemat)' %}
 
 <div class="container-fluid py-3 cot-form-page">
 
@@ -74,8 +90,9 @@
       <div class="cot-section cot-form-meta-strip">
         <div class="cot-form-meta-strip__main">
           <button type="button" class="btn btn-sm btn-outline-secondary cot-form-meta-btn" data-bs-toggle="modal" data-bs-target="#modalOpcionesCot">
-            <i class="fas fa-sliders-h me-1"></i>Validez · Notas
+            <i class="fas fa-sliders-h me-1"></i>Validez · Empresa · Notas
           </button>
+          <span class="badge bg-light text-dark border" id="cotEmpresaBadge" title="Empresa emisora">{{ _empresa_badge_label }}</span>
           <span class="badge bg-light text-dark border cot-form-lineas-badge" id="lineasCount">0 líneas</span>
         </div>
         <p class="cot-form-meta-hint mb-0">Después de guardar use <strong>Convertir en vale</strong> desde el detalle.</p>
@@ -108,6 +125,8 @@
       <input type="hidden" name="descuento_global" id="descuento_global" value="{{ (cotizacion.descuento_global or 0) | int if es_edicion else 0 }}">
 
       <input type="hidden" name="notas" id="notas" value="{{ cotizacion.notas or '' if es_edicion else '' }}">
+
+      <input type="hidden" name="empresa_cotizacion" id="empresa_cotizacion" value="{{ cotizacion.empresa_cotizacion or _empresa_default_id if es_edicion else _empresa_default_id }}">
 
 
 
@@ -439,6 +458,14 @@
 
       </div>
 
+      <div class="cot-section cot-transferencia-footer-wrap d-none" id="cotTransferenciaFooterWrap">
+        <div class="cot-transferencia-footer" id="cotTransferenciaFooter"></div>
+      </div>
+
+      <div class="cot-section text-center text-muted small cot-form-lhexia-footer">
+        Cotización generada con <strong style="color:#f37021">LhexIA ERP</strong> · www.lhexia.cl
+      </div>
+
     </div>
 
   </form>
@@ -568,13 +595,25 @@
 
       <div class="modal-header">
 
-        <h5 class="modal-title"><i class="fas fa-sliders-h me-2 text-warning"></i>Validez y condiciones</h5>
+        <h5 class="modal-title"><i class="fas fa-sliders-h me-2 text-warning"></i>Validez, empresa y condiciones</h5>
 
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 
       </div>
 
       <div class="modal-body">
+
+        <div class="mb-3">
+          <span class="form-label small mb-2 d-block">Empresa emisora (membrete PDF)</span>
+          <div class="cot-empresa-picker" id="cotEmpresaPicker" role="radiogroup" aria-label="Empresa emisora">
+            {% for ec in empresas_emisor %}
+            <label class="cot-empresa-picker__opt">
+              <input type="radio" name="modal_empresa_cotizacion" value="{{ ec.id }}" {% if empresa_emisor_sel == ec.id %}checked{% endif %}>
+              <span class="cot-empresa-picker__label">{{ ec.label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
 
         <div class="row g-2 mb-3">
 
@@ -654,11 +693,19 @@
 
   'cross_sell': url_for('api_pos_cross_sell_sugerencias'),
 
+  'empresas_cotizacion': empresas_emisor,
+
+  'empresas_perfiles': empresas_perfiles,
+
+  'empresa_cotizacion_default': _empresa_default_id,
+
+  'transportes_logo_url': url_for('static', filename='img/cot_transportes_julliet_v5.png') ~ '?v=julliet-layout-v6-20260720',
+
 } | tojson }}</script>
 
 <script src="{{ url_for('static', filename='js/offline/iva-chile.js') }}?v=iva-chile-1"></script>
 
-<script src="{{ url_for('static', filename='js/cotizaciones_form.js') }}?v=cot-cliente-save-20260614"></script>
+<script src="{{ url_for('static', filename='js/cotizaciones_form.js') }}?v=cot-julliet-barcode-20260720"></script>
 
 {% endblock %}
 

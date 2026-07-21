@@ -7,7 +7,9 @@ from services.pos_busqueda_service import (
     SEMAFORO_VERDE,
     clasificar_semaforo,
     construir_badges_semaforo,
+    enriquecer_item_busqueda_pos,
     filtrar_productos_por_filtro_pos,
+    formatear_ubicacion_pos,
     ordenar_candidatos_busqueda,
     resolver_filtro_busqueda_pos,
 )
@@ -57,3 +59,29 @@ def test_resolver_filtro_pos_default_operativo():
             return d.get(k, default)
 
     assert resolver_filtro_busqueda_pos(Args()) == "operativo"
+
+
+def test_formatear_ubicacion_pos():
+    label, codigo = formatear_ubicacion_pos("3", "B", "1")
+    assert label == "Pasillo 3 · Est. B · Nv. 1"
+    assert codigo == "3-B-1"
+    assert formatear_ubicacion_pos("", "", "") == ("", "")
+
+
+def test_enriquecer_incluye_ubicacion():
+    item = enriquecer_item_busqueda_pos(
+        pid=10,
+        row={"ubicacion_pasillo": "A", "ubicacion_estante": "2", "ubicacion_nivel": ""},
+        cols={"ubicacion_pasillo", "ubicacion_estante", "ubicacion_nivel"},
+        stock_tienda=1,
+        stock_bodega=0,
+        nombre="Tornillo",
+        codigo="789",
+        precio=100.0,
+        precio_fmt="$100",
+        marca="",
+        unidad="un",
+        cfg={"pos_permite_venta_verde": "1", "pos_dias_entrega_a_pedido": "5"},
+    )
+    assert item["ubicacion_label"] == "Pasillo A · Est. 2"
+    assert item["ubicacion_codigo"] == "A-2"

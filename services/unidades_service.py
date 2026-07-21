@@ -34,6 +34,8 @@ def seed_unidades_base():
         return
     base = [
         ('UN', 'Unidad', 'unidad'),
+        ('PZ', 'Pieza', 'unidad'),
+        ('PR', 'Par', 'unidad'),
         ('KG', 'Kilogramo', 'peso'),
         ('M', 'Metro', 'longitud'),
         ('CJ', 'Caja', 'empaque'),

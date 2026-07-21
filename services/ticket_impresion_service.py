@@ -124,6 +124,21 @@ def construir_contexto_vale_impresion(venta, *, empresa_cfg: dict | None = None)
     ctx['folio_barcode'] = f'VL{int(venta.id):06d}'
     ctx['qr_url'] = None
 
+    try:
+        from services.promociones_service import listar_aplicaciones_venta
+        from app import db as _db
+
+        apps = listar_aplicaciones_venta(_db, int(venta.id))
+        ctx['promociones'] = apps
+        ctx['descuento_promos'] = sum(int(a.get('monto_descuento') or 0) for a in apps)
+        if ctx['descuento_promos'] > 0:
+            sub = sum(int(_ticket_linea_subtotal_clp(d)) for d in (venta.detalles or []))
+            ctx['subtotal_lineas'] = sub
+            ctx['total'] = float(max(0, sub - ctx['descuento_promos']))
+    except Exception:
+        ctx['promociones'] = []
+        ctx['descuento_promos'] = 0
+
     cot_id = getattr(venta, 'cotizacion_origen_id', None)
     if cot_id:
         try:

@@ -1,13 +1,1 @@
-﻿# Product Backlog
-
-Regla: idea nueva no P0 go-live -> aqui.
-
-| ID | Idea | Origen | Prioridad | Version | Estado |
-|----|------|--------|-----------|---------|--------|
-| P-001 | Catalogo pinturas ampliado | Cliente | P2 | v2 | Backlog |
-| P-002 | Dashboard ejecutivo | Mario | P2 | v2 | Backlog |
-| P-003 | IA compras | Piso | P2 | Clean | Backlog |
-| P-004 | Retiros parciales + 2 QR | SD-1 | - | v1 | Hecho |
-| P-005 | LhexiaERP-Clean repo | Estrategia | P2 | Clean | Gate |
-| P-006 | P0 go-live (completar) | Mario | P0 | v1 | Backlog |
-| P-007 | Smart Units Engine (presentaciones + unidad base) | Mario | P2 | Clean | Diferido — ver `CONTROL_DE_CAMBIO_PRODUCTO_MAESTRO.md` |
+﻿# Product Backlog\n\nRegla: idea nueva no P0 go-live -> aqui.\n\n| ID | Idea | Origen | Prioridad | Version | Estado |\n|----|------|--------|-----------|---------|--------|\n| P-001 | Catalogo pinturas ampliado | Cliente | P2 | v2 | Backlog |\n| P-002 | Dashboard ejecutivo | Mario | P2 | v2 | Backlog |\n| P-003 | IA compras | Piso | P2 | Clean | Backlog |\n| P-004 | Retiros parciales + 2 QR | SD-1 | - | v1 | Hecho |\n| P-005 | LhexiaERP-Clean repo | Estrategia | P2 | Clean | Gate |\n| P-006 | P0 go-live (completar) | Mario | P0 | v1 | Backlog |\n| P-007 | Smart Units Engine (presentaciones + unidad base) | Mario | P2 | Clean | Diferido — ver `CONTROL_DE_CAMBIO_PRODUCTO_MAESTRO.md` |\n| P-008 | Motor de Promociones Comerciales (2x1, pack, escala; renglon en ticket/boleta) | Mario | P1 | v2 post SD-1 | COM-1+2 motor+admin+ticket (flag off) - ver docs/planes/02-producto-lhexia/PLAN_MOTOR_PROMOCIONES_COMERCIALES.md + ADR docs/arquitectura/ADR_MOTOR_PROMOCIONES.md |\n\n

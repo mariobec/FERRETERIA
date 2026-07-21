@@ -539,6 +539,8 @@ def test_api_carrito_vale_crea_ped_web(app_client, app_ctx, productos_con_stock,
 @pytest.mark.smoke
 def test_api_carrito_checkout_tienda(app_client, app_ctx, productos_con_stock, caja_abierta):
     """Checkout modo tienda — mismo flujo PED-WEB vía /carrito/checkout."""
+    from app import Cliente, Venta, db
+
     p = productos_con_stock[0]
     precio = int(p.precio_venta or 1990)
     r = app_client.post(
@@ -556,8 +558,8 @@ def test_api_carrito_checkout_tienda(app_client, app_ctx, productos_con_stock, c
                     'disponible': True,
                 }
             ],
-            'cliente_nombre': 'Checkout QA',
-            'cliente_telefono': '912345678',
+            'cliente_nombre': 'Checkout QA Reg',
+            'cliente_telefono': '987654321',
         },
     )
     assert r.status_code == 200
@@ -565,6 +567,38 @@ def test_api_carrito_checkout_tienda(app_client, app_ctx, productos_con_stock, c
     assert data.get('ok') is True
     assert data.get('modo') == 'tienda'
     assert (data.get('ped_web_codigo') or '').startswith('PED-WEB-')
+    assert data.get('cliente_registrado') is True
+    assert data.get('cliente_nombre') == 'Checkout QA Reg'
+    v = db.session.get(Venta, int(data['venta_id']))
+    assert v is not None and v.cliente_id
+    cli = db.session.get(Cliente, int(v.cliente_id))
+    assert cli is not None
+    assert 'Checkout QA Reg' in (cli.nombre or '')
+
+
+@pytest.mark.smoke
+def test_api_carrito_checkout_sin_contacto_rechaza(app_client, app_ctx, productos_con_stock, caja_abierta):
+    p = productos_con_stock[0]
+    precio = int(p.precio_venta or 1990)
+    r = app_client.post(
+        '/api/tienda/ferreteria-santo-domingo/carrito/checkout',
+        json={
+            'metodo': 'tienda',
+            'lineas': [
+                {
+                    'producto_id': p.id,
+                    'nombre': p.nombre,
+                    'precio': precio,
+                    'cantidad': 1,
+                    'disponible': True,
+                }
+            ],
+        },
+    )
+    assert r.status_code == 400
+    data = r.get_json()
+    assert data.get('ok') is False
+    assert data.get('error') == 'contacto_incompleto'
 
 
 @pytest.mark.smoke

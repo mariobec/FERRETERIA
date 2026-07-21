@@ -53,6 +53,23 @@ def etiqueta_semaforo(semaforo: str) -> str:
     return _ETIQUETAS.get(str(semaforo or "").lower(), "Sin clasificar")
 
 
+def formatear_ubicacion_pos(pasillo, estante, nivel) -> tuple[str, str]:
+    """Texto legible + código corto (P-E-N) para POS. Vacío si no hay ubicación."""
+    p = (str(pasillo or "")).strip()
+    e = (str(estante or "")).strip()
+    n = (str(nivel or "")).strip()
+    partes = []
+    if p:
+        partes.append(f"Pasillo {p}")
+    if e:
+        partes.append(f"Est. {e}")
+    if n:
+        partes.append(f"Nv. {n}")
+    label = " · ".join(partes)
+    codigo = "-".join([x for x in (p, e, n) if x])
+    return label, codigo
+
+
 def construir_badges_semaforo(
     item: dict,
     precio_min: float,
@@ -71,12 +88,30 @@ def construir_badges_semaforo(
     return badges
 
 
-def ordenar_candidatos_busqueda(candidatos: list[dict]) -> list[dict]:
+def ordenar_candidatos_busqueda(candidatos: list[dict], query: str | None = None) -> list[dict]:
     orden_semaforo = {SEMAFORO_VERDE: 0, SEMAFORO_AMARILLO: 1, SEMAFORO_AZUL: 2}
+    q = (query or "").strip().upper()
+    q_digits = "".join(ch for ch in q if ch.isdigit())
+
+    def _rank_codigo(c: dict) -> tuple:
+        """0 = código exacto; 1 = código más largo que contiene q; 2 = resto.
+        Evita que 11111 gane sobre 111110 cuando se busca/escanea 111110."""
+        if not q:
+            return (2, 0)
+        cod = (str(c.get("codigo") or c.get("codigo_barra") or "")).strip().upper()
+        cod_digits = "".join(ch for ch in cod if ch.isdigit())
+        if cod == q or (q_digits and cod_digits == q_digits):
+            return (0, -len(cod_digits or cod))
+        if q_digits and cod_digits and q_digits in cod_digits:
+            return (1, -len(cod_digits))
+        if q and q in cod:
+            return (1, -len(cod))
+        return (2, 0)
 
     def _key(c: dict) -> tuple:
         sem = str(c.get("semaforo") or SEMAFORO_AZUL)
         return (
+            _rank_codigo(c),
             orden_semaforo.get(sem, 9),
             -int(c.get("stock_tienda") or 0),
             -int(c.get("stock_bodega") or 0),
@@ -108,6 +143,10 @@ def enriquecer_item_busqueda_pos(
     permite_verde = pos_permite_venta_verde(cfg)
     dias = pos_dias_entrega_estimado(cfg)
     sufijo = codigo if codigo else f"id {pid}"
+    up = (str(row.get("ubicacion_pasillo") or "")).strip()
+    ue = (str(row.get("ubicacion_estante") or "")).strip()
+    un = (str(row.get("ubicacion_nivel") or "")).strip()
+    ubic_label, ubic_codigo = formatear_ubicacion_pos(up, ue, un)
     item = {
         "id": str(pid),
         "producto_id": pid,
@@ -127,6 +166,11 @@ def enriquecer_item_busqueda_pos(
         "permite_venta_verde": bool(permite_verde and sem == SEMAFORO_AZUL),
         "dias_entrega_estimado": dias if sem == SEMAFORO_AZUL else None,
         "unidad": unidad,
+        "ubicacion_pasillo": up,
+        "ubicacion_estante": ue,
+        "ubicacion_nivel": un,
+        "ubicacion_codigo": ubic_codigo,
+        "ubicacion_label": ubic_label,
     }
     return item
 
