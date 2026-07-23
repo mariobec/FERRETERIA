@@ -1,0 +1,35 @@
+/* Encabezado Chilemat + Ferretería — todos los tickets térmicos / HTML */
+.ticket-brand {
+  text-align: center;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.ticket-brand__logo {
+  display: block;
+  margin: 0 auto 4px;
+  max-width: 132px;
+  max-height: 40px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.ticket-brand--compact .ticket-brand__logo {
+  max-width: 118px;
+  max-height: 34px;
+  margin-bottom: 3px;
+}
+.ticket-brand__name {
+  margin: 0;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: inherit;
+}
+@media print {
+  .ticket-brand__logo {
+    max-width: 108px;
+    max-height: 32px;
+    margin-bottom: 3px;
+  }
+}

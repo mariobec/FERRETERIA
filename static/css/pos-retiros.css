@@ -1001,3 +1001,35 @@ body.page-pos-retiros .retiros-linea__btn:hover {
     justify-content: flex-end;
   }
 }
+
+/* Popup retiro ya completado */
+body.page-pos-retiros .retiros-completa {
+  border: 1px solid #bbf7d0;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 48%);
+}
+body.page-pos-retiros .retiros-completa__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem 1rem;
+  margin: 0;
+}
+body.page-pos-retiros .retiros-completa__grid dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rt-muted);
+  margin: 0 0 0.1rem;
+}
+body.page-pos-retiros .retiros-completa__grid dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--rt-ink);
+  line-height: 1.25;
+}
+@media (max-width: 560px) {
+  body.page-pos-retiros .retiros-completa__grid {
+    grid-template-columns: 1fr;
+  }
+}

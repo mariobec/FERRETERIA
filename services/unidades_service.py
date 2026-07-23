@@ -2,28 +2,58 @@
 
 from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect
 
 _UNIDADES_PESO = frozenset({'KG', 'KILO', 'KILOGRAMO', 'GR', 'G', 'GRAMO', 'GRAMOS'})
 
 
-def unidades_disponibles():
+def unidades_disponibles(force_refresh=False):
+    """True si existe unidades_medida (Postgres/MySQL vía SQLAlchemy inspect)."""
     import app as m
 
-    estado = m.app.config.get('_UNIDADES_OK')
-    if estado is not None:
-        return bool(estado)
+    if not force_refresh:
+        estado = m.app.config.get('_UNIDADES_OK')
+        if estado is not None:
+            return bool(estado)
     try:
-        ok = m.db.session.execute(
-            text(
-                'SELECT 1 FROM information_schema.tables '
-                "WHERE table_schema = DATABASE() AND table_name = 'unidades_medida' LIMIT 1"
-            )
-        ).scalar() is not None
+        insp = sa_inspect(m.db.engine)
+        ok = bool(insp.has_table('unidades_medida') and insp.has_table('conversiones_unidad'))
     except Exception:
+        try:
+            m.db.session.rollback()
+        except Exception:
+            pass
         ok = False
     m.app.config['_UNIDADES_OK'] = bool(ok)
     return bool(ok)
+
+
+def asegurar_tablas_unidades():
+    """Crea tablas de unidades/conversiones si faltan y siembra catálogo base."""
+    import app as m
+
+    if m.app.config.get('_UNIDADES_OK'):
+        seed_unidades_base()
+        return True
+    try:
+        if not unidades_disponibles(force_refresh=True):
+            m.db.create_all()
+            m.app.config.pop('_UNIDADES_OK', None)
+        if not unidades_disponibles(force_refresh=True):
+            return False
+        seed_unidades_base()
+        return True
+    except Exception as ex:
+        try:
+            m.db.session.rollback()
+        except Exception:
+            pass
+        try:
+            m.app.logger.warning('No se pudo asegurar tablas de unidades: %s', ex)
+        except Exception:
+            pass
+        m.app.config['_UNIDADES_OK'] = False
+        return False
 
 
 def seed_unidades_base():
@@ -42,6 +72,11 @@ def seed_unidades_base():
         ('SC', 'Saco', 'empaque'),
         ('RL', 'Rollo', 'empaque'),
         ('LT', 'Litro', 'volumen'),
+        ('PK', 'Pack', 'empaque'),
+        ('BL', 'Bolsa', 'empaque'),
+        ('KT', 'Kit', 'empaque'),
+        ('SET', 'Set', 'empaque'),
+        ('JG', 'Juego', 'empaque'),
     ]
     cambios = False
     for codigo, nombre, tipo in base:

@@ -43,7 +43,7 @@ def build_slices_retiro_ticket(
     if not tok:
         return []
     slices: list[dict[str, Any]] = []
-    labels = {'Tienda': 'TICKET QR [TIENDA]', 'Bodega': 'TICKET QR [BODEGA]'}
+    labels = {'Tienda': 'Retiro · Tienda', 'Bodega': 'Retiro · Bodega'}
     for canal in canales_retiro_ticket(venta, agrupar_fn=agrupar_fn, usar_bloques_fn=usar_bloques_fn):
         detalles = detalles_ticket_canal(venta, canal, agrupar_fn=agrupar_fn)
         if not detalles:

@@ -336,11 +336,41 @@
     }
   }
 
+  function findLineaPorProductoId(productoId) {
+    if (!tbody || productoId == null || productoId === "") return null;
+    const want = String(productoId);
+    const filas = tbody.querySelectorAll("tr.cot-linea-row");
+    for (let i = 0; i < filas.length; i++) {
+      const inp = filas[i].querySelector('input[name="det_producto_id"]');
+      if (inp && String(inp.value || "") === want) return filas[i];
+    }
+    return null;
+  }
+
   function agregarLinea(it, esManual) {
     if (filaVacia) filaVacia.remove();
-    const tr = document.createElement("tr");
     const manual = esManual || !(it.id || it.producto_id);
     const cant = parseFloat(it.cantidad != null ? it.cantidad : 1) || 1;
+    const pid = it.id || it.producto_id || "";
+
+    // Catálogo: mismo producto → sumar cantidad (no duplicar línea).
+    if (!manual && pid) {
+      const existente = findLineaPorProductoId(pid);
+      if (existente) {
+        const inpCant = existente.querySelector(".input-cant");
+        if (inpCant) {
+          const prev = parseFloat(inpCant.value || "0") || 0;
+          inpCant.value = String(Math.round((prev + cant) * 100) / 100);
+        }
+        recalcular();
+        try {
+          existente.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch (_) {}
+        return;
+      }
+    }
+
+    const tr = document.createElement("tr");
     const precio = Math.round(it.precio || 0);
     tr.innerHTML =
       '<td class="cot-linea-num-cell"><span class="cot-linea-num-val">0</span></td>' +

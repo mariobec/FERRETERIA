@@ -891,6 +891,29 @@ def _pos_impresion_browser_habilitada():
         return True
 
 
+def _imprimir_retiro_termica_tras_cobro(venta) -> bool:
+    """Best-effort: ticket de retiro a XP-80 tras cobro. True si salió OK."""
+    if not _pos_impresion_termica_habilitada():
+        return False
+    try:
+        from services.ticket_impresion_service import imprimir_retiro_termica
+
+        res = imprimir_retiro_termica(venta)
+        if res.get('ok'):
+            flash(f"Ticket de retiro enviado a {res.get('impresora', 'térmica')}.", 'info')
+            return True
+        flash(
+            f"Ticket de retiro térmico no salió: {res.get('mensaje') or res.get('error')}. "
+            "Puede reimprimir desde la vista del ticket.",
+            'warning',
+        )
+        return False
+    except Exception as ex:
+        app.logger.exception('Impresión térmica retiro venta %s: %s', getattr(venta, 'id', None), ex)
+        flash(f'Impresión térmica de retiro falló: {ex}', 'warning')
+        return False
+
+
 def _pos_autoprint_ticket_emitido_empresa():
     try:
         v = str(obtener_config_empresa().get('pos_autoprint_ticket_emitido', '0')).strip().lower()
@@ -1024,6 +1047,20 @@ def _monto_cobro_venta_ui(venta):
         except Exception:
             dto_promo = 0
     return float(max(0, bruto_lineas - dto_promo))
+
+
+def _pos_payload_totales_promo(venta) -> dict:
+    """Campos JSON compartidos: total post-promo + descuento para el dock POS."""
+    promo = _venta_contexto_promociones(venta) if venta else {
+        'descuento_promos_clp': 0,
+        'aplicaciones': [],
+    }
+    total = _pos_venta_total_clp(venta) if venta else 0
+    return {
+        'venta_total': int(round(total)),
+        'promo_descuento': int(promo.get('descuento_promos_clp') or 0),
+        'promo_aplicaciones': promo.get('aplicaciones') or [],
+    }
 
 
 def _venta_contexto_promociones(venta) -> dict:
@@ -3759,6 +3796,7 @@ def _enrol_serializar_producto(producto, sesion_id=None, sesion_almacen_id=None)
 
 _ENROL_UNIDADES_FERRETERIA = (
     'Unidad', 'Pieza', 'Par', 'Metro', 'Kilo', 'Caja', 'Rollo', 'Saco', 'Litro',
+    'Pack', 'Bolsa', 'Kit', 'Set', 'Juego',
 )
 
 
@@ -6882,6 +6920,10 @@ def _unidades_disponibles():
 
 def _seed_unidades_base():
     return _unidades_service.seed_unidades_base()
+
+
+def _asegurar_tablas_unidades():
+    return _unidades_service.asegurar_tablas_unidades()
 
 
 def _factor_compra_a_stock(producto):
@@ -17697,11 +17739,9 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
     except Exception:
         app.logger.exception('POS cross-sell')
     items = DetalleVenta.query.filter_by(id_venta=venta.id).count()
-    total_clp = _pos_venta_total_clp(venta)
-    return {
+    out = {
         'ok': True,
         'venta_id': venta.id,
-        'venta_total': float(total_clp),
         'items_count': items,
         'producto_id': producto.id,
         'producto_nombre': producto.nombre,
@@ -17710,6 +17750,10 @@ def _pos_agregar_producto_a_venta_abierta(producto, caja, vendedor_actual, a_ped
         'cantidad_en_vale': _pos_cantidad_producto_en_venta(venta, producto.id),
         'a_pedido': bool(a_pedido),
     }
+    out.update(_pos_payload_totales_promo(venta))
+    # Compat: algunos clientes históricos esperan float en venta_total
+    out['venta_total'] = float(out['venta_total'])
+    return out
 
 
 def api_pos_vales_hoy():
@@ -18024,13 +18068,16 @@ def api_pos_carrito_html():
         pos_dias_entrega_a_pedido=ctx.get('pos_dias_entrega_a_pedido'),
         pos_producto_ficha=ctx.get('pos_producto_ficha') or {},
     )
-    total = _pos_venta_total_clp(venta) if venta else 0
+    payload = _pos_payload_totales_promo(venta)
+    total = int(payload['venta_total'])
     return jsonify({
         'ok': True,
         'html': html,
         'venta_total': total,
         'venta_total_fmt': f'${total:,.0f}'.replace(',', '.') if venta else '$0',
         'items_count': len(detalles),
+        'promo_descuento': payload['promo_descuento'],
+        'promo_aplicaciones': payload['promo_aplicaciones'],
     })
 
 
@@ -18060,14 +18107,14 @@ def api_pos_retiro_linea():
     detalle.punto_retiro_linea = ret
     db.session.commit()
     venta = detalle.venta
-    total = float(venta.monto_total or 0) if venta else 0.0
     cnt = DetalleVenta.query.filter_by(id_venta=venta.id).count() if venta else 0
-    return jsonify({
+    out = {
         'ok': True,
         'punto_retiro_linea': ret,
-        'venta_total': int(round(total)),
         'items_count': cnt,
-    })
+    }
+    out.update(_pos_payload_totales_promo(venta))
+    return jsonify(out)
 
 
 def api_pos_escanear_agregar():
@@ -18442,12 +18489,9 @@ def eliminar_detalle(id):
         if n_lineas == 0 or float(venta.monto_total or 0) <= 0:
             _pos_cross_sell_clear_session_nueva_venta_pos()
     if request.form.get('pos_ajax') == '1':
-        total = float(venta.monto_total or 0)
-        return jsonify({
-            'ok': True,
-            'venta_total': int(round(total)),
-            'items_count': n_lineas,
-        })
+        out = {'ok': True, 'items_count': n_lineas}
+        out.update(_pos_payload_totales_promo(venta))
+        return jsonify(out)
     return redirect(url_for('punto_venta'))
 
 #eliminar venta abierta o pendiente desde pantalla de ventas........................................................................
@@ -18547,12 +18591,31 @@ def _redirect_tras_ticket_vale_denegado():
 
 
 def api_pos_imprimir_ticket_termica(venta_id):
-    """Reimpresión vale en térmica ESC/POS (XPrinter XP-80T, etc.)."""
-    from services.ticket_impresion_service import imprimir_vale_termica_por_id
+    """Reimpresión vale o ticket de retiro en térmica ESC/POS (XPrinter XP-80T, etc.)."""
+    data = request.get_json(silent=True) or {}
+    printer = (data.get('impresora') or request.form.get('impresora') or '').strip() or None
+    tipo = (data.get('tipo') or request.args.get('tipo') or 'vale').strip().lower()
+    if tipo in ('retiro', 'ticket_retiro', 'qr_retiro'):
+        from services.ticket_impresion_service import imprimir_retiro_termica_por_id
+
+        res = imprimir_retiro_termica_por_id(int(venta_id), printer_name=printer)
+    else:
+        from services.ticket_impresion_service import imprimir_vale_termica_por_id
+
+        res = imprimir_vale_termica_por_id(int(venta_id), printer_name=printer)
+    code = 200 if res.get('ok') else 400
+    if res.get('error') in ('no_venta', 'estado'):
+        code = 404
+    return jsonify(res), code
+
+
+def api_caja_imprimir_ticket_retiro(venta_id):
+    """Atajo caja: reimpresión térmica del ticket de retiro (venta Pagado)."""
+    from services.ticket_impresion_service import imprimir_retiro_termica_por_id
 
     data = request.get_json(silent=True) or {}
     printer = (data.get('impresora') or request.form.get('impresora') or '').strip() or None
-    res = imprimir_vale_termica_por_id(int(venta_id), printer_name=printer)
+    res = imprimir_retiro_termica_por_id(int(venta_id), printer_name=printer)
     code = 200 if res.get('ok') else 400
     if res.get('error') in ('no_venta', 'estado'):
         code = 404
@@ -19012,12 +19075,14 @@ def finalizar_venta():
     _pos_wall_set_vale_emitido(venta, cliente, caja=caja)
 
     flash(f"Vale N°{venta.id} emitido para {cliente.nombre}. Turno {venta.prioridad}.", "success")
+    thermal_ok = False
     if _pos_impresion_termica_habilitada():
         try:
             from services.ticket_impresion_service import imprimir_vale_termica
 
             res_imp = imprimir_vale_termica(venta)
-            if res_imp.get('ok'):
+            thermal_ok = bool(res_imp.get('ok'))
+            if thermal_ok:
                 flash(f"Ticket impreso en {res_imp.get('impresora', 'térmica')}.", "info")
             else:
                 flash(
@@ -19030,6 +19095,10 @@ def finalizar_venta():
             flash(f"Impresión térmica falló: {ex}", "warning")
     ep = _pos_emit_origen_redirect_endpoint()
     if _pos_autoprint_ticket_emitido_empresa() and _pos_impresion_browser_habilitada():
+        # Con térmica (escpos/both) el vale ya salió RAW. Abrir iframe + window.print
+        # reimprime el HTML en la XP-80 y se ve como «vale incorrecto».
+        if _pos_impresion_termica_habilitada():
+            return redirect(url_for(ep))
         return redirect(url_for(ep, ticket_iframe=str(venta.id)))
     return redirect(url_for(ep))
 
@@ -19219,20 +19288,14 @@ def _json_tras_actualizar_item_pos(detalle, ok=True, mensaje=None, status=400):
     if not ok:
         return jsonify({'ok': False, 'mensaje': mensaje or 'No se pudo actualizar.'}), status
     venta = detalle.venta if detalle else None
-    total = _pos_venta_total_clp(venta) if venta else 0
     cnt = (
         DetalleVenta.query.filter_by(id_venta=venta.id).count()
         if venta
         else 0
     )
-    promo = _venta_contexto_promociones(venta) if venta else {}
-    return jsonify({
-        'ok': True,
-        'venta_total': int(round(total)),
-        'items_count': cnt,
-        'promo_descuento': int(promo.get('descuento_promos_clp') or 0),
-        'promo_aplicaciones': promo.get('aplicaciones') or [],
-    })
+    out = {'ok': True, 'items_count': cnt}
+    out.update(_pos_payload_totales_promo(venta))
+    return jsonify(out)
 
 
 # proceso de actualización de cantidad y descuento en venta abierta desde punto de venta........................................
@@ -21912,16 +21975,22 @@ def procesar_cobro_caja(id):
                 }
                 if metodo == 'Transferencia':
                     body['transferencia_pendiente_confirmacion'] = True
+                else:
+                    # Mismo ticket de retiro que la cadena HTML (ESC/POS → XP-80)
+                    body['retiro_termica_ok'] = bool(_imprimir_retiro_termica_tras_cobro(venta))
                 return jsonify(body)
             flash(msg_fin, "success")
             if metodo == 'Transferencia':
                 return redirect(url_for('caja_transferencias', destacado=venta.id))
+            thermal_retiro_ok = _imprimir_retiro_termica_tras_cobro(venta)
             ticket_kw = {
                 'id': venta.id,
                 'vuelto': f"{float(venta.vuelto or 0):.2f}",
                 'auto_print': '1',
                 'chain_retiro': '1',
             }
+            if thermal_retiro_ok:
+                ticket_kw['termica_retiro'] = '1'
             if (request.form.get('return_to') or '').strip().lower() == 'prototipo':
                 ticket_kw['return_to'] = 'prototipo'
             return redirect(url_for('ver_ticket_cobro', **ticket_kw))
@@ -21950,9 +22019,17 @@ def ver_ticket_cobro(id):
     if venta.estado != 'Pagado':
         flash("El comprobante de control solo está disponible para ventas pagadas.", "warning")
         return redirect(url_for('caja_pendientes'))
-    retiro_url = url_for('ver_ticket_retiro', id=venta.id, auto_print='1')
+    retiro_kw = {'id': venta.id, 'auto_print': '1'}
+    # Ya se envió ESC/POS en cobro → no duplicar con window.print del navegador
+    if request.args.get('termica_retiro') == '1':
+        retiro_kw['skip_browser_print'] = '1'
+    elif not _pos_impresion_browser_habilitada():
+        # Modo escpos: sin diálogo Chrome; si el servidor falló, el cliente reintenta
+        retiro_kw['skip_browser_print'] = '1'
+        retiro_kw['auto_termica'] = '1'
     if (request.args.get('return_to') or '').strip().lower() == 'prototipo':
-        retiro_url = url_for('ver_ticket_retiro', id=venta.id, auto_print='1', return_to='prototipo')
+        retiro_kw['return_to'] = 'prototipo'
+    retiro_url = url_for('ver_ticket_retiro', **retiro_kw)
     return render_template(
         'ticket_cobro.html',
         venta=venta,
@@ -21963,6 +22040,7 @@ def ver_ticket_cobro(id):
         chain_retiro=(request.args.get('chain_retiro') == '1'),
         retiro_ticket_url=retiro_url,
         vuelto=float((request.args.get('vuelto') or venta.vuelto or 0)),
+        pos_impresion_termica=_pos_impresion_termica_habilitada(),
     )
 
 
@@ -21976,12 +22054,12 @@ def _ticket_retiro_slices_para_venta(venta):
         usar_bloques_fn=_ticket_usar_bloques_por_retiro,
         token_create_fn=pos_despacho_vale_token_create,
         url_qr_fn=url_despacho_qr_corta,
-        qr_png_fn=lambda u: _qr_data_uri_png(u, box_size=4, border=1),
+        qr_png_fn=lambda u: _qr_data_uri_png(u, box_size=5, border=1),
     )
 
 
 def ver_ticket_retiro(id):
-    """Ticket QR para el cliente (post-cobro). Mixto → una hoja por canal."""
+    """Ticket de retiro para el cliente (post-cobro). Mixto → precicado Tienda|Bodega en un rollo."""
     venta = (
         Venta.query.options(
             joinedload(Venta.cliente),
@@ -21990,19 +22068,31 @@ def ver_ticket_retiro(id):
         .get_or_404(id)
     )
     if venta.estado != 'Pagado':
-        flash('El ticket QR de retiro solo se imprime después del cobro en caja.', 'warning')
+        flash('El ticket de retiro solo se imprime después del cobro en caja.', 'warning')
         return redirect(url_for('caja_pendientes'))
     slices = _ticket_retiro_slices_para_venta(venta)
     if not slices:
         flash('No hay productos para generar ticket de retiro.', 'warning')
         return redirect(url_for('caja_pendientes'))
+    folio = f'VL{int(venta.id):06d}'
+    barcode_svg = None
+    try:
+        from services.barcode_code128_service import code128_svg_thermal
+
+        barcode_svg = code128_svg_thermal(folio, style_3d=True)
+    except Exception:
+        app.logger.exception('barcode ticket retiro %s', venta.id)
     return render_template(
         'ticket_retiro_qr.html',
         venta=venta,
         slices=slices,
+        barcode_svg=barcode_svg,
         empresa_cfg=obtener_config_empresa(),
         cajero_nombre=(current_user.nombre or '').strip() if current_user.is_authenticated else '',
         auto_print=(request.args.get('auto_print') == '1'),
+        skip_browser_print=(request.args.get('skip_browser_print') == '1'),
+        auto_termica=(request.args.get('auto_termica') == '1'),
+        pos_impresion_termica=_pos_impresion_termica_habilitada(),
         return_to=(request.args.get('return_to') or '').strip().lower(),
     )
 
@@ -22235,9 +22325,32 @@ def api_pos_retiros_buscar():
     else:
         mensaje = f'Estado: {st}'
 
+    cerrado_at = getattr(venta, 'entrega_ticket_cerrado_at', None)
+    entregado_por = []
+    try:
+        rows = (
+            ErpAuditLog.query.filter_by(
+                evento='entrega_ticket_linea',
+                entidad_tipo='venta',
+                entidad_id=int(venta.id),
+            )
+            .order_by(ErpAuditLog.id.desc())
+            .limit(30)
+            .all()
+        )
+        for row in rows:
+            u = (row.usuario or '').strip()
+            if u and u not in entregado_por:
+                entregado_por.append(u)
+            if len(entregado_por) >= 5:
+                break
+    except Exception:
+        entregado_por = []
+
     return jsonify(
         ok=True,
         venta_id=venta.id,
+        folio=f'VL{int(venta.id):06d}',
         estado_venta=st,
         estado_entrega=(getattr(venta, 'entrega_ticket_estado', None) or ('PENDIENTE' if st == 'Pagado' else '—')),
         pagado=(st == 'Pagado'),
@@ -22251,6 +22364,12 @@ def api_pos_retiros_buscar():
         lineas_pendientes=res.get('lineas_pendientes') or 0,
         lineas=lineas,
         mensaje=mensaje,
+        vendedor=(venta.usuario or '').strip(),
+        metodo_pago=(venta.metodo_pago or '').strip(),
+        fecha_venta=(venta.fecha.strftime('%d/%m/%Y %H:%M') if getattr(venta, 'fecha', None) else None),
+        fecha_cierre_entrega=(cerrado_at.strftime('%d/%m/%Y %H:%M') if cerrado_at else None),
+        entregado_por=entregado_por,
+        entregado_por_txt=(', '.join(entregado_por) if entregado_por else None),
     )
 
 def _buscar_productos_json(
@@ -25276,11 +25395,13 @@ def api_catalogo_pinturas_inferir_tono():
 @app.route('/admin/unidades', methods=['GET', 'POST'])
 @permisos_required('gestionar_usuarios')
 def admin_unidades():
-    if not _unidades_disponibles():
-        flash("La tabla de unidades no existe. Ejecuta la migración sql/2026_05_01_unidades_medida_conversiones.sql", "warning")
+    if not _asegurar_tablas_unidades():
+        flash(
+            "No se pudo inicializar el catálogo de unidades. Revise logs o cree las tablas "
+            "unidades_medida / conversiones_unidad.",
+            "warning",
+        )
         return redirect(url_for('inicio'))
-
-    _seed_unidades_base()
 
     if request.method == 'POST':
         action = request.form.get('action')
@@ -27759,12 +27880,21 @@ def api_registrar_entrega_ticket(vid):
     )
     res = venta_entrega_resumen(lineas)
     estado = (getattr(venta, 'entrega_ticket_estado', None) or '').strip() or 'PENDIENTE'
+    cerrado_at = getattr(venta, 'entrega_ticket_cerrado_at', None)
     return jsonify(
         ok=True,
-        mensaje='Entrega registrada.',
+        mensaje='Entrega registrada.' if not res.get('completa') else 'Retiro completado.',
         lineas=lineas,
         estado=estado,
+        estado_entrega=estado,
         completa=bool(res.get('completa')),
+        fecha_cierre_entrega=(cerrado_at.strftime('%d/%m/%Y %H:%M') if cerrado_at else None),
+        entregado_por_txt=usr,
+        vendedor=(venta.usuario or '').strip() if venta else '',
+        cliente=(venta.cliente.nombre if venta and venta.cliente else ''),
+        folio=f'VL{int(vid):06d}',
+        metodo_pago=(venta.metodo_pago or '').strip() if venta else '',
+        fecha_venta=(venta.fecha.strftime('%d/%m/%Y %H:%M') if venta and getattr(venta, 'fecha', None) else None),
     )
 
 
@@ -32492,6 +32622,7 @@ def _schema_ensure_on_startup():
         _asegurar_columnas_productos_legacy()
         _asegurar_columnas_cotizaciones_legacy()
         _asegurar_tablas_catalogo_pinturas_maestro()
+        _asegurar_tablas_unidades()
         _asegurar_columnas_detalle_ventas_legacy()
         _asegurar_columnas_usuario_pin_autorizacion()
         _asegurar_tabla_usuario_tarjeta_autorizacion()

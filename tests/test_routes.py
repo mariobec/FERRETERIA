@@ -198,8 +198,9 @@ class TestRutasAdmin:
         assert r.status_code in (200, 302)
 
     def test_admin_unidades(self, app_client):
-        r = app_client.get('/admin/unidades')
-        assert r.status_code in (200, 302)
+        r = app_client.get('/admin/unidades', follow_redirects=False)
+        assert r.status_code == 200
+        assert b'unidad' in r.data.lower() or b'Unidad' in r.data
 
     def test_admin_catalogo(self, app_client):
         r = app_client.get('/admin/catalogo')

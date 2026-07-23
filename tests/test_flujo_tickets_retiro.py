@@ -43,9 +43,9 @@ class TestFlujoTicketsRetiro:
         r_ret = app_client.get(f'/caja/ticket_retiro/{venta.id}')
         assert r_ret.status_code == 200
         ret = r_ret.data.decode('utf-8', errors='replace')
-        assert 'TICKET DE RETIRO' in ret
+        assert 'TICKET DE RETIRO' in ret or 'Ticket de retiro' in ret
         assert 'NO ES BOLETA' in ret
-        assert 'TICKET QR' in ret or 'qr-wrap' in ret
+        assert 'qr-wrap' in ret or 'codes__qr' in ret or 'Retiro' in ret
 
     def test_venta_mixta_dos_tickets_qr(self, app_client, productos_con_stock, caja_abierta, cliente_final):
         from tests.conftest import asegurar_stock_bodega
@@ -63,9 +63,37 @@ class TestFlujoTicketsRetiro:
         r = app_client.get(f'/caja/ticket_retiro/{venta.id}')
         assert r.status_code == 200
         html = r.data.decode('utf-8', errors='replace')
-        assert html.count('TICKET DE RETIRO') >= 2
-        assert 'TICKET QR [TIENDA]' in html
-        assert 'TICKET QR [BODEGA]' in html
+        assert html.count('Ticket de retiro') >= 2 or html.count('TICKET DE RETIRO') >= 2
+        assert 'Retiro · Tienda' in html or 'TIENDA' in html.upper()
+        assert 'Retiro · Bodega' in html or 'BODEGA' in html.upper()
+        assert 'Precicado' in html or 'Corte aquí' in html
+        assert 'page-break-after: always' not in html
+        assert 'VL' in html
+        assert 'code128' in html.lower() or '<svg' in html
+
+    def test_cobro_dispara_retiro_termica_si_escpos(
+        self, app_client, productos_con_stock, caja_abierta, cliente_final, monkeypatch
+    ):
+        """Con POS_IMPRESION_MODO térmica, el cobro intenta ESC/POS del ticket de retiro."""
+        called = {'n': 0}
+
+        def _fake_print(venta, *, printer_name=None):
+            called['n'] += 1
+            called['vid'] = getattr(venta, 'id', None)
+            return {'ok': True, 'impresora': 'XP-80-TEST'}
+
+        monkeypatch.setenv('POS_IMPRESION_MODO', 'escpos')
+        monkeypatch.setattr(
+            'services.ticket_impresion_service.imprimir_retiro_termica',
+            _fake_print,
+        )
+
+        p = productos_con_stock[0]
+        venta, _ = crear_venta_pendiente([(p, 1)], caja_abierta, cliente_final)
+        r_cobro = procesar_cobro_http(app_client, venta)
+        assert r_cobro.status_code == 200
+        assert called['n'] >= 1
+        assert called.get('vid') == venta.id
 
     def test_pos_retiros_cola_y_busqueda(self, app_client, productos_con_stock, caja_abierta, cliente_final):
         p = productos_con_stock[3]

@@ -13,7 +13,7 @@
 {% endmacro %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-retiros.css') }}?v=pos-retiros-mostrador-2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos-retiros.css') }}?v=pos-retiros-completa-20260723">
 {% endblock %}
 
 {% block content %}
@@ -249,7 +249,21 @@
           </div>
         </div>
 
-        <div class="retiros-modal__card">
+        <div id="posRetiroCompletaPanel" class="retiros-modal__card retiros-completa d-none" role="status">
+          <h3 class="retiros-modal__card-title"><i class="fas fa-circle-check me-2 text-success"></i>Retiro ya completado</h3>
+          <dl class="retiros-completa__grid mb-0">
+            <div><dt>Folio</dt><dd id="posRetiroCompletaFolio">—</dd></div>
+            <div><dt>Cliente</dt><dd id="posRetiroCompletaCliente">—</dd></div>
+            <div><dt>Fecha venta</dt><dd id="posRetiroCompletaFechaVenta">—</dd></div>
+            <div><dt>Fecha retiro</dt><dd id="posRetiroCompletaFechaCierre">—</dd></div>
+            <div><dt>Vendedor</dt><dd id="posRetiroCompletaVendedor">—</dd></div>
+            <div><dt>Entregó</dt><dd id="posRetiroCompletaEntrego">—</dd></div>
+            <div><dt>Medio de pago</dt><dd id="posRetiroCompletaPago">—</dd></div>
+            <div><dt>Estado</dt><dd id="posRetiroCompletaEstado">—</dd></div>
+          </dl>
+        </div>
+
+        <div id="posRetiroPendientesCard" class="retiros-modal__card">
           <h3 class="retiros-modal__card-title"><i class="fas fa-boxes-stacked me-2"></i>Productos por entregar</h3>
           <div id="posRetiroModalLineasList" class="retiros-lineas">
             <p class="retiros-lineas__empty text-muted small mb-0">Sin líneas para entregar en su canal.</p>
@@ -271,5 +285,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/pos-retiros.js') }}?v=pos-retiros-mostrador-2"></script>
+<script src="{{ url_for('static', filename='js/pos-retiros.js') }}?v=pos-retiros-completa-20260723"></script>
 {% endblock %}

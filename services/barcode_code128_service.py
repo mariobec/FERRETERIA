@@ -59,25 +59,34 @@ def code128_svg(
     show_text: bool = True,
     bar_color: str = "#0f172a",
     text_color: str = "#334155",
+    style_3d: bool = False,
 ) -> str:
     """
     SVG Code128B listo para incrustar en HTML/PDF.
-    Ideal para números de cotización (COT-000123).
+    Ideal para números de cotización (COT-000123) y folios VL######.
+
+    style_3d: barras más gruesas + sombra sutil (aspecto retail / “código 3D”);
+    el trazo negro sólido se mantiene escaneable.
     """
     label = (text or "").strip()
     values = _code128_values(label)
     modules = "".join(_CODE128_PATTERNS[v] for v in values)
-    bar_h = height - (16 if show_text else 0)
+    mw = float(module_width) * (1.15 if style_3d else 1.0)
+    bar_h = height - (18 if show_text else 0)
     total_modules = quiet_zone * 2 + len(modules)
-    width = total_modules * module_width
+    width = total_modules * mw
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.1f}" height="{height}" '
         f'viewBox="0 0 {width:.1f} {height}" role="img" aria-label="{_xml_escape(label)}">'
     ]
-    x = quiet_zone * module_width
+    x = quiet_zone * mw
     for bit in modules:
-        w = module_width
+        w = mw
         if bit == "1":
+            if style_3d:
+                parts.append(
+                    f'<rect x="{x + 0.7:.2f}" y="1.2" width="{w:.2f}" height="{bar_h}" fill="#94a3b8"/>'
+                )
             parts.append(
                 f'<rect x="{x:.2f}" y="0" width="{w:.2f}" height="{bar_h}" fill="{bar_color}"/>'
             )
@@ -85,12 +94,24 @@ def code128_svg(
     if show_text:
         parts.append(
             f'<text x="{width / 2:.1f}" y="{height - 3}" text-anchor="middle" '
-            f'font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" '
-            f'font-weight="700" fill="{text_color}" letter-spacing="0.06em">'
+            f'font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" '
+            f'font-weight="800" fill="{text_color}" letter-spacing="0.08em">'
             f'{_xml_escape(label)}</text>'
         )
     parts.append("</svg>")
     return "".join(parts)
+
+
+def code128_svg_thermal(text: str, *, style_3d: bool = True) -> str:
+    """Code128 optimizado para rollo 80 mm (pistola + lectura visual)."""
+    return code128_svg(
+        text,
+        height=58,
+        module_width=1.65,
+        quiet_zone=12,
+        show_text=True,
+        style_3d=style_3d,
+    )
 
 
 def _xml_escape(s: str) -> str:

@@ -274,3 +274,27 @@ def test_precio_par_cuatro_unidades_6400():
     assert r.subtotal_clp == 6800
     assert r.descuento_promos_clp == 400
     assert r.total_clp == 6400
+
+
+def test_lineas_desde_detalles_lee_id_producto():
+    """DetalleVenta legacy usa id_producto (no producto_id)."""
+    from services.promociones_service import lineas_desde_detalles_venta
+
+    class _Det:
+        id = 99
+        id_producto = 6511
+        cantidad = 2
+        precio_unitario = 1700
+        descuento = 0
+        subtotal = 3400
+        producto = None
+
+    lineas = lineas_desde_detalles_venta([_Det()])
+    assert len(lineas) == 1
+    assert lineas[0].producto_id == 6511
+    assert lineas[0].cantidad == 2.0
+    assert lineas[0].subtotal_clp == 3400
+
+    r = evaluar_promociones(lineas, [_regla_precio_par(6511)])
+    assert r.descuento_promos_clp == 200
+    assert r.total_clp == 3200

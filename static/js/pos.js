@@ -800,7 +800,7 @@
       if (descuentoEl) {
         descuentoEl.dataset.descuentoServidor = String(descuentoEl.value || "0");
       }
-      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      if (typeof data.venta_total === "number") posAplicarTotalesDesdeRespuesta(data);
       const dockCount = document.getElementById("posDockItemCount");
       if (dockCount && typeof data.items_count === "number") {
         dockCount.textContent = String(data.items_count);
@@ -839,7 +839,7 @@
         mostrarPosToast("No se pudo eliminar la línea.");
         return false;
       }
-      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      if (typeof data.venta_total === "number") posAplicarTotalesDesdeRespuesta(data);
       await posRefrescarCarritoVendedor();
       actualizarEstadoEmisionVale();
       posAsegurarDockVisible();
@@ -1059,7 +1059,7 @@
         const chip = card && card.querySelector(".pos-cart-card__chip--retiro");
         if (chip) chip.textContent = sel.value;
       }
-      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
+      if (typeof data.venta_total === "number") posAplicarTotalesDesdeRespuesta(data);
       const dockCount = document.getElementById("posDockItemCount");
       if (dockCount && typeof data.items_count === "number") {
         dockCount.textContent = String(data.items_count);
@@ -1101,8 +1101,8 @@
       document.querySelectorAll("[id^='subtotal_']").forEach(function (cell) {
         posWriteClpToEl(cell, posReadClpFromEl(cell));
       });
-      if (typeof data.venta_total === "number") actualizarTotalesVisuales(data.venta_total);
-      else actualizarTotalesVisuales(posSumarSubtotalesFilasBrutas());
+      if (typeof data.venta_total === "number") posAplicarTotalesDesdeRespuesta(data);
+      else actualizarTotalesVisuales(posSumarSubtotalesFilasBrutas(), 0);
       const dockCount = document.getElementById("posDockItemCount");
       if (dockCount && typeof data.items_count === "number") {
         dockCount.textContent = String(data.items_count);
@@ -1907,8 +1907,13 @@
     };
   }
 
-  function posTotalEfectivoDesdeDom(serverTotal) {
+  function posTotalEfectivoDesdeDom(serverTotal, promoDescuento) {
     const sumLineas = posSumarSubtotalesFilasBrutas();
+    const dto = Math.max(0, Math.round(Number(promoDescuento) || 0));
+    // Promo explícita: total = bruto líneas − beneficio (precio lista intacto en filas).
+    if (dto > 0 && sumLineas > 0) {
+      return Math.max(0, sumLineas - dto);
+    }
     let srv = 0;
     if (typeof serverTotal === "number" && !isNaN(serverTotal)) {
       srv = Math.max(0, Math.round(serverTotal));
@@ -1918,13 +1923,80 @@
     if (sumLineas > 0 && (srv === 0 || Math.abs(srv - sumLineas) <= 1)) {
       return sumLineas;
     }
-    return Math.max(srv, sumLineas);
+    // Motor promo: servidor trae total menor que la suma de líneas → confiar en servidor.
+    if (srv > 0 && sumLineas > 0 && srv + 1 < sumLineas) {
+      return srv;
+    }
+    if (srv > 0) return srv;
+    return sumLineas;
   }
 
-  function actualizarTotalesVisuales(total) {
+  function posLeerPromoDockClp() {
+    const el = document.getElementById("posDockPromoMeta");
+    if (!el) return 0;
+    const raw = el.getAttribute("data-pos-promo-clp");
+    if (raw != null && String(raw).trim() !== "") {
+      const n = parseInt(String(raw).trim(), 10);
+      if (!isNaN(n)) return Math.max(0, n);
+    }
+    return 0;
+  }
+
+  function posActualizarPromoDock(descuento) {
+    let el = document.getElementById("posDockPromoMeta");
+    const dto = Math.max(0, Math.round(Number(descuento) || 0));
+    if (!el) {
+      const totalEl = document.getElementById("monto_total");
+      const parent = totalEl && totalEl.parentElement;
+      if (!parent) return;
+      el = document.createElement("small");
+      el.id = "posDockPromoMeta";
+      el.className = "pos-dock-meta d-block text-success";
+      parent.insertBefore(el, totalEl);
+    }
+    el.setAttribute("data-pos-promo-clp", String(dto));
+    if (dto > 0) {
+      el.textContent = "Promo −" + formatoCLP(dto);
+      el.classList.remove("d-none");
+    } else {
+      el.textContent = "";
+      el.classList.add("d-none");
+    }
+  }
+
+  function posAplicarTotalesDesdeRespuesta(data) {
+    if (!data || typeof data !== "object") return;
+    const dto =
+      typeof data.promo_descuento === "number" && !isNaN(data.promo_descuento)
+        ? Math.max(0, Math.round(data.promo_descuento))
+        : undefined;
+    if (typeof data.venta_total === "number") {
+      actualizarTotalesVisuales(data.venta_total, dto);
+    } else if (dto !== undefined) {
+      posActualizarPromoDock(dto);
+      actualizarTotalesVisuales(posSumarSubtotalesFilasBrutas() - dto, dto);
+    }
+  }
+
+  function actualizarTotalesVisuales(total, promoDescuento) {
+    const hasExplicitPromo = promoDescuento !== undefined && promoDescuento !== null;
+    if (hasExplicitPromo) {
+      posActualizarPromoDock(promoDescuento);
+    }
+    // Tipado local (sin respuesta servidor): bruto de líneas. El AJAX reaplica promo.
+    const dtoForCalc = hasExplicitPromo
+      ? Math.max(0, Math.round(Number(promoDescuento) || 0))
+      : 0;
     const rounded = posTotalEfectivoDesdeDom(
-      typeof total === "number" ? total : posLeerTotalClpDesdeMontoEl()
+      typeof total === "number" ? total : posLeerTotalClpDesdeMontoEl(),
+      dtoForCalc
     );
+    if (!hasExplicitPromo && typeof total === "number" && !isNaN(total)) {
+      const sum = posSumarSubtotalesFilasBrutas();
+      if (sum > rounded + 1) {
+        posActualizarPromoDock(sum - rounded);
+      }
+    }
     const totalFmt = formatoCLP(rounded);
     const main = document.getElementById("monto_total");
     const cockpit = document.getElementById("monto_total_cockpit");
@@ -4577,7 +4649,11 @@
       });
     }
 
-    const totalInicial = posTotalEfectivoDesdeDom(posLeerTotalClpDesdeMontoEl());
+    const promoInicial = posLeerPromoDockClp();
+    const totalInicial = posTotalEfectivoDesdeDom(
+      posLeerTotalClpDesdeMontoEl(),
+      promoInicial
+    );
 
     document.querySelectorAll("[id^='precio_unitario_']").forEach(function (cell) {
       const valor = posReadClpFromEl(cell);
@@ -4589,7 +4665,7 @@
       posWriteClpToEl(cell, valor);
     });
 
-    actualizarTotalesVisuales(totalInicial);
+    actualizarTotalesVisuales(totalInicial, promoInicial);
 
     posRefreshCrossSellPanel();
 

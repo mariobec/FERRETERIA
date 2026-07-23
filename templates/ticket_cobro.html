@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vale interno — N° {{ venta.id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-brand.css') }}?v=ticket-brand-1">
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'Courier New', monospace; font-size: 12px; background: #f5f5f5; color: #111; }
@@ -24,7 +25,12 @@
     .estado { text-align: center; font-weight: bold; margin-top: 10px; padding: 6px; font-size: 12px; }
     .ok { color: #198754; }
     .cred { color: #856404; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; }
-    @media print { .toolbar { display: none !important; } body { background: #fff; } .ticket { border: none; margin: 0; } }
+    @media print {
+      .toolbar { display: none !important; }
+      html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; height: auto !important; min-height: 0 !important; }
+      .ticket { border: none; margin: 0 auto; width: 72mm; max-width: 72mm; padding: 4px 6px 6px; page-break-after: auto; }
+    }
+    @page { size: 80mm auto; margin: 0; }
   </style>
 </head>
 <body>
@@ -34,11 +40,15 @@
     {% else %}
     <a href="{{ url_for('caja_pendientes', ultima_venta=venta.id, vuelto='{:.2f}'.format(vuelto or 0)) }}" class="btn" style="background:#198754;">CAJA</a>
     {% endif %}
+    {% if not pos_impresion_termica %}
     <button type="button" class="btn" style="background:#2c3e50;" onclick="window.print()">IMPRIMIR</button>
+    {% endif %}
   </div>
 
   <div class="ticket">
-    <div class="center bold" style="font-size:14px;">{{ empresa_cfg.nombre_comercial }}</div>
+    {% set empresa_nom = empresa_cfg.nombre_comercial or empresa_cfg.razon_social or 'Ferretería Santo Domingo' %}
+    {% set ticket_brand_compact = true %}
+    {% include 'tickets/includes/ticket_brand_header.html' %}
     <div class="doc-type">VALE INTERNO — CAJA</div>
     <div class="no-boleta">NO ES BOLETA<br>Documento interno de control. Queda en caja — no entregar al cliente.</div>
     <div class="center" style="margin-top:6px;">
@@ -108,16 +118,19 @@
   <script>
     window.addEventListener('load', function () {
       try { if (window.JsBarcode) { JsBarcode("#barcodeFolio").init(); } } catch (e) {}
-      const autoPrint = {{ 'true' if auto_print else 'false' }};
-      const chainRetiro = {{ 'true' if chain_retiro else 'false' }};
-      const retiroUrl = {{ retiro_ticket_url|tojson }};
-      if (autoPrint) {
-        setTimeout(function () {
-          window.print();
-          if (chainRetiro && retiroUrl) {
-            setTimeout(function () { window.location.href = retiroUrl; }, 800);
-          }
-        }, 350);
+      var autoPrint = {{ 'true' if auto_print else 'false' }};
+      var chainRetiro = {{ 'true' if chain_retiro else 'false' }};
+      var retiroUrl = {{ retiro_ticket_url|tojson }};
+      var termica = {{ 'true' if pos_impresion_termica else 'false' }};
+      // Tras cobro el cliente recibe el ticket de RETIRO (1 vez).
+      // El vale de control de caja no se auto-imprime en cadena (evita 2 tickets / confusión).
+      if (chainRetiro && retiroUrl) {
+        setTimeout(function () { window.location.href = retiroUrl; }, 200);
+        return;
+      }
+      // Con térmica: no abrir diálogo Chrome (confunde con XP-80).
+      if (autoPrint && !termica) {
+        setTimeout(function () { window.print(); }, 350);
       }
     });
   </script>

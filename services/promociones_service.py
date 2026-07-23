@@ -423,7 +423,10 @@ def lineas_desde_detalles_venta(detalles: Iterable[Any]) -> list[LineaCarrito]:
         if prod is not None:
             marca = str(getattr(prod, 'marca', '') or getattr(prod, 'marca_nombre', '') or '')
             cat = getattr(prod, 'categoria_id', None)
+        # DetalleVenta usa id_producto; otros duck-types pueden traer producto_id.
         pid = getattr(d, 'producto_id', None)
+        if pid is None:
+            pid = getattr(d, 'id_producto', None)
         if pid is None and prod is not None:
             pid = getattr(prod, 'id', None)
         if pid is None:

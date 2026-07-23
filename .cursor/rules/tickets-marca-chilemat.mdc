@@ -1,0 +1,23 @@
+---
+description: Encabezado estándar de tickets (logo Chilemat + Ferretería Santo Domingo)
+globs: templates/ticket*.html,templates/tickets/**/*.html,services/ticket_impresion*.py
+alwaysApply: false
+---
+
+# Tickets — marca Chilemat
+
+Todo ticket HTML o comprobante imprimible debe llevar el encabezado estándar:
+
+1. **Logo Chilemat** (`static/img/chilemat_logo_oficial.png`, fallback SVG cotización)
+2. Debajo: **nombre comercial** (Ferretería Santo Domingo / `empresa_cfg.nombre_comercial`)
+
+Usar el include compartido:
+
+```jinja
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-brand.css') }}?v=ticket-brand-1">
+{% set empresa_nom = empresa_cfg.nombre_comercial if empresa_cfg is defined else 'Ferretería Santo Domingo' %}
+{% set ticket_brand_compact = true %}
+{% include 'tickets/includes/ticket_brand_header.html' %}
+```
+
+No inventar otro logo ni poner solo el nombre sin Chilemat. Impresión ESC/POS: línea `CHILEMAT` sobre el nombre comercial.

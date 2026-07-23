@@ -4,26 +4,266 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ticket de retiro — Vale N° {{ venta.id }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700;800&family=IBM+Plex+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-brand.css') }}?v=ticket-brand-1">
   <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #cbd5e1;
+      --tienda: #0f766e;
+      --bodega: #b45309;
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Courier New', monospace; font-size: 12px; background: #f5f5f5; color: #111; }
-    .toolbar { text-align: center; padding: 10px; border-bottom: 1px solid #ccc; }
-    .btn { display: inline-block; padding: 8px 14px; margin: 2px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; text-decoration: none; color: #fff; font-size: 12px; }
-    .ticket { width: 80mm; max-width: 100%; margin: 8px auto; padding: 10px; background: #fff; border: 1px solid #ddd; page-break-after: always; }
-    .ticket:last-child { page-break-after: auto; }
-    .center { text-align: center; }
-    .bold { font-weight: bold; }
-    .doc-type { text-align: center; font-weight: bold; font-size: 13px; letter-spacing: 0.04em; margin-top: 4px; }
-    .no-boleta { text-align: center; font-size: 10px; font-weight: bold; margin: 4px 0 6px; padding: 4px 6px; border: 1px dashed #333; line-height: 1.35; }
-    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
-    th, td { padding: 2px 0; border-bottom: 1px dotted #ccc; vertical-align: top; }
-    th { border-bottom: 1px solid #333; }
-    .num { text-align: right; white-space: nowrap; }
-    .canal { text-align: center; font-weight: bold; margin: 8px 0 4px; padding: 4px; border: 2px solid #111; font-size: 11px; }
-    .qr-wrap { text-align: center; margin: 10px 0; }
-    .qr-wrap img { width: 148px; height: 148px; }
-    .hint { font-size: 10px; color: #444; line-height: 1.35; margin-top: 6px; }
-    @media print { .toolbar { display: none !important; } body { background: #fff; } .ticket { border: none; margin: 0 auto; } }
+    body {
+      margin: 0;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      font-size: 12px;
+      background: #e8e8e4;
+      color: var(--ink);
+    }
+    .toolbar {
+      text-align: center;
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+    }
+    .btn {
+      display: inline-block;
+      padding: 8px 14px;
+      margin: 2px;
+      border: none;
+      border-radius: 5px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      color: #fff;
+      font-size: 12px;
+      font-family: inherit;
+    }
+
+    /* Un solo rollo continuo: sin saltos de página entre mitades = menos papel en blanco */
+    .roll {
+      width: 80mm;
+      max-width: 100%;
+      margin: 8px auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 0;
+    }
+    .half {
+      padding: 7px 8px 8px;
+    }
+    .half + .half {
+      padding-top: 4px;
+    }
+
+    .brand-wrap {
+      text-align: center;
+      margin: 0 0 2px;
+    }
+    .brand {
+      text-align: center;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      line-height: 1.2;
+      margin: 0;
+    }
+    .doc-type {
+      text-align: center;
+      font-weight: 800;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 3px 0 2px;
+    }
+    .no-boleta {
+      text-align: center;
+      font-size: 9px;
+      font-weight: 700;
+      margin: 3px 0 5px;
+      padding: 3px 5px;
+      border: 1px dashed #64748b;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+    .meta {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.35;
+      margin: 0 0 4px;
+    }
+    .meta strong { color: var(--ink); font-weight: 800; }
+
+    .canal {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 5px 0 6px;
+      padding: 5px 8px;
+      border: 2px solid var(--ink);
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .canal--tienda { border-color: var(--tienda); color: var(--tienda); }
+    .canal--bodega { border-color: var(--bodega); color: var(--bodega); }
+    .canal__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .codes {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin: 4px 0 6px;
+    }
+    .codes__qr img {
+      width: 112px;
+      height: 112px;
+      image-rendering: pixelated;
+    }
+    .codes__bar {
+      width: 100%;
+      text-align: center;
+      overflow: hidden;
+    }
+    .codes__bar svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .codes__hint {
+      font-size: 9px;
+      color: var(--muted);
+      text-align: center;
+      margin: 0;
+      line-height: 1.3;
+    }
+
+    table.lines {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 4px;
+      font-size: 11px;
+    }
+    table.lines th,
+    table.lines td {
+      padding: 2px 0;
+      border-bottom: 1px dotted var(--line);
+      vertical-align: top;
+      line-height: 1.25;
+    }
+    table.lines th {
+      border-bottom: 1.5px solid var(--ink);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    table.lines .num { text-align: right; white-space: nowrap; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+    .sub {
+      text-align: right;
+      font-weight: 800;
+      font-size: 11px;
+      margin-top: 5px;
+      padding-top: 4px;
+      border-top: 1px solid var(--ink);
+    }
+
+    /* Precicado estilo retail (Falabella / Sodimac) */
+    .tear {
+      position: relative;
+      margin: 2px 0 0;
+      padding: 7px 4px 5px;
+      text-align: center;
+    }
+    .tear::before {
+      content: '';
+      display: block;
+      border-top: 2px dashed #334155;
+      margin-bottom: 5px;
+    }
+    .tear__label {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink);
+      background: #fff;
+      padding: 0 6px;
+    }
+    .tear__hint {
+      display: block;
+      font-size: 8px;
+      color: var(--muted);
+      margin-top: 2px;
+      font-weight: 600;
+    }
+    .tear__notches {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 0;
+      pointer-events: none;
+    }
+    .tear__notches::before,
+    .tear__notches::after {
+      content: '';
+      position: absolute;
+      top: -1px;
+      width: 10px;
+      height: 10px;
+      background: #e8e8e4;
+      border-radius: 50%;
+    }
+    .tear__notches::before { left: -5px; }
+    .tear__notches::after { right: -5px; }
+
+    .foot {
+      text-align: center;
+      font-size: 8px;
+      color: var(--muted);
+      margin: 5px 0 0;
+      line-height: 1.3;
+    }
+
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+    @media print {
+      html, body {
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+      }
+      .toolbar { display: none !important; }
+      .roll {
+        width: 72mm;
+        max-width: 72mm;
+        margin: 0 auto;
+        border: none;
+        box-shadow: none;
+      }
+      .half { padding: 4px 5px 5px; }
+      .codes__qr img { width: 104px; height: 104px; }
+      .tear__notches::before,
+      .tear__notches::after { background: #fff; }
+      /* Evita página extra en blanco al final del rollo */
+      .roll, .half { page-break-inside: avoid; page-break-after: auto; }
+    }
   </style>
 </head>
 <body>
@@ -33,51 +273,123 @@
     {% else %}
     <a href="{{ url_for('caja_pendientes', ultima_venta=venta.id) }}" class="btn" style="background:#198754;">CAJA</a>
     {% endif %}
+    {% if not pos_impresion_termica %}
     <button type="button" class="btn" style="background:#2c3e50;" onclick="window.print()">IMPRIMIR</button>
+    {% endif %}
+    {% if pos_impresion_termica %}
+    <button type="button" class="btn" id="btnRetiroTermica" style="background:#0f766e;">TÉRMICA XP-80</button>
+    {% endif %}
   </div>
 
-  {% for sl in slices %}
-  <div class="ticket">
-    <div class="center bold" style="font-size:14px;">{{ empresa_cfg.nombre_comercial }}</div>
-    <div class="doc-type">TICKET DE RETIRO</div>
-    <div class="no-boleta">NO ES BOLETA<br>Comprobante para retirar mercadería. Entregar al cliente.</div>
-    <div class="canal">{{ sl.canal_label }}</div>
-    <div class="center" style="margin-top:6px;">
-      <span class="bold">Ticket N° {{ venta.id }}</span><br>
-      {{ venta.fecha.strftime('%d/%m/%Y %H:%M') if venta.fecha else '—' }}<br>
-      Cliente: {{ venta.cliente.nombre if venta.cliente else '—' }}
+  {% set folio = 'VL' ~ ('%06d' % venta.id) %}
+
+  <div class="roll">
+    {% for sl in slices %}
+    {% set canal_l = (sl.canal or 'Tienda')|lower %}
+    <section class="half" data-canal="{{ sl.canal }}">
+      {% set empresa_nom = empresa_cfg.nombre_comercial or empresa_cfg.razon_social or 'Ferretería Santo Domingo' %}
+      {% set ticket_brand_compact = true %}
+      {% include 'tickets/includes/ticket_brand_header.html' %}
+      <div class="doc-type">Ticket de retiro</div>
+      <div class="no-boleta">NO ES BOLETA · Comprobante para retirar mercadería</div>
+
+      <div class="canal canal--{{ 'bodega' if canal_l == 'bodega' else 'tienda' }}">
+        <span class="canal__dot" aria-hidden="true"></span>
+        {{ sl.canal_label or ('RETIRO ' ~ (sl.canal or 'TIENDA')|upper) }}
+      </div>
+
+      <div class="meta">
+        <strong>{{ folio }}</strong> · Ticket N° {{ venta.id }}<br>
+        {{ venta.fecha.strftime('%d/%m/%Y %H:%M') if venta.fecha else '—' }}<br>
+        Cliente: <strong>{{ venta.cliente.nombre if venta.cliente else '—' }}</strong>
+      </div>
+
+      <div class="codes">
+        <div class="codes__qr">
+          {% if sl.qr_src %}
+          <img src="{{ sl.qr_src }}" alt="QR retiro {{ sl.canal }}">
+          {% else %}
+          <p class="codes__hint">QR no disponible — use {{ folio }} en Retiros</p>
+          {% endif %}
+        </div>
+        {% if barcode_svg %}
+        <div class="codes__bar">{{ barcode_svg|safe }}</div>
+        {% endif %}
+        <p class="codes__hint">Escanee QR o código de barras en pantalla Retiros</p>
+      </div>
+
+      <table class="lines">
+        <thead>
+          <tr><th>Producto</th><th class="num">Cant</th></tr>
+        </thead>
+        <tbody>
+          {% for d in sl.detalles %}
+          <tr>
+            <td>{{ d.producto.nombre if d.producto else ('#' ~ d.id_producto) }}</td>
+            <td class="num">{{ d.cantidad }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="sub">Subtotal {{ sl.canal }}: ${{ "{:,.0f}".format(sl.subtotal or 0).replace(",", ".") }}</div>
+      <p class="foot">La boleta fiscal es la de su pago (tarjeta u otro medio).</p>
+    </section>
+
+    {% if not loop.last %}
+    <div class="tear" aria-hidden="true">
+      <div class="tear__notches"></div>
+      <span class="tear__label">✂ Corte aquí · Precicado</span>
+      <span class="tear__hint">Entregue esta mitad en {{ slices[loop.index].canal if slices[loop.index] is defined else 'el otro mesón' }}</span>
     </div>
-    <div class="qr-wrap">
-      {% if sl.qr_src %}
-      <img src="{{ sl.qr_src }}" alt="QR retiro {{ sl.canal }}">
-      {% else %}
-      <div class="hint">QR no disponible — use VL{{ '%06d' % venta.id }} en pantalla Retiros</div>
-      {% endif %}
-    </div>
-    <table>
-      <thead>
-        <tr><th>Producto</th><th class="num">Cant</th></tr>
-      </thead>
-      <tbody>
-        {% for d in sl.detalles %}
-        <tr>
-          <td>{{ d.producto.nombre if d.producto else ('#' ~ d.id_producto) }}</td>
-          <td class="num">{{ d.cantidad }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <div class="center bold" style="margin-top:8px;">Subtotal canal: ${{ "{:,.0f}".format(sl.subtotal or 0).replace(",", ".") }}</div>
-    <p class="center hint">Escanee este QR en pantalla Retiros o mesón para retirar.</p>
-    <p class="center no-boleta" style="margin-top:6px;font-weight:normal;">La boleta fiscal es la de su pago (tarjeta Klap u otro medio).</p>
+    {% endif %}
+    {% endfor %}
   </div>
-  {% endfor %}
 
   <script>
     window.addEventListener('load', function () {
       var autoPrint = {{ 'true' if auto_print else 'false' }};
-      if (autoPrint) {
-        setTimeout(function () { window.print(); }, 400);
+      var skipBrowser = {{ 'true' if skip_browser_print else 'false' }};
+      var autoTermica = {{ 'true' if auto_termica else 'false' }};
+      var termica = {{ 'true' if pos_impresion_termica else 'false' }};
+      var ventaId = {{ venta.id | tojson }};
+
+      function imprimirTermica(manual) {
+        return fetch('/api/caja/imprimir-ticket-retiro/' + encodeURIComponent(ventaId), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: '{}',
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            var d = res.data || {};
+            if (manual) {
+              alert(d.ok
+                ? ('Enviado a impresora: ' + (d.impresora || 'térmica'))
+                : (d.mensaje || d.error || 'No se pudo imprimir'));
+            }
+            return d;
+          })
+          .catch(function () {
+            if (manual) alert('Error de red al imprimir térmica.');
+            return { ok: false };
+          });
+      }
+
+      var btnT = document.getElementById('btnRetiroTermica');
+      if (btnT) {
+        btnT.addEventListener('click', function () {
+          btnT.disabled = true;
+          imprimirTermica(true).finally(function () { btnT.disabled = false; });
+        });
+      }
+
+      // Cobro: ESC/POS ya salió en servidor (skipBrowser) o reintento cliente (autoTermica).
+      // Con térmica nunca abrir diálogo Chrome (confunde con XP-80).
+      if (autoPrint && autoTermica && termica) {
+        setTimeout(function () { imprimirTermica(false); }, 200);
+      } else if (autoPrint && !skipBrowser && !termica) {
+        setTimeout(function () { window.print(); }, 350);
       }
     });
   </script>

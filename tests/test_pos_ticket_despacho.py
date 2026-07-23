@@ -38,6 +38,8 @@ def test_emitir_vale_no_agrega_ticket_iframe_si_autoprint_apagado(app_client, pr
 
 def test_pos_ticket_vale_tras_emitir(app_client, productos_con_stock, monkeypatch):
     monkeypatch.setattr(m, '_pos_autoprint_ticket_emitido_empresa', lambda: True)
+    monkeypatch.setattr(m, '_pos_impresion_termica_habilitada', lambda: False)
+    monkeypatch.setattr(m, '_pos_impresion_browser_habilitada', lambda: True)
     _ensure_caja_abierta()
     app_client.get('/punto_venta')
     p = productos_con_stock[2]
@@ -74,6 +76,78 @@ def test_pos_ticket_vale_tras_emitir(app_client, productos_con_stock, monkeypatc
     assert rt.status_code == 200
     assert b'VALE' in rt.data
     assert b'PICKING BODEGA' not in rt.data or b'PICKING' in rt.data
+
+
+def test_emitir_vale_both_termica_ok_no_duplica_iframe(app_client, productos_con_stock, monkeypatch):
+    """Modo both + térmica: no abrir iframe (evita HTML «vale incorrecto» en la XP-80)."""
+    monkeypatch.setattr(m, '_pos_autoprint_ticket_emitido_empresa', lambda: True)
+    monkeypatch.setattr(m, '_pos_impresion_termica_habilitada', lambda: True)
+    monkeypatch.setattr(m, '_pos_impresion_browser_habilitada', lambda: True)
+    monkeypatch.setattr(
+        'services.ticket_impresion_service.imprimir_vale_termica',
+        lambda venta: {'ok': True, 'impresora': 'XP-80-TEST'},
+    )
+    _ensure_caja_abierta()
+    app_client.get('/punto_venta')
+    p = productos_con_stock[2]
+    r_scan = app_client.post(
+        '/api/pos/escanear-agregar',
+        json={'codigo': p.codigo_barra},
+        content_type='application/json',
+    )
+    if r_scan.status_code == 409 and r_scan.get_json().get('error') == 'en_vale_pendiente':
+        pytest.skip('Producto bloqueado por vale pendiente previo en QA')
+    assert r_scan.status_code == 200, r_scan.get_json()
+    vid = r_scan.get_json().get('venta_id')
+    rv = app_client.post(
+        '/finalizar_venta',
+        data={
+            'cliente_final': '1',
+            'punto_retiro': 'Tienda',
+            'pos_exigir_rut': '1',
+            'pos_emit_origen': 'punto_venta',
+        },
+        follow_redirects=False,
+    )
+    assert rv.status_code == 302
+    loc = (rv.headers.get('Location') or '')
+    assert '/punto_venta' in loc
+    assert 'ticket_iframe=' not in loc
+    assert vid
+
+
+def test_emitir_vale_termica_falla_tampoco_abre_iframe(app_client, productos_con_stock, monkeypatch):
+    """Aunque falle el RAW, no caer al print HTML de Chrome hacia la XP-80."""
+    monkeypatch.setattr(m, '_pos_autoprint_ticket_emitido_empresa', lambda: True)
+    monkeypatch.setattr(m, '_pos_impresion_termica_habilitada', lambda: True)
+    monkeypatch.setattr(m, '_pos_impresion_browser_habilitada', lambda: True)
+    monkeypatch.setattr(
+        'services.ticket_impresion_service.imprimir_vale_termica',
+        lambda venta: {'ok': False, 'error': 'sin_impresora', 'mensaje': 'test'},
+    )
+    _ensure_caja_abierta()
+    app_client.get('/punto_venta')
+    p = productos_con_stock[2]
+    r_scan = app_client.post(
+        '/api/pos/escanear-agregar',
+        json={'codigo': p.codigo_barra},
+        content_type='application/json',
+    )
+    if r_scan.status_code == 409 and r_scan.get_json().get('error') == 'en_vale_pendiente':
+        pytest.skip('Producto bloqueado por vale pendiente previo en QA')
+    assert r_scan.status_code == 200, r_scan.get_json()
+    rv = app_client.post(
+        '/finalizar_venta',
+        data={
+            'cliente_final': '1',
+            'punto_retiro': 'Tienda',
+            'pos_exigir_rut': '1',
+            'pos_emit_origen': 'punto_venta',
+        },
+        follow_redirects=False,
+    )
+    assert rv.status_code == 302
+    assert 'ticket_iframe=' not in (rv.headers.get('Location') or '')
 
 
 def test_pos_despacho_vale_token_verify():

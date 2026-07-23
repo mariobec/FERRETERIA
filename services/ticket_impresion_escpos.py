@@ -73,8 +73,112 @@ def _money_clp(n: float | int) -> str:
 
 
 def _size_double(on: bool) -> bytes:
-    """Doble alto+ancho (cabecera tipo ticket HTML)."""
+    """Doble alto+ancho (solo montos cortos; nombres largos se rompen en XP-80)."""
     return GS + b'!' + (bytes([0x11]) if on else bytes([0x00]))
+
+
+def _size_double_height(on: bool) -> bytes:
+    """Solo doble alto: cabe el nombre completo a 48 columnas."""
+    return GS + b'!' + (bytes([0x10]) if on else bytes([0x00]))
+
+
+def _fold_thermal(text: str) -> str:
+    """Quita tildes / símbolos raros para que la térmica no desalineé con CP850."""
+    if not text:
+        return ''
+    table = str.maketrans({
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u', 'ñ': 'n',
+        'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ü': 'U', 'Ñ': 'N',
+        '·': '-', '•': '-', '–': '-', '—': '-', '°': ' ',
+    })
+    return (text or '').translate(table)
+
+
+def _empresa_lineas_marca(empresa: str) -> list[str]:
+    """Misma jerarquía que cotización: FERRETERIA / SANTO DOMINGO."""
+    raw = _fold_thermal((empresa or 'Ferreteria Santo Domingo').strip())
+    parts = [p for p in raw.replace('  ', ' ').split(' ') if p]
+    if not parts:
+        return ['FERRETERIA', 'SANTO DOMINGO']
+    first = parts[0].upper()
+    if first.startswith('FERRETER'):
+        line1 = 'FERRETERIA'
+        line2 = ' '.join(parts[1:]).upper() or 'SANTO DOMINGO'
+        return [line1[:COLS], line2[:COLS]]
+    wrapped = _wrap(raw.upper(), COLS)
+    return [ln[:COLS] for ln in wrapped[:3]]
+
+
+def _raster_gs_v0(img_path: str, *, max_width_px: int = 384) -> bytes:
+    """Logo monocromo ESC/POS (GS v 0) para XP-80 / Epson-compat."""
+    try:
+        from PIL import Image
+    except Exception:
+        return b''
+    try:
+        im = Image.open(img_path)
+        im = im.convert('RGBA')
+        # Fondo blanco bajo transparencia
+        bg = Image.new('RGBA', im.size, (255, 255, 255, 255))
+        bg.paste(im, mask=im.split()[3] if 'A' in im.getbands() else None)
+        im = bg.convert('L')
+        w, h = im.size
+        if w > max_width_px:
+            nh = max(1, int(round(h * (max_width_px / float(w)))))
+            im = im.resize((max_width_px, nh), Image.Resampling.LANCZOS)
+            w, h = im.size
+        # Umbral: logo oscuro sobre blanco
+        bw = im.point(lambda x: 0 if x < 200 else 255, mode='1')
+        row_bytes = (w + 7) // 8
+        data = bytearray()
+        px = bw.load()
+        for y in range(h):
+            for xb in range(row_bytes):
+                byte = 0
+                for bit in range(8):
+                    x = xb * 8 + bit
+                    if x < w and px[x, y] == 0:
+                        byte |= 0x80 >> bit
+                data.append(byte)
+        out = bytearray()
+        out += _align(1)
+        # GS v 0 m xL xH yL yH d...
+        out += GS + b'v0' + bytes([0, row_bytes % 256, row_bytes // 256, h % 256, h // 256])
+        out += bytes(data)
+        out += b'\n'
+        out += _align(0)
+        return bytes(out)
+    except Exception:
+        return b''
+
+
+def _cabecera_marca_bytes(empresa: str) -> bytes:
+    """Logo Chilemat (si hay PNG) + FERRETERIA / SANTO DOMINGO centrados."""
+    from pathlib import Path
+
+    out = bytearray()
+    out += _align(1)
+    root = Path(__file__).resolve().parents[1]
+    logo = root / 'static' / 'img' / 'chilemat_logo_oficial.png'
+    raster = b''
+    if logo.is_file():
+        # ~48mm de ancho en 80mm (deja márgenes)
+        raster = _raster_gs_v0(str(logo), max_width_px=280)
+    if raster:
+        out += raster
+    else:
+        out += _bold(True)
+        out += _line('CHILEMAT')
+        out += _bold(False)
+        out += _line('TRADICION FERRETERA')
+    out += _bold(True)
+    out += _size_double_height(True)
+    for ln in _empresa_lineas_marca(empresa):
+        out += _line(ln)
+    out += _size_double_height(False)
+    out += _bold(False)
+    out += _align(0)
+    return bytes(out)
 
 
 def _barcode_code128(code: str) -> bytes:
@@ -94,17 +198,25 @@ def _barcode_code128(code: str) -> bytes:
 
 
 def _qr_model2(text: str, module_size: int = 5) -> bytes:
-    """QR modelo 2 (compatible Epson / XPrinter XP-80)."""
+    """QR modelo 2 (Epson / XPrinter XP-80) — secuencia GS ( k correcta."""
     data = (text or '').strip().encode('utf-8')
     if not data:
         return b''
+    size = max(1, min(16, int(module_size or 5)))
     out = bytearray()
-    # Almacenar símbolo QR (fn=80)
-    store_params = bytes([0x31, 0x50, 0x30, module_size, 0x31]) + data
-    pl = len(store_params)
-    out += GS + b'(k' + bytes([pl % 256, pl // 256]) + store_params
-    # Imprimir QR almacenado (fn=81)
-    out += GS + b'(k' + bytes([3, 0, 0x31, 0x51, 0x30])
+    out += _align(1)
+    # Modelo 2: GS ( k 04 00 31 41 32 00
+    out += GS + b'(k' + bytes([4, 0, 49, 65, 50, 0])
+    # Tamaño módulo: GS ( k 03 00 31 43 n
+    out += GS + b'(k' + bytes([3, 0, 49, 67, size])
+    # Corrección M (15%): GS ( k 03 00 31 45 31
+    out += GS + b'(k' + bytes([3, 0, 49, 69, 49])
+    # Guardar datos: GS ( k pL pH 31 50 30 d1..dk
+    store = bytes([49, 80, 48]) + data
+    pl = len(store)
+    out += GS + b'(k' + bytes([pl % 256, pl // 256]) + store
+    # Imprimir: GS ( k 03 00 31 51 30
+    out += GS + b'(k' + bytes([3, 0, 49, 81, 48])
     out += b'\n'
     return bytes(out)
 
@@ -131,21 +243,18 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
     out = bytearray()
     out += _cmd_init()
 
-    empresa = (ctx.get('empresa') or 'Ferreteria').strip()
+    empresa = (ctx.get('empresa') or 'Ferreteria Santo Domingo').strip()
     venta_id = ctx.get('venta_id')
     folio = (ctx.get('folio_barcode') or f'VL{int(venta_id or 0):06d}').strip()
 
-    # --- Cabecera (como HTML: nombre comercial centrado) ---
+    # --- Cabecera: logo Chilemat + FERRETERIA / SANTO DOMINGO (sin doble ancho) ---
+    out += _cabecera_marca_bytes(empresa)
     out += _align(1)
-    out += _size_double(True)
-    out += _bold(True)
-    out += _line(empresa[:COLS // 2])
-    out += _bold(False)
-    out += _size_double(False)
-    direccion = (ctx.get('direccion_empresa') or '').strip()
+    direccion = _fold_thermal((ctx.get('direccion_empresa') or '').strip())
     tel_hdr = (ctx.get('telefono_contacto') or '').strip()
     if direccion:
-        out += _line(direccion[:COLS])
+        for ln in _wrap(direccion, COLS):
+            out += _line(ln)
     if tel_hdr:
         out += _line(tel_hdr[:COLS])
     out += _align(0)
@@ -253,11 +362,11 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
     out += _sep('=')
     out += _align(2)
     out += _bold(True)
-    out += _size_double(True)
+    out += _size_double_height(True)
     if bloques:
         out += _line('TOTAL A PAGAR')
     out += _line(f'${_fmt_clp_tabla(ctx.get("total", 0))}')
-    out += _size_double(False)
+    out += _size_double_height(False)
     out += _bold(False)
     out += _align(0)
 
@@ -273,6 +382,7 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
         out += _line('se imprime tras el cobro')
     out += _bold(False)
     out += _align(0)
+    # Margen de avance antes del corte (evita cortar el pie en XP-80)
 
     # --- QR al pie (lector fijo bodega) ---
     if qr_url and not sin_qr:
@@ -286,8 +396,110 @@ def build_vale_escpos_bytes(ctx: dict[str, Any]) -> bytes:
         out += _line('QR despacho · tienda y bodega')
         out += _align(0)
 
-    out += b'\n\n\n'
+    out += b'\n\n\n\n\n'
     out += _cmd_cut()
+    return bytes(out)
+
+
+def build_retiro_escpos_bytes(ctx: dict[str, Any]) -> bytes:
+    """Ticket de retiro post-cobro alineado a ticket_retiro_qr.html → XP-80."""
+    out = bytearray()
+    out += _cmd_init()
+
+    empresa = (ctx.get('empresa') or 'Ferreteria Santo Domingo').strip()
+    venta_id = ctx.get('venta_id')
+    folio = (ctx.get('folio_barcode') or f'VL{int(venta_id or 0):06d}').strip()
+    fecha = (ctx.get('fecha_fmt') or '').strip()
+    cliente = _fold_thermal(str(ctx.get('cliente') or 'Cliente final'))
+    slices = ctx.get('slices') or []
+    sin_qr = (os.getenv('POS_TICKET_TERMICA_SIN_QR') or '').strip().lower() in (
+        '1',
+        'true',
+        'si',
+        'yes',
+        'on',
+    )
+
+    if not slices:
+        out += _cabecera_marca_bytes(empresa)
+        out += _align(1)
+        out += _bold(True)
+        out += _line('TICKET DE RETIRO')
+        out += _bold(False)
+        out += _line(f'N {venta_id} · {folio}')
+        out += _align(0)
+        out += _barcode_code128(folio)
+        out += b'\n\n\n\n\n'
+        out += _cmd_cut()
+        return bytes(out)
+
+    for i, sl in enumerate(slices):
+        # Misma jerarquía que la vista HTML
+        out += _cabecera_marca_bytes(empresa)
+        out += _align(1)
+        out += _bold(True)
+        out += _line('TICKET DE RETIRO')
+        out += _bold(False)
+        out += _line('NO ES BOLETA')
+        out += _line('Comprobante para retirar mercaderia')
+        canal = (sl.get('canal') or 'Tienda').strip()
+        label = _fold_thermal(str(sl.get('canal_label') or f'RETIRO - {canal}'))
+        out += _bold(True)
+        out += _size_double_height(True)
+        out += _line(label.upper()[:COLS])
+        out += _size_double_height(False)
+        out += _bold(False)
+        out += _line(f'{folio} - Ticket N {venta_id}')
+        if fecha:
+            out += _line(fecha)
+        out += _line(f'Cliente: {cliente}'[:COLS])
+        out += _align(0)
+
+        # HTML: QR primero, luego Code128 (lector Retiros)
+        qr_url = (sl.get('qr_url') or '').strip()
+        out += b'\n'
+        out += _align(1)
+        if qr_url and not sin_qr:
+            out += _qr_model2(qr_url, module_size=6)
+        out += _barcode_code128(folio)
+        out += _line('Escanee QR o barras en Retiros')
+        out += _align(0)
+
+        out += _sep('-')
+        out += _bold(True)
+        out += _line('PRODUCTO'.ljust(COLS - 6) + 'CANT'.rjust(6))
+        out += _bold(False)
+        out += _sep('-')
+        for ln in sl.get('lineas') or []:
+            nom = _fold_thermal(str(ln.get('nombre') or '-'))[: COLS - 6]
+            cant = str(int(ln.get('cantidad') or 0)).rjust(6)
+            out += _line(f'{nom.ljust(COLS - 6)}{cant}')
+        out += _sep('=')
+        out += _align(2)
+        out += _bold(True)
+        out += _line(f"Subtotal {canal}: ${_fmt_clp_tabla(sl.get('subtotal', 0))}")
+        out += _bold(False)
+        out += _align(0)
+
+        out += _align(1)
+        out += _line('La boleta fiscal es la de su pago')
+        out += _align(0)
+
+        # Precicado físico: corte total entre mitades (dos papeles, no un solo rollo).
+        out += b'\n\n\n'
+        if i < len(slices) - 1:
+            out += _align(1)
+            out += _bold(True)
+            out += _line('>>> Corte / Precicado <<<')
+            out += _bold(False)
+            out += _align(0)
+            out += b'\n\n'
+            out += _cmd_cut()
+            out += _cmd_init()
+        else:
+            out += b'\n\n'
+            out += _cmd_cut()
+
     return bytes(out)
 
 

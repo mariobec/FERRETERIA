@@ -1929,8 +1929,12 @@ body.erp-ops-space .alert-warning {
 body.erp-ops-space .alert-warning strong,
 body.erp-ops-space .alert-warning em,
 body.erp-ops-space .alert-warning .form-check-label,
-body.erp-ops-space .alert-warning .small {
+body.erp-ops-space .alert-warning .small,
+body.erp-ops-space .alert-warning .fw-bold,
+body.erp-ops-space .alert-warning .caja-alert-saldo__title,
+body.erp-ops-space .alert-warning .caja-alert-saldo__detail {
     color: #451a03 !important;
+    -webkit-text-fill-color: #451a03 !important;
 }
 
 body.erp-ops-space .alert-warning .form-control {

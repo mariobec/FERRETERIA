@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ "Vale Pendiente" if es_vale else "Boleta Pagada" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-brand.css') }}?v=ticket-brand-1">
     <style>
         body { font-family: "Courier New", monospace; font-size: 14px; }
         .ticket { width: 80mm; margin: auto; padding: 5px; }
-        .logo { text-align: center; margin-bottom: 10px; }
-        .logo img { max-width: 60mm; }
         .header { text-align: center; margin-bottom: 10px; }
         .header h2 { margin: 0; font-size: 18px; }
+        .ticket-brand__name { font-size: 16px; }
         .cliente { text-align: center; font-size: 16px; font-weight: bold; margin: 8px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
         th, td { text-align: left; padding: 2px; font-size: 13px; }
@@ -26,12 +26,10 @@
         <button onclick="window.print()" class="btn" style="background:#2c3e50;">IMPRIMIR</button>
     </div>
     <div class="ticket">
-        <div class="logo">
-            <!-- Logo de la ferretería -->
-            <img src="/static/logo.png" alt="Logo Ferretería">
-        </div>
         <div class="header">
-            <h2>Ferretería Santo Domingo</h2>
+            {% set empresa_nom = 'Ferretería Santo Domingo' %}
+            {% set ticket_brand_compact = true %}
+            {% include 'tickets/includes/ticket_brand_header.html' %}
             <p>Folio N° {{ venta.id }}</p>
             <p>Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</p>
             <p>{{ "Vendedor" if es_vale else "Cajero" }}: {{ venta.usuario }}</p>

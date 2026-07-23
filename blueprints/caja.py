@@ -208,6 +208,12 @@ def register_caja_routes(app):
         methods=['GET'],
     )
     app.add_url_rule(
+        '/api/caja/imprimir-ticket-retiro/<int:venta_id>',
+        'api_caja_imprimir_ticket_retiro',
+        _wrap_ticket_lectura(m.api_caja_imprimir_ticket_retiro),
+        methods=['POST'],
+    )
+    app.add_url_rule(
         '/caja/historial_cierres',
         'caja_historial_cierres',
         _wrap_gest_usuarios(m.caja_historial_cierres),

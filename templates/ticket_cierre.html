@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-brand.css') }}?v=ticket-brand-1">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0">
     <div class="page-header">
@@ -17,8 +21,10 @@
             <div class="card shadow-sm border-0 p-4" style="font-family: 'Courier New', monospace; background-color: #fff; color: #333; border-radius: 0;">
                 
                 <div class="text-center border-bottom border-dark pb-3 mb-3">
-                    <h4 class="fw-bold mb-1">FERRETERÍA SANTO DOMINGO</h4>
-                    <p class="small mb-0">CIERRE DE CAJA EXITOSO</p>
+                    {% set empresa_nom = 'Ferretería Santo Domingo' %}
+                    {% set ticket_brand_compact = true %}
+                    {% include 'tickets/includes/ticket_brand_header.html' %}
+                    <p class="small mb-0 mt-2">CIERRE DE CAJA EXITOSO</p>
                 </div>
 
                 <div class="mb-3 small">

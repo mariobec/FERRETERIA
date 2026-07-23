@@ -6,6 +6,7 @@
     <title>{% if ticket_es_borrador %}BORRADOR — Vale interno N°{% else %}Vale interno N°{% endif %} {{ venta.id }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ticket-brand.css') }}?v=ticket-brand-1">
     <style>
         :root {
             --vale-green: #16a34a;
@@ -103,8 +104,7 @@
         }
 
         .ticket .header { text-align: center; margin-bottom: 8px; }
-        .ticket .header h2 {
-            margin: 0;
+        .ticket .header .ticket-brand__name {
             font-size: 15px;
             font-family: 'DM Sans', sans-serif;
             font-weight: 800;
@@ -223,15 +223,22 @@
 
         @page {
             size: 80mm auto;
-            margin: 2mm;
+            margin: 0;
         }
         @media print {
-            body { background: #fff; margin: 0; }
+            html, body {
+                background: #fff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                height: auto !important;
+                min-height: 0 !important;
+            }
             .no-print { display: none !important; }
             .vale-emit-wrap {
                 display: block;
                 max-width: none;
                 padding: 0;
+                margin: 0;
             }
             .vale-ticket-stage { display: block; }
             .ticket {
@@ -241,8 +248,10 @@
                 border: none;
                 box-shadow: none;
                 background: #fff;
-                padding: 4px 6px 8px;
+                padding: 3px 5px 4px;
                 font-size: 11px;
+                page-break-after: avoid;
+                page-break-inside: avoid;
             }
             .ticket::before,
             .ticket::after {
@@ -256,9 +265,10 @@
     <div class="vale-toolbar no-print">
         <a href="{{ url_for('punto_venta') }}" class="btn btn-primary">➕ Nueva venta</a>
         <a href="{{ url_for('caja_pendientes') }}" class="btn btn-success">💳 Ir a caja</a>
-        <button type="button" class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
         {% if pos_impresion_termica %}
         <button type="button" class="btn btn-ghost" id="btnTicketTermica" data-venta-id="{{ venta.id }}">🖨 Térmica XP-80</button>
+        {% else %}
+        <button type="button" class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
         {% endif %}
     </div>
 
@@ -270,14 +280,19 @@
         Lo que ves abajo es la <strong>misma composición</strong> que se envía a la impresora térmica.
         Vale interno N° <strong>{{ venta.id }}</strong> · Total <strong>${{ total_fmt }}</strong>
         {% if ticket_es_borrador %}· <strong>Borrador POS</strong> (aún no emitido a cobro){% endif %}
+        {% if pos_impresion_termica %}
+        · use <strong>Térmica XP-80</strong> para reimprimir
+        {% else %}
         · <kbd>Ctrl+P</kbd> o <strong>Imprimir</strong>
+        {% endif %}
     </p>
 
     <div class="vale-emit-wrap">
         <section class="vale-ticket-stage">
             <div class="ticket" id="valeTicketAnim">
                 <div class="header">
-                    <h2>✔ {{ empresa_nom }}</h2>
+                    {% set ticket_brand_compact = true %}
+                    {% include 'tickets/includes/ticket_brand_header.html' %}
                     <p class="doc-type">VALE INTERNO</p>
                     <p class="no-boleta">NO ES BOLETA — documento interno. Presente en caja para pagar.</p>
                     {% if ticket_direccion %}
@@ -448,13 +463,12 @@
             imprimirTermica(true).finally(function () { btn.disabled = false; });
           });
         }
-        window.addEventListener('load', function () {
-          setTimeout(function () { imprimirTermica(false); }, 400);
-        });
+        // No auto-imprimir térmica al abrir la vista: evita 2 copias
+        // (finalizar_venta ya envió RAW si POS_IMPRESION_MODO=escpos/both).
       })();
     </script>
 {% endif %}
-{% if request.args.get('pos_autoprint') == '1' %}
+{% if request.args.get('pos_autoprint') == '1' and request.args.get('skip_browser_print') != '1' and not pos_impresion_termica %}
     <script>
       (function () {
         function runPrint() {

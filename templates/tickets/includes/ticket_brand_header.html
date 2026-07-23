@@ -1,0 +1,25 @@
+{# Encabezado estándar de tickets: logo Chilemat sobre nombre ferretería.
+   Uso:
+     {% include 'tickets/includes/ticket_brand_header.html' %}
+     {% include 'tickets/includes/ticket_brand_header.html' with context %}
+   Vars opcionales:
+     empresa_nom / empresa_cfg.nombre_comercial
+     ticket_brand_compact = true → logo más chico (80 mm)
+#}
+{% set _nom = (
+  empresa_nom
+  if empresa_nom is defined and empresa_nom
+  else (
+    (empresa_cfg.nombre_comercial or empresa_cfg.razon_social or 'Ferretería Santo Domingo')
+    if empresa_cfg is defined and empresa_cfg
+    else 'Ferretería Santo Domingo'
+  )
+) %}
+{% set _compact = ticket_brand_compact|default(true) %}
+<div class="ticket-brand{% if _compact %} ticket-brand--compact{% endif %}">
+  <img class="ticket-brand__logo"
+       src="{{ url_for('static', filename='img/chilemat_logo_oficial.png') }}"
+       alt="Chilemat"
+       onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/chilemat_logo_cotizacion.svg') }}';">
+  <div class="ticket-brand__name">{{ _nom }}</div>
+</div>

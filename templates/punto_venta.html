@@ -991,9 +991,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
           <div class="pos-dock-checkout">
             <div class="pos-dock-total">
               <span class="pos-dock-total-label">Total a emitir</span>
-              {% if (venta_promo_descuento_clp|default(0)) > 0 %}
-              <small class="pos-dock-meta d-block text-success">Promo −${{ '{:,.0f}'.format(venta_promo_descuento_clp).replace(',', '.') }}</small>
-              {% endif %}
+              <small id="posDockPromoMeta"
+                     class="pos-dock-meta d-block text-success{% if not (venta_promo_descuento_clp|default(0)) %} d-none{% endif %}"
+                     data-pos-promo-clp="{{ venta_promo_descuento_clp|default(0) }}">{% if (venta_promo_descuento_clp|default(0)) > 0 %}Promo −${{ '{:,.0f}'.format(venta_promo_descuento_clp).replace(',', '.') }}{% endif %}</small>
               <strong id="monto_total" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</strong>
               <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</span>
               <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems</small>
@@ -1011,6 +1011,9 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
     <div class="pos-dock-grid">
       <div class="pos-dock-total">
         <span class="pos-dock-total-label">Total a emitir</span>
+        <small id="posDockPromoMeta"
+               class="pos-dock-meta d-block text-success{% if not (venta_promo_descuento_clp|default(0)) %} d-none{% endif %}"
+               data-pos-promo-clp="{{ venta_promo_descuento_clp|default(0) }}">{% if (venta_promo_descuento_clp|default(0)) > 0 %}Promo −${{ '{:,.0f}'.format(venta_promo_descuento_clp).replace(',', '.') }}{% endif %}</small>
         <strong id="monto_total" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</strong>
         <span id="monto_total_cockpit" class="d-none" data-pos-total-clp="{{ venta_total_clp|default(0) }}">{{ venta_total_fmt|default('$0') }}</span>
         <small class="pos-dock-meta"><span id="posDockItemCount">{{ detalles|length }}</span> ítems · {{ current_user.nombre }} · cobro en caja</small>
@@ -1417,7 +1420,7 @@ body.pos-pantalla-vendedora .pos-premium-col--tools > * { pointer-events: auto !
   'pos_descuento_umbral_pin_pct': pos_descuento_umbral_pin_pct|default(10),
   'from_command_deck': false
 } | tojson }}</script>
-<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-barcode-trailing0-20260720"></script>
+<script src="{{ url_for('static', filename='js/pos.js') }}?v=pos-promo-dock-20260722"></script>
 <script src="{{ url_for('static', filename='js/chilemat_ficha.js') }}?v=pos-cart-ficha-4"></script>
 <script>
 (function () {

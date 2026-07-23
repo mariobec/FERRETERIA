@@ -126,6 +126,30 @@
     });
   }
 
+  function renderCompletaPanel(data) {
+    var panel = $('posRetiroCompletaPanel');
+    var pendCard = $('posRetiroPendientesCard');
+    var completa = !!(data && data.entrega_completa);
+    if (panel) panel.classList.toggle('d-none', !completa);
+    if (pendCard) pendCard.classList.toggle('d-none', completa);
+    if (!completa || !panel) return;
+    function setTxt(id, v) {
+      var el = $(id);
+      if (el) el.textContent = v || '—';
+    }
+    setTxt('posRetiroCompletaFolio', data.folio || ('VL' + String(data.venta_id || '').padStart(6, '0')));
+    setTxt('posRetiroCompletaCliente', data.cliente);
+    setTxt('posRetiroCompletaFechaVenta', data.fecha_venta);
+    setTxt('posRetiroCompletaFechaCierre', data.fecha_cierre_entrega);
+    setTxt('posRetiroCompletaVendedor', data.vendedor);
+    setTxt(
+      'posRetiroCompletaEntrego',
+      data.entregado_por_txt || (Array.isArray(data.entregado_por) ? data.entregado_por.join(', ') : '') || data.vendedor
+    );
+    setTxt('posRetiroCompletaPago', data.metodo_pago);
+    setTxt('posRetiroCompletaEstado', data.estado_entrega || 'CERRADO');
+  }
+
   function mostrarModal(data) {
     ventaActual = data;
     var folio = data.folio || ('VL' + String(data.venta_id || '').padStart(6, '0'));
@@ -142,9 +166,15 @@
     var elMsg = $('posRetiroModalMsg');
     if (elMsg) elMsg.textContent = data.mensaje || '';
     setEstadoBadge($('posRetiroModalEstado'), data);
-    renderModalLineas(data.lineas);
+    renderCompletaPanel(data);
+    if (!data.entrega_completa) {
+      renderModalLineas(data.lineas);
+    }
     var btn = $('posRetiroBtnEntregar');
-    if (btn) btn.disabled = !data.puede_entregar;
+    if (btn) {
+      btn.disabled = !data.puede_entregar;
+      btn.classList.toggle('d-none', !!data.entrega_completa);
+    }
     if (modal) modal.show();
   }
 
@@ -156,17 +186,29 @@
       ventaActual.lineas_pendientes = pend;
       ventaActual.entrega_completa = !!data.completa;
       ventaActual.puede_entregar = pend > 0 && !ventaActual.transferencia_pendiente;
+      if (data.completa) {
+        ventaActual.estado_entrega = data.estado_entrega || 'CERRADO';
+        if (data.fecha_cierre_entrega) ventaActual.fecha_cierre_entrega = data.fecha_cierre_entrega;
+        if (data.entregado_por_txt) ventaActual.entregado_por_txt = data.entregado_por_txt;
+        if (data.entregado_por) ventaActual.entregado_por = data.entregado_por;
+        ventaActual.mensaje = data.mensaje || 'Ya entregado por completo (su canal).';
+      }
       var elLin = $('posRetiroModalLineas');
       if (elLin) elLin.textContent = String(pend);
-      renderModalLineas(data.lineas);
       setEstadoBadge($('posRetiroModalEstado'), ventaActual);
+      renderCompletaPanel(ventaActual);
+      if (!data.completa) {
+        renderModalLineas(data.lineas);
+      }
       var btnAll = $('posRetiroBtnEntregar');
-      if (btnAll) btnAll.disabled = !ventaActual.puede_entregar;
+      if (btnAll) {
+        btnAll.disabled = !ventaActual.puede_entregar;
+        btnAll.classList.toggle('d-none', !!data.completa);
+      }
+      var elMsg = $('posRetiroModalMsg');
+      if (elMsg && data.mensaje) elMsg.textContent = data.mensaje;
     }
     actualizarFilaCola(vid, data);
-    if (data.completa) {
-      if (modal) modal.hide();
-    }
   }
 
   function actualizarFilaCola(vid, data) {
