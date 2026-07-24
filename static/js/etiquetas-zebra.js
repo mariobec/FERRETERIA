@@ -40,7 +40,13 @@
     var pick = document.getElementById('zebraImpresoraPick');
     if (!nom && pick && pick.value) nom = pick.value.trim();
     if (nom) cfg.impresora_nombre = nom;
+    var comEl = document.getElementById('zebraImpresoraCom');
+    if (comEl) cfg.impresora_com = String(comEl.value || '').trim();
     return cfg;
+  }
+
+  function destinoImpresion(cfg) {
+    return String((cfg && (cfg.impresora_com || cfg.impresora_nombre)) || '').trim();
   }
 
   var PERFIL_PRESETS = {
@@ -105,7 +111,7 @@
         cfg[k] = true;
         return;
       }
-      if (k === 'perfil' || k === 'layout' || k === 'impresora_nombre') {
+      if (k === 'perfil' || k === 'layout' || k === 'impresora_nombre' || k === 'impresora_com' || k === 'lenguaje') {
         cfg[k] = String(v);
         return;
       }
@@ -176,18 +182,32 @@
       wIn.toFixed(2) + 'x' + hIn.toFixed(2) + '/' + (index || 0) + '/';
   }
 
-  function renderPreview(zpl, cfg) {
-    if (!zpl) {
-      previewBox.innerHTML = '<span class="text-muted small">Sin ZPL</span>';
+  function renderPreview(payload, cfg, lenguaje) {
+    if (!payload) {
+      previewBox.innerHTML = '<span class="text-muted small">Sin datos de etiqueta</span>';
       return;
     }
-    var zplPreview = zplPrimeraEtiqueta(zpl);
-    previewBox.innerHTML = '<span class="text-muted small">Generando vista previa…</span>';
+    var lang = (lenguaje || (payload.indexOf('SIZE ') === 0 || payload.indexOf('SIZE ') > 0 && payload.indexOf('PRINT') >= 0 ? 'tspl' : 'zpl'));
+    if (payload.indexOf('SIZE ') >= 0 && payload.indexOf('PRINT') >= 0) lang = 'tspl';
+    if (payload.indexOf('^XA') >= 0) lang = 'zpl';
     var wMm = esDoble(cfg) ? (cfg.ancho_papel_mm || 85) : (cfg.ancho_mm || 50);
-    var totalBloques = (zpl.match(/\^XA/g) || []).length;
-    previewMeta.textContent = wMm + '×' + (cfg.alto_mm || 30) + ' mm' +
-      (esDoble(cfg) ? ' · doble' : '') +
-      (totalBloques > 1 ? ' · muestra 1/' + totalBloques : '');
+    previewMeta.textContent = wMm + '×' + (cfg.alto_mm || 30) + ' mm · ' + String(lang).toUpperCase() +
+      (esDoble(cfg) ? ' · doble' : '');
+
+    if (lang === 'tspl') {
+      previewBox.innerHTML =
+        '<pre class="small mb-0 p-2 bg-dark text-light rounded" style="max-height:280px;overflow:auto;white-space:pre-wrap">' +
+        String(payload).replace(/</g, '&lt;') +
+        '</pre><p class="small text-muted mt-2 mb-0">Vista previa TSPL (Bluetooth). Labelary solo aplica a ZPL.</p>';
+      return;
+    }
+
+    var zplPreview = zplPrimeraEtiqueta(payload);
+    previewBox.innerHTML = '<span class="text-muted small">Generando vista previa…</span>';
+    var totalBloques = (payload.match(/\^XA/g) || []).length;
+    if (totalBloques > 1) {
+      previewMeta.textContent += ' · muestra 1/' + totalBloques;
+    }
     fetch(labelaryUrl(cfg, 0), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'image/png' },
@@ -206,15 +226,17 @@
   function refrescarZpl(imprimir, filasOverride) {
     var body = payloadBase(filasOverride);
     return postJson(ctx.previewUrl, body).then(function (data) {
-      if (!data.ok) throw new Error(data.mensaje || 'Error ZPL');
-      zplActual = data.zpl || '';
+      if (!data.ok) throw new Error(data.mensaje || 'Error etiqueta');
+      zplActual = data.zpl || data.payload || '';
       if (zplOut) zplOut.textContent = zplActual;
-      renderPreview(zplActual, body.config);
+      renderPreview(zplActual, body.config, data.lenguaje);
       if (imprimir) {
         return postJson(ctx.printUrl, {
+          filas: body.filas,
           zpl: zplActual,
           config: body.config,
-          impresora: body.config.impresora_nombre || ''
+          variante: body.variante,
+          impresora: destinoImpresion(body.config)
         });
       }
       return data;
@@ -241,16 +263,16 @@
 
   function imprimirPrueba(filas) {
     var cfg = cfgDesdeForm();
-    postJson(ctx.previewUrl, {
+    postJson(ctx.printUrl, {
       variante: ctx.variante || 'catalogo',
       filas: filas,
-      config: cfg
-    }).then(function (data) {
-      if (!data.ok) throw new Error(data.mensaje || 'Error');
-      return postJson(ctx.printUrl, { zpl: data.zpl, config: cfg, impresora: cfg.impresora_nombre || '' });
+      config: cfg,
+      impresora: destinoImpresion(cfg)
     }).then(function (res) {
       if (!res.ok) throw new Error(res.mensaje || 'Impresión falló');
-      var msg = 'Etiqueta enviada a: ' + (res.impresora || 'Zebra');
+      var msg = 'Etiqueta enviada a: ' + (res.impresora || res.puerto || 'impresora');
+      if (res.lenguaje) msg += ' · ' + String(res.lenguaje).toUpperCase();
+      if (res.metodo) msg += ' (' + res.metodo + ')';
       if (res.advertencia) msg += '\n\nAviso: ' + res.advertencia;
       msg += '\n(No usa la térmica 80 mm de tickets POS.)';
       alert(msg);
@@ -264,7 +286,8 @@
   document.getElementById('btnZebraImprimirLote').addEventListener('click', function () {
     refrescarZpl(true).then(function (res) {
       if (res && res.ok) {
-        var msg = 'Lote enviado a: ' + (res.impresora || 'Zebra');
+        var msg = 'Lote enviado a: ' + (res.impresora || res.puerto || 'Zebra');
+        if (res.metodo) msg += ' (' + res.metodo + ')';
         if (res.advertencia) msg += '\n\nAviso: ' + res.advertencia;
         msg += '\n(No usa la térmica 80 mm de tickets POS.)';
         alert(msg);
@@ -273,17 +296,18 @@
   });
 
   document.getElementById('btnZebraDescargar').addEventListener('click', function () {
-    refrescarZpl(false).then(function () {
+    refrescarZpl(false).then(function (data) {
       var blob = new Blob([zplActual], { type: 'text/plain;charset=utf-8' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'etiquetas_lhexia.zpl';
+      var lang = (data && data.lenguaje) || 'zpl';
+      a.download = lang === 'tspl' ? 'etiquetas_lhexia.tspl' : 'etiquetas_lhexia.zpl';
       a.click();
     }).catch(function (e) { alert(e.message || e); });
   });
 
   if (zplActual) {
-    renderPreview(zplActual, cfgDesdeForm());
+    renderPreview(zplActual, cfgDesdeForm(), null);
   }
 
   if (ctx.autoImprimir && ctx.filas && ctx.filas.length) {

@@ -787,12 +787,6 @@
     return found;
   }
 
-  function enrolProductoEsSpray(p) {
-    if (!p) return false;
-    var n = String(p.nombre || '').toUpperCase();
-    return /(?:SPRAY|ESPRAY|AEROSOL)/.test(n);
-  }
-
   function enrolRolAlmacen(idAlm) {
     var rol = '';
     ENROL_ALMACENES.forEach(function (a) {
@@ -1705,9 +1699,6 @@
     });
     if (j.caso === 'A') {
       window.enrolSoundOk();
-      if (j.ruta_bodega_sugerida || enrolProductoEsSpray(j.producto)) {
-        enrolActivarRutaBodega('Espray / aerosol detectado — ingresos a bodega.');
-      }
       mostrarProductoEnPanel(
         j.producto,
         '<div class="enrol-result-headline text-success mb-1"><i class="fas fa-check-circle me-1"></i>Reconocido</div>'
@@ -1824,9 +1815,6 @@
     try {
       var j = await apiJson('/api/enrolamiento/abrir_producto', { method: 'POST', body: JSON.stringify(body) });
       window.enrolSoundOk();
-      if (j.ruta_bodega_sugerida || enrolProductoEsSpray(j.producto)) {
-        enrolActivarRutaBodega('Espray / aerosol — ingresos sugeridos a bodega.');
-      }
       mostrarProductoEnPanel(
         j.producto,
         '<div class="enrol-result-headline text-primary mb-1"><i class="fas fa-box-open me-1"></i>Producto cargado</div>'

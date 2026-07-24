@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=DM+Sans:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/all.min.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260530-vitrina33">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall-cfm.css') }}?v=lhexia20260530-vitrina33">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall.css') }}?v=lhexia20260724-promo4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pos-experience-wall-cfm.css') }}?v=lhexia20260724-promo4">
 </head>
 <body class="ew-body ew-cfm-v2">
   <div class="ew-bg" aria-hidden="true"></div>
@@ -110,10 +110,10 @@
           <header class="ew-cfm-col__head">
             <h2 id="ewRecoHeading" class="ew-cfm-col__title">
               <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
-              <span id="ewRecoTitulo">LhexIA IA recomienda para tu proyecto</span>
+              <span id="ewRecoTitulo">Visor de promociones</span>
             </h2>
             <p id="ewRecoSub" class="ew-cfm-col__subtitle ew-cfm-reco-col__subtitle">
-              Sugerencias según lo que lleva en su compra
+              Ofertas vigentes · pida en mostrador
             </p>
           </header>
           <div id="ewRecoIdle" class="ew-cfm-reco-idle d-none" aria-hidden="true">
@@ -152,8 +152,8 @@
 
   <script id="ew-snap-config" type="application/json">{{ {'url': api_snapshot_url, 'logoUrl': url_for('static', filename='img/lhexia-icon-hex-login.png'), 'vitrinaImgTest': vitrina_img_test} | tojson }}</script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-  <script src="{{ url_for('static', filename='js/pos-tv-vitrina-carousel.js') }}?v=lhexia20260530-vitrina33"></script>
-  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260530-vitrina35"></script>
+  <script src="{{ url_for('static', filename='js/pos-tv-vitrina-carousel.js') }}?v=lhexia20260724-promo4"></script>
+  <script src="{{ url_for('static', filename='js/pos-experience-wall.js') }}?v=lhexia20260724-promo4"></script>
   {% endif %}
 </body>
 </html>

@@ -51,6 +51,11 @@ _PERFIL_GX420D: dict[str, Any] = {
     'impresora_nombre': '',
     'impresora_host': '',
     'impresora_puerto': 9100,
+    'impresora_com': '',
+    'impresora_baud': 9600,
+    # zpl = GX420d Windows; tspl = etiquetadoras Bluetooth genéricas (COM); auto = tspl si hay COM
+    'lenguaje': 'auto',
+    'gap_mm': 2.0,
 }
 
 _PERFIL_DOBLE_85x30: dict[str, Any] = {
@@ -81,6 +86,10 @@ _PERFIL_DOBLE_85x30: dict[str, Any] = {
     'impresora_nombre': '',
     'impresora_host': '',
     'impresora_puerto': 9100,
+    'impresora_com': '',
+    'impresora_baud': 9600,
+    'lenguaje': 'auto',
+    'gap_mm': 2.0,
 }
 
 PERFILES_ZEBRA: dict[str, dict[str, Any]] = {
@@ -133,6 +142,96 @@ def _cabecera_zpl_partes(pw: int, ll: int) -> list[str]:
 def zpl_escape(texto: str) -> str:
     s = (texto or '').replace('\\', '\\\\').replace('^', '\\^').replace('~', '\\~')
     return s.replace('\r', ' ').replace('\n', ' ').strip()
+
+
+def tspl_escape(texto: str) -> str:
+    """TSPL TEXT/BARCODE: sin comillas ni saltos."""
+    return (texto or '').replace('"', "'").replace('\r', ' ').replace('\n', ' ').strip()
+
+
+def lenguaje_etiqueta(cfg: dict[str, Any] | None = None) -> str:
+    """zpl | tspl — auto: TSPL si hay COM/Bluetooth (impresoras genéricas)."""
+    c = cfg or cargar_config_etiqueta_zebra()
+    raw = (os.getenv('ZEBRA_ETIQUETA_LENGUAJE') or c.get('lenguaje') or 'auto').strip().lower()
+    if raw in ('tspl', 'tsc', 'tsp'):
+        return 'tspl'
+    if raw in ('zpl', 'zebra'):
+        return 'zpl'
+    # auto
+    if puerto_com_impresora_zebra(c):
+        return 'tspl'
+    return 'zpl'
+
+
+def generar_tspl_etiqueta(
+    fila: dict[str, Any],
+    cfg: dict[str, Any] | None = None,
+    *,
+    variante: str = 'catalogo',
+) -> str:
+    """Etiqueta 50×30 (u otra) en TSPL — típico Bluetooth SPP / TSC compat."""
+    c = cfg or cargar_config_etiqueta_zebra()
+    w = float(c.get('ancho_mm') or 50)
+    h = float(c.get('alto_mm') or 30)
+    gap = float(c.get('gap_mm') or 2)
+    max_chars = _max_chars_por_ancho_mm(w)
+    max_lin = int(c.get('nombre_max_lineas') or 2)
+    nombres = _partir_nombre(str(fila.get('nombre') or 'Sin nombre'), max_lineas=max_lin, max_chars=max_chars)
+    precios = _lineas_precio(fila, c, variante)
+    codigo = str(fila.get('codigo') or '').strip()
+
+    partes = [
+        f'SIZE {w:g} mm,{h:g} mm',
+        f'GAP {gap:g} mm,0 mm',
+        'DIRECTION 1',
+        'REFERENCE 0,0',
+        'CLS',
+    ]
+    y = 12
+    for ln in nombres:
+        partes.append(f'TEXT 12,{y},"2",0,1,1,"{tspl_escape(ln)}"')
+        y += 22
+    if codigo:
+        # Alto barras ~8–10 mm a 203 dpi ≈ 64–80 dots; usamos 48 para caber en 30 mm
+        partes.append(f'BARCODE 12,{y},"128",48,1,0,2,2,"{tspl_escape(codigo)}"')
+        y += 54
+        if c.get('mostrar_codigo_texto', True):
+            partes.append(f'TEXT 12,{y},"1",0,1,1,"{tspl_escape(codigo)}"')
+            y += 16
+    for p in precios[:2]:
+        partes.append(f'TEXT 12,{y},"3",0,1,1,"{tspl_escape(p)}"')
+        y += 26
+    partes.append('PRINT 1,1')
+    return '\r\n'.join(partes) + '\r\n'
+
+
+def generar_tspl_lote(
+    filas: list[dict[str, Any]],
+    cfg: dict[str, Any] | None = None,
+    *,
+    variante: str = 'catalogo',
+) -> str:
+    c = cfg or cargar_config_etiqueta_zebra()
+    bloques: list[str] = []
+    for fila in filas or []:
+        copias = max(1, min(int(fila.get('cantidad') or 1), 50))
+        one = generar_tspl_etiqueta(fila, c, variante=variante)
+        bloques.extend([one] * copias)
+    return ''.join(bloques)
+
+
+def generar_lote_etiquetas(
+    filas: list[dict[str, Any]],
+    cfg: dict[str, Any] | None = None,
+    *,
+    variante: str = 'catalogo',
+) -> tuple[str, str]:
+    """(payload, lenguaje) listo para enviar a impresora."""
+    c = cfg or cargar_config_etiqueta_zebra()
+    lang = lenguaje_etiqueta(c)
+    if lang == 'tspl':
+        return generar_tspl_lote(filas, c, variante=variante), 'tspl'
+    return generar_zpl_lote(filas, c, variante=variante), 'zpl'
 
 
 def formatear_precio_clp(valor: float | int | None) -> str:
@@ -230,11 +329,28 @@ def guardar_config_etiqueta_zebra(cfg: dict[str, Any]) -> dict[str, Any]:
         elif k == 'impresora_nombre':
             nom = str(v or '').strip()[:120]
             if nom:
-                from services.ticket_impresion_escpos import _es_cola_zebra
+                from services.ticket_impresion_escpos import _es_cola_zebra, _parse_com_port
 
-                if not _es_cola_zebra(nom):
+                # Cola Zebra Windows o puerto COM (Bluetooth)
+                if not (_es_cola_zebra(nom) or _parse_com_port(nom)):
                     nom = ''
             actual[k] = nom
+        elif k == 'impresora_com':
+            from services.ticket_impresion_escpos import _parse_com_port
+
+            actual[k] = _parse_com_port(str(v or '')) or ''
+        elif k == 'impresora_baud':
+            try:
+                actual[k] = max(1200, min(int(v or 9600), 115200))
+            except (TypeError, ValueError):
+                actual[k] = 9600
+        elif k == 'lenguaje':
+            lv = str(v or 'auto').strip().lower()
+            actual[k] = lv if lv in ('auto', 'tspl', 'zpl', 'tsc', 'tsp', 'zebra') else 'auto'
+            if actual[k] in ('tsc', 'tsp'):
+                actual[k] = 'tspl'
+            if actual[k] == 'zebra':
+                actual[k] = 'zpl'
         elif isinstance(_PERFIL_GX420D.get(k), bool) or k.startswith('mostrar_'):
             actual[k] = bool(v)
         elif k == 'dpi':
@@ -545,25 +661,63 @@ def _coincidir_cola_zebra(pref: str, candidatos: list[str]) -> str | None:
     return None
 
 
+def puerto_com_impresora_zebra(cfg: dict[str, Any] | None = None) -> str:
+    c = cfg or cargar_config_etiqueta_zebra()
+    from services.ticket_impresion_escpos import _parse_com_port
+
+    return (
+        _parse_com_port(os.getenv('ZEBRA_ZPL_COM') or os.getenv('ZEBRA_IMPRESORA_COM') or '')
+        or _parse_com_port(str(c.get('impresora_com') or ''))
+        or _parse_com_port(str(c.get('impresora_nombre') or ''))
+        or ''
+    )
+
+
+def baud_impresora_zebra(cfg: dict[str, Any] | None = None) -> int:
+    c = cfg or cargar_config_etiqueta_zebra()
+    raw = os.getenv('ZEBRA_ZPL_BAUD') or c.get('impresora_baud') or 9600
+    try:
+        return max(1200, min(int(raw), 115200))
+    except (TypeError, ValueError):
+        return 9600
+
+
 def impresora_para_panel(
     cfg: dict[str, Any] | None = None,
 ) -> tuple[str, list[str], list[dict[str, Any]]]:
-    """(cola activa, opciones datalist, detalle colas Windows)."""
-    from services.ticket_impresion_escpos import _es_cola_zebra, elegir_cola_zebra_preferida, listar_colas_zebra_detalle
+    """(cola/COM activo, opciones datalist, detalle colas Windows)."""
+    from services.ticket_impresion_escpos import (
+        _es_cola_zebra,
+        _parse_com_port,
+        elegir_cola_zebra_preferida,
+        listar_colas_zebra_detalle,
+        listar_puertos_com_serie,
+    )
 
     c = cfg or cargar_config_etiqueta_zebra()
     colas = listar_colas_zebra_detalle()
     detectadas = [d.get('nombre') or '' for d in colas if d.get('nombre')]
+    com_cfg = puerto_com_impresora_zebra(c)
     preferida = (c.get('impresora_nombre') or '').strip() or nombre_impresora_zebra(c)
-    seleccionada = elegir_cola_zebra_preferida(preferida)
+    if com_cfg:
+        seleccionada = com_cfg
+    else:
+        seleccionada = elegir_cola_zebra_preferida(preferida)
 
     opciones: list[str] = []
-    for p in [seleccionada] + detectadas + [
+    for p in [seleccionada, com_cfg] + detectadas + [
+        'COM4',
         'ZDesigner GX420d',
         'Zebra GX420d - ZPL',
     ]:
         p = (p or '').strip()
-        if p and p not in opciones and _es_cola_zebra(p):
+        if not p or p in opciones:
+            continue
+        if _es_cola_zebra(p) or _parse_com_port(p):
+            opciones.append(p)
+    for row in listar_puertos_com_serie():
+        p = (row.get('puerto') or '').strip()
+        if p and p not in opciones:
             opciones.append(p)
     return seleccionada, opciones, colas
 
@@ -571,6 +725,9 @@ def impresora_para_panel(
 def resolver_impresora_zebra(cfg: dict[str, Any] | None = None) -> str | None:
     from services.ticket_impresion_escpos import resolver_nombre_impresora_zebra
 
+    com = puerto_com_impresora_zebra(cfg)
+    if com:
+        return com
     return resolver_nombre_impresora_zebra(nombre_impresora_zebra(cfg) or None)
 
 
@@ -580,23 +737,72 @@ def zebra_habilitada() -> bool:
 
 
 def imprimir_zpl_en_zebra(zpl: str, *, impresora: str | None = None, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    if not zpl.strip():
-        return {'ok': False, 'error': 'vacio', 'mensaje': 'Sin ZPL para imprimir.'}
-    from services.ticket_impresion_escpos import enviar_raw_zpl
+    """Imprime etiqueta: TSPL por COM/Bluetooth o ZPL por cola/TCP Zebra."""
+    from services.ticket_impresion_escpos import (
+        _enviar_raw_com,
+        _parse_com_port,
+        enviar_raw_zpl,
+    )
 
     c = cfg or cargar_config_etiqueta_zebra()
+    lang = lenguaje_etiqueta(c)
+    com = _parse_com_port(impresora) or puerto_com_impresora_zebra(c)
     nombre = (impresora or nombre_impresora_zebra(c) or '').strip()
-    if not nombre:
+    if not nombre and not com:
         sel, _, _ = impresora_para_panel(c)
         nombre = sel
-    nombre = nombre or None
+        com = _parse_com_port(sel) or com
+
+    # Si piden imprimir y hay ZPL en body pero el destino es BT → regenerar no aplica aquí;
+    # el caller debería pasar payload correcto. Si lenguaje=tspl y el texto parece ZPL, avisar.
+    payload = (zpl or '').strip()
+    if not payload:
+        return {'ok': False, 'error': 'vacio', 'mensaje': 'Sin datos para imprimir.'}
+
+    if lang == 'tspl' and payload.lstrip().startswith('^XA'):
+        return {
+            'ok': False,
+            'error': 'lenguaje',
+            'mensaje': (
+                'La impresora Bluetooth (COM) usa TSPL, no ZPL. '
+                'Pulse de nuevo Vista previa / Imprimir prueba (se regenera en TSPL).'
+            ),
+        }
+
+    if com:
+        raw = payload.encode('ascii', errors='replace')
+        if lang == 'tspl' or not payload.lstrip().startswith('^'):
+            res = _enviar_raw_com(raw, com, baud=baud_impresora_zebra(c))
+        else:
+            res = enviar_raw_zpl(raw, None, com_port=com, baud=baud_impresora_zebra(c))
+        if res.get('ok'):
+            res['tipo'] = 'tspl' if lang == 'tspl' else 'zebra_zpl'
+            res['lenguaje'] = lang
+        return res
+
     host = host_impresora_zebra(c) or None
     if host:
         os.environ.setdefault('ZEBRA_ZPL_HOST', host)
         os.environ.setdefault('ZEBRA_ZPL_PORT', str(puerto_impresora_zebra(c)))
-    res = enviar_raw_zpl(zpl.encode('ascii', errors='replace'), nombre, host=host)
+    res = enviar_raw_zpl(payload.encode('ascii', errors='replace'), nombre or None, host=host)
     if res.get('ok'):
         res['tipo'] = 'zebra_zpl'
+        res['lenguaje'] = 'zpl'
+    return res
+
+
+def imprimir_filas_etiqueta(
+    filas: list[dict[str, Any]],
+    *,
+    cfg: dict[str, Any] | None = None,
+    variante: str = 'catalogo',
+    impresora: str | None = None,
+) -> dict[str, Any]:
+    """Genera (TSPL/ZPL) e imprime según calibración."""
+    c = cfg or cargar_config_etiqueta_zebra()
+    payload, lang = generar_lote_etiquetas(filas, c, variante=variante)
+    res = imprimir_zpl_en_zebra(payload, impresora=impresora, cfg={**c, 'lenguaje': lang})
+    res['lenguaje'] = lang
     return res
 
 

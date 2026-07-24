@@ -99,6 +99,43 @@
                 {% endif %}
               </p>
             </div>
+            <div class="mb-2 border rounded p-2 bg-light">
+              <label class="form-label mb-1">Bluetooth / puerto serie (prioridad)</label>
+              <div class="row g-2">
+                <div class="col-7">
+                  <select class="form-select form-select-sm" name="impresora_com" id="zebraImpresoraCom">
+                    <option value="">— No usar COM (cola Windows) —</option>
+                    {% for cport in puertos_com or [] %}
+                    <option value="{{ cport.puerto }}" {% if (config.impresora_com or '') == cport.puerto %}selected{% endif %}>
+                      {{ cport.puerto }}{% if cport.bluetooth %} · Bluetooth{% endif %}{% if cport.nombre and cport.nombre != cport.puerto %} · {{ cport.nombre }}{% endif %}
+                    </option>
+                    {% endfor %}
+                    {% if config.impresora_com and config.impresora_com not in (puertos_com|map(attribute='puerto')|list) %}
+                    <option value="{{ config.impresora_com }}" selected>{{ config.impresora_com }} (guardado)</option>
+                    {% endif %}
+                  </select>
+                </div>
+                <div class="col-5">
+                  <select class="form-select form-select-sm" name="impresora_baud" id="zebraBaud">
+                    {% for b in [9600, 19200, 38400, 57600, 115200] %}
+                    <option value="{{ b }}" {% if (config.impresora_baud or 9600) == b %}selected{% endif %}>{{ b }} baud</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <p class="small text-muted mb-0 mt-1">
+                Etiquetadora BT detectada como <strong>BlueTooth Printer → COM4</strong>.
+                Con COM el ERP usa <strong>TSPL</strong> (no ZPL de Zebra Windows).
+              </p>
+            </div>
+            <div class="mb-2">
+              <label class="form-label mb-1">Lenguaje de impresión</label>
+              <select class="form-select form-select-sm" name="lenguaje" id="zebraLenguaje">
+                <option value="auto" {% if (config.lenguaje or 'auto') == 'auto' %}selected{% endif %}>Auto (TSPL si hay COM / ZPL si cola Zebra)</option>
+                <option value="tspl" {% if config.lenguaje == 'tspl' %}selected{% endif %}>TSPL — Bluetooth genérica</option>
+                <option value="zpl" {% if config.lenguaje == 'zpl' %}selected{% endif %}>ZPL — Zebra / ZDesigner</option>
+              </select>
+            </div>
             <div class="mb-2">
               <label class="form-label">Formato de etiqueta</label>
               <select class="form-select form-select-sm" name="perfil" id="zebraPerfil">
@@ -177,8 +214,8 @@
             </div>
           </form>
           <p class="small text-muted mt-2 mb-0">
-            ZPL solo a cola Zebra. Guarde la impresora arriba o use <code>ZEBRA_IMPRESORA_NOMBRE</code> en .env.local
-            · DPI {{ config.dpi }}
+            Prioridad: <strong>COM/Bluetooth (TSPL)</strong> → TCP → cola Zebra Windows (ZPL).
+            Guarde calibración o use <code>ZEBRA_ZPL_COM=COM4</code> · DPI {{ config.dpi }}
           </p>
         </div>
       </div>

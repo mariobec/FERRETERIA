@@ -3932,11 +3932,8 @@ def _enrol_sesion_get_or_404(sid):
 
 
 def _enrol_producto_ruta_bodega(producto=None, nombre=None):
-    """Aerosoles / espray: inventario preferente en bodega (no góndola POS)."""
-    import re
-
-    n = (nombre or (getattr(producto, 'nombre', None) or '')).upper()
-    return bool(re.search(r'(?:SPRAY|ESPRAY|AEROSOL)', n))
+    """Legacy: ya no se fuerza bodega por nombre (SPRAY/AEROSOL). Conservado por compat API."""
+    return False
 
 
 def _enrol_destino_almacen(
@@ -3946,11 +3943,10 @@ def _enrol_destino_almacen(
     producto=None,
     ruta_bodega=False,
 ):
-    """Resuelve almacén destino: ruta bodega/spray → explícito → sesión → tienda."""
-    if ruta_bodega or _enrol_producto_ruta_bodega(producto):
-        bid = id_almacen_bodega()
-        if bid:
-            return int(bid)
+    """Resuelve almacén destino: explícito → flag ruta_bodega → sesión → tienda.
+
+    No hay override por nombre de producto (ex-regla spray/aerosol).
+    """
     if id_almacen_destino is not None and str(id_almacen_destino).strip() != '':
         try:
             aid = int(id_almacen_destino)
@@ -3960,6 +3956,10 @@ def _enrol_destino_almacen(
             a = Almacen.query.filter_by(id=aid, activo=True).first()
             if a:
                 return aid
+    if ruta_bodega:
+        bid = id_almacen_bodega()
+        if bid:
+            return int(bid)
     if sesion_row and sesion_row.id_almacen:
         return int(sesion_row.id_almacen)
     aid_def = id_almacen_tienda()
@@ -14238,9 +14238,10 @@ def panel_etiquetas_zebra():
 
     cfg = cargar_config_etiqueta_zebra()
     impresora_seleccionada, impresoras_zebra, colas_zebra = impresora_para_panel(cfg)
-    from services.ticket_impresion_escpos import describir_cola_impresora
+    from services.ticket_impresion_escpos import describir_cola_impresora, listar_puertos_com_serie
 
     impresora_desc = describir_cola_impresora(impresora_seleccionada or '')
+    puertos_com = listar_puertos_com_serie()
     zpl_inicial = generar_zpl_lote(filas, cfg, variante=variante)
     total_franjas = total_etiquetas
     if (cfg.get('layout') or '').strip() == 'doble_columna':
@@ -14261,6 +14262,7 @@ def panel_etiquetas_zebra():
         impresoras_zebra=impresoras_zebra,
         colas_zebra=colas_zebra,
         impresora_desc=impresora_desc,
+        puertos_com=puertos_com,
         url_volver=url_volver,
         auto_imprimir=(request.args.get('auto_imprimir') or '').strip() == '1',
     )
@@ -14274,7 +14276,7 @@ def api_etiquetas_zebra_impresoras():
 
     cfg = cargar_config_etiqueta_zebra()
     seleccionada, opciones, colas = impresora_para_panel(cfg)
-    from services.ticket_impresion_escpos import describir_cola_impresora
+    from services.ticket_impresion_escpos import describir_cola_impresora, listar_puertos_com_serie
 
     cola_q = (request.args.get('cola') or '').strip()
     if cola_q:
@@ -14285,8 +14287,10 @@ def api_etiquetas_zebra_impresoras():
         impresoras_zebra=[c.get('nombre') for c in colas if c.get('usable')],
         colas=colas,
         opciones=opciones,
+        puertos_com=listar_puertos_com_serie(),
+        impresora_com=(cfg.get('impresora_com') or ''),
         cola=describir_cola_impresora(seleccionada),
-        nota='Etiquetas ZPL no usan POS_IMPRESORA_NOMBRE (tickets 80 mm).',
+        nota='Prioridad: COM/Bluetooth → TCP → cola Zebra. Tickets 80 mm usan POS_IMPRESORA_NOMBRE.',
     )
 
 
@@ -14307,7 +14311,12 @@ def api_etiquetas_zebra_config():
 @login_required
 @permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
 def api_etiquetas_zebra_preview():
-    from services.etiquetas_zebra_zpl_service import cargar_config_etiqueta_zebra, generar_zpl_lote, guardar_config_etiqueta_zebra
+    from services.etiquetas_zebra_zpl_service import (
+        _aplicar_config_parcial,
+        cargar_config_etiqueta_zebra,
+        generar_lote_etiquetas,
+        lenguaje_etiqueta,
+    )
 
     data = request.get_json(silent=True) or {}
     filas = data.get('filas') or []
@@ -14315,44 +14324,63 @@ def api_etiquetas_zebra_preview():
         return jsonify(ok=False, mensaje='Sin productos para etiqueta.'), 400
     cfg = cargar_config_etiqueta_zebra()
     if data.get('config'):
-        from services.etiquetas_zebra_zpl_service import _aplicar_config_parcial
         cfg = _aplicar_config_parcial(cfg, data.get('config'))
     variante = (data.get('variante') or 'catalogo').strip()
-    zpl = generar_zpl_lote(filas, cfg, variante=variante)
-    return jsonify(ok=True, zpl=zpl, config=cfg, total=len(filas))
+    payload, lang = generar_lote_etiquetas(filas, cfg, variante=variante)
+    return jsonify(
+        ok=True,
+        zpl=payload,
+        payload=payload,
+        lenguaje=lang or lenguaje_etiqueta(cfg),
+        config=cfg,
+        total=len(filas),
+    )
 
 
 @app.route('/api/etiquetas/zebra/imprimir', methods=['POST'])
 @login_required
 @permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
 def api_etiquetas_zebra_imprimir():
-    from services.etiquetas_zebra_zpl_service import imprimir_zpl_en_zebra, zebra_habilitada
+    from services.etiquetas_zebra_zpl_service import (
+        _aplicar_config_parcial,
+        cargar_config_etiqueta_zebra,
+        imprimir_filas_etiqueta,
+        imprimir_zpl_en_zebra,
+        puerto_com_impresora_zebra,
+        zebra_habilitada,
+    )
+    from services.ticket_impresion_escpos import _es_cola_zebra, _parse_com_port
 
     if not zebra_habilitada():
         return jsonify(ok=False, mensaje='Etiquetas Zebra deshabilitadas (ZEBRA_ETIQUETAS_HABILITADA=0).'), 503
     data = request.get_json(silent=True) or {}
-    zpl = (data.get('zpl') or '').strip()
-    if not zpl:
-        return jsonify(ok=False, mensaje='ZPL vacío.'), 400
-    from services.etiquetas_zebra_zpl_service import (
-        _aplicar_config_parcial,
-        cargar_config_etiqueta_zebra,
-        imprimir_zpl_en_zebra,
-    )
-
     cfg = _aplicar_config_parcial(cargar_config_etiqueta_zebra(), data.get('config'))
-    imp = (data.get('impresora') or cfg.get('impresora_nombre') or '').strip()
-    from services.ticket_impresion_escpos import _es_cola_zebra
+    variante = (data.get('variante') or 'catalogo').strip()
 
-    if imp and not _es_cola_zebra(imp):
+    # Preferir COM/Bluetooth del body o de la calibración guardada
+    imp = (
+        _parse_com_port(data.get('impresora'))
+        or puerto_com_impresora_zebra(cfg)
+        or (data.get('impresora') or cfg.get('impresora_nombre') or '').strip()
+    )
+    if imp and not (_es_cola_zebra(imp) or _parse_com_port(imp)):
         return jsonify(
             ok=False,
             error='impresora_no_zebra',
             mensaje=(
-                f'«{imp}» es la térmica de tickets (80 mm), no una cola Zebra. '
-                'Elija «Zebra GX420d - ZPL» o «ZDesigner GX420d» en el panel.'
+                f'«{imp}» no es cola Zebra ni puerto COM. '
+                'Elija COM4 (Bluetooth), «Zebra GX420d - ZPL» o «ZDesigner GX420d».'
             ),
         ), 400
+
+    filas = data.get('filas') or []
+    if filas:
+        res = imprimir_filas_etiqueta(filas, cfg=cfg, variante=variante, impresora=imp or None)
+        return jsonify(res)
+
+    zpl = (data.get('zpl') or data.get('payload') or '').strip()
+    if not zpl:
+        return jsonify(ok=False, mensaje='Sin datos de etiqueta (zpl/payload/filas).'), 400
     res = imprimir_zpl_en_zebra(zpl, impresora=imp or None, cfg=cfg)
     return jsonify(res)
 
@@ -14361,13 +14389,14 @@ def api_etiquetas_zebra_imprimir():
 @login_required
 @permisos_required('ver_inventario', 'admin_inventario', 'enrolamiento_inventario', 'gestionar_usuarios')
 def api_etiquetas_zebra_imprimir_lote():
-    """Imprime etiquetas ZPL directo (enrolamiento/catálogo) sin diálogo del navegador."""
+    """Imprime etiquetas (TSPL/ZPL) directo sin diálogo del navegador."""
     from services.etiquetas_zebra_zpl_service import (
         cargar_config_etiqueta_zebra,
-        generar_zpl_lote,
-        imprimir_zpl_en_zebra,
+        imprimir_filas_etiqueta,
+        puerto_com_impresora_zebra,
         zebra_habilitada,
     )
+    from services.ticket_impresion_escpos import _es_cola_zebra, _parse_com_port
 
     if not zebra_habilitada():
         return jsonify(ok=False, mensaje='Etiquetas Zebra deshabilitadas (ZEBRA_ETIQUETAS_HABILITADA=0).'), 503
@@ -14409,20 +14438,25 @@ def api_etiquetas_zebra_imprimir_lote():
         return jsonify(ok=False, mensaje='Demasiadas etiquetas (máx. 500).'), 400
 
     cfg = cargar_config_etiqueta_zebra()
-    zpl = generar_zpl_lote(filas, cfg, variante=variante)
-    imp = (data.get('impresora') or cfg.get('impresora_nombre') or '').strip()
-    from services.ticket_impresion_escpos import _es_cola_zebra
+    if data.get('config'):
+        from services.etiquetas_zebra_zpl_service import _aplicar_config_parcial
 
-    if imp and not _es_cola_zebra(imp):
+        cfg = _aplicar_config_parcial(cfg, data.get('config'))
+    imp = (
+        _parse_com_port(data.get('impresora'))
+        or puerto_com_impresora_zebra(cfg)
+        or (data.get('impresora') or cfg.get('impresora_nombre') or '').strip()
+    )
+    if imp and not (_es_cola_zebra(imp) or _parse_com_port(imp)):
         return jsonify(
             ok=False,
             error='impresora_no_zebra',
             mensaje=(
-                f'«{imp}» no es cola Zebra. Configure ZEBRA_IMPRESORA_NOMBRE=ZDesigner GX420d '
-                'en .env.local del PC donde corre el ERP.'
+                f'«{imp}» no es cola Zebra ni puerto COM. '
+                'Configure COM4 (Bluetooth) o ZEBRA_IMPRESORA_NOMBRE=ZDesigner GX420d.'
             ),
         ), 400
-    res = imprimir_zpl_en_zebra(zpl, impresora=imp or None, cfg=cfg)
+    res = imprimir_filas_etiqueta(filas, cfg=cfg, variante=variante, impresora=imp or None)
     if res.get('ok'):
         res['total_etiquetas'] = total_etiquetas
     return jsonify(res)
@@ -15553,7 +15587,7 @@ def _pos_live_wall_total_mostrable(venta, detalles=None):
     return out
 
 
-_POS_TV_VITRINA_CACHE = {'ts': 0.0, 'payload': None, 'ver': 7}
+_POS_TV_VITRINA_CACHE = {'ts': 0.0, 'payload': None, 'ver': 9}
 _POS_TV_VITRINA_CACHE_TTL = int(os.environ.get('POS_TV_VITRINA_CACHE_TTL', '300'))
 
 
@@ -15599,7 +15633,7 @@ def _pos_tv_vitrina_attract_cached(*, img_test: bool = False):
     cache_ver = int(_POS_TV_VITRINA_CACHE.get('ver') or 0)
     if (
         cached
-        and cache_ver == 7
+        and cache_ver == 9
         and (now - float(_POS_TV_VITRINA_CACHE.get('ts') or 0)) < _POS_TV_VITRINA_CACHE_TTL
     ):
         return cached
@@ -15621,6 +15655,7 @@ def _pos_tv_vitrina_attract_cached(*, img_test: bool = False):
         payload = {'activo': False, 'escenas': [], 'duracion_seg': 6, 'n_escenas': 0}
     _POS_TV_VITRINA_CACHE['ts'] = now
     _POS_TV_VITRINA_CACHE['payload'] = payload
+    _POS_TV_VITRINA_CACHE['ver'] = 9
     return payload
 
 
@@ -21239,15 +21274,62 @@ def _pos_tv_candidatos_chilemat_relaciones(pids, seen, ctx, perfil):
     return out
 
 
+def _pos_tv_items_promos_campana():
+    """Ofertas de piso (IRIS / Stihl) para el carrusel derecho con carrito activo."""
+    try:
+        from services.pos_tv_vitrina_service import _escenas_promos_campana
+
+        escenas = _escenas_promos_campana() or []
+    except Exception:
+        return []
+    out = []
+    for i, e in enumerate(escenas):
+        oferta = (e.get('oferta') or '').strip()
+        nombre = (
+            e.get('producto_nombre')
+            or e.get('titulo')
+            or 'Promoción'
+        ).strip()[:120]
+        motivo = (e.get('subtitulo') or oferta or 'Oferta vigente en mostrador')[:160]
+        out.append(
+            {
+                'id': f"promo-campana-{i}",
+                'nombre': nombre,
+                'precio': 0,
+                'precio_texto': oferta or None,
+                'imagen_url': (e.get('imagen_url') or '')[:500] or None,
+                'motivo': motivo,
+                'tipo': 'promo_campana',
+                'layout': e.get('layout') or 'flyer',
+                'cta': (e.get('cta') or 'Pida en mostrador')[:80],
+            }
+        )
+    return out
+
+
 def _pos_live_wall_recomendaciones_tv(venta):
     """
     Recomendaciones coherentes para TV cliente (sin sesión POS).
-    Perfil por familia de producto + tope de precio según ticket.
+    Siempre antepone ofertas de campaña (IRIS / Stihl) cuando hay carrito.
     """
+    promos = _pos_tv_items_promos_campana()
+
     if not venta or not venta.detalles:
+        if promos:
+            return {
+                'titulo': 'Visor de promociones',
+                'subtitulo': 'Ofertas vigentes · pida en mostrador',
+                'items': promos,
+            }
         return None
     pids = [int(d.id_producto) for d in venta.detalles if d.id_producto]
     if not pids:
+        if promos:
+            return {
+                'titulo': 'Visor de promociones',
+                'subtitulo': 'Ofertas vigentes · pida en mostrador',
+                'items': promos,
+            }
         return None
 
     prods_cart = Producto.query.filter(Producto.id.in_(pids)).all()
@@ -21348,15 +21430,18 @@ def _pos_live_wall_recomendaciones_tv(venta):
         if row and row.get('id'):
             items_tv.append(row)
 
-    if len(items_tv) < 2:
+    # Ofertas de campaña primero; luego sugerencias IA (si hay)
+    if promos:
+        titulo = 'Visor de promociones'
+        subtitulo = 'Ofertas vigentes · complementos recomendados'
+        items_tv = promos + items_tv
+    elif len(items_tv) < 2:
         return None
-
-    items_tv.sort(key=lambda x: int(x.get('precio') or 0))
 
     return {
         'titulo': titulo,
         'subtitulo': subtitulo,
-        'items': items_tv[:4],
+        'items': items_tv[:8],
     }
 
 

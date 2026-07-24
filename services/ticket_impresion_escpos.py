@@ -533,6 +533,160 @@ def _zebra_zpl_port() -> int:
         return 9100
 
 
+def _parse_com_port(raw: str | None) -> str | None:
+    """Normaliza 'COM4' / 'com4' / '\\\\.\\COM4' → 'COM4'."""
+    s = (raw or '').strip().upper().replace('/', '\\')
+    if s.startswith('\\.\\'):
+        s = s[4:]
+    elif s.startswith('\\\\.\\'):
+        s = s[4:]
+    import re
+
+    m = re.fullmatch(r'COM(\d+)', s)
+    if not m:
+        return None
+    return f'COM{int(m.group(1))}'
+
+
+def listar_puertos_com_serie() -> list[dict[str, Any]]:
+    """Puertos COM locales (Bluetooth SPP suele aparecer como COM4/COM5)."""
+    out: list[dict[str, Any]] = []
+    if sys.platform != 'win32':
+        return out
+    try:
+        import win32com.client  # type: ignore
+
+        locator = win32com.client.Dispatch('WbemScripting.SWbemLocator')
+        svc = locator.ConnectServer('.', 'root\\cimv2')
+        for p in svc.ExecQuery('SELECT DeviceID, Name, Description FROM Win32_SerialPort'):
+            device_id = str(getattr(p, 'DeviceID', '') or '').strip().upper()
+            name = str(getattr(p, 'Name', '') or '').strip()
+            desc = str(getattr(p, 'Description', '') or '').strip()
+            if not device_id.startswith('COM'):
+                continue
+            blob = f'{name} {desc}'.lower()
+            out.append({
+                'puerto': device_id,
+                'nombre': name or device_id,
+                'descripcion': desc,
+                'bluetooth': 'bluetooth' in blob or 'bth' in blob,
+            })
+    except Exception:
+        for n in range(1, 21):
+            port = f'COM{n}'
+            try:
+                import win32con
+                import win32file
+
+                h = win32file.CreateFile(
+                    f'\\\\.\\{port}',
+                    win32con.GENERIC_READ,
+                    0,
+                    None,
+                    win32con.OPEN_EXISTING,
+                    0,
+                    None,
+                )
+                win32file.CloseHandle(h)
+                out.append({'puerto': port, 'nombre': port, 'descripcion': '', 'bluetooth': False})
+            except Exception:
+                continue
+    seen: set[str] = set()
+    uniq: list[dict[str, Any]] = []
+    for row in out:
+        p = row.get('puerto') or ''
+        if p and p not in seen:
+            seen.add(p)
+            uniq.append(row)
+    return uniq
+
+
+def _enviar_raw_com(data: bytes, port: str, *, baud: int = 9600) -> dict[str, Any]:
+    """Bytes crudos por puerto serie (ZPL/TSPL/ESC) — Bluetooth SPP."""
+    com = _parse_com_port(port)
+    if not com:
+        return {
+            'ok': False,
+            'error': 'com_invalido',
+            'mensaje': f'Puerto serie inválido: {port!r}. Use p. ej. COM4.',
+        }
+    baud_i = int(baud or 9600)
+    if baud_i < 1200:
+        baud_i = 9600
+    payload = data if isinstance(data, (bytes, bytearray)) else bytes(data or b'')
+    if not payload:
+        return {'ok': False, 'error': 'vacio', 'mensaje': 'Sin datos para imprimir.'}
+    path = f'\\\\.\\{com}'
+    try:
+        import win32con
+        import win32file
+    except ImportError:
+        return {'ok': False, 'error': 'pywin32', 'mensaje': 'Instale pywin32: pip install pywin32'}
+
+    handle = None
+    try:
+        handle = win32file.CreateFile(
+            path,
+            win32con.GENERIC_WRITE | win32con.GENERIC_READ,
+            0,
+            None,
+            win32con.OPEN_EXISTING,
+            0,
+            None,
+        )
+        try:
+            dcb = win32file.GetCommState(handle)
+            dcb.BaudRate = baud_i
+            dcb.ByteSize = 8
+            dcb.Parity = 0
+            dcb.StopBits = 0
+            win32file.SetCommState(handle, dcb)
+        except Exception:
+            pass
+        win32file.WriteFile(handle, bytes(payload))
+        try:
+            win32file.FlushFileBuffers(handle)
+        except Exception:
+            pass
+        # Pausa corta: el stack Bluetooth SPP a veces corta si se cierra al instante
+        import time
+
+        time.sleep(0.35)
+        return {
+            'ok': True,
+            'metodo': 'com_serial',
+            'puerto': com,
+            'baud': baud_i,
+            'bytes': len(payload),
+            'impresora': f'Bluetooth/{com}',
+        }
+    except Exception as ex:
+        return {
+            'ok': False,
+            'error': 'com_serial',
+            'mensaje': (
+                f'No se pudo escribir en {com}: {str(ex)[:220]}. '
+                '¿Bluetooth emparejado y encendido? Pruebe baud 9600 o 115200.'
+            ),
+            'puerto': com,
+            'baud': baud_i,
+        }
+    finally:
+        if handle is not None:
+            try:
+                win32file.CloseHandle(handle)
+            except Exception:
+                pass
+
+
+def _enviar_zpl_com(data: bytes, port: str, *, baud: int = 9600) -> dict[str, Any]:
+    """Compat: ZPL con cabecera ^XA/^XZ si faltan."""
+    res = _enviar_raw_com(_zpl_a_bytes(data), port, baud=baud)
+    if res.get('ok'):
+        res['tipo'] = 'zebra_zpl'
+    return res
+
+
 def _zpl_metodo_tcp_forzado() -> bool:
     return (os.getenv('ZEBRA_ZPL_METODO') or '').strip().lower() == 'tcp'
 
@@ -937,12 +1091,32 @@ def enviar_raw_escpos(data: bytes, printer_name: str | None = None) -> dict[str,
                 pass
 
 
-def enviar_raw_zpl(data: bytes, printer_name: str | None = None, *, host: str | None = None) -> dict[str, Any]:
-    """Envía ZPL RAW a Zebra: TCP (RJ45) si hay host, si no cola Windows."""
+def enviar_raw_zpl(
+    data: bytes,
+    printer_name: str | None = None,
+    *,
+    host: str | None = None,
+    com_port: str | None = None,
+    baud: int | None = None,
+) -> dict[str, Any]:
+    """Envía ZPL RAW: COM/Bluetooth → TCP → cola Windows Zebra."""
     if sys.platform != 'win32':
         return {'ok': False, 'error': 'plataforma', 'mensaje': 'Solo Windows (PC tienda).'}
     if not data:
         return {'ok': False, 'error': 'vacio', 'mensaje': 'Sin datos para imprimir.'}
+
+    # 1) Puerto serie / Bluetooth SPP (p. ej. COM4)
+    com = _parse_com_port(com_port) or _parse_com_port(printer_name) or _parse_com_port(
+        os.getenv('ZEBRA_ZPL_COM') or os.getenv('ZEBRA_IMPRESORA_COM') or ''
+    )
+    if com:
+        baud_i = baud
+        if baud_i is None:
+            try:
+                baud_i = int((os.getenv('ZEBRA_ZPL_BAUD') or '9600').strip() or 9600)
+            except ValueError:
+                baud_i = 9600
+        return _enviar_zpl_com(data, com, baud=int(baud_i or 9600))
 
     host_tcp = (host or _zebra_zpl_host()).strip()
     if host_tcp or _zpl_metodo_tcp_forzado():
@@ -958,8 +1132,8 @@ def enviar_raw_zpl(data: bytes, printer_name: str | None = None, *, host: str | 
             'ok': False,
             'error': 'impresora_no_zebra',
             'mensaje': (
-                f'«{explicit}» no es una cola Zebra. En el panel elija '
-                '«Zebra GX420d - ZPL» o «ZDesigner GX420d» (no XP-80 de tickets).'
+                f'«{explicit}» no es una cola Zebra ni un puerto COM. '
+                'Use «COM4» (Bluetooth), «Zebra GX420d - ZPL» o configure impresora_com.'
             ),
         }
     candidatos = _candidatos_impresora_zebra(printer_name)
@@ -970,8 +1144,8 @@ def enviar_raw_zpl(data: bytes, printer_name: str | None = None, *, host: str | 
             'ok': False,
             'error': 'sin_impresora_zebra',
             'mensaje': (
-                'No hay impresora Zebra usable. Elija la cola en el panel Zebra o configure '
-                'ZEBRA_IMPRESORA_NOMBRE en .env.local (nombre exacto de Windows). '
+                'No hay impresora Zebra usable. Elija la cola en el panel Zebra, '
+                'configure ZEBRA_IMPRESORA_NOMBRE, o use Bluetooth en COM (ZEBRA_ZPL_COM=COM4). '
                 f'Detectadas: {", ".join(lista[:8]) or "ninguna"}'
             ),
             'candidatos': candidatos[:8],

@@ -528,14 +528,43 @@
   }
 
   function buildRecoCardHtml(it) {
+    const isPromo = String(it.tipo || "") === "promo_campana";
+    const layout = String(it.layout || "");
     const imgUrl = String(it.imagen_url || "").trim();
-    const media = buildRecoMediaHtml(imgUrl);
-    const motivo = shortMotivo(it.motivo, 90);
+    const precioTxt = String(it.precio_texto || "").trim();
+    const precioHtml = precioTxt
+      ? esc(precioTxt)
+      : esc(fmt(it.precio || 0));
+    const cta = esc(it.cta || "Pida en mostrador");
+    const motivo = shortMotivo(it.motivo, isPromo ? 70 : 90);
     const motivoHtml = motivo
       ? '<p class="ew-cfm-reco-card__motivo">' + esc(motivo) + "</p>"
       : "";
+
+    if (isPromo && layout === "flyer" && imgUrl) {
+      return (
+        '<article class="ew-cfm-reco-card ew-cfm-reco-card--promo-flyer">' +
+        '<div class="ew-cfm-reco-card__flyer-wrap">' +
+        '<img class="ew-cfm-reco-card__flyer" src="' +
+        esc(imgUrl) +
+        '" alt="' +
+        esc(truncName(it.nombre, 80)) +
+        '" loading="eager" decoding="async" />' +
+        "</div>" +
+        '<footer class="ew-cfm-reco-card__foot">' +
+        '<p class="ew-cfm-reco-card__price">' +
+        precioHtml +
+        '</p><span class="ew-cfm-reco-card__btn" aria-hidden="true">' +
+        cta +
+        "</span></footer></article>"
+      );
+    }
+
+    const media = buildRecoMediaHtml(imgUrl);
     return (
-      '<article class="ew-cfm-reco-card">' +
+      '<article class="ew-cfm-reco-card' +
+      (isPromo ? " ew-cfm-reco-card--promo" : "") +
+      '">' +
       media +
       '<div class="ew-cfm-reco-card__body">' +
       '<p class="ew-cfm-reco-card__name">' +
@@ -545,8 +574,10 @@
       "</div>" +
       '<footer class="ew-cfm-reco-card__foot">' +
       '<p class="ew-cfm-reco-card__price">' +
-      esc(fmt(it.precio || 0)) +
-      '</p><span class="ew-cfm-reco-card__btn" aria-hidden="true">Pida en mostrador</span></footer></article>'
+      precioHtml +
+      '</p><span class="ew-cfm-reco-card__btn" aria-hidden="true">' +
+      cta +
+      "</span></footer></article>"
     );
   }
 
@@ -603,12 +634,16 @@
     const recoSinCambio = rk === lastRecoPaintKey;
 
     if (recoIdle) {
-      recoIdle.classList.toggle("d-none", identified || !abierta || nItems === 0);
+      // Con ofertas/sugerencias visibles no tapamos espacio con el aviso de identificación
+      recoIdle.classList.toggle(
+        "d-none",
+        !abierta || nItems === 0 || items.length > 0 || identified
+      );
     }
 
     if (titulo) {
       const t =
-        rec && rec.titulo ? rec.titulo : "LhexIA IA recomienda para tu proyecto";
+        rec && rec.titulo ? rec.titulo : "Visor de promociones";
       if (titulo.textContent !== t) titulo.textContent = t;
     }
 
@@ -617,8 +652,8 @@
         rec && rec.subtitulo
           ? rec.subtitulo
           : identified
-            ? "Sugerencias según su historial y esta compra"
-            : "Sugerencias según lo que lleva en su compra";
+            ? "Ofertas y sugerencias según su historial"
+            : "Ofertas vigentes · pida en mostrador";
       if (sub.textContent !== st) sub.textContent = st;
     }
 

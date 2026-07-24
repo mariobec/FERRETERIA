@@ -1,0 +1,27 @@
+# Visor de promociones (TV Experience Wall)
+
+**Estado:** aparcado — UI en piso OK (IRIS + Stihl hardcodeadas). Alta desde sistema **pendiente**.
+
+## Qué es
+Panel derecho del Experience Wall (al lado del carrito) + slides idle del carrusel TV. Nombre de producto: **Visor de promociones**.
+
+## Ya hecho
+- Slides campaña IRIS / Stihl en idle y con carrito
+- Layout card sin recortar pie (precio + CTA)
+- Catálogo visual TV ampliado
+- Enrolamiento: quitada regla SPRAY→bodega forzada
+
+## Pendiente (cuando Mario diga «reactivar visor de promociones»)
+Conectar CRUD de **Promociones comerciales** → TV:
+- Checkbox «Mostrar en Visor de promociones»
+- Upload flyer / layout flyer|producto / texto oferta / vigencia
+- Reemplazar `_escenas_promos_campana()` y `_pos_tv_items_promos_campana()` por lectura BD
+- Seed IRIS + Stihl como registros admin
+- No mezclar con motor de descuento POS salvo flag explícito
+
+## Archivos clave
+- `services/pos_tv_vitrina_service.py` — `_escenas_promos_campana`
+- `app.py` — `_pos_tv_items_promos_campana`, `_pos_live_wall_recomendaciones_tv`
+- `static/js/pos-experience-wall.js`, `static/css/pos-experience-wall-cfm.css`
+- `static/img/promos/`
+- `templates/pos_live_wall_cliente.html`

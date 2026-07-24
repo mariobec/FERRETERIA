@@ -304,8 +304,47 @@
     );
   }
 
+  function renderPromoCampana(escena) {
+    const layout = String(escena.layout || "flyer");
+    const img = esc(escena.imagen_url || "");
+    const oferta = esc(escena.oferta || "");
+    const prod = esc(escena.producto_nombre || escena.titulo || "");
+    const cta = esc(escena.cta || "Consulte en mostrador");
+    if (layout === "producto") {
+      return (
+        '<div class="ew-vitrina-promo ew-vitrina-promo--producto">' +
+        '<div class="ew-vitrina-promo__copy">' +
+        '<p class="ew-vitrina-promo__kicker">¡Súper oferta!</p>' +
+        '<h3 class="ew-vitrina-promo__name">' +
+        prod +
+        "</h3>" +
+        '<p class="ew-vitrina-promo__deal">' +
+        oferta +
+        "</p>" +
+        '<p class="ew-vitrina-promo__cta">' +
+        cta +
+        "</p></div>" +
+        '<div class="ew-vitrina-promo__media">' +
+        (img
+          ? '<img class="ew-vitrina-promo__img" src="' + img + '" alt="' + prod + '" loading="eager">'
+          : "") +
+        "</div></div>"
+      );
+    }
+    return (
+      '<div class="ew-vitrina-promo ew-vitrina-promo--flyer">' +
+      (img
+        ? '<img class="ew-vitrina-promo__flyer" src="' + img + '" alt="' + esc(escena.titulo || "Promoción") + '" loading="eager">'
+        : '<div class="ew-vitrina-promo__fallback"><p class="ew-vitrina-promo__deal">' +
+          oferta +
+          "</p></div>") +
+      "</div>"
+    );
+  }
+
   function renderSlideBody(escena) {
     const tipo = escena.tipo || "";
+    if (tipo === "promo_campana") return renderPromoCampana(escena);
     if (tipo === "proyecto_chilemat") return renderProyectoChilemat(escena);
     if (tipo === "producto_destacado") return renderProductoDestacado(escena);
     if (tipo === "grid_destacados") return renderGridDestacados(escena);

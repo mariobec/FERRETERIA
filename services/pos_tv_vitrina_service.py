@@ -215,21 +215,25 @@ def _escenas_proyecto_chilemat(max_escenas: int = 8) -> list[dict[str, Any]]:
     return escenas
 
 
-def _items_desde_catalogo(max_items: int = 24) -> list[dict[str, Any]]:
+def _items_desde_catalogo(max_items: int = 96) -> list[dict[str, Any]]:
     try:
         from services.vitrina_tienda_service import listar_productos
     except Exception:
         return []
     items: list[dict[str, Any]] = []
     try:
-        for page in (1, 2, 3, 4, 5):
+        # Hasta ~10 páginas × 48 = pool amplio para TV (solo con foto + stock tienda)
+        for page in range(1, 11):
             bloque = listar_productos(
                 page=page,
-                per_page=32,
+                per_page=48,
                 solo_disponibles=True,
                 orden='recomendados',
             )
-            for p in bloque.get('productos') or []:
+            prods = bloque.get('productos') or []
+            if not prods:
+                break
+            for p in prods:
                 if not (p.get('imagen_url') and p.get('disponible')):
                     continue
                 pid = p.get('producto_id')
@@ -243,10 +247,14 @@ def _items_desde_catalogo(max_items: int = 24) -> list[dict[str, Any]]:
                         'categoria': p.get('categoria'),
                     }
                 )
-                if len(items) >= max_items * 3:
+                if len(items) >= max_items * 2:
                     break
-            if len(items) >= max_items * 3:
+            if len(items) >= max_items * 2:
                 break
+            if not bloque.get('has_next') and page > 1:
+                # paginate may not expose has_next; stop if short page
+                if len(prods) < 12:
+                    break
     except Exception as ex:
         _log.debug('items catalogo vitrina TV: %s', ex)
     items = _dedupe_items_vitrina(items)
@@ -257,7 +265,7 @@ def _items_desde_catalogo(max_items: int = 24) -> list[dict[str, Any]]:
 def _escenas_grid_desde_items(
     items: list[dict[str, Any]],
     *,
-    max_escenas: int = 6,
+    max_escenas: int = 12,
     por_escena: int = 8,
     min_items: int = 4,
 ) -> list[dict[str, Any]]:
@@ -270,6 +278,12 @@ def _escenas_grid_desde_items(
         'Selección Chilemat',
         'Stock disponible ahora',
         'Recomendados LhexIA',
+        'Herramientas y ferretería',
+        'Pinturas y terminaciones',
+        'Fijaciones y pernería',
+        'Jardín y outdoor',
+        'Novedades en góndola',
+        'Para su obra',
     )
     escenas: list[dict[str, Any]] = []
     items = _dedupe_items_vitrina(list(items or []))
@@ -295,8 +309,8 @@ def _escenas_grid_desde_items(
     return escenas
 
 
-def _escenas_destacados_catalogo(max_escenas: int = 6, *, por_escena: int = 8) -> list[dict[str, Any]]:
-    con_foto = _items_desde_catalogo(max_escenas * por_escena + 8)
+def _escenas_destacados_catalogo(max_escenas: int = 12, *, por_escena: int = 8) -> list[dict[str, Any]]:
+    con_foto = _items_desde_catalogo(max_escenas * por_escena + 24)
     min_items = min(4, por_escena)
     if len(con_foto) < min_items:
         return []
@@ -306,6 +320,24 @@ def _escenas_destacados_catalogo(max_escenas: int = 6, *, por_escena: int = 8) -
         por_escena=por_escena,
         min_items=min_items,
     )
+
+
+def _escenas_hero_catalogo(max_escenas: int = 6) -> list[dict[str, Any]]:
+    """Slides 1 producto grande para rotar más catálogo visual."""
+    items = _items_desde_catalogo(max_escenas * 3 + 8)
+    if not items:
+        return []
+    # Tomar del segundo tercio para no repetir el mismo bloque del grid inicial
+    offset = min(len(items) // 3, max(0, len(items) - max_escenas))
+    pool = items[offset : offset + max_escenas * 2]
+    out: list[dict[str, Any]] = []
+    for it in pool:
+        if not it.get('imagen_url'):
+            continue
+        out.append(_escena_producto_destacado(it))
+        if len(out) >= max_escenas:
+            break
+    return out
 
 
 def _escena_marca(empresa_nombre: str, catalogo_url: str | None) -> dict[str, Any]:
@@ -324,17 +356,55 @@ def _escena_marca(empresa_nombre: str, catalogo_url: str | None) -> dict[str, An
     }
 
 
+def _escenas_promos_campana() -> list[dict[str, Any]]:
+    """Slides fijos de campaña piso (flyers Chilemat) — van primero en TV cliente."""
+    try:
+        from flask import url_for
+
+        iris_url = url_for('static', filename='img/promos/promo_iris_2x30000.png')
+        stihl_url = url_for('static', filename='img/promos/promo_stihl_aceite.png')
+    except Exception:
+        iris_url = '/static/img/promos/promo_iris_2x30000.png'
+        stihl_url = '/static/img/promos/promo_stihl_aceite.png'
+
+    return [
+        {
+            'tipo': 'promo_campana',
+            'titulo': '¡Súper oferta! IRIS Óleo Brillante',
+            'subtitulo': 'Antes $24.990 c/u · Ahora lleva 2 × $30.000 · Hasta agotar stock',
+            'badge': 'Promo piso',
+            'layout': 'flyer',
+            'imagen_url': iris_url,
+            'cta': 'Consulte colores en mostrador',
+            'oferta': '2 × $30.000',
+        },
+        {
+            'tipo': 'promo_campana',
+            'titulo': 'Aceite Mezcla Premium Stihl',
+            'subtitulo': 'Aceite Mezcla 50cc Premium Stihl · 2 × $3.200',
+            'badge': 'Promo Stihl',
+            'layout': 'producto',
+            'imagen_url': stihl_url,
+            'cta': 'Pida en mostrador',
+            'oferta': '2 × $3.200',
+            'producto_nombre': 'Aceite Mezcla 50cc Premium Stihl',
+        },
+    ]
+
+
 def _ordenar_escenas(escenas: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not escenas:
         return []
+    promos = [e for e in escenas if e.get('tipo') == 'promo_campana']
+    resto = [e for e in escenas if e.get('tipo') != 'promo_campana']
     seed_key = datetime.now().strftime('%Y%m%d%H')
     seed = int(hashlib.md5(seed_key.encode('utf-8')).hexdigest()[:8], 16)
     rng = random.Random(seed)
-    proyectos = [e for e in escenas if e.get('tipo') == 'proyecto_chilemat']
-    otros = [e for e in escenas if e.get('tipo') != 'proyecto_chilemat']
+    proyectos = [e for e in resto if e.get('tipo') == 'proyecto_chilemat']
+    otros = [e for e in resto if e.get('tipo') != 'proyecto_chilemat']
     rng.shuffle(proyectos)
     rng.shuffle(otros)
-    out: list[dict[str, Any]] = []
+    out: list[dict[str, Any]] = list(promos)
     pi, oi = 0, 0
     while pi < len(proyectos) or oi < len(otros):
         if pi < len(proyectos):
@@ -517,22 +587,43 @@ def construir_vitrina_attract(
 ) -> dict[str, Any]:
     """
     Payload modo vitrina para TV sin venta activa.
-    Mezcla proyectos Chilemat (relaciones) + destacados catálogo + slide marca.
+    Promos campaña + catálogo ampliado (grids + heroes) + Chilemat + marca.
     """
     escenas: list[dict[str, Any]] = []
-    escenas.extend(_escenas_proyecto_chilemat(max_escenas=10))
-    escenas.extend(_escenas_destacados_catalogo(max_escenas=6, por_escena=6))
+    escenas.extend(_escenas_promos_campana())
+
+    # Un solo fetch de catálogo visual (foto + stock tienda)
+    pool = _items_desde_catalogo(120)
+    if pool:
+        escenas.extend(
+            _escenas_grid_desde_items(
+                pool,
+                max_escenas=14,
+                por_escena=8,
+                min_items=4,
+            )
+        )
+        # Heroes con productos del tramo medio (más variedad visual)
+        offset = min(len(pool) // 3, max(0, len(pool) - 8))
+        for it in pool[offset : offset + 16]:
+            if not it.get('imagen_url'):
+                continue
+            escenas.append(_escena_producto_destacado(it))
+            if sum(1 for e in escenas if e.get('tipo') == 'producto_destacado') >= 8:
+                break
+
+    escenas.extend(_escenas_proyecto_chilemat(max_escenas=8))
     escenas.append(_escena_marca(empresa_nombre, catalogo_url))
     escenas = _ordenar_escenas(escenas)
 
-    # Mínimo 2 escenas visibles para que el carrusel avance (p. ej. 2 grids + marca).
+    # Mínimo 2 escenas no-marca para que el carrusel avance.
     if len([e for e in escenas if e.get('tipo') != 'marca_local']) < 2:
-        items = _items_desde_catalogo(24)
+        items = pool or _items_desde_catalogo(48)
         if len(items) >= 4:
             extras = _escenas_grid_desde_items(
                 items,
-                max_escenas=3,
-                por_escena=4,
+                max_escenas=4,
+                por_escena=6,
                 min_items=4,
             )
             existentes = {
@@ -551,12 +642,12 @@ def construir_vitrina_attract(
             escenas = _ordenar_escenas(escenas)
 
     if len(escenas) <= 1:
-        items = _items_desde_catalogo(16)
+        items = pool or _items_desde_catalogo(32)
         if len(items) >= 4:
             fallback = _escenas_grid_desde_items(
-                items[:8],
-                max_escenas=2,
-                por_escena=4,
+                items[:16],
+                max_escenas=3,
+                por_escena=6,
                 min_items=4,
             )
             if fallback:
@@ -582,13 +673,16 @@ def construir_vitrina_attract(
         escenas,
         empresa_nombre=empresa_nombre,
         catalogo_url=catalogo_url,
-        minimo=6,
+        minimo=10,
     )
 
+    # Cap alto: promos + grids + heroes caben en un ciclo TV largo
+    max_slides = 40
     return {
         'activo': bool(escenas),
-        'duracion_seg': 6,
-        'escenas': escenas[:24],
-        'n_escenas': len(escenas[:24]),
-        'fuente': 'chilemat_catalogo',
+        'duracion_seg': 7,
+        'escenas': escenas[:max_slides],
+        'n_escenas': len(escenas[:max_slides]),
+        'fuente': 'promos_campana_chilemat_catalogo',
+        'n_catalogo_items': len(pool or []),
     }
