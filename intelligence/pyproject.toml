@@ -1,0 +1,15 @@
+[project]
+name = "intelligence-registros-chile"
+version = "0.1.0"
+description = "Extractor aparte de bautismos, matrimonios y defunciones de Chile vía la API de FamilySearch"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+registros-chile = "intelligence.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.unittest]
+start-directory = "tests"
